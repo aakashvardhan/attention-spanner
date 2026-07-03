@@ -1,0 +1,34 @@
+{
+  "name": "adhd-chrome-reader",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && npm run build:content",
+    "build:content": "esbuild src/content/readingTracker.ts src/content/videoTracker.ts src/content/timePill.ts --bundle --format=iife --outdir=dist/content --log-level=error",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "fast-xml-parser": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0",
+    "@types/chrome": "^0.0.323",
+    "@types/dom-chromium-ai": "^0.0.17",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "esbuild": "^0.28.1",
+    "typescript": "~5.8.0",
+    "vite": "^6.3.0",
+    "vitest": "^3.1.0"
+  }
+}
