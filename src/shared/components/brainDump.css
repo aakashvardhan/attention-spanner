@@ -1,0 +1,263 @@
+/* Brain dump component — bd- prefix to avoid per-page CSS collisions */
+
+.bd {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bd-center {
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
+  gap: 10px;
+}
+
+.bd-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.bd-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.bd-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bd-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bd-primary:hover {
+  background: var(--accent-hover);
+}
+
+.bd-primary:disabled {
+  background: var(--disabled);
+  cursor: default;
+}
+
+.bd-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bd-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.bd-ghost.small {
+  padding: 3px 8px;
+  font-size: 11px;
+  border: none;
+}
+
+.bd-ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bd-status {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.bd-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bd-error {
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.bd-done {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.bd-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: bd-spin 0.8s linear infinite;
+}
+
+@keyframes bd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.bd-progress {
+  width: 100%;
+  max-width: 260px;
+  height: 8px;
+  background: var(--accent-track);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bd-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+.bd-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bd-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.bd-bullets li {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.bd-bullets.small li {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bd-proposed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bd-proposed-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-track);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bd-proposed-task input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Notes history */
+
+.bd-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bd-note {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bd-note-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bd-note-head-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.bd-note-date {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.bd-note-raw {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bd-note-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bd-task-chip {
+  font-size: 11px;
+  border-radius: 10px;
+  padding: 3px 9px;
+  border: 1px solid var(--accent-border);
+  background: var(--bg-surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.bd-task-chip:hover {
+  background: var(--accent-wash);
+}
+
+.bd-task-chip.added {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success-border);
+  cursor: default;
+}
