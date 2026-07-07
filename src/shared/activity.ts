@@ -1,0 +1,162 @@
+import { localDate } from './format';
+import type { DayStats, SrsDayStats } from './types';
+
+/**
+ * Activity scoring for the dashboard's GitHub-style contribution calendar.
+ * Pure — the component only maps the returned model to DOM.
+ */
+
+export interface DayActivityParts {
+  /** Active reading + watching minutes */
+  minutes: number;
+  sprints: number;
+  articles: number;
+  videos: number;
+  focusBlocks: number;
+  gym: boolean;
+  cardsReviewed: number;
+  tasks: number;
+}
+
+/**
+ * Each discrete completion = 1 point; continuous quantities are normalized
+ * (15 min ≈ one activity, 10 card reviews ≈ one activity) so no single
+ * signal drowns the rest.
+ */
+export function dayActivityScore(p: DayActivityParts): number {
+  return (
+    p.tasks +
+    p.articles +
+    p.videos +
+    p.sprints +
+    p.focusBlocks +
+    (p.gym ? 1 : 0) +
+    Math.floor(p.minutes / 15) +
+    Math.floor(p.cardsReviewed / 10)
+  );
+}
+
+export type ActivityLevel = 0 | 1 | 2 | 3 | 4;
+
+/** GitHub-style quartiles of the year's max; any nonzero score is at least 1 */
+export function activityLevel(score: number, max: number): ActivityLevel {
+  if (score <= 0 || max <= 0) return 0;
+  return Math.min(4, Math.max(1, Math.ceil((score / max) * 4))) as ActivityLevel;
+}
+
+export interface ActivityDay {
+  /** Local date 'YYYY-MM-DD' */
+  date: string;
+  score: number;
+  level: ActivityLevel;
+  tooltip: string;
+  /** After today — rendered as an invisible placeholder */
+  future: boolean;
+}
+
+export interface ActivityModel {
+  /** Week columns (oldest first), each exactly 7 days Mon→Sun */
+  weeks: ActivityDay[][];
+  monthLabels: { columnIndex: number; label: string }[];
+  totalActivities: number;
+  maxScore: number;
+}
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+export function formatDayTooltip(date: Date, parts: DayActivityParts, score: number): string {
+  const head = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  if (score === 0) return `${head} — No activity`;
+  const bits: string[] = [];
+  if (parts.tasks > 0) bits.push(plural(parts.tasks, 'task'));
+  if (Math.round(parts.minutes) >= 1) bits.push(`${Math.round(parts.minutes)} min`);
+  if (parts.sprints > 0) bits.push(plural(parts.sprints, 'sprint'));
+  if (parts.articles > 0) bits.push(plural(parts.articles, 'article'));
+  if (parts.videos > 0) bits.push(plural(parts.videos, 'video'));
+  if (parts.focusBlocks > 0) bits.push(plural(parts.focusBlocks, 'focus block'));
+  if (parts.gym) bits.push('gym');
+  if (parts.cardsReviewed > 0) bits.push(plural(parts.cardsReviewed, 'review'));
+  return `${head} — ${bits.join(' · ')}`;
+}
+
+const MIN_LABEL_GAP_COLUMNS = 3;
+
+export function buildActivityDays(
+  streaksDaily: Record<string, DayStats>,
+  gymCheckins: Record<string, number>,
+  srsDaily: Record<string, SrsDayStats>,
+  todayKey: string,
+  weeks = 53,
+): ActivityModel {
+  const [y, m, d] = todayKey.split('-').map(Number);
+  const today = new Date(y, m - 1, d);
+  const startMonday = new Date(today);
+  startMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7) - (weeks - 1) * 7);
+
+  // First pass: assemble days with scores
+  const columns: { day: ActivityDay; parts: DayActivityParts; dateObj: Date }[][] = [];
+  let maxScore = 0;
+  let totalActivities = 0;
+  for (let w = 0; w < weeks; w++) {
+    const column: (typeof columns)[number] = [];
+    for (let r = 0; r < 7; r++) {
+      const dateObj = new Date(startMonday);
+      dateObj.setDate(startMonday.getDate() + w * 7 + r);
+      const date = localDate(dateObj);
+      const stats = streaksDaily[date];
+      const parts: DayActivityParts = {
+        minutes: stats?.minutes ?? 0,
+        sprints: stats?.sprints ?? 0,
+        articles: stats?.articlesFinished ?? 0,
+        videos: stats?.videosFinished ?? 0,
+        focusBlocks: stats?.focusBlocks ?? 0,
+        gym: date in gymCheckins,
+        cardsReviewed: Object.values(srsDaily[date]?.reviews ?? {}).reduce((a, b) => a + b, 0),
+        tasks: stats?.tasksCompleted ?? 0,
+      };
+      const future = date > todayKey;
+      const score = future ? 0 : dayActivityScore(parts);
+      maxScore = Math.max(maxScore, score);
+      totalActivities += score;
+      column.push({
+        day: { date, score, level: 0, tooltip: '', future },
+        parts,
+        dateObj,
+      });
+    }
+    columns.push(column);
+  }
+
+  // Second pass: levels + tooltips against the year's max
+  const weeksOut: ActivityDay[][] = columns.map((column) =>
+    column.map(({ day, parts, dateObj }) => ({
+      ...day,
+      level: day.future ? (0 as ActivityLevel) : activityLevel(day.score, maxScore),
+      tooltip: day.future ? '' : formatDayTooltip(dateObj, parts, day.score),
+    })),
+  );
+
+  // Month labels: where a column's Monday enters a new month (collision-guarded)
+  const monthLabels: ActivityModel['monthLabels'] = [];
+  let prevMonth = -1;
+  let lastLabelColumn = -Infinity;
+  for (let w = 0; w < weeks; w++) {
+    const monday = new Date(startMonday);
+    monday.setDate(startMonday.getDate() + w * 7);
+    const month = monday.getMonth();
+    if (month !== prevMonth) {
+      if (w - lastLabelColumn >= MIN_LABEL_GAP_COLUMNS) {
+        monthLabels.push({
+          columnIndex: w,
+          label: monday.toLocaleDateString('en-US', { month: 'short' }),
+        });
+        lastLabelColumn = w;
+      }
+      prevMonth = month;
+    }
+  }
+
+  return { weeks: weeksOut, monthLabels, totalActivities, maxScore };
+}
