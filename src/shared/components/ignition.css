@@ -1,0 +1,89 @@
+/* Ignition mode — the ⚡ row button and the inline first-action card.
+   Self-contained styles: both the popup and the newtab dashboard render
+   these, and the popup's global button rule excludes .task-ignite,
+   .ignition-start, and .ignition-ghost. */
+
+.task-ignite {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.task-ignite:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.ignition-card {
+  margin: 6px 0 2px 24px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ignition-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ignition-action {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.ignition-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.ignition-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ignition-start {
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ignition-start:hover {
+  background: var(--accent-hover, var(--accent));
+}
+
+.ignition-start:disabled {
+  background: var(--disabled);
+  cursor: default;
+}
+
+.ignition-ghost {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.ignition-ghost:hover {
+  color: var(--text-primary);
+}
