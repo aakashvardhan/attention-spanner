@@ -1,5 +1,3 @@
-# ADHD Reader
-
 A Chrome extension that turns an RSS reader into a full attention-management
 system. It helps you finish what you start, capture thoughts before they
 vanish, and build the habits that keep you on track — all without sending
