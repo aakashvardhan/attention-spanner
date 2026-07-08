@@ -7,6 +7,8 @@ your data anywhere.
 
 Built with Manifest V3, React, Vite, and TypeScript.
 
+![ADHD Reader dashboard](docs/screenshots/dashboard.png)
+
 ## Why this exists
 
 Standard RSS readers assume you'll read what you save. In practice, articles
