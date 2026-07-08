@@ -22,6 +22,7 @@ import {
 import { recomputeStreak } from './streaks';
 import { pruneCompletedTasks, snoozeOpenTasks } from './tasks';
 import { maybeInjectTimePill } from './timePill';
+import { markPaperReadingByUrl } from './papers';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
 import { handleMessage } from './router';
@@ -152,6 +153,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     void maybeInjectTracker(tabId, tab.url);
     void maybeInjectTimePill(tabId, tab.url);
+    // URL-only match — works even in PDF viewers our content scripts can't enter
+    void markPaperReadingByUrl(tab.url);
   }
   // YouTube is an SPA: pushState navs fire onUpdated with changeInfo.url but
   // no 'complete'. The in-page guard makes repeated injections harmless.

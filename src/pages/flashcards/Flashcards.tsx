@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NEWTAB_PAGE_PATH } from '../../shared/constants';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { DeckList } from './components/DeckList';
@@ -37,7 +38,16 @@ export function Flashcards() {
     <div className="fc-page">
       <header className="fc-header">
         <div className="fc-header-left">
-          {screen.name !== 'decks' && (
+          {screen.name === 'decks' ? (
+            <button
+              className="ghost-btn fc-back"
+              onClick={() => {
+                location.href = chrome.runtime.getURL(NEWTAB_PAGE_PATH);
+              }}
+            >
+              ← Dashboard
+            </button>
+          ) : (
             <button
               className="ghost-btn fc-back"
               onClick={() =>

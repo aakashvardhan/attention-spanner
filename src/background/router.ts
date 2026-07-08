@@ -25,6 +25,7 @@ import {
   resetCard,
   updateNote,
 } from './flashcards';
+import { addPaper, deletePaper, updatePaper } from './papers';
 import { startFocus, stopFocus } from './focus';
 import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
@@ -93,7 +94,7 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       void flushQueue();
       return { ok: true };
     case 'FLASH_ADD_DECK':
-      return addDeck(msg.name);
+      return addDeck(msg.name, msg.kind);
     case 'FLASH_RENAME_DECK':
       return renameDeck(msg.id, msg.name);
     case 'FLASH_DELETE_DECK':
@@ -108,6 +109,12 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return answerCard(msg.cardId, msg.rating);
     case 'FLASH_RESET_CARD':
       return resetCard(msg.cardId);
+    case 'PAPER_ADD':
+      return addPaper(msg.draft);
+    case 'PAPER_UPDATE':
+      return updatePaper(msg.id, msg.patch);
+    case 'PAPER_DELETE':
+      return deletePaper(msg.id);
     case 'STRUCTURE_NOTE_RESULT':
       await applyStructureResult(msg.id, msg.bullets, msg.tasks);
       return { ok: true };

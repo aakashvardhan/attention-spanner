@@ -7,6 +7,7 @@ import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
 import type { Settings, ThemeSetting } from '../../shared/types';
 import { NotionSection } from './NotionSection';
+import { PapersSection } from './PapersSection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
@@ -498,6 +499,8 @@ export function Options() {
         </section>
 
         <NotionSection />
+
+        <PapersSection />
 
         <section className="section">
           <h2>Data</h2>

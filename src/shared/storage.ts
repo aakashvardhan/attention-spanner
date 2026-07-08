@@ -13,6 +13,7 @@ import type {
   FocusSession,
   Gamification,
   GymState,
+  Paper,
   Settings,
   SrsDayStats,
   Streaks,
@@ -40,6 +41,8 @@ export interface LocalSchema {
   decks: Deck[];
   flashNotes: FlashNote[];
   flashCards: FlashCard[];
+  /** Research papers, grouped into decks (shared with flashcards) */
+  papers: Paper[];
   /** Keyed by local date 'YYYY-MM-DD', pruned to SRS_DAILY_RETENTION_DAYS */
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
@@ -101,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notionPushBrainDumps: false,
   notionPushTasks: false,
   notionPushReading: false,
+  semanticScholarApiKey: '',
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -139,6 +143,7 @@ export const DEFAULTS: LocalSchema = {
   decks: [],
   flashNotes: [],
   flashCards: [],
+  papers: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
 };
@@ -202,6 +207,9 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * likewise stays optional, read with `?? 0`).
  * v3 → v4 (Phase 13): backfill counters.cardsReviewed. The flashcards
  * collections themselves need no migration — getLocal falls back to DEFAULTS.
+ * v4 → v5 (papers): decks became typed. Backfill Deck.kind — a deck with
+ * cards/notes is 'flashcards', one with only papers is 'papers', empty decks
+ * default to 'flashcards' (their historical purpose).
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -211,7 +219,7 @@ export async function migrate(): Promise<void> {
     'gamification',
   ]);
   const version = (stored.schemaVersion as number | undefined) ?? 0;
-  if (version >= 4) return;
+  if (version >= 5) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -233,5 +241,28 @@ export async function migrate(): Promise<void> {
     await chrome.storage.local.set({ gamification });
   }
 
-  await chrome.storage.local.set({ schemaVersion: 4 });
+  if (version < 5) {
+    const { decks, flashCards, flashNotes, papers } = await chrome.storage.local.get([
+      'decks',
+      'flashCards',
+      'flashNotes',
+      'papers',
+    ]);
+    const deckList = (decks as Deck[] | undefined) ?? [];
+    if (deckList.length) {
+      const cards = (flashCards as { deckId: string }[] | undefined) ?? [];
+      const notes = (flashNotes as { deckId: string }[] | undefined) ?? [];
+      const paperList = (papers as { deckId: string }[] | undefined) ?? [];
+      for (const deck of deckList) {
+        if (deck.kind) continue;
+        const hasCards =
+          cards.some((c) => c.deckId === deck.id) || notes.some((n) => n.deckId === deck.id);
+        const hasPapers = paperList.some((p) => p.deckId === deck.id);
+        deck.kind = hasCards ? 'flashcards' : hasPapers ? 'papers' : 'flashcards';
+      }
+      await chrome.storage.local.set({ decks: deckList });
+    }
+  }
+
+  await chrome.storage.local.set({ schemaVersion: 5 });
 }

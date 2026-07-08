@@ -13,6 +13,7 @@ export default defineConfig({
         capture: 'src/pages/capture/index.html',
         blocked: 'src/pages/blocked/index.html',
         flashcards: 'src/pages/flashcards/index.html',
+        papers: 'src/pages/papers/index.html',
       },
     },
   },

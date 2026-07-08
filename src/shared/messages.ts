@@ -4,8 +4,11 @@ import type {
   BookmarkLink,
   BrainDumpNote,
   Deck,
+  DeckKind,
   FlashNote,
   FlashNoteType,
+  Paper,
+  PaperDraft,
   Rating,
   Task,
 } from './types';
@@ -52,7 +55,7 @@ export type Message =
   | { type: 'NOTION_LIST_DBS' }
   | { type: 'NOTION_TEST' }
   | { type: 'NOTION_FLUSH_NOW' }
-  | { type: 'FLASH_ADD_DECK'; name: string }
+  | { type: 'FLASH_ADD_DECK'; name: string; kind: DeckKind }
   | { type: 'FLASH_RENAME_DECK'; id: string; name: string }
   | { type: 'FLASH_DELETE_DECK'; id: string }
   | {
@@ -67,6 +70,9 @@ export type Message =
   | { type: 'FLASH_DELETE_NOTE'; id: string }
   | { type: 'FLASH_ANSWER_CARD'; cardId: string; rating: Rating }
   | { type: 'FLASH_RESET_CARD'; cardId: string }
+  | { type: 'PAPER_ADD'; draft: PaperDraft }
+  | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
+  | { type: 'PAPER_DELETE'; id: string }
   // Content script → service worker
   | { type: 'TRACKER_READY' }
   | { type: 'TIME_PILL_READY'; host: string }
@@ -137,6 +143,9 @@ export interface MessageResponses {
   FLASH_DELETE_NOTE: { ok: boolean; error?: string };
   FLASH_ANSWER_CARD: { ok: boolean; error?: string };
   FLASH_RESET_CARD: { ok: boolean; error?: string };
+  PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
+  PAPER_UPDATE: { ok: boolean; error?: string };
+  PAPER_DELETE: { ok: boolean; error?: string };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   TIME_PILL_READY: { ok: boolean; todaySeconds: number };
   TIME_PILL_TICK: { ok: boolean };

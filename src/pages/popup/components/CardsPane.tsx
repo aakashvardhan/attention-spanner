@@ -9,6 +9,9 @@ export function CardsPane() {
   const [srsDaily] = useStorageValue('srsDaily');
   const counts = dueCounts(flashCards, Date.now(), newIntroducedToday(srsDaily, localDate()));
 
+  // Only flashcard decks belong here — paper decks live on the Papers page
+  const flashDecks = decks.filter((d) => (d.kind ?? 'flashcards') === 'flashcards');
+
   const open = (hash = '') => {
     void chrome.tabs.create({ url: chrome.runtime.getURL(FLASHCARDS_PAGE_PATH) + hash });
     window.close();
@@ -16,11 +19,11 @@ export function CardsPane() {
 
   return (
     <main>
-      {decks.length === 0 ? (
+      {flashDecks.length === 0 ? (
         <div className="no-results">No decks yet — open Flashcards to create one.</div>
       ) : (
         <div className="cards-deck-list">
-          {decks.map((deck) => {
+          {flashDecks.map((deck) => {
             const c = counts[deck.id];
             const due = c ? c.newCount + c.learningCount + c.reviewCount : 0;
             return (

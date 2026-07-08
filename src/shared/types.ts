@@ -56,6 +56,7 @@ export const DASH_CARD_IDS = [
   'progress',
   'braindump',
   'flashcards',
+  'papers',
 ] as const;
 export type DashCardId = (typeof DASH_CARD_IDS)[number];
 
@@ -121,16 +122,23 @@ export interface Settings {
   notionPushBrainDumps: boolean;
   notionPushTasks: boolean;
   notionPushReading: boolean;
+  /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
+  semanticScholarApiKey: string;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
    FlashCards (cloze indexes / reversed direction); card ids are deterministic
    `${noteId}#${variant}` so note edits reconcile instead of resetting scheduling. */
 
+/** A deck is dedicated to one purpose — flashcards or research papers. */
+export type DeckKind = 'flashcards' | 'papers';
+
 export interface Deck {
   id: string;
   name: string;
   createdAt: number;
+  /** Decks created before this field default to 'flashcards' (see migrate) */
+  kind: DeckKind;
 }
 
 export type FlashNoteType = 'basic' | 'cloze';
@@ -181,6 +189,45 @@ export interface SrsDayStats {
   /** deckId → new cards introduced that day */
   newIntroduced: Record<string, number>;
 }
+
+/* Research papers. Each paper belongs to a Deck (shared with flashcards), so a
+   deck holds both the papers you read and the cards you make from them. Reading
+   progress is tracked manually (papers usually open in the PDF viewer, where
+   scroll tracking can't reach). */
+
+export type PaperStatus = 'to-read' | 'reading' | 'read';
+
+export interface Paper {
+  id: string;
+  /** Reuses Deck.id — the same decks as flashcards */
+  deckId: string;
+  title: string;
+  /** Comma-joined author names */
+  authors: string;
+  /** Conference / journal */
+  venue: string;
+  year: number | null;
+  /** Citation count from the metadata lookup */
+  citations: number | null;
+  /** arXiv / DOI / paper URL; used by "Open paper" */
+  url: string;
+  /** The abstract / description */
+  abstract: string;
+  /** Free text: why this paper matters to me */
+  relevance: string;
+  status: PaperStatus;
+  /** 0–100, set manually */
+  progressPercent: number;
+  /** "Where I left off" note, e.g. "Section 4.2 — ablations" */
+  leftOff: string;
+  addedAt: number;
+  updatedAt: number;
+  /** Bumped whenever status/progress changes while reading */
+  lastReadAt: number | null;
+}
+
+/** The editable fields of a Paper; the service worker fills id/timestamps. */
+export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
 
 export interface BookmarkGroup {
   id: string;

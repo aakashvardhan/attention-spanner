@@ -71,19 +71,15 @@ body {
   align-items: start;
 }
 
-/* Landscape fit: the grid fills the viewport, rows share the height equally,
-   and panels scroll internally instead of the page scrolling. */
+/* Landscape: a uniform grid — every card the same width (equal columns) and the
+   same height (fixed rows). Cards whose content overflows scroll internally; the
+   page scrolls to reveal lower rows. The top bar scrolls with the page. */
 @media (min-width: 981px) {
   .dashboard {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     padding: 16px 32px;
   }
 
   .dash-header {
-    flex-shrink: 0;
     margin-bottom: 12px;
   }
 
@@ -95,30 +91,16 @@ body {
     font-size: 36px;
   }
 
-  .dash-toolbar,
-  .dash-customize-bar,
-  .activity-strip,
-  .focus-banner {
-    flex-shrink: 0;
-  }
-
   .dash-grid {
-    flex: 1;
-    min-height: 0;
-    /* Rows share the leftover height but never collapse below a usable card;
-       when the floor doesn't fit (1-2 columns → many rows) the grid area
-       scrolls while the header and calendar stay pinned */
-    grid-auto-rows: minmax(150px, 1fr);
-    overflow-y: auto;
-    scrollbar-width: thin;
+    grid-auto-rows: 400px;
     align-items: stretch;
     gap: 12px;
   }
 
   .dash-card {
-    min-height: 0;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
   .dash-card > .panel {
@@ -891,7 +873,8 @@ body.focus-active .panel:hover {
 /* Activity calendar (GitHub-style year strip pinned above the grid) */
 
 .activity-strip {
-  --act-cell: 13px;
+  --act-cell: 13px; /* minimum cell size; cells stretch above this to fill width */
+  --act-cell-cap: 20px; /* max cell size, so squares stay tasteful on wide screens */
   --act-gap: 3px;
   position: relative;
   min-height: 0;
@@ -930,16 +913,19 @@ body.focus-active .panel:hover {
   padding-bottom: 2px;
 }
 
-/* Center the graph in the strip at wide viewports; max-content keeps
-   the scroll behavior intact when the viewport is narrower than the grid */
+/* Fill the strip width so the graph spreads out instead of floating in the
+   middle; max-width caps the cell size on ultra-wide screens and margin auto
+   keeps the capped graph centered. Columns stretch (1fr) down to --act-cell,
+   below which the grid overflows and .act-scroll scrolls horizontally. */
 .act-inner {
-  width: max-content;
+  width: 100%;
+  max-width: calc(32px + 53 * var(--act-cell-cap) + 52 * var(--act-gap));
   margin: 0 auto;
 }
 
 .act-months {
   display: grid;
-  grid-template-columns: repeat(53, var(--act-cell));
+  grid-template-columns: repeat(53, minmax(var(--act-cell), 1fr));
   gap: var(--act-gap);
   margin-left: 32px;
   margin-bottom: 4px;
@@ -979,19 +965,22 @@ body.focus-active .panel:hover {
 }
 
 .act-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(53, minmax(var(--act-cell), 1fr));
   gap: var(--act-gap);
+  flex: 1;
+  min-width: 0;
 }
 
 .act-week {
   display: grid;
-  grid-template-rows: repeat(7, var(--act-cell));
+  grid-template-rows: repeat(7, auto);
   gap: var(--act-gap);
 }
 
 .act-cell {
-  width: var(--act-cell);
-  height: var(--act-cell);
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 3px;
   background: var(--heat-0);
   box-shadow: inset 0 0 0 1px var(--heat-cell-border);
@@ -1029,6 +1018,76 @@ body.focus-active .panel:hover {
 
 .act-legend span {
   margin: 0 3px;
+}
+
+/* Legend swatches reuse .act-cell but must stay small and fixed, not fluid */
+.act-legend .act-cell {
+  width: var(--act-cell);
+  height: var(--act-cell);
+  aspect-ratio: auto;
+}
+
+/* Papers panel */
+
+.paper-now-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paper-now {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.paper-now:hover {
+  border-color: var(--accent-border);
+}
+
+.paper-now-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.paper-now-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.paper-now-pct {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+}
+
+.paper-now-leftoff {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paper-toread {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* Flashcards panel */
@@ -1216,7 +1275,7 @@ body.focus-active .panel:hover {
    source order (same specificity as their base selectors above). */
 @media (min-width: 981px) {
   .activity-strip {
-    --act-cell: 10px;
+    --act-cell: 12px;
     --act-gap: 2px;
     padding: 10px 16px 8px;
     margin-bottom: 12px;

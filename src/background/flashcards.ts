@@ -7,7 +7,7 @@ import {
 import { localDate } from '../shared/format';
 import { answerCard as scheduleAnswer, isRewardableAnswer, newCard, reconcileCards } from '../shared/srs';
 import { getLocal, setLocal } from '../shared/storage';
-import type { Deck, FlashNote, FlashNoteType, Rating, SrsDayStats } from '../shared/types';
+import type { Deck, DeckKind, FlashNote, FlashNoteType, Rating, SrsDayStats } from '../shared/types';
 import { awardXp } from './gamification';
 
 /**
@@ -17,13 +17,20 @@ import { awardXp } from './gamification';
 
 export type FlashResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
-export async function addDeck(name: string): Promise<FlashResult<{ deck: Deck }>> {
+export async function addDeck(
+  name: string,
+  kind: DeckKind = 'flashcards',
+): Promise<FlashResult<{ deck: Deck }>> {
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: 'Deck name is required.' };
   const { decks } = await getLocal('decks');
   if (decks.length >= MAX_DECKS) return { ok: false, error: `Deck limit reached (${MAX_DECKS}).` };
-  if (decks.some((d) => d.name === trimmed)) return { ok: false, error: 'A deck with that name exists.' };
-  const deck: Deck = { id: crypto.randomUUID(), name: trimmed, createdAt: Date.now() };
+  // Names must be unique within a kind — a flashcard deck and a paper deck may
+  // share a name.
+  if (decks.some((d) => d.kind === kind && d.name === trimmed)) {
+    return { ok: false, error: 'A deck with that name exists.' };
+  }
+  const deck: Deck = { id: crypto.randomUUID(), name: trimmed, createdAt: Date.now(), kind };
   await setLocal({ decks: [...decks, deck] });
   return { ok: true, deck };
 }
@@ -40,11 +47,18 @@ export async function renameDeck(id: string, name: string): Promise<FlashResult>
 }
 
 export async function deleteDeck(id: string): Promise<FlashResult> {
-  const { decks, flashNotes, flashCards } = await getLocal('decks', 'flashNotes', 'flashCards');
+  const { decks, flashNotes, flashCards, papers } = await getLocal(
+    'decks',
+    'flashNotes',
+    'flashCards',
+    'papers',
+  );
   await setLocal({
     decks: decks.filter((d) => d.id !== id),
     flashNotes: flashNotes.filter((n) => n.deckId !== id),
     flashCards: flashCards.filter((c) => c.deckId !== id),
+    // Papers live in decks too, so they cascade with the deck
+    papers: papers.filter((p) => p.deckId !== id),
     // srsDaily history intentionally kept — the chart just shows fewer decks
   });
   return { ok: true };

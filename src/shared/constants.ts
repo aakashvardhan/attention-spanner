@@ -35,6 +35,15 @@ export const MAX_FLASH_NOTES = 1000;
 export const MAX_FLASHCARDS = 2000;
 export const SRS_DAILY_RETENTION_DAYS = 365;
 export const FLASHCARDS_PAGE_PATH = 'src/pages/flashcards/index.html';
+/** The new-tab dashboard — the "main" extension page the sub-pages link back to */
+export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
+
+/* Research-paper tracker */
+export const MAX_PAPERS = 500;
+export const PAPERS_PAGE_PATH = 'src/pages/papers/index.html';
+/* Semantic Scholar Graph API — free, unauthenticated (rate-limited). Accepts
+   arXiv:<id>, DOI:<doi>, or URL:<url> as the paper reference. */
+export const SEMANTIC_SCHOLAR_PAPER_API = 'https://api.semanticscholar.org/graph/v1/paper/';
 
 export const CAPTURE_WINDOW_TASK = { width: 440, height: 180 } as const;
 export const CAPTURE_WINDOW_DUMP = { width: 440, height: 520 } as const;

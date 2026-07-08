@@ -5,7 +5,7 @@ import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { IgnitionCard } from '../../shared/components/IgnitionCard';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { SortableTaskList } from '../../shared/components/SortableTaskList';
-import { FLASHCARDS_PAGE_PATH, FOCUS_PRESETS } from '../../shared/constants';
+import { FLASHCARDS_PAGE_PATH, FOCUS_PRESETS, PAPERS_PAGE_PATH } from '../../shared/constants';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 import {
   daysAgo,
@@ -16,6 +16,7 @@ import {
   localDate,
 } from '../../shared/format';
 import { useBookmarks } from '../../shared/hooks/useBookmarks';
+import { usePapers } from '../../shared/hooks/usePapers';
 import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
@@ -39,6 +40,7 @@ const DASHBOARD_CARDS: readonly DashCard[] = [
   { id: 'progress', title: '🏆 Progress', Component: GamificationPanel },
   { id: 'braindump', title: '🧠 Brain dump', Component: BrainDumpPanel },
   { id: 'flashcards', title: '🃏 Flashcards', Component: FlashcardsPanel },
+  { id: 'papers', title: '📄 Papers', Component: PapersPanel },
 ];
 
 export function Dashboard() {
@@ -56,29 +58,31 @@ export function Dashboard() {
   return (
     <div className="dashboard">
       {inFocus && <FocusBanner focus={focus} />}
-      <header className="dash-header">
-        <div>
-          <h1>{greeting}.</h1>
-          <p className="dash-date">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </p>
-        </div>
-        <div className="dash-header-right">
-          <button
-            className="ghost-btn theme-toggle"
-            title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
-          >
-            {theme.resolved === 'dark' ? '☀️' : '🌙'}
-          </button>
-          <Clock />
-        </div>
-      </header>
-      <ActivityCalendar />
+      <div className="dash-topbar">
+        <header className="dash-header">
+          <div>
+            <h1>{greeting}.</h1>
+            <p className="dash-date">
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+          <div className="dash-header-right">
+            <button
+              className="ghost-btn theme-toggle"
+              title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
+            >
+              {theme.resolved === 'dark' ? '☀️' : '🌙'}
+            </button>
+            <Clock />
+          </div>
+        </header>
+        <ActivityCalendar />
+      </div>
       <DashboardGrid cards={DASHBOARD_CARDS} />
     </div>
   );
@@ -453,6 +457,7 @@ function FlashcardsPanel() {
     return c ? c.newCount + c.learningCount + c.reviewCount : 0;
   };
   const topDecks = decks
+    .filter((deck) => (deck.kind ?? 'flashcards') === 'flashcards')
     .map((deck) => ({ deck, due: deckDue(deck.id) }))
     .sort((a, b) => b.due - a.due)
     .slice(0, 3);
@@ -484,6 +489,57 @@ function FlashcardsPanel() {
       )}
       <button className="sprint-start" onClick={() => open(due > 0 && topDecks[0] ? `#review=${topDecks[0].deck.id}` : '')}>
         {due > 0 ? '▶ Study now' : 'Open flashcards'}
+      </button>
+    </section>
+  );
+}
+
+function PapersPanel() {
+  const { readingNow, toReadCount } = usePapers();
+  const openPage = () => void chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) });
+  const openPaper = (url: string) => (url ? void chrome.tabs.create({ url }) : openPage());
+  const top = readingNow.slice(0, 4);
+
+  return (
+    <section className="panel">
+      <h2>📄 Papers</h2>
+      {readingNow.length === 0 ? (
+        <p className="panel-empty">
+          {toReadCount > 0
+            ? `${toReadCount} paper${toReadCount === 1 ? '' : 's'} queued to read.`
+            : 'No papers yet — track what you read, and pick up where you drifted off.'}
+        </p>
+      ) : (
+        <>
+          <p className="row-label">Reading now</p>
+          <div className="paper-now-list">
+            {top.map((p) => (
+              <button
+                key={p.id}
+                className="paper-now"
+                title={p.leftOff ? `Left off: ${p.leftOff}` : p.title}
+                onClick={() => openPaper(p.url)}
+              >
+                <div className="paper-now-top">
+                  <span className="paper-now-title">{p.title}</span>
+                  <span className="paper-now-pct">{p.progressPercent}%</span>
+                </div>
+                <div className="dash-bar">
+                  <div className="dash-bar-fill" style={{ width: `${p.progressPercent}%` }} />
+                </div>
+                {p.leftOff && <span className="paper-now-leftoff">↳ {p.leftOff}</span>}
+              </button>
+            ))}
+          </div>
+          {toReadCount > 0 && (
+            <p className="paper-toread">
+              {toReadCount} more queued to read
+            </p>
+          )}
+        </>
+      )}
+      <button className="sprint-start" onClick={openPage}>
+        {readingNow.length > 0 || toReadCount > 0 ? 'Open Papers' : '+ Track a paper'}
       </button>
     </section>
   );

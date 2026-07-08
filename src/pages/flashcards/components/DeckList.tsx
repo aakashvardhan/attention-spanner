@@ -21,9 +21,11 @@ export function DeckList({
 
   const counts = dueCounts(cards, Date.now(), newIntroducedToday(srsDaily, localDate()));
 
+  const flashDecks = decks.filter((d) => (d.kind ?? 'flashcards') === 'flashcards');
+
   const addDeck = async () => {
     try {
-      const res = await sendMessage({ type: 'FLASH_ADD_DECK', name });
+      const res = await sendMessage({ type: 'FLASH_ADD_DECK', name, kind: 'flashcards' });
       if (!res?.ok) {
         setError(res?.error ?? 'Could not create deck.');
         return;
@@ -50,7 +52,7 @@ export function DeckList({
 
   return (
     <main className="fc-main">
-      {decks.length === 0 && (
+      {flashDecks.length === 0 && (
         <div className="panel fc-empty">
           <p>
             No decks yet. Create one below, add cards, and review them daily — cards you find hard
@@ -60,7 +62,7 @@ export function DeckList({
       )}
 
       <div className="fc-deck-list">
-        {decks.map((deck) => {
+        {flashDecks.map((deck) => {
           const c = counts[deck.id] ?? { newCount: 0, learningCount: 0, reviewCount: 0 };
           const due = c.newCount + c.learningCount + c.reviewCount;
           const hasCards = cards.some((card) => card.deckId === deck.id);
