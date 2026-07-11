@@ -3,5 +3,13 @@ dist/
 .DS_Store
 *.local
 
+# Local env / Firebase web config (never commit secrets or keys)
+.env
+.env.*
+!.env.example
+
 # iOS Swift package build artifacts
 ios/**/.build/
+demo/.profile/
+demo/.profile-probe/
+demo/out/

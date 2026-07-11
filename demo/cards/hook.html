@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(1200px 700px at 50% 30%, #171b26 0%, #0b0d12 65%);
+    font-family: -apple-system, "SF Pro Display", "Segoe UI", sans-serif;
+    color: #f2f4f8;
+  }
+  .stack { text-align: center; max-width: 1240px; padding: 0 60px; }
+  .line {
+    font-size: 54px; font-weight: 700; line-height: 1.25; margin: 18px 0;
+    opacity: 0; transform: translateY(14px);
+    animation: rise .7s ease-out forwards;
+  }
+  .line.dim { color: #8b93a7; font-size: 44px; font-weight: 600; }
+  .line:nth-child(1) { animation-delay: .3s; }
+  .line:nth-child(2) { animation-delay: 1.6s; }
+  .line:nth-child(3) { animation-delay: 3.2s; color: #7aa2ff; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="line dim">I used to open ten articles and finish none of them.</div>
+    <div class="line dim">Tasks vanished the moment I thought of them.</div>
+    <div class="line">So I built a Chrome extension for my ADHD brain.</div>
+  </div>
+</body>
+</html>
