@@ -2,3 +2,6 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# iOS Swift package build artifacts
+ios/**/.build/

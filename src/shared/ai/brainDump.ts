@@ -19,7 +19,7 @@ export type AiAvailability = 'unavailable' | 'downloadable' | 'downloading' | 'a
 const STRUCTURE_TIMEOUT_MS = 30_000;
 
 const SYSTEM_PROMPT =
-  'You organize messy brain dumps for a busy person with ADHD. ' +
+  'You organize messy brain dumps for a busy person. ' +
   'Given raw unstructured text, extract: (1) "bullets": 3-8 short bullet points ' +
   "summarizing the distinct thoughts, keeping the writer's wording where possible; " +
   '(2) "tasks": 0-6 concrete actionable to-dos stated or clearly implied by the text, ' +

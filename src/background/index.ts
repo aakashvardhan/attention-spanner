@@ -25,6 +25,10 @@ import { maybeInjectTimePill } from './timePill';
 import { markPaperReadingByUrl } from './papers';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
+import { initSync, onLocalChanged } from './sync';
+// Side-effect import: registers the Firestore transport + auth listener on every
+// service-worker instantiation (guarded by whether firebaseConfig is filled in).
+import './firestoreBackend';
 import { handleMessage } from './router';
 
 /**
@@ -76,10 +80,12 @@ chrome.runtime.onInstalled.addListener(() => {
     await chrome.contextMenus.removeAll();
     chrome.contextMenus.create({
       id: 'bookmark-link',
-      title: 'Bookmark in ADHD Reader',
+      title: 'Bookmark in Reader',
       contexts: ['page', 'link'],
     });
     await refreshFeeds();
+    // Resume cloud sync if signed in (inert until a transport is registered)
+    await initSync();
   })();
 });
 
@@ -99,6 +105,8 @@ chrome.runtime.onStartup.addListener(() => {
   void reconcileFocusOnStartup();
   // Drain Notion pushes left queued when the previous SW instance died
   void flushQueue();
+  // Resume cloud sync if signed in (inert until a transport is registered)
+  void initSync();
 });
 
 chrome.alarms.onAlarm.addListener(handleAlarm);
@@ -115,6 +123,9 @@ chrome.commands.onCommand.addListener((command) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+
+  // Mirror changed collections to the cloud (no-op until sync is running)
+  onLocalChanged(changes);
 
   // Badge is derived state — recompute whenever its inputs change
   // (focusSession flips it between countdown and unread-count modes)

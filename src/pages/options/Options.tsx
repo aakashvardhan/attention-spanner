@@ -6,6 +6,7 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
 import type { Settings, ThemeSetting } from '../../shared/types';
+import { AccountSection } from './AccountSection';
 import { NotionSection } from './NotionSection';
 import { PapersSection } from './PapersSection';
 
@@ -115,7 +116,7 @@ export function Options() {
   return (
     <div className="container">
       <header>
-        <h1>⚙️ ADHD Reader Settings</h1>
+        <h1>⚙️ Reader Settings</h1>
       </header>
 
       <main>
@@ -497,6 +498,8 @@ export function Options() {
             </select>
           </div>
         </section>
+
+        <AccountSection />
 
         <NotionSection />
 

@@ -5,13 +5,13 @@ your data anywhere.
 
 Built with Manifest V3, React, Vite, and TypeScript.
 
-![ADHD Reader dashboard](docs/screenshots/dashboard.png)
+![Reader dashboard](docs/screenshots/dashboard.png)
 
 ## Why this exists
 
 Standard RSS readers assume you'll read what you save. In practice, articles
 pile up unread, tasks get lost the moment you think of them, and focus breaks
-the second a new tab opens. ADHD Reader closes that gap: it tracks what you
+the second a new tab opens. Reader closes that gap: it tracks what you
 start, nudges you back to it, and rewards you for following through.
 
 ## Features
@@ -142,7 +142,7 @@ BypassPerfRequirement) and `chrome://flags/#prompt-api-for-gemini-nano`.
 | `notifications` | Task reminders, streak/badge alerts |
 | `scripting` | Injecting the reading/video trackers |
 | `declarativeNetRequest` | Focus Mode site blocking |
-| `contextMenus` | Right-click "Bookmark in ADHD Reader" |
+| `contextMenus` | Right-click "Bookmark in Reader" |
 | `<all_urls>` (host) | Tracking reading/video progress on any site; Notion API calls |
 
 ## Notifications on macOS

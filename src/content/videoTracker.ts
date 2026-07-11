@@ -15,7 +15,7 @@ import { getYouTubeVideoId } from '../shared/youtube';
 
 declare global {
   interface Window {
-    __adhdVideoTrackerLoaded?: boolean;
+    __readerVideoTrackerLoaded?: boolean;
   }
 }
 
@@ -26,8 +26,8 @@ const RESUME_RETRY_MS = 500;
 const RESUME_MAX_MS = 4000;
 const NAV_POLL_MS = 2000;
 
-if (!window.__adhdVideoTrackerLoaded) {
-  window.__adhdVideoTrackerLoaded = true;
+if (!window.__readerVideoTrackerLoaded) {
+  window.__readerVideoTrackerLoaded = true;
   initVideoTracker();
 }
 

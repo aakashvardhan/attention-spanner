@@ -28,7 +28,7 @@ export function Popup() {
   return (
     <div className="container">
       <header>
-        <h1>📖 ADHD Reader</h1>
+        <h1>📖 Reader</h1>
         <div className="header-actions">
           {tab === 'feeds' && (
             <button

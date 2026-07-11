@@ -4,7 +4,7 @@ import { defineManifest } from '@crxjs/vite-plugin';
 // content_scripts); it's bundled separately by `npm run build:content`.
 export default defineManifest({
   manifest_version: 3,
-  name: 'ADHD Reader',
+  name: 'Reader',
   description:
     'RSS reader built for attention-challenged brains: finish what you start, capture tasks before they vanish.',
   version: '1.0.0',

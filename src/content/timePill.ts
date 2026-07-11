@@ -13,7 +13,7 @@ import { sendMessage } from '../shared/messages';
 
 declare global {
   interface Window {
-    __adhdTimePillLoaded?: boolean;
+    __readerTimePillLoaded?: boolean;
   }
 }
 
@@ -21,8 +21,8 @@ const FLUSH_INTERVAL_MS = 15_000;
 const WARM_MINUTES = 10;
 const HOT_MINUTES = 25;
 
-if (!window.__adhdTimePillLoaded) {
-  window.__adhdTimePillLoaded = true;
+if (!window.__readerTimePillLoaded) {
+  window.__readerTimePillLoaded = true;
   initPill();
 }
 
@@ -32,7 +32,7 @@ function initPill() {
   let pendingSeconds = 0;
 
   const mount = document.createElement('div');
-  mount.dataset.adhdTimePill = '1';
+  mount.dataset.readerTimePill = '1';
   const root = mount.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent = `

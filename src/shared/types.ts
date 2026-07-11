@@ -1,3 +1,15 @@
+/**
+ * Cloud-sync metadata mixed into every user-authored, synced record.
+ * Optional so pre-sync (schemaVersion < 6) records typecheck; the v6 migration
+ * backfills `updatedAt` (from createdAt) and leaves `deletedAt` unset (null).
+ * Merge is last-write-wins by `updatedAt`; a set `deletedAt` is a tombstone
+ * that propagates deletes and wins ties. See src/shared/sync/merge.ts.
+ */
+export interface SyncMeta {
+  updatedAt?: number;
+  deletedAt?: number | null;
+}
+
 export interface FeedItem {
   /** btoa(encodeURIComponent(link + title)).slice(0, 32) — same scheme as the legacy extension */
   id: string;
@@ -12,7 +24,7 @@ export interface FeedItem {
   source: string;
 }
 
-export interface Task {
+export interface Task extends SyncMeta {
   id: string;
   text: string;
   createdAt: number;
@@ -30,7 +42,7 @@ export interface Task {
   chest?: { bonusXp: number };
 }
 
-export interface BrainDumpNote {
+export interface BrainDumpNote extends SyncMeta {
   id: string;
   rawText: string;
   /** 'raw' = saved but not yet structured (AI unavailable or interrupted) */
@@ -133,7 +145,7 @@ export interface Settings {
 /** A deck is dedicated to one purpose — flashcards or research papers. */
 export type DeckKind = 'flashcards' | 'papers';
 
-export interface Deck {
+export interface Deck extends SyncMeta {
   id: string;
   name: string;
   createdAt: number;
@@ -143,7 +155,7 @@ export interface Deck {
 
 export type FlashNoteType = 'basic' | 'cloze';
 
-export interface FlashNote {
+export interface FlashNote extends SyncMeta {
   id: string;
   deckId: string;
   type: FlashNoteType;
@@ -160,7 +172,7 @@ export interface FlashNote {
 export type CardPhase = 'new' | 'learning' | 'review' | 'relearning';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
-export interface FlashCard {
+export interface FlashCard extends SyncMeta {
   /** `${noteId}#${variant}` — deterministic, survives note edits */
   id: string;
   noteId: string;
@@ -197,7 +209,7 @@ export interface SrsDayStats {
 
 export type PaperStatus = 'to-read' | 'reading' | 'read';
 
-export interface Paper {
+export interface Paper extends SyncMeta {
   id: string;
   /** Reuses Deck.id — the same decks as flashcards */
   deckId: string;
@@ -229,13 +241,13 @@ export interface Paper {
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
 export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
 
-export interface BookmarkGroup {
+export interface BookmarkGroup extends SyncMeta {
   id: string;
   name: string;
   createdAt: number;
 }
 
-export interface BookmarkLink {
+export interface BookmarkLink extends SyncMeta {
   id: string;
   url: string;
   title: string;

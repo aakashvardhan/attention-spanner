@@ -47,6 +47,26 @@ export interface LocalSchema {
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
   siteTime: { date: string; hosts: Record<string, number> };
+  /** Cloud-sync control state. Device-local — never pushed to Firestore itself. */
+  sync: SyncLocalState;
+  /**
+   * Deletion tombstones for synced record collections, keyed `${collection}:${id}`
+   * → deletedAt (ms). Managed entirely by the sync layer (src/background/sync.ts);
+   * lets deletions propagate without record arrays ever holding dead entries.
+   */
+  tombstones: Record<string, number>;
+}
+
+/** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
+export interface SyncLocalState {
+  /** Firebase uid of the signed-in account; null = sync off. */
+  userId: string | null;
+  /** Signed-in account email, for display; null = signed out. */
+  email: string | null;
+  /** Last successful full push→pull reconcile (ms epoch); 0 = never. */
+  lastSyncedAt: number;
+  /** Last surfaced error message; '' = healthy. */
+  lastError: string;
 }
 
 export interface SessionSchema {
@@ -146,6 +166,8 @@ export const DEFAULTS: LocalSchema = {
   papers: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
+  sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
+  tombstones: {},
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -210,6 +232,10 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * v4 → v5 (papers): decks became typed. Backfill Deck.kind — a deck with
  * cards/notes is 'flashcards', one with only papers is 'papers', empty decks
  * default to 'flashcards' (their historical purpose).
+ * v5 → v6 (cloud sync): backfill SyncMeta.updatedAt on records that lack it
+ * (tasks, notes, decks, flashCards, bookmarks, bookmarkGroups) from createdAt,
+ * so last-write-wins merge has a stable timestamp. FlashNote/Paper already
+ * carry updatedAt; deletedAt stays unset (== null) until a real delete.
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -219,7 +245,7 @@ export async function migrate(): Promise<void> {
     'gamification',
   ]);
   const version = (stored.schemaVersion as number | undefined) ?? 0;
-  if (version >= 5) return;
+  if (version >= 6) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -264,5 +290,25 @@ export async function migrate(): Promise<void> {
     }
   }
 
-  await chrome.storage.local.set({ schemaVersion: 5 });
+  if (version < 6) {
+    const collections = await chrome.storage.local.get([
+      'tasks',
+      'notes',
+      'decks',
+      'flashCards',
+      'bookmarks',
+      'bookmarkGroups',
+    ]);
+    const patch: Record<string, unknown> = {};
+    for (const key of ['tasks', 'notes', 'decks', 'flashCards', 'bookmarks', 'bookmarkGroups']) {
+      const list = collections[key] as ({ createdAt?: number; updatedAt?: number }[]) | undefined;
+      if (!list?.length) continue;
+      patch[key] = list.map((r) =>
+        r.updatedAt == null ? { ...r, updatedAt: r.createdAt ?? 0 } : r,
+      );
+    }
+    if (Object.keys(patch).length) await chrome.storage.local.set(patch);
+  }
+
+  await chrome.storage.local.set({ schemaVersion: 6 });
 }

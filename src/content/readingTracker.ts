@@ -12,7 +12,7 @@ import { sendMessage, type ResumeTarget } from '../shared/messages';
 
 declare global {
   interface Window {
-    __adhdTrackerLoaded?: boolean;
+    __readerTrackerLoaded?: boolean;
   }
 }
 
@@ -21,8 +21,8 @@ const ACTIVITY_WINDOW_MS = 60_000;
 const RESTORE_RETRY_MS = 500;
 const RESTORE_MAX_MS = 4000;
 
-if (!window.__adhdTrackerLoaded) {
-  window.__adhdTrackerLoaded = true;
+if (!window.__readerTrackerLoaded) {
+  window.__readerTrackerLoaded = true;
   initTracker();
 }
 

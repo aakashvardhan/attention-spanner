@@ -2,7 +2,7 @@ import { createSession } from './brainDump';
 
 /**
  * Ignition mode: rewrite a stuck task into ONE tiny concrete first action
- * doable in under two minutes — the ADHD task-initiation wall falls to
+ * doable in under two minutes — the task-initiation wall falls to
  * specificity, not willpower. Same on-device Gemini Nano rules as
  * brainDump.ts: runs in extension pages only, never the service worker.
  */
@@ -12,7 +12,7 @@ const MAX_TASK_CHARS = 300;
 export const MAX_FIRST_ACTION_CHARS = 140;
 
 const SYSTEM_PROMPT =
-  'You help a person with ADHD start a task they are stuck on. ' +
+  'You help a person start a task they are stuck on. ' +
   'Given the task, respond with "firstAction": ONE ultra-specific physical first step ' +
   'that takes under 2 minutes and starts the task — like opening the exact file, ' +
   'writing one rough sentence, or putting shoes by the door. ' +

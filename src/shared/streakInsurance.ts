@@ -4,7 +4,7 @@ import type { Streaks } from './types';
 /**
  * Streak insurance: freeze tokens earned by consistency auto-bridge missed
  * days so one bad day doesn't zero a long streak (all-or-nothing collapse is
- * the top reason streak mechanics stop working for ADHD brains). Pure
+ * the top reason streak mechanics stop working for most people). Pure
  * mutation helpers — callers persist the object.
  */
 

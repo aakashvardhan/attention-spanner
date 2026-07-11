@@ -1,5 +1,5 @@
 {
-  "name": "adhd-chrome-reader",
+  "name": "chrome-reader",
   "private": true,
   "version": "1.0.0",
   "license": "MIT",
@@ -16,6 +16,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "fast-xml-parser": "^5.0.0",
+    "firebase": "^12.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
