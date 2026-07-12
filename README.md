@@ -104,6 +104,14 @@ Nano — no API keys, no external calls. Cloud sync is strictly opt-in.
   own bookmarks, addable from the popup, dashboard, or a right-click context
   menu.
 - **Dark mode** — full light / dark / system theming across every page.
+- **Assistant (Jarvis)** — a chat card, popup tab, and `⌘K` command palette that
+  answer questions from your own data and run actions ("add a task to…", "start
+  a 25-minute focus"). On-device Gemini Nano first, optional Gemini API key for
+  harder queries; optional push-to-talk voice input and spoken replies.
+- **Google Calendar (optional)** — a 📅 Today agenda card with a next-event
+  countdown, assistant commands like "block 2–3pm for deep work", meetings in
+  the morning briefing, and optional focus-session time-blocking on your
+  calendar. OAuth setup: `docs/google-calendar-setup.md`.
 - **Notion sync (one-way)** — push links, brain dumps, tasks, and a reading log
   to your own Notion databases via an integration token.
 - **Cloud sync (optional)** — two-way Firestore sync to share state with the
@@ -112,6 +120,27 @@ Nano — no API keys, no external calls. Cloud sync is strictly opt-in.
 ---
 
 ## Installation
+
+### Without building (share with anyone)
+
+```bash
+npm run package   # → release/install-reader.command + release/reader-extension-v1.0.0.zip
+```
+
+Send people **one file**:
+
+- **macOS / Linux** — `install-reader.command`. Double-click (macOS) or
+  `sh install-reader.command` (Linux). It self-extracts the prebuilt extension
+  to `~/ReaderExtension`, opens `chrome://extensions`, and prints the one
+  remaining step: enable **Developer mode** → **Load unpacked** → pick the
+  `ReaderExtension` folder. No node/npm needed. Chrome doesn't allow installs
+  outside the Web Store, so that one click can't be automated.
+- **Windows** — the `.zip`: extract it, then Load unpacked the extracted folder.
+
+> The packaged build embeds whatever is in your `.env.local` (Firebase config,
+> Google OAuth client id). Package from a clean env if that shouldn't ship.
+
+### From source
 
 ```bash
 npm install

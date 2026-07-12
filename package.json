@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build && npm run build:content",
     "build:content": "esbuild src/content/readingTracker.ts src/content/videoTracker.ts src/content/timePill.ts --bundle --format=iife --outdir=dist/content --log-level=error",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

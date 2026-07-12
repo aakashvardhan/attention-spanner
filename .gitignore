@@ -1,12 +1,17 @@
 node_modules/
 dist/
+release/
 .DS_Store
 *.local
+.claude/settings.local.json
 
 # Local env / Firebase web config (never commit secrets or keys)
 .env
 .env.*
 !.env.example
+
+# Google Calendar OAuth signing key (see docs/google-calendar-setup.md)
+gcal-key.pem
 
 # iOS Swift package build artifacts
 ios/**/.build/
