@@ -1,3 +1,4 @@
+import type { CalendarEvent } from './calendar';
 import type { NotionDbSummary } from './notion';
 import type { SyncLocalState } from './storage';
 import type {
@@ -74,6 +75,10 @@ export type Message =
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
   | { type: 'PAPER_DELETE'; id: string }
+  | { type: 'CAL_SIGN_IN' }
+  | { type: 'CAL_SIGN_OUT' }
+  | { type: 'CAL_REFRESH' }
+  | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   | { type: 'SYNC_STATUS' }
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
@@ -151,6 +156,10 @@ export interface MessageResponses {
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };
   PAPER_DELETE: { ok: boolean; error?: string };
+  CAL_SIGN_IN: { ok: boolean; email?: string; error?: string };
+  CAL_SIGN_OUT: { ok: boolean };
+  CAL_REFRESH: { ok: boolean; error?: string };
+  CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   SYNC_STATUS: SyncLocalState;
   SYNC_SIGN_IN: { ok: boolean; error?: string };
   SYNC_SIGN_UP: { ok: boolean; error?: string };

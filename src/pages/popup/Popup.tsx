@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AssistantChat } from '../../shared/components/AssistantChat';
 import { BrainDump } from '../../shared/components/BrainDump';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { useFeed } from '../../shared/hooks/useFeed';
@@ -12,7 +13,7 @@ import { FeedPane } from './components/FeedPane';
 import { FocusBar } from './components/FocusBar';
 import { TaskPane } from './components/TaskPane';
 
-type Tab = 'feeds' | 'tasks' | 'dump' | 'cards';
+type Tab = 'feeds' | 'tasks' | 'dump' | 'cards' | 'ask';
 
 export function Popup() {
   useTheme();
@@ -65,6 +66,9 @@ export function Popup() {
           🃏 Cards
           {cardsDue > 0 && <span className="tab-count">{cardsDue}</span>}
         </button>
+        <button className={tab === 'ask' ? 'tab active' : 'tab'} onClick={() => setTab('ask')}>
+          🤖 Ask
+        </button>
       </nav>
 
       <FocusBar />
@@ -78,6 +82,11 @@ export function Popup() {
         </main>
       )}
       {tab === 'cards' && <CardsPane />}
+      {tab === 'ask' && (
+        <main>
+          <AssistantChat compact />
+        </main>
+      )}
 
       <footer>
         {tab === 'feeds' && feed.cacheTimestamp > 0

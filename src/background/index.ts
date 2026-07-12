@@ -4,11 +4,13 @@ import type { Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import {
   handleAlarm,
+  setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
   setupNotionFlushAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
 } from './alarms';
+import { refreshCalendar } from './calendar';
 import { flushQueue, handleTokenChanged } from './notion';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { refreshFeeds, updateBadge } from './feeds';
@@ -71,6 +73,7 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupTaskReminderAlarm();
     await setupGymReminderAlarm();
     await setupNotionFlushAlarm();
+    await setupCalendarRefreshAlarm();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -105,6 +108,7 @@ chrome.runtime.onStartup.addListener(() => {
   void reconcileFocusOnStartup();
   // Drain Notion pushes left queued when the previous SW instance died
   void flushQueue();
+  void refreshCalendar();
   // Resume cloud sync if signed in (inert until a transport is registered)
   void initSync();
 });

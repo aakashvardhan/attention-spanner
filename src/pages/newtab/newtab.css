@@ -1298,3 +1298,235 @@ body.focus-active .panel:hover {
     transition: none !important;
   }
 }
+
+/* Command palette (Cmd/Ctrl+K) */
+
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  z-index: 1000;
+}
+
+.cp-box {
+  width: min(560px, 92vw);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  box-sizing: border-box;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.cp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.cp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cp-row.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cp-row-arg {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.cp-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.cp-arg-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: 0 2px;
+}
+
+.cp-arg-back {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cp-footer {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-subtle);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.cp-footer.error {
+  color: var(--danger);
+}
+
+.cp-confirm-text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.cp-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cp-confirm-yes {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cp-confirm-no {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* 📅 Today agenda card */
+
+.ag-next {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ag-next.ag-clear {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ag-countdown {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.ag-event {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  margin-bottom: 6px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.ag-event:hover {
+  border-color: var(--accent-border);
+}
+
+.ag-event.current {
+  background: var(--accent-soft);
+  border-color: var(--accent-track);
+}
+
+.ag-event.past {
+  opacity: 0.55;
+}
+
+.ag-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 88px;
+}
+
+.ag-title {
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-join {
+  font-size: 11px;
+  border-radius: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--bg-surface);
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ag-join:hover {
+  background: var(--accent-wash);
+}
+
+.ag-error {
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 0;
+}

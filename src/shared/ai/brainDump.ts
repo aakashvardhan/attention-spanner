@@ -50,16 +50,19 @@ export async function getAvailability(): Promise<AiAvailability> {
   }
 }
 
-/** Shared Nano session factory — also used by ignition.ts (different prompt) */
+/** Shared Nano session factory — also used by ignition.ts and the assistant.
+ * `history` seeds prior conversation turns after the system prompt. */
 export async function createSession(
   systemPrompt: string,
   onDownloadProgress?: (fraction: number) => void,
+  history: LanguageModelMessage[] = [],
 ) {
   const api = promptApi();
   if (!api) throw new Error('Prompt API not supported in this Chrome');
 
-  const initialPrompts: [LanguageModelSystemMessage] = [
+  const initialPrompts: [LanguageModelSystemMessage, ...LanguageModelMessage[]] = [
     { role: 'system', content: systemPrompt },
+    ...history,
   ];
   const monitor = (m: CreateMonitor) => {
     m.addEventListener('downloadprogress', (e) => {

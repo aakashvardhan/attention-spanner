@@ -1,0 +1,248 @@
+/* Assistant chat — as- prefix to avoid per-page CSS collisions */
+
+.as-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+}
+
+.as-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 300px;
+  min-height: 120px;
+  padding: 2px;
+}
+
+.as-chat.compact .as-log {
+  max-height: 220px;
+}
+
+.as-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 2px;
+}
+
+.as-suggestion {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.as-bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.as-bubble.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-bottom-right-radius: 4px;
+}
+
+.as-bubble.assistant {
+  align-self: flex-start;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.as-bubble.assistant.action {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+
+.as-bubble.assistant.error {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: transparent;
+}
+
+.as-bubble.assistant.briefing {
+  background: var(--accent-soft);
+  border-color: var(--accent-track);
+  max-width: 100%;
+}
+
+.as-briefing-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.as-bubble.streaming {
+  opacity: 0.9;
+}
+
+.as-thinking {
+  letter-spacing: 2px;
+  animation: as-pulse 1s ease-in-out infinite;
+}
+
+@keyframes as-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.as-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+
+.as-confirm {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.as-confirm-yes {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.as-confirm-yes:hover {
+  background: var(--accent-hover);
+}
+
+.as-confirm-no {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.as-confirm-yes:disabled,
+.as-confirm-no:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.as-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.as-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.as-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.as-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.as-send {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.as-send:hover {
+  background: var(--accent-hover);
+}
+
+.as-send:disabled {
+  background: var(--disabled);
+  cursor: default;
+}
+
+.as-mic,
+.as-voice {
+  background: transparent;
+  border: 1px solid var(--border);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none;
+}
+
+.as-mic.listening {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  animation: as-pulse 1s ease-in-out infinite;
+}
+
+.as-voice.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.as-mic:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.as-clear {
+  background: transparent;
+  color: var(--text-faint);
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.as-clear:hover {
+  color: var(--text-secondary);
+}

@@ -80,7 +80,7 @@ function initPill() {
     (document.body ?? document.documentElement).appendChild(mount);
   })();
 
-  setInterval(() => {
+  const tickTimer = window.setInterval(() => {
     if (document.visibilityState === 'visible') {
       totalSeconds += 1;
       pendingSeconds += 1;
@@ -92,14 +92,31 @@ function initPill() {
     if (pendingSeconds === 0) return;
     const delta = pendingSeconds;
     pendingSeconds = 0;
-    sendMessage({ type: 'TIME_PILL_TICK', host, seconds: delta }).catch(() => {
-      pendingSeconds += delta;
-    });
+    try {
+      sendMessage({ type: 'TIME_PILL_TICK', host, seconds: delta }).catch(() => {
+        pendingSeconds += delta;
+      });
+    } catch {
+      // Extension reloaded/updated — in an orphaned script sendMessage throws
+      // synchronously and the context never comes back. Tear down; the new
+      // extension re-injects a fresh pill on the next visit.
+      teardown();
+    }
   }
 
-  setInterval(flush, FLUSH_INTERVAL_MS);
-  window.addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', () => {
+  const flushTimer = window.setInterval(flush, FLUSH_INTERVAL_MS);
+  const onPageHide = () => flush();
+  const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') flush();
-  });
+  };
+  window.addEventListener('pagehide', onPageHide);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
+  function teardown() {
+    clearInterval(tickTimer);
+    clearInterval(flushTimer);
+    window.removeEventListener('pagehide', onPageHide);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    mount.remove();
+  }
 }

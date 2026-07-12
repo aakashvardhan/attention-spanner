@@ -1,3 +1,5 @@
+import type { AssistantTurn } from './ai/assistantTypes';
+import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import type { NotionPush, NotionStatus } from './notion';
 import { DASH_CARD_IDS } from './types';
@@ -55,6 +57,10 @@ export interface LocalSchema {
    * lets deletions propagate without record arrays ever holding dead entries.
    */
   tombstones: Record<string, number>;
+  /** Today's assistant morning briefing; regenerated when `date` rolls over */
+  assistantBriefing: { date: string; text: string } | null;
+  /** Google Calendar connection + cached agenda window. Device-local — never synced. */
+  calendar: CalendarState;
 }
 
 /** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
@@ -79,6 +85,8 @@ export interface SessionSchema {
   lastGlobalNudgeAt: number;
   /** Unbroken reading/watching run for the hyperfocus guardrail */
   hyperfocus: { unbrokenSeconds: number; lastDeltaAt: number; notifiedAtSeconds: number };
+  /** Assistant conversation — session-scoped by design (private, resets with the browser) */
+  assistantThread: AssistantTurn[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -125,6 +133,11 @@ export const DEFAULT_SETTINGS: Settings = {
   notionPushTasks: false,
   notionPushReading: false,
   semanticScholarApiKey: '',
+  assistantEnabled: true,
+  geminiApiKey: '',
+  assistantVoiceEnabled: false,
+  assistantTtsVoice: '',
+  focusCalendarBlockEnabled: false,
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -168,6 +181,8 @@ export const DEFAULTS: LocalSchema = {
   siteTime: { date: '', hosts: {} },
   sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
   tombstones: {},
+  assistantBriefing: null,
+  calendar: CALENDAR_DEFAULTS,
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -176,6 +191,7 @@ export const SESSION_DEFAULTS: SessionSchema = {
   activeSprint: null,
   lastGlobalNudgeAt: 0,
   hyperfocus: { unbrokenSeconds: 0, lastDeltaAt: 0, notifiedAtSeconds: 0 },
+  assistantThread: [],
 };
 
 export async function getLocal<K extends keyof LocalSchema>(
