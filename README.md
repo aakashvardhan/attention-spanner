@@ -3,11 +3,10 @@
 **An RSS reader rebuilt as a full attention-management system for ADHD brains.**
 
 Reader helps you finish what you start, capture thoughts before they vanish,
-and build the habits that keep you on track — without sending your data
-anywhere unless you explicitly opt into cloud sync.
+and build the habits that keep you on track — everything runs locally, and
+your data never leaves your machine.
 
-Built on Manifest V3 with React 19, Vite, and TypeScript, with an optional
-native SwiftUI companion app for iOS.
+Built on Manifest V3 with React 19, Vite, and TypeScript.
 
 ![Reader dashboard](docs/screenshots/dashboard.png)
 
@@ -20,8 +19,6 @@ native SwiftUI companion app for iOS.
 - [Installation](#installation)
 - [Development](#development)
 - [On-device AI requirements](#on-device-ai-requirements)
-- [Cloud sync (optional)](#cloud-sync-optional)
-- [iOS companion app](#ios-companion-app)
 - [Architecture](#architecture)
 - [Permissions](#permissions)
 - [Troubleshooting](#troubleshooting)
@@ -36,8 +33,9 @@ pile up unread, tasks get lost the moment you think of them, and focus breaks
 the second a new tab opens. Reader closes that gap: it tracks what you start,
 nudges you back to it, and rewards you for following through.
 
-Everything runs locally by default. On-device AI uses Chrome's built-in Gemini
-Nano — no API keys, no external calls. Cloud sync is strictly opt-in.
+Everything runs locally. On-device AI uses Chrome's built-in Gemini Nano — no
+API keys, no external calls (an optional bring-your-own Gemini API key can
+handle harder assistant queries).
 
 ---
 
@@ -106,16 +104,9 @@ Nano — no API keys, no external calls. Cloud sync is strictly opt-in.
 - **Dark mode** — full light / dark / system theming across every page.
 - **Assistant (Jarvis)** — a chat card, popup tab, and `⌘K` command palette that
   answer questions from your own data and run actions ("add a task to…", "start
-  a 25-minute focus"). On-device Gemini Nano first, optional Gemini API key for
-  harder queries; optional push-to-talk voice input and spoken replies.
-- **Google Calendar (optional)** — a 📅 Today agenda card with a next-event
-  countdown, assistant commands like "block 2–3pm for deep work", meetings in
-  the morning briefing, and optional focus-session time-blocking on your
-  calendar. OAuth setup: `docs/google-calendar-setup.md`.
-- **Notion sync (one-way)** — push links, brain dumps, tasks, and a reading log
-  to your own Notion databases via an integration token.
-- **Cloud sync (optional)** — two-way Firestore sync to share state with the
-  [iOS companion app](#ios-companion-app). Off unless you configure it.
+  a 25-minute focus"). On-device Gemini Nano first, optional Gemini API key
+  (yours, entered in Options) for harder queries; optional push-to-talk voice
+  input and spoken replies via the browser's built-in speech synthesis.
 
 ---
 
@@ -136,9 +127,6 @@ Send people **one file**:
   `ReaderExtension` folder. No node/npm needed. Chrome doesn't allow installs
   outside the Web Store, so that one click can't be automated.
 - **Windows** — the `.zip`: extract it, then Load unpacked the extracted folder.
-
-> The packaged build embeds whatever is in your `.env.local` (Firebase config,
-> Google OAuth client id). Package from a clean env if that shouldn't ship.
 
 ### From source
 
@@ -162,15 +150,15 @@ npm run build     # typecheck + production build into dist/
 npm run dev        # dev server with HMR (@crxjs/vite-plugin)
 npm run build      # typecheck + production build
 npm run typecheck  # tsc --noEmit
-npm test           # vitest — 193 unit tests
+npm test           # vitest unit tests
 ```
 
 ---
 
 ## On-device AI requirements
 
-Brain dump and Ignition mode use Chrome's built-in Prompt API (Gemini Nano),
-which needs:
+Brain dump, Ignition mode, and the assistant use Chrome's built-in Prompt API
+(Gemini Nano), which needs:
 
 - Chrome 138+
 - ~22 GB free disk space
@@ -184,49 +172,9 @@ To force eligibility on borderline hardware, enable these flags:
 `chrome://flags/#optimization-guide-on-device-model` (Enabled
 BypassPerfRequirement) and `chrome://flags/#prompt-api-for-gemini-nano`.
 
----
-
-## Cloud sync (optional)
-
-Reader can sync state to Cloud Firestore so the browser extension and the iOS
-app share the same data. **Sync is disabled by default** and activates only
-once you provide Firebase config.
-
-```bash
-cp .env.example .env.local
-# paste your Firebase web-app config values into .env.local, then rebuild
-npm run build
-```
-
-Get the values from the Firebase console: **Project settings → General → Your
-apps → (register/select a Web app) → "SDK setup and configuration" → Config.**
-Leaving `VITE_FIREBASE_API_KEY` blank keeps sync off.
-
-`.env.local` is gitignored. The web `apiKey` is a project identifier rather than
-a secret — it ships in every client bundle — so access is governed by Firestore
-security rules and auth, not by hiding the key. Keeping it out of source is
-hygiene; you should still restrict it in the Google Cloud Console.
-
-Sync is conflict-tolerant: it uses per-collection merge logic with tombstones
-for deletes, so concurrent edits from the extension and the phone reconcile
-deterministically rather than clobbering each other.
-
----
-
-## iOS companion app
-
-A native SwiftUI app (`ios/`) mirrors the extension's features — reader, tasks,
-focus sprints, flashcards, gym, brain dump, papers, bookmarks, and the
-dashboard — and syncs through the same Firestore backend.
-
-- **`ios/ADHDReaderCore`** — a dependency-free Swift package that ports the
-  extension's pure logic (SM-2 spaced repetition, XP / levels, badges, streaks,
-  quests, streak insurance, URL normalization, and the sync-merge rules) so both
-  platforms compute identical results. Includes a `CoreVerify` executable for
-  parity checks.
-- **`ios/ADHDReader`** — the SwiftUI app and Xcode project.
-
-Open `ios/ADHDReader/ADHDReader.xcodeproj` in Xcode to build and run.
+For assistant queries too long or hard for Nano, you can paste your own
+Gemini API key in **Options → Assistant** — it's stored locally and used only
+for those calls. Leave it blank to stay fully on-device.
 
 ---
 
@@ -242,26 +190,19 @@ Open `ios/ADHDReader/ADHDReader.xcodeproj` in Xcode to build and run.
   inject ES modules. They handle reading-progress tracking, YouTube video
   tracking, and an in-page time-awareness pill.
 - **Pure logic modules** (`src/shared/`) — spaced repetition, XP curves, badge
-  rules, streak math, focus-block rules, and sync-merge logic — are
-  dependency-free and fully unit-tested (193 tests via Vitest). The same logic
-  is mirrored in `ios/ADHDReaderCore` so both platforms agree.
+  rules, streak math, and focus-block rules — are dependency-free and fully
+  unit-tested via Vitest.
 - **Blocking** uses `declarativeNetRequest`, so Focus Mode enforcement is
   browser-level and survives service-worker termination.
-- **Cloud sync** (`src/background/sync.ts`, `firestoreBackend.ts`) layers a
-  pluggable, conflict-tolerant sync engine over Firestore, kept optional and
-  fully decoupled from local operation.
 
 ### Project layout
 
 ```
 src/
-  background/   Service worker: routing, feeds, tasks, focus, sync, …
+  background/   Service worker: routing, feeds, tasks, focus, …
   content/      Injected trackers (reading, video, time pill)
   pages/        popup, newtab, options, capture, flashcards, papers, blocked
   shared/       Dependency-free pure logic + storage helpers
-ios/
-  ADHDReaderCore/   Shared Swift logic package (mirrors src/shared)
-  ADHDReader/       SwiftUI app + Xcode project
 ```
 
 ---
@@ -276,7 +217,7 @@ ios/
 | `scripting` | Injecting the reading / video trackers |
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `contextMenus` | Right-click "Bookmark in Reader" |
-| `<all_urls>` (host) | Tracking reading / video progress on any site; Notion & Firestore API calls |
+| `<all_urls>` (host) | Tracking reading / video progress on any site |
 
 ---
 
@@ -290,9 +231,6 @@ Chrome silently no-ops when the OS-level permission is off.
 [on-device AI requirements](#on-device-ai-requirements) and check model status
 at `chrome://on-device-internals`. Brain dumps still save as plain notes on
 unsupported hardware.
-
-**Cloud sync not working.** Ensure `.env.local` is filled in and you've rebuilt
-(`npm run build`). A blank `VITE_FIREBASE_API_KEY` disables sync by design.
 
 ---
 
