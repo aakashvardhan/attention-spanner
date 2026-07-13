@@ -1,9 +1,7 @@
 /**
- * Cloud-sync metadata mixed into every user-authored, synced record.
- * Optional so pre-sync (schemaVersion < 6) records typecheck; the v6 migration
- * backfills `updatedAt` (from createdAt) and leaves `deletedAt` unset (null).
- * Merge is last-write-wins by `updatedAt`; a set `deletedAt` is a tombstone
- * that propagates deletes and wins ties. See src/shared/sync/merge.ts.
+ * Modification metadata on user-authored records. Optional so pre-v6
+ * (schemaVersion < 6) records typecheck; the v6 migration backfills
+ * `updatedAt` from createdAt. `deletedAt` is reserved for soft deletes.
  */
 export interface SyncMeta {
   updatedAt?: number;

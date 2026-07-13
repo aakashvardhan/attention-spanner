@@ -49,30 +49,10 @@ export interface LocalSchema {
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
   siteTime: { date: string; hosts: Record<string, number> };
-  /** Cloud-sync control state. Device-local — never pushed to Firestore itself. */
-  sync: SyncLocalState;
-  /**
-   * Deletion tombstones for synced record collections, keyed `${collection}:${id}`
-   * → deletedAt (ms). Managed entirely by the sync layer (src/background/sync.ts);
-   * lets deletions propagate without record arrays ever holding dead entries.
-   */
-  tombstones: Record<string, number>;
   /** Today's assistant morning briefing; regenerated when `date` rolls over */
   assistantBriefing: { date: string; text: string } | null;
   /** Google Calendar connection + cached agenda window. Device-local — never synced. */
   calendar: CalendarState;
-}
-
-/** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
-export interface SyncLocalState {
-  /** Firebase uid of the signed-in account; null = sync off. */
-  userId: string | null;
-  /** Signed-in account email, for display; null = signed out. */
-  email: string | null;
-  /** Last successful full push→pull reconcile (ms epoch); 0 = never. */
-  lastSyncedAt: number;
-  /** Last surfaced error message; '' = healthy. */
-  lastError: string;
 }
 
 export interface SessionSchema {
@@ -179,8 +159,6 @@ export const DEFAULTS: LocalSchema = {
   papers: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
-  sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
-  tombstones: {},
   assistantBriefing: null,
   calendar: CALENDAR_DEFAULTS,
 };

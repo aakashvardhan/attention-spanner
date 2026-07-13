@@ -27,8 +27,6 @@ import {
   updateNote,
 } from './flashcards';
 import { addPaper, deletePaper, updatePaper } from './papers';
-import { getSyncStatus } from './sync';
-import { signIn, signOutSync, signUp } from './firestoreBackend';
 import { startFocus, stopFocus } from './focus';
 import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
@@ -37,30 +35,6 @@ import { addTask, deleteTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
 import { handleVideoProgress, handleVideoReady } from './videoTracking';
-
-/** Run an auth action and normalize Firebase errors into a UI-friendly result. */
-async function authResult(action: () => Promise<void>): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await action();
-    return { ok: true };
-  } catch (error) {
-    const code = (error as { code?: string }).code ?? '';
-    const messages: Record<string, string> = {
-      'auth/invalid-email': 'That email address looks invalid.',
-      'auth/invalid-credential': 'Incorrect email or password.',
-      'auth/wrong-password': 'Incorrect email or password.',
-      'auth/user-not-found': 'No account with that email — create one first.',
-      'auth/email-already-in-use': 'An account with that email already exists — sign in instead.',
-      'auth/weak-password': 'Password must be at least 6 characters.',
-      'auth/network-request-failed': 'Network error — check your connection.',
-      'auth/operation-not-allowed':
-        'Email/Password sign-in is not enabled — turn it on in Firebase console → Authentication → Sign-in method.',
-      'auth/configuration-not-found':
-        'Firebase Authentication isn’t set up — open Authentication in the console and enable Email/Password.',
-    };
-    return { ok: false, error: messages[code] ?? (error as Error).message ?? 'Something went wrong.' };
-  }
-}
 
 async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
   switch (msg.type) {
@@ -150,14 +124,6 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return refreshCalendar();
     case 'CAL_CREATE_EVENT':
       return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
-    case 'SYNC_STATUS':
-      return getSyncStatus();
-    case 'SYNC_SIGN_IN':
-      return authResult(() => signIn(msg.email, msg.password));
-    case 'SYNC_SIGN_UP':
-      return authResult(() => signUp(msg.email, msg.password));
-    case 'SYNC_SIGN_OUT':
-      return authResult(() => signOutSync());
     case 'STRUCTURE_NOTE_RESULT':
       await applyStructureResult(msg.id, msg.bullets, msg.tasks);
       return { ok: true };

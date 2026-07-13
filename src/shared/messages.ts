@@ -1,6 +1,5 @@
 import type { CalendarEvent } from './calendar';
 import type { NotionDbSummary } from './notion';
-import type { SyncLocalState } from './storage';
 import type {
   BookmarkGroup,
   BookmarkLink,
@@ -79,10 +78,6 @@ export type Message =
   | { type: 'CAL_SIGN_OUT' }
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
-  | { type: 'SYNC_STATUS' }
-  | { type: 'SYNC_SIGN_IN'; email: string; password: string }
-  | { type: 'SYNC_SIGN_UP'; email: string; password: string }
-  | { type: 'SYNC_SIGN_OUT' }
   // Content script → service worker
   | { type: 'TRACKER_READY' }
   | { type: 'TIME_PILL_READY'; host: string }
@@ -160,10 +155,6 @@ export interface MessageResponses {
   CAL_SIGN_OUT: { ok: boolean };
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
-  SYNC_STATUS: SyncLocalState;
-  SYNC_SIGN_IN: { ok: boolean; error?: string };
-  SYNC_SIGN_UP: { ok: boolean; error?: string };
-  SYNC_SIGN_OUT: { ok: boolean; error?: string };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   TIME_PILL_READY: { ok: boolean; todaySeconds: number };
   TIME_PILL_TICK: { ok: boolean };

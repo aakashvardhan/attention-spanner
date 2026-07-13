@@ -6,7 +6,6 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
 import type { Settings, ThemeSetting } from '../../shared/types';
-import { AccountSection } from './AccountSection';
 import { AssistantSection } from './AssistantSection';
 import { CalendarSection } from './CalendarSection';
 import { NotionSection } from './NotionSection';
@@ -504,8 +503,6 @@ export function Options() {
         <AssistantSection />
 
         <CalendarSection />
-
-        <AccountSection />
 
         <NotionSection />
 
