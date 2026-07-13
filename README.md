@@ -1,6 +1,6 @@
 # Reader
 
-**An RSS reader rebuilt as a full attention-management system for ADHD brains.**
+**An RSS reader rebuilt as a full attention-management system for your browser.**
 
 Reader helps you finish what you start, capture thoughts before they vanish,
 and build the habits that keep you on track — everything runs locally, and
@@ -21,6 +21,7 @@ Built on Manifest V3 with React 19, Vite, and TypeScript.
 ## Table of contents
 
 - [Why this exists](#why-this-exists)
+- [Use cases](#use-cases)
 - [Features](#features)
 - [Personal integrations](#personal-integrations)
 - [Installation](#installation)
@@ -43,6 +44,66 @@ nudges you back to it, and rewards you for following through.
 Everything runs locally. On-device AI uses Chrome's built-in Gemini Nano — no
 API keys, no external calls (an optional bring-your-own Gemini API key can
 handle harder assistant queries).
+
+---
+
+## Use cases
+
+New here? These are the day-to-day flows Reader is built around — each one
+works out of the box after [installation](#installation).
+
+### 🌅 Start your day from a new tab
+Open a new tab. The dashboard greets you with a short **morning briefing** —
+your streak, today's first meeting, your top task, due flashcards, and the
+newest unread headlines. Tap **🔊** to have it read aloud while you pour
+coffee. Your agenda, tasks, and continue-reading list are one glance away.
+
+### ⚡ Capture a thought before it slips
+Press **`⌘⇧Y` / `Ctrl+Shift+Y`** anywhere in Chrome — a tiny capture window
+opens, you type the task, hit Enter, and you're back to what you were doing.
+Or just tell the assistant: *"add a task to email the landlord"*.
+
+### 🎯 Sit down for deep work
+Hit **`⌘K`** on the dashboard and pick **Start focus session** (or ask:
+*"start a 50-minute focus"*). Distracting sites are blocked at the browser
+level, the toolbar badge becomes a countdown, and quitting early takes a
+deliberate 5-second hold. Pomodoro cycles, ambient music, and a calendar
+time-block are one setting away.
+
+### 🤖 Do several things in one sentence
+With a Gemini API key configured, the assistant chains actions: *"add a task
+to submit the report and start a 25-minute focus"* shows one plan with both
+steps — confirm once and it runs them in order.
+
+### 📚 Read more, abandon less
+Add your feeds in Options and read from the popup or dashboard. Reader
+remembers your scroll position in every article (and your timestamp in long
+YouTube videos), surfaces a **Continue reading** list, and sends a gentle
+nudge when you leave something half-finished.
+
+### 🃏 Study what you read
+On any article, open the popup and ask: *"make flashcards from this page"*.
+Review the generated cards, save the keepers, and drill them later with
+Anki-style spaced repetition.
+
+### 🧠 Untangle a busy mind
+Open **Brain dump**, type everything as it comes — unsorted, messy, stream of
+consciousness. On-device AI structures it into bullets and proposed tasks;
+nothing enters your task list until you approve it. For a task you keep
+avoiding, hit **⚡ Ignition** and it suggests one tiny first action plus a
+5-minute starter session.
+
+### 🔥 Keep habits alive
+One-tap gym check-ins, reading sprints, and daily streaks — with **streak
+insurance** tokens for the occasional off day, and XP, levels, badges, and
+weekly quests tying it all together. If your streak is at risk in the
+evening or reviews are piling up, Reader sends one considerate heads-up
+(quiet hours respected).
+
+### 💭 Teach it about you
+Tell the assistant *"remember that my advisor is Dr. Lee"* — remembered facts
+shape its answers and your morning briefing from then on. Review or delete
+them any time in **Options → Assistant → Memory**.
 
 ---
 
@@ -114,6 +175,14 @@ handle harder assistant queries).
   a 25-minute focus"). On-device Gemini Nano first, optional Gemini API key
   (yours, entered in Options) for harder queries; optional push-to-talk voice
   input and spoken replies via the browser's built-in speech synthesis.
+  - **Multi-step commands** (with a Gemini key) — "add these three tasks and
+    start a focus session" plans a tool chain behind a single confirmation.
+  - **Persistent memory** — "remember I lift Mon/Wed/Fri"; facts inform answers
+    and the briefing, and are manageable in Options.
+  - **Morning briefing** — a once-a-day check-in card with a 🔊 play button.
+  - **Proactive check-ins** — an evening streak-at-risk / reviews-piling-up
+    notification and a "meeting starts in 10 minutes" reminder, both gated by
+    configurable quiet hours.
 
 ---
 
@@ -122,8 +191,9 @@ handle harder assistant queries).
 This branch additionally ships (setup: **[PERSONAL.md](PERSONAL.md)**):
 
 - **Google Calendar** — a 📅 Today agenda card with a next-event countdown,
-  assistant commands like "block 2–3pm for deep work", meetings in the morning
-  briefing, and optional focus-session time-blocking on your calendar.
+  assistant commands like "block 2–3pm for deep work" and "what's on my
+  calendar tomorrow?", meetings in the morning briefing, upcoming-event
+  reminders, and optional focus-session time-blocking on your calendar.
 - **Notion sync (one-way)** — push links, brain dumps, tasks, and a reading log
   to your own Notion databases via an integration token.
 - **Cloud sync + iOS app** — two-way Firestore sync sharing state with the
