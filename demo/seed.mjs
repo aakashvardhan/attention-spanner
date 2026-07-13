@@ -180,9 +180,9 @@ export function buildSeed(now = Date.now()) {
     },
     {
       id: 'demo-note-2',
-      rawText: 'ideas: weekly review card, export to notion is done, maybe a mobile widget someday',
+      rawText: 'ideas: weekly review card, flashcard export is done, maybe a mobile widget someday',
       status: 'structured',
-      bullets: ['Idea: weekly review card', 'Notion export shipped', 'Long-term: mobile widget'],
+      bullets: ['Idea: weekly review card', 'Flashcard export shipped', 'Long-term: mobile widget'],
       proposedTasks: [{ text: 'Sketch the weekly review card', addedTaskId: null }],
       createdAt: day(3),
       structuredAt: day(3) + 45e3,

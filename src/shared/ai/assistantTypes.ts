@@ -3,7 +3,7 @@ import type { Tool } from './tools';
 /**
  * Shared types for the Jarvis assistant. The conversation thread lives in
  * chrome.storage.session (survives popup close, shared across surfaces,
- * evaporates on browser restart, never synced to Firestore).
+ * evaporates on browser restart).
  */
 
 export const MAX_THREAD_TURNS = 40;
