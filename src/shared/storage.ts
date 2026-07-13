@@ -5,6 +5,7 @@ import type { NotionPush, NotionStatus } from './notion';
 import { DASH_CARD_IDS } from './types';
 import type {
   AnyProgress,
+  AssistantFact,
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
@@ -59,6 +60,8 @@ export interface LocalSchema {
   tombstones: Record<string, number>;
   /** Today's assistant morning briefing; regenerated when `date` rolls over */
   assistantBriefing: { date: string; text: string } | null;
+  /** Facts the user asked the assistant to remember. Device-local — not synced (v1). */
+  assistantMemory: AssistantFact[];
   /** Google Calendar connection + cached agenda window. Device-local — never synced. */
   calendar: CalendarState;
 }
@@ -87,6 +90,8 @@ export interface SessionSchema {
   hyperfocus: { unbrokenSeconds: number; lastDeltaAt: number; notifiedAtSeconds: number };
   /** Assistant conversation — session-scoped by design (private, resets with the browser) */
   assistantThread: AssistantTurn[];
+  /** Calendar events already notified by the monitor (session lifetime = dedupe lifetime) */
+  monitorNotifiedEventIds: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -138,6 +143,10 @@ export const DEFAULT_SETTINGS: Settings = {
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',
   focusCalendarBlockEnabled: false,
+  assistantMonitorEnabled: true,
+  monitorQuietStart: '22:00',
+  monitorQuietEnd: '08:00',
+  monitorEveningTime: '19:00',
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -182,6 +191,7 @@ export const DEFAULTS: LocalSchema = {
   sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
   tombstones: {},
   assistantBriefing: null,
+  assistantMemory: [],
   calendar: CALENDAR_DEFAULTS,
 };
 
@@ -192,6 +202,7 @@ export const SESSION_DEFAULTS: SessionSchema = {
   lastGlobalNudgeAt: 0,
   hyperfocus: { unbrokenSeconds: 0, lastDeltaAt: 0, notifiedAtSeconds: 0 },
   assistantThread: [],
+  monitorNotifiedEventIds: [],
 };
 
 export async function getLocal<K extends keyof LocalSchema>(

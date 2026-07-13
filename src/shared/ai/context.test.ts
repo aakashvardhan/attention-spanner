@@ -37,6 +37,8 @@ function emptyData(): AssistantContextData {
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
     calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
+    assistantMemory: [],
+    feedUnread: { count: 0, topTitles: [] },
   };
 }
 
@@ -101,6 +103,28 @@ describe('buildDataContext', () => {
     const out = buildDataContext(data, NOW);
     expect(out).toContain('Calendar today (1 event)');
     expect(out).toContain('Standup');
+  });
+
+  it('mentions unread articles only when there are some', () => {
+    const data = emptyData();
+    expect(buildDataContext(data, NOW)).not.toContain('Unread articles');
+
+    data.feedUnread = { count: 12, topTitles: ['Big News', 'Other Story'] };
+    const out = buildDataContext(data, NOW);
+    expect(out).toContain('Unread articles: 12 — newest: “Big News”, “Other Story”.');
+  });
+
+  it('lists remembered facts newest-first', () => {
+    const data = emptyData();
+    expect(buildDataContext(data, NOW)).not.toContain('remember');
+
+    data.assistantMemory = [
+      { id: 'a', text: 'My advisor is Dr. Lee', createdAt: 1, updatedAt: 1 },
+      { id: 'b', text: 'I lift Mon/Wed/Fri', createdAt: 2, updatedAt: 2 },
+    ];
+    const out = buildDataContext(data, NOW);
+    expect(out).toContain('Things the user asked you to remember:');
+    expect(out.indexOf('I lift Mon/Wed/Fri')).toBeLessThan(out.indexOf('My advisor is Dr. Lee'));
   });
 
   it('caps the snapshot length', () => {

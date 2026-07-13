@@ -13,16 +13,26 @@ export function ttsCleanText(text: string): string {
     .trim();
 }
 
-export function speak(text: string, voiceName = ''): void {
-  if (typeof speechSynthesis === 'undefined') return;
+export function speak(text: string, voiceName = '', onEnd?: () => void): void {
+  if (typeof speechSynthesis === 'undefined') {
+    onEnd?.();
+    return;
+  }
   const clean = ttsCleanText(text);
-  if (!clean) return;
+  if (!clean) {
+    onEnd?.();
+    return;
+  }
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(clean);
   utterance.rate = 1.05;
   if (voiceName) {
     const voice = speechSynthesis.getVoices().find((v) => v.name === voiceName);
     if (voice) utterance.voice = voice;
+  }
+  if (onEnd) {
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd; // cancel() surfaces as an error event
   }
   speechSynthesis.speak(utterance);
 }

@@ -1,9 +1,10 @@
 import { todayEvents } from '../calendar';
 import { localDate } from '../format';
+import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, setLocal } from '../storage';
 import { countInWeek, weekKey } from '../week';
 import { newTurn } from './assistantTypes';
-import { buildDataContext, type AssistantContextData } from './context';
+import { buildDataContext, computeFeedUnread, type AssistantContextData } from './context';
 import { nanoProvider } from './nanoProvider';
 
 /**
@@ -31,7 +32,13 @@ export function templateBriefing(data: AssistantContextData, now = new Date()): 
   const parts: string[] = [];
   const openTasks = data.tasks.filter((t) => t.completedAt === null);
 
-  if (data.streaks.currentStreak > 0) {
+  const todayStats = data.streaks.daily[localDate(now)];
+  const activeToday = (todayStats?.minutes ?? 0) > 0 || (todayStats?.sprints ?? 0) > 0;
+  if (data.streaks.currentStreak > 0 && !activeToday) {
+    parts.push(
+      `You're on a ${data.streaks.currentStreak}-day reading streak — nothing's counted yet today, so a quick sprint protects it.`,
+    );
+  } else if (data.streaks.currentStreak > 0) {
     parts.push(`You're on a ${data.streaks.currentStreak}-day reading streak — keep it alive today.`);
   } else {
     parts.push('Fresh day, fresh start — a single 5-minute sprint gets a streak going.');
@@ -54,6 +61,20 @@ export function templateBriefing(data: AssistantContextData, now = new Date()): 
   if (openTasks.length > 0) {
     parts.push(
       `${openTasks.length} task${openTasks.length === 1 ? '' : 's'} open; first up: “${openTasks[0].text}”.`,
+    );
+  }
+
+  const due = totalDue(
+    dueCounts(data.flashCards, now.getTime(), newIntroducedToday(data.srsDaily, localDate(now))),
+  );
+  if (due > 0) {
+    parts.push(`${due} flashcard${due === 1 ? '' : 's'} due for review.`);
+  }
+
+  if (data.feedUnread.count > 0) {
+    const top = data.feedUnread.topTitles[0];
+    parts.push(
+      `${data.feedUnread.count} unread article${data.feedUnread.count === 1 ? '' : 's'}${top ? ` — newest: “${top}”` : ''}.`,
     );
   }
 
@@ -85,8 +106,15 @@ export async function maybeGenerateBriefing(now = new Date()): Promise<void> {
     'siteTime',
     'readingProgress',
     'calendar',
+    'assistantMemory',
+    'cachedItems',
+    'readItems',
   );
-  const contextData: AssistantContextData = { ...data, settings };
+  const contextData: AssistantContextData = {
+    ...data,
+    settings,
+    feedUnread: computeFeedUnread(data.cachedItems, data.readItems),
+  };
 
   let text = templateBriefing(contextData, now);
   try {

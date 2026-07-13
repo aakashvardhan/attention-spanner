@@ -1,4 +1,4 @@
-import { ALARMS, CAPTURE_WINDOW_TASK, NOTIFICATION_IDS } from '../shared/constants';
+import { ALARMS, CAPTURE_WINDOW_TASK, NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
 import { migrate } from '../shared/storage';
 import type { Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
@@ -6,6 +6,7 @@ import {
   handleAlarm,
   setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
+  setupMonitorAlarms,
   setupNotionFlushAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
@@ -21,6 +22,7 @@ import {
   isNudgeNotification,
   resumeArticle,
 } from './nudges';
+import { isMonitorNotification } from './monitor';
 import { recomputeStreak } from './streaks';
 import { pruneCompletedTasks, snoozeOpenTasks } from './tasks';
 import { maybeInjectTimePill } from './timePill';
@@ -74,6 +76,7 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupGymReminderAlarm();
     await setupNotionFlushAlarm();
     await setupCalendarRefreshAlarm();
+    await setupMonitorAlarms();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -103,8 +106,9 @@ chrome.runtime.onStartup.addListener(() => {
   void updateBadge();
   void recomputeStreak();
   void recomputeGymStreak();
-  // Re-anchor the daily reminder to the wall clock (bounds DST drift)
+  // Re-anchor the daily reminders to the wall clock (bounds DST drift)
   void setupGymReminderAlarm();
+  void setupMonitorAlarms();
   void reconcileFocusOnStartup();
   // Drain Notion pushes left queued when the previous SW instance died
   void flushQueue();
@@ -149,6 +153,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
     if (oldSettings.gymReminderTime !== newSettings.gymReminderTime) {
       void setupGymReminderAlarm(newSettings.gymReminderTime);
+    }
+    if (oldSettings.monitorEveningTime !== newSettings.monitorEveningTime) {
+      void setupMonitorAlarms(newSettings.monitorEveningTime);
     }
     // A re-pasted token lifts the 401 pause and drains the queue immediately
     if (oldSettings.notionToken !== newSettings.notionToken && newSettings.notionToken) {
@@ -224,5 +231,11 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   if (isNudgeNotification(notificationId)) {
     chrome.notifications.clear(notificationId);
     void resumeArticle(notificationId.slice(NOTIFICATION_IDS.nudgePrefix.length));
+    return;
+  }
+  if (isMonitorNotification(notificationId)) {
+    chrome.notifications.clear(notificationId);
+    // The nudge is already waiting in the assistant chat on the dashboard
+    void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
   }
 });

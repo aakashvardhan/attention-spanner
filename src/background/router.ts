@@ -1,5 +1,5 @@
 import type { Message } from '../shared/messages';
-import { calSignIn, calSignOut, createCalendarEvent, refreshCalendar } from './calendar';
+import { calSignIn, calSignOut, createCalendarEvent, listEvents, refreshCalendar } from './calendar';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
@@ -30,10 +30,11 @@ import { addPaper, deletePaper, updatePaper } from './papers';
 import { getSyncStatus } from './sync';
 import { signIn, signOutSync, signUp } from './firestoreBackend';
 import { startFocus, stopFocus } from './focus';
+import { addFact, deleteFact } from './memory';
 import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
 import { cancelSprint, startSprint } from './streaks';
-import { addTask, deleteTask, moveTask, snoozeTask, toggleTask } from './tasks';
+import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
 import { handleVideoProgress, handleVideoReady } from './videoTracking';
@@ -76,6 +77,9 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
     case 'DELETE_TASK':
       await deleteTask(msg.id);
       return { ok: true };
+    case 'EDIT_TASK':
+      await editTask(msg.id, msg.text);
+      return { ok: true };
     case 'MOVE_TASK':
       await moveTask(msg.id, msg.toIndex);
       return { ok: true };
@@ -110,6 +114,11 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return { ok: true, group: await addBookmarkGroup(msg.name) };
     case 'DELETE_BOOKMARK_GROUP':
       await deleteBookmarkGroup(msg.id);
+      return { ok: true };
+    case 'MEMORY_ADD':
+      return addFact(msg.text);
+    case 'MEMORY_DELETE':
+      await deleteFact(msg.id);
       return { ok: true };
     case 'SAVE_NOTE':
       return { ok: true, note: await saveNote(msg.rawText, msg.willStructure) };
@@ -150,6 +159,8 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return refreshCalendar();
     case 'CAL_CREATE_EVENT':
       return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
+    case 'CAL_LIST_EVENTS':
+      return listEvents(msg.startMs, msg.endMs);
     case 'SYNC_STATUS':
       return getSyncStatus();
     case 'SYNC_SIGN_IN':

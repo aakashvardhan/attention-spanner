@@ -1,6 +1,8 @@
 import {
+  dayRange,
   EVENT_MAX_MINUTES,
   EVENT_MIN_MINUTES,
+  formatEventList,
   parseEventTimes,
 } from '../calendar';
 import {
@@ -114,6 +116,11 @@ export function validateToolCall(
   return { ok: true, params };
 }
 
+export type TextResolution<T> =
+  | { kind: 'match'; item: T }
+  | { kind: 'ambiguous'; candidates: T[] }
+  | { kind: 'none' };
+
 export type TaskResolution =
   | { kind: 'match'; task: Task }
   | { kind: 'ambiguous'; candidates: Task[] }
@@ -123,32 +130,47 @@ export type TaskResolution =
 const STOPWORDS = new Set(['the', 'and', 'for', 'that', 'this', 'with', 'about', 'task', 'one']);
 
 /**
- * Fuzzy-match a user phrase to an open task so the LLM never has to produce
- * ids. Pure — takes the task list — for unit testing.
+ * Fuzzy-match a user phrase to one of `items` so the LLM never has to produce
+ * ids. Pure; shared by task and memory-fact resolution.
  */
-export function resolveTaskByText(tasks: Task[], query: string): TaskResolution {
-  const open = tasks.filter((t) => t.completedAt === null);
+export function resolveByText<T>(
+  items: T[],
+  textOf: (item: T) => string,
+  query: string,
+): TextResolution<T> {
   const q = query.trim().toLowerCase();
-  if (!q || open.length === 0) return { kind: 'none' };
+  if (!q || items.length === 0) return { kind: 'none' };
 
   const qTokens = q.split(/\s+/).filter((t) => t.length > 2 && !STOPWORDS.has(t));
-  const scored = open
-    .map((task) => {
-      const text = task.text.toLowerCase();
-      if (text === q) return { task, score: 4 };
-      if (text.includes(q) || q.includes(text)) return { task, score: 3 };
-      if (qTokens.length === 0) return { task, score: 0 };
+  const scored = items
+    .map((item) => {
+      const text = textOf(item).toLowerCase();
+      if (text === q) return { item, score: 4 };
+      if (text.includes(q) || q.includes(text)) return { item, score: 3 };
+      if (qTokens.length === 0) return { item, score: 0 };
       const hit = qTokens.filter((tok) => text.includes(tok)).length;
-      return { task, score: (hit / qTokens.length) * 2 };
+      return { item, score: (hit / qTokens.length) * 2 };
     })
     .filter((s) => s.score >= 1)
     .sort((a, b) => b.score - a.score);
 
   if (scored.length === 0) return { kind: 'none' };
   if (scored.length === 1 || scored[0].score > scored[1].score) {
-    return { kind: 'match', task: scored[0].task };
+    return { kind: 'match', item: scored[0].item };
   }
-  return { kind: 'ambiguous', candidates: scored.slice(0, 3).map((s) => s.task) };
+  return { kind: 'ambiguous', candidates: scored.slice(0, 3).map((s) => s.item) };
+}
+
+/** Task-shaped wrapper over resolveByText (open tasks only) */
+export function resolveTaskByText(tasks: Task[], query: string): TaskResolution {
+  const res = resolveByText(
+    tasks.filter((t) => t.completedAt === null),
+    (t) => t.text,
+    query,
+  );
+  if (res.kind === 'match') return { kind: 'match', task: res.item };
+  if (res.kind === 'ambiguous') return { kind: 'ambiguous', candidates: res.candidates };
+  return { kind: 'none' };
 }
 
 async function resolveTaskOrThrow(query: string): Promise<Task> {
@@ -245,6 +267,47 @@ export const TOOLS: readonly Tool[] = [
     },
   },
   {
+    name: 'delete_task',
+    description:
+      'Delete/remove a task from the list entirely (not complete it — use complete_task for that). Takes the task wording, not an id.',
+    params: {
+      type: 'object',
+      required: ['task'],
+      additionalProperties: false,
+      properties: {
+        task: { type: 'string', description: 'Words identifying the task to delete', maxLength: 300 },
+      },
+    },
+    confirm: true,
+    summary: (p) => `Delete task “${p.task as string}”`,
+    run: async (p) => {
+      const task = await resolveTaskOrThrow(p.task as string);
+      await sendMessage({ type: 'DELETE_TASK', id: task.id });
+      return `Deleted “${task.text}”.`;
+    },
+  },
+  {
+    name: 'edit_task',
+    description:
+      'Rename/rewrite the text of an existing open task. Takes the current task wording and the new text.',
+    params: {
+      type: 'object',
+      required: ['task', 'newText'],
+      additionalProperties: false,
+      properties: {
+        task: { type: 'string', description: 'Words identifying the task to rename', maxLength: 300 },
+        newText: { type: 'string', description: 'The new task text', maxLength: 300 },
+      },
+    },
+    confirm: true,
+    summary: (p) => `Rename “${p.task as string}” to “${p.newText as string}”`,
+    run: async (p) => {
+      const task = await resolveTaskOrThrow(p.task as string);
+      await sendMessage({ type: 'EDIT_TASK', id: task.id, text: p.newText as string });
+      return `Renamed “${task.text}” to “${(p.newText as string).trim()}”.`;
+    },
+  },
+  {
     name: 'start_focus',
     description:
       'Start a focus session that blocks distracting sites. Optional length in minutes; pomodoro=true for repeating focus/break cycles.',
@@ -312,6 +375,54 @@ export const TOOLS: readonly Tool[] = [
     run: async () => {
       await sendMessage({ type: 'GYM_CHECKIN' });
       return 'Gym check-in logged. 💪';
+    },
+  },
+  {
+    name: 'remember',
+    description:
+      "Remember a lasting fact or preference about the user (\"remember that my advisor is Dr. Lee\", \"remember I lift Mon/Wed/Fri\"). Not for to-dos — use add_task for things to do.",
+    params: {
+      type: 'object',
+      required: ['fact'],
+      additionalProperties: false,
+      properties: {
+        fact: { type: 'string', description: 'The fact to remember, one short sentence', maxLength: 280 },
+      },
+    },
+    confirm: true,
+    summary: (p) => `Remember “${p.fact as string}”`,
+    run: async (p) => {
+      const res = await sendMessage({ type: 'MEMORY_ADD', text: p.fact as string });
+      if (!res.ok || !res.fact) throw new Error(res.error ?? 'Could not save that.');
+      return `Got it — I'll remember “${res.fact.text}”.`;
+    },
+  },
+  {
+    name: 'forget',
+    description:
+      'Forget a fact previously remembered about the user. Takes the fact wording, not an id.',
+    params: {
+      type: 'object',
+      required: ['fact'],
+      additionalProperties: false,
+      properties: {
+        fact: { type: 'string', description: 'Words identifying the fact to forget', maxLength: 280 },
+      },
+    },
+    confirm: true,
+    summary: (p) => `Forget “${p.fact as string}”`,
+    run: async (p) => {
+      const { assistantMemory } = await getLocal('assistantMemory');
+      const res = resolveByText(assistantMemory, (f) => f.text, p.fact as string);
+      if (res.kind === 'none') {
+        throw new Error(`I don't have a remembered fact matching “${p.fact as string}”.`);
+      }
+      if (res.kind === 'ambiguous') {
+        const names = res.candidates.map((f) => `“${f.text}”`).join(', ');
+        throw new Error(`A few facts match — did you mean ${names}? Say it more specifically.`);
+      }
+      await sendMessage({ type: 'MEMORY_DELETE', id: res.item.id });
+      return `Forgotten: “${res.item.text}”.`;
     },
   },
   {
@@ -420,6 +531,33 @@ export const TOOLS: readonly Tool[] = [
         hour: 'numeric',
         minute: '2-digit',
       })}. 📅`;
+    },
+  },
+  {
+    name: 'list_events',
+    description:
+      "List the events on the user's Google Calendar for a day (\"what's on my calendar tomorrow?\"). Use this for any day other than today, or when the user asks for their agenda/schedule.",
+    params: {
+      type: 'object',
+      required: [],
+      additionalProperties: false,
+      properties: {
+        date: {
+          type: 'string',
+          description: "'today', 'tomorrow', or a date as YYYY-MM-DD; omit for today",
+          maxLength: 20,
+        },
+      },
+    },
+    summary: (p) => `List calendar events for ${(p.date as string) || 'today'}`,
+    run: async (p) => {
+      const range = dayRange(p.date as string | undefined, new Date());
+      if (!range) {
+        throw new Error(`I can do 'today', 'tomorrow', or a YYYY-MM-DD date — “${p.date as string}” didn't parse.`);
+      }
+      const res = await sendMessage({ type: 'CAL_LIST_EVENTS', startMs: range.startMs, endMs: range.endMs });
+      if (!res.ok || !res.events) throw new Error(res.error ?? 'Could not fetch your calendar.');
+      return formatEventList(res.events, range.label);
     },
   },
   {

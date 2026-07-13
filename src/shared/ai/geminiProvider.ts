@@ -35,6 +35,22 @@ export function toFunctionDeclaration(tool: Tool): Record<string, unknown> {
   };
 }
 
+/**
+ * Gemini's responseSchema is an OpenAPI subset that 400s on unknown fields —
+ * notably `additionalProperties`, which our schemas carry for Nano's stricter
+ * responseConstraint. Strip it recursively (pure).
+ */
+export function sanitizeGeminiSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(sanitizeGeminiSchema);
+  if (typeof schema !== 'object' || schema === null) return schema;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'additionalProperties') continue;
+    out[key] = sanitizeGeminiSchema(value);
+  }
+  return out;
+}
+
 /** Build the generateContent request body (pure) */
 export function buildGeminiBody(req: GenerateRequest): Record<string, unknown> {
   const contents = req.turns.map((t: AssistantTurn) => ({
@@ -48,7 +64,7 @@ export function buildGeminiBody(req: GenerateRequest): Record<string, unknown> {
   if (req.responseSchema) {
     body.generationConfig = {
       responseMimeType: 'application/json',
-      responseSchema: req.responseSchema,
+      responseSchema: sanitizeGeminiSchema(req.responseSchema),
     };
   }
   if (req.tools?.length) {

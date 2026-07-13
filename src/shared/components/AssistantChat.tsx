@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { executeTool, runAssistantTurn } from '../ai/assistant';
+import { executePlan, executeTool, runAssistantTurn } from '../ai/assistant';
 import {
   appendTurn,
   newTurn,
+  type AssistantPlanStep,
   type AssistantTurn,
 } from '../ai/assistantTypes';
 import { geminiProvider } from '../ai/geminiProvider';
@@ -49,6 +50,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [partial, setPartial] = useState<string | null>(null);
+  const [speakingBriefing, setSpeakingBriefing] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const speech = useSpeechInput({
@@ -100,6 +102,17 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
           }),
         );
         say(`Should I ${outcome.summary}?`);
+      } else if (outcome.kind === 'confirm-plan') {
+        await persistTurn(
+          newTurn('assistant', `That's ${outcome.steps.length} steps:`, {
+            source: 'cloud',
+            plan: {
+              steps: outcome.steps.map((s) => ({ ...s, status: 'pending' as const })),
+              status: 'pending-confirm',
+            },
+          }),
+        );
+        say(`Should I do these ${outcome.steps.length} things?`);
       } else if (outcome.kind === 'done') {
         await persistTurn(
           newTurn('assistant', outcome.text, { kind: 'action-result', source: 'nano' }),
@@ -140,8 +153,37 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
   };
 
   const cancel = (turn: AssistantTurn) => {
+    if (turn.plan) {
+      void patchTurn(turn.id, { plan: { ...turn.plan, status: 'cancelled' } });
+      return;
+    }
     if (!turn.toolCall) return;
     void patchTurn(turn.id, { toolCall: { ...turn.toolCall, status: 'cancelled' } });
+  };
+
+  const confirmPlan = async (turn: AssistantTurn) => {
+    if (!turn.plan || busy) return;
+    setBusy(true);
+    const steps: AssistantPlanStep[] = turn.plan.steps.map((s) => ({ ...s }));
+    try {
+      const run = await executePlan(steps, undefined, async (i, outcome) => {
+        steps[i] = { ...steps[i], status: outcome.status };
+        await patchTurn(turn.id, { plan: { steps: [...steps], status: 'pending-confirm' } });
+      });
+      await patchTurn(turn.id, { plan: { steps, status: run.ok ? 'done' : 'failed' } });
+      await persistTurn(newTurn('assistant', run.text, { kind: 'action-result', source: 'local' }));
+      say(run.ok ? `Done — all ${steps.length} steps completed.` : 'I hit a snag partway through.');
+    } catch (err) {
+      await patchTurn(turn.id, { plan: { steps, status: 'failed' } });
+      await persistTurn(
+        newTurn('assistant', err instanceof Error ? err.message : 'That plan failed.', {
+          kind: 'error',
+          source: 'local',
+        }),
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -150,6 +192,25 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
         {todaysBriefing && !compact && (
           <div className="as-bubble assistant briefing">
             <span className="as-briefing-label">Today</span>
+            <button
+              type="button"
+              className="as-briefing-play"
+              title={speakingBriefing ? 'Stop' : 'Play briefing'}
+              onClick={() => {
+                if (speakingBriefing) {
+                  cancelSpeech();
+                  setSpeakingBriefing(false);
+                } else {
+                  // Explicit click = consent, so no assistantVoiceEnabled gate
+                  setSpeakingBriefing(true);
+                  speak(todaysBriefing, settings.assistantTtsVoice, () =>
+                    setSpeakingBriefing(false),
+                  );
+                }
+              }}
+            >
+              {speakingBriefing ? '⏹' : '🔊'}
+            </button>
             {todaysBriefing}
           </div>
         )}
@@ -164,7 +225,14 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
           </div>
         )}
         {thread.map((turn) => (
-          <Bubble key={turn.id} turn={turn} onConfirm={confirm} onCancel={cancel} busy={busy} />
+          <Bubble
+            key={turn.id}
+            turn={turn}
+            onConfirm={confirm}
+            onConfirmPlan={confirmPlan}
+            onCancel={cancel}
+            busy={busy}
+          />
         ))}
         {partial !== null && (
           <div className="as-bubble assistant streaming">
@@ -251,14 +319,23 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function planStepIcon(step: AssistantPlanStep, index: number): string {
+  if (step.status === 'done') return '✓';
+  if (step.status === 'failed') return '✗';
+  if (step.status === 'skipped') return '–';
+  return `${index + 1}.`;
+}
+
 function Bubble({
   turn,
   onConfirm,
+  onConfirmPlan,
   onCancel,
   busy,
 }: {
   turn: AssistantTurn;
   onConfirm: (turn: AssistantTurn) => void;
+  onConfirmPlan: (turn: AssistantTurn) => void;
   onCancel: (turn: AssistantTurn) => void;
   busy: boolean;
 }) {
@@ -276,6 +353,25 @@ function Bubble({
       {turn.kind === 'action-result' && '✓ '}
       {turn.text}
       {turn.source === 'cloud' && <span className="as-badge">cloud</span>}
+      {turn.plan && (
+        <ul className="as-plan">
+          {turn.plan.steps.map((step, i) => (
+            <li key={i} className={`as-plan-step ${step.status}`}>
+              <span className="as-plan-icon">{planStepIcon(step, i)}</span> {step.summary}
+            </li>
+          ))}
+        </ul>
+      )}
+      {turn.plan?.status === 'pending-confirm' && (
+        <div className="as-confirm">
+          <button className="as-confirm-yes" disabled={busy} onClick={() => onConfirmPlan(turn)}>
+            ✓ Do all {turn.plan.steps.length}
+          </button>
+          <button className="as-confirm-no" disabled={busy} onClick={() => onCancel(turn)}>
+            Cancel
+          </button>
+        </div>
+      )}
       {turn.toolCall?.status === 'pending-confirm' && (
         <div className="as-confirm">
           <button className="as-confirm-yes" disabled={busy} onClick={() => onConfirm(turn)}>
@@ -286,8 +382,12 @@ function Bubble({
           </button>
         </div>
       )}
-      {turn.toolCall?.status === 'cancelled' && <span className="as-badge">cancelled</span>}
-      {turn.toolCall?.status === 'failed' && <span className="as-badge">failed</span>}
+      {(turn.toolCall?.status === 'cancelled' || turn.plan?.status === 'cancelled') && (
+        <span className="as-badge">cancelled</span>
+      )}
+      {(turn.toolCall?.status === 'failed' || turn.plan?.status === 'failed') && (
+        <span className="as-badge">failed</span>
+      )}
     </div>
   );
 }

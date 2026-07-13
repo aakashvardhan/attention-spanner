@@ -58,6 +58,30 @@ describe('buildGeminiBody', () => {
     expect(body.generationConfig.responseMimeType).toBe('application/json');
   });
 
+  it('strips additionalProperties from the response schema at every depth (Gemini 400s on it)', () => {
+    const body = buildGeminiBody({
+      system: 's',
+      turns: [newTurn('user', 'x')],
+      responseSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['steps'],
+        properties: {
+          steps: {
+            type: 'array',
+            minItems: 1,
+            items: { type: 'object', additionalProperties: false, properties: { tool: { type: 'string' } } },
+          },
+        },
+      },
+    }) as { generationConfig: { responseSchema: Record<string, unknown> } };
+    const schema = body.generationConfig.responseSchema;
+    expect(JSON.stringify(schema)).not.toContain('additionalProperties');
+    // Supported fields survive
+    expect(JSON.stringify(schema)).toContain('minItems');
+    expect((schema.properties as Record<string, unknown>).steps).toBeDefined();
+  });
+
   it('includes function declarations when tools are passed', () => {
     const body = buildGeminiBody({ system: 's', turns: [newTurn('user', 'x')], tools: [tool] }) as {
       tools: { functionDeclarations: { name: string }[] }[];

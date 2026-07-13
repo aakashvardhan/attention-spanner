@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { testGeminiKey } from '../../shared/ai/geminiProvider';
 import { listVoices } from '../../shared/ai/tts';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
 
 type Test = { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'error'; message: string };
@@ -10,6 +11,7 @@ type Mic = { state: 'unknown' } | { state: 'granted' } | { state: 'denied' };
 
 export function AssistantSection() {
   const [stored] = useStorageValue('settings');
+  const [memory] = useStorageValue('assistantMemory');
   const settings = { ...DEFAULT_SETTINGS, ...stored };
   const hasKey = settings.geminiApiKey.length > 0;
   const [keyInput, setKeyInput] = useState('');
@@ -179,6 +181,50 @@ export function AssistantSection() {
             ))}
           </select>
         </div>
+      )}
+
+      <h3 style={{ marginTop: 20 }}>Memory</h3>
+      <p className="hint">
+        Facts you asked the assistant to remember (“remember I lift Mon/Wed/Fri”). They shape its
+        answers and morning briefing, and stay on this device only.
+      </p>
+      {(memory ?? []).length === 0 ? (
+        <p className="empty-message">Nothing remembered yet.</p>
+      ) : (
+        <>
+          <div className="feeds-list">
+            {(memory ?? []).map((fact) => (
+              <div key={fact.id} className="feed-entry">
+                <span className="feed-entry-url" style={{ whiteSpace: 'normal' }}>
+                  {fact.text}
+                </span>
+                <button
+                  type="button"
+                  className="remove-feed-btn"
+                  aria-label={`Forget "${fact.text}"`}
+                  onClick={() => void sendMessage({ type: 'MEMORY_DELETE', id: fact.id })}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="secondary-btn"
+            style={{ marginTop: 10 }}
+            onClick={() =>
+              void (async () => {
+                // Sequential — parallel deletes would race the worker's read-modify-write
+                for (const fact of memory ?? []) {
+                  await sendMessage({ type: 'MEMORY_DELETE', id: fact.id });
+                }
+              })()
+            }
+          >
+            Forget all
+          </button>
+        </>
       )}
     </section>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../storage';
-import type { Task } from '../types';
+import type { FlashCard, Task } from '../types';
 import { BRIEFING_MAX_CHARS, buildBriefingPrompt, templateBriefing } from './briefing';
 import type { AssistantContextData } from './context';
 
@@ -38,6 +38,8 @@ function data(): AssistantContextData {
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
     calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
+    assistantMemory: [],
+    feedUnread: { count: 0, topTitles: [] },
   };
 }
 
@@ -78,6 +80,43 @@ describe('templateBriefing', () => {
     const out = templateBriefing(d, NOW);
     expect(out).toContain('1 meeting today');
     expect(out).toContain('Standup at 10:00');
+  });
+
+  it('sharpens the streak line when nothing counted yet today', () => {
+    const d = data();
+    d.streaks.currentStreak = 6;
+    expect(templateBriefing(d, NOW)).toContain("nothing's counted yet today");
+
+    d.streaks.daily['2026-07-11'] = { minutes: 10, sprints: 0, articlesFinished: 0 };
+    expect(templateBriefing(d, NOW)).toContain('keep it alive today');
+  });
+
+  it('mentions due flashcards only when some are due', () => {
+    const d = data();
+    expect(templateBriefing(d, NOW)).not.toContain('flashcard');
+
+    const card: FlashCard = {
+      id: 'n1#0',
+      noteId: 'n1',
+      deckId: 'd1',
+      variant: 0,
+      phase: 'review',
+      stepIndex: 0,
+      ease: 2.5,
+      intervalDays: 3,
+      dueAt: NOW.getTime() - 1000,
+      lapses: 0,
+      reps: 4,
+      createdAt: 0,
+    };
+    d.flashCards = [card, { ...card, id: 'n1#1', variant: 1 }];
+    expect(templateBriefing(d, NOW)).toContain('2 flashcards due for review.');
+  });
+
+  it('mentions unread articles with the newest title', () => {
+    const d = data();
+    d.feedUnread = { count: 5, topTitles: ['Big News'] };
+    expect(templateBriefing(d, NOW)).toContain('5 unread articles — newest: “Big News”.');
   });
 
   it('flags the gym gap only while under target', () => {

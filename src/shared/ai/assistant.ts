@@ -1,4 +1,4 @@
-import { NANO_INPUT_BUDGET_CHARS } from '../constants';
+import { MAX_PLAN_STEPS, NANO_INPUT_BUDGET_CHARS } from '../constants';
 import type { AssistantProvider, AssistantTurn } from './assistantTypes';
 import { newTurn } from './assistantTypes';
 import { gatherDataContext } from './context';
@@ -20,9 +20,17 @@ export interface RoutedIntent {
   tool: string | null;
 }
 
+/** A validated, ready-to-run step of a multi-tool plan */
+export interface PlannedStep {
+  name: string;
+  params: Record<string, unknown>;
+  summary: string;
+}
+
 export type AssistantOutcome =
   | { kind: 'reply'; text: string; source: 'nano' | 'cloud' | 'local' }
   | { kind: 'confirm'; toolName: string; params: Record<string, unknown>; summary: string }
+  | { kind: 'confirm-plan'; steps: PlannedStep[]; summary: string }
   | { kind: 'done'; text: string }
   | { kind: 'error'; text: string };
 
@@ -38,6 +46,8 @@ export interface AssistantDeps {
   getPage?: () => Promise<PageContent | null>;
   /** Streaming callback for question/chat answers (accumulated text) */
   onToken?: (partial: string) => void;
+  /** false = never plan multi-tool chains (the palette wants single commands) */
+  multiStep?: boolean;
 }
 
 export const PERSONA =
@@ -111,7 +121,7 @@ export function buildRouterSystem(tools: readonly Tool[]): string {
     'You route messages for a personal productivity assistant. Classify the ' +
     "user's message:\n" +
     '- "action": they want to DO something the tools below can do\n' +
-    '- "question": they are asking about their own data (tasks, streaks, reading, gym, flashcards, papers, screen time, calendar/meetings/free time)\n' +
+    '- "question": they are asking about their own data (tasks, streaks, reading, gym, flashcards, papers, screen time, calendar/meetings/free time, facts you remember about them)\n' +
     '- "page": they are asking about the web page they are currently viewing (summarize it, explain it, make cards from it)\n' +
     '- "chat": anything else\n\n' +
     'Tools:\n' +
@@ -131,6 +141,130 @@ export function buildRouterSchema(tools: readonly Tool[]): object {
       tool: { type: 'string', enum: [...tools.map((t) => t.name), 'none'] },
     },
   };
+}
+
+/**
+ * Cheap wording check for "do several things" requests. False positives are
+ * harmless — a one-step plan behaves exactly like the single-tool path, it
+ * just runs on the cloud provider instead of Nano.
+ */
+export function looksMultiStep(input: string): boolean {
+  return (
+    /\b(and|then|after that|also|plus)\b/i.test(input) ||
+    /\b\d+\s+(tasks|things|items|cards)\b/i.test(input)
+  );
+}
+
+/**
+ * One schema for a whole plan: each step picks a tool (enum) and fills params
+ * from the union of every tool's properties, all optional. Per-tool
+ * constraints (required keys, min/max) differ across tools sharing a name, so
+ * they're dropped here and re-enforced per step by validateToolCall. Too big
+ * for Nano's responseConstraint — cloud only.
+ */
+export function buildPlanSchema(tools: readonly Tool[]): object {
+  // Tools sharing a param name have different descriptions ("Minutes to
+  // snooze for" vs "Focus length in minutes") — joining them keeps the model
+  // from reading the wrong tool's meaning and dropping the value.
+  const merged: Record<string, { description: string } & Record<string, unknown>> = {};
+  for (const tool of tools) {
+    for (const [key, spec] of Object.entries(tool.params.properties)) {
+      const { minimum: _min, maximum: _max, maxLength: _len, ...rest } = spec;
+      if (!(key in merged)) {
+        merged[key] = { ...rest, description: `${tool.name}: ${spec.description}` };
+      } else if (!merged[key].description.includes(spec.description)) {
+        merged[key].description += ` / ${tool.name}: ${spec.description}`;
+      }
+    }
+  }
+  return {
+    type: 'object',
+    required: ['steps'],
+    additionalProperties: false,
+    properties: {
+      steps: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_PLAN_STEPS,
+        items: {
+          type: 'object',
+          required: ['tool'],
+          additionalProperties: false,
+          properties: {
+            tool: { type: 'string', enum: tools.map((t) => t.name) },
+            params: { type: 'object', properties: merged },
+          },
+        },
+      },
+    },
+  };
+}
+
+export function buildPlanSystem(tools: readonly Tool[], now: Date): string {
+  const toolLines = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
+  return (
+    `Break the user's request into tool steps in execution order (1-${MAX_PLAN_STEPS} steps; ` +
+    'most requests need just one). Each step picks one tool and fills only parameters that ' +
+    `tool understands, using only values stated or clearly implied — never invent. Today is ${now.toDateString()}.\n\n` +
+    'Tools:\n' +
+    toolLines +
+    '\n\nRespond with JSON only: {"steps":[{"tool": ..., "params": {...}}]}'
+  );
+}
+
+/** Parse + validate a plan reply. Throws on any invalid step — callers degrade to single-tool extraction. */
+export function parsePlan(raw: string, tools: readonly Tool[]): PlannedStep[] {
+  const obj = parseJsonObject(raw);
+  const rawSteps = Array.isArray(obj.steps) ? obj.steps : [];
+  if (rawSteps.length === 0) throw new Error('empty plan');
+
+  const steps: PlannedStep[] = [];
+  for (const rawStep of rawSteps.slice(0, MAX_PLAN_STEPS)) {
+    const name = (rawStep as { tool?: unknown })?.tool;
+    const tool = typeof name === 'string' ? tools.find((t) => t.name === name) : undefined;
+    if (!tool) throw new Error(`plan used unknown tool "${String(name)}"`);
+    const valid = validateToolCall(tool, (rawStep as { params?: unknown }).params ?? {});
+    if (!valid.ok) throw new Error(`step ${tool.name}: ${valid.error}`);
+    steps.push({ name: tool.name, params: valid.params, summary: tool.summary(valid.params) });
+  }
+  return steps;
+}
+
+export interface PlanStepOutcome {
+  status: 'done' | 'failed' | 'skipped';
+  detail: string;
+}
+
+/**
+ * Run a plan sequentially, stopping at the first failure (later steps are
+ * marked skipped — the tools have no undo, so no rollback). Returns the
+ * combined human-readable transcript.
+ */
+export async function executePlan(
+  steps: PlannedStep[],
+  tools: readonly Tool[] = TOOLS,
+  onStep?: (index: number, outcome: PlanStepOutcome) => void | Promise<void>,
+): Promise<{ ok: boolean; text: string }> {
+  const lines: string[] = [];
+  let failed = false;
+  for (const [i, step] of steps.entries()) {
+    if (failed) {
+      lines.push(`– Skipped: ${step.summary}`);
+      await onStep?.(i, { status: 'skipped', detail: '' });
+      continue;
+    }
+    try {
+      const result = await executeTool(step.name, step.params, tools);
+      lines.push(`✓ ${result}`);
+      await onStep?.(i, { status: 'done', detail: result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'That step failed.';
+      lines.push(`✗ ${message}`);
+      await onStep?.(i, { status: 'failed', detail: message });
+      failed = true;
+    }
+  }
+  return { ok: !failed, text: lines.join('\n') };
 }
 
 function buildExtractSystem(tool: Tool, now: Date): string {
@@ -200,6 +334,42 @@ export async function runAssistantTurn(
   // Step 2a — action: fill the one tool's schema, validate, confirm/run
   if (routed.intent === 'action' && routed.tool) {
     const tool = tools.find((t) => t.name === routed.tool)!;
+
+    // Multi-step chains: cloud only (the merged plan schema is beyond Nano),
+    // and only when the wording suggests several things. A bad plan degrades
+    // to the single-tool extraction below with the router's picked tool.
+    if ((deps.multiStep ?? true) && cloudOk && looksMultiStep(trimmed)) {
+      try {
+        const reply = await deps.cloud!.generate({
+          system: buildPlanSystem(tools, new Date()),
+          turns: [userTurn],
+          responseSchema: buildPlanSchema(tools),
+        });
+        const steps = parsePlan(reply.text, tools);
+        if (steps.length === 1) {
+          // One-step plan ≡ today's single-tool flow
+          const only = steps[0];
+          const onlyTool = tools.find((t) => t.name === only.name)!;
+          if (onlyTool.confirm) {
+            return { kind: 'confirm', toolName: only.name, params: only.params, summary: only.summary };
+          }
+          return { kind: 'done', text: await executeTool(only.name, only.params, tools) };
+        }
+        if (steps.some((s) => tools.find((t) => t.name === s.name)?.confirm)) {
+          return {
+            kind: 'confirm-plan',
+            steps,
+            summary: steps.map((s, i) => `${i + 1}. ${s.summary}`).join('\n'),
+          };
+        }
+        // Nothing mutating — run the whole chain immediately
+        const run = await executePlan(steps, tools);
+        return run.ok ? { kind: 'done', text: run.text } : { kind: 'error', text: run.text };
+      } catch {
+        // fall through to single-tool extraction
+      }
+    }
+
     let params: Record<string, unknown> = {};
 
     if (Object.keys(tool.params.properties).length > 0) {

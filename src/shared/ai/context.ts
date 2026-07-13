@@ -5,6 +5,8 @@ import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, type LocalSchema } from '../storage';
 import type {
   AnyProgress,
+  AssistantFact,
+  FeedItem,
   FlashCard,
   Gamification,
   GymState,
@@ -37,6 +39,22 @@ export interface AssistantContextData {
   readingProgress: Record<string, AnyProgress>;
   settings: Settings;
   calendar: CalendarState;
+  assistantMemory: AssistantFact[];
+  feedUnread: { count: number; topTitles: string[] };
+}
+
+/** Unread RSS summary (same filter as the toolbar badge), newest titles first */
+export function computeFeedUnread(
+  cachedItems: FeedItem[],
+  readItems: string[],
+): AssistantContextData['feedUnread'] {
+  const read = new Set(readItems);
+  const unread = cachedItems.filter((item) => !read.has(item.id));
+  const topTitles = [...unread]
+    .sort((a, b) => Date.parse(b.pubDate || '') - Date.parse(a.pubDate || ''))
+    .slice(0, 3)
+    .map((item) => item.title);
+  return { count: unread.length, topTitles };
 }
 
 function minutes(seconds: number): number {
@@ -110,6 +128,20 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
     lines.push(...calendarContextLines(data.calendar.events, now));
   }
 
+  if (data.feedUnread.count > 0) {
+    const top = data.feedUnread.topTitles.map((t) => `“${t}”`).join(', ');
+    lines.push(`Unread articles: ${data.feedUnread.count}${top ? ` — newest: ${top}` : ''}.`);
+  }
+
+  // Newest first, ahead of the char cap so remembered facts survive the slice
+  if (data.assistantMemory.length > 0) {
+    const facts = [...data.assistantMemory]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 15)
+      .map((f) => `- ${f.text}`);
+    lines.push('Things the user asked you to remember:', ...facts);
+  }
+
   if (data.siteTime.date === today) {
     const hosts = Object.entries(data.siteTime.hosts)
       .sort(([, a], [, b]) => b - a)
@@ -133,7 +165,13 @@ export async function gatherDataContext(now = new Date()): Promise<string> {
     'siteTime',
     'readingProgress',
     'calendar',
+    'assistantMemory',
+    'cachedItems',
+    'readItems',
   );
   const settings = await getSettings();
-  return buildDataContext({ ...data, settings }, now);
+  return buildDataContext(
+    { ...data, settings, feedUnread: computeFeedUnread(data.cachedItems, data.readItems) },
+    now,
+  );
 }

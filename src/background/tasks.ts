@@ -81,6 +81,21 @@ export async function moveTask(id: string, toIndex: number): Promise<void> {
   await setLocal({ tasks: tasks.map((t) => (t.completedAt === null ? open[i++] : t)) });
 }
 
+/**
+ * Rename an open task. No Notion push — only create/toggle push today, and a
+ * rename shouldn't spawn a duplicate page.
+ */
+export async function editTask(id: string, text: string): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const { tasks } = await getLocal('tasks');
+  const task = tasks.find((t) => t.id === id);
+  if (!task) return;
+  task.text = trimmed;
+  task.updatedAt = Date.now();
+  await setLocal({ tasks });
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const { tasks } = await getLocal('tasks');
   await setLocal({ tasks: tasks.filter((t) => t.id !== id) });

@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_PLAN_STEPS } from '../constants';
 import {
+  buildPlanSchema,
   buildRouterSchema,
   buildRouterSystem,
+  executePlan,
+  looksMultiStep,
   parseIntentResult,
   parseJsonObject,
+  parsePlan,
   runAssistantTurn,
 } from './assistant';
 import type { AssistantProvider, GenerateRequest } from './assistantTypes';
 import { appendTurn, MAX_THREAD_TURNS, newTurn } from './assistantTypes';
-import type { Tool } from './tools';
+import { TOOLS, type Tool } from './tools';
 
 const TOOL_NAMES = ['add_task', 'start_focus'];
 
@@ -250,6 +255,205 @@ describe('cloud escalation and page-aware help', () => {
       getPage: async () => null,
     });
     expect(out).toMatchObject({ kind: 'reply', source: 'local' });
+  });
+});
+
+describe('looksMultiStep', () => {
+  it('catches connective wording and counted lists', () => {
+    expect(looksMultiStep('add a task to buy milk and start a focus session')).toBe(true);
+    expect(looksMultiStep('refresh feeds then mark everything read')).toBe(true);
+    expect(looksMultiStep('add 3 tasks: milk, eggs, bread')).toBe(true);
+  });
+
+  it('leaves plain single requests alone', () => {
+    expect(looksMultiStep('start a focus session')).toBe(false);
+    expect(looksMultiStep('snooze the dentist task')).toBe(false);
+  });
+});
+
+describe('buildPlanSchema / parsePlan', () => {
+  const tools = [
+    fakeTool(),
+    fakeTool({
+      name: 'start_focus',
+      description: 'Start focus',
+      params: {
+        type: 'object',
+        required: [],
+        additionalProperties: false,
+        properties: { minutes: { type: 'number', description: 'length', minimum: 5, maximum: 240 } },
+      },
+      summary: (p) => `Start ${(p.minutes as number) ?? '?'}-min focus`,
+      run: async () => 'Focus started',
+    }),
+  ];
+
+  it('merges every tool param (constraints dropped) and enums the tool names', () => {
+    const schema = buildPlanSchema(tools) as {
+      properties: {
+        steps: {
+          maxItems: number;
+          items: { properties: { tool: { enum: string[] }; params: { properties: Record<string, { minimum?: number }> } } };
+        };
+      };
+    };
+    expect(schema.properties.steps.maxItems).toBe(MAX_PLAN_STEPS);
+    expect(schema.properties.steps.items.properties.tool.enum).toEqual(['add_task', 'start_focus']);
+    expect(Object.keys(schema.properties.steps.items.properties.params.properties)).toEqual([
+      'text',
+      'minutes',
+    ]);
+    expect(schema.properties.steps.items.properties.params.properties.minutes.minimum).toBeUndefined();
+  });
+
+  it('no same-named param has conflicting types across the real registry', () => {
+    const seen = new Map<string, string>();
+    for (const tool of TOOLS) {
+      for (const [key, spec] of Object.entries(tool.params.properties)) {
+        const prior = seen.get(key);
+        if (prior) expect(`${key}:${spec.type}`).toBe(`${key}:${prior}`);
+        else seen.set(key, spec.type);
+      }
+    }
+  });
+
+  it('parses a valid plan into validated steps with summaries', () => {
+    const steps = parsePlan(
+      '{"steps":[{"tool":"add_task","params":{"text":"Buy milk"}},{"tool":"start_focus","params":{"minutes":"25"}}]}',
+      tools,
+    );
+    expect(steps).toEqual([
+      { name: 'add_task', params: { text: 'Buy milk' }, summary: 'Add task "Buy milk"' },
+      { name: 'start_focus', params: { minutes: 25 }, summary: 'Start 25-min focus' },
+    ]);
+  });
+
+  it('throws on unknown tools, invalid steps, and empty plans', () => {
+    expect(() => parsePlan('{"steps":[{"tool":"launch_rocket","params":{}}]}', tools)).toThrow('unknown tool');
+    expect(() => parsePlan('{"steps":[{"tool":"add_task","params":{}}]}', tools)).toThrow('missing required');
+    expect(() => parsePlan('{"steps":[]}', tools)).toThrow('empty plan');
+  });
+});
+
+describe('executePlan', () => {
+  const okTool = fakeTool({ confirm: false });
+  const bombTool = fakeTool({
+    name: 'start_focus',
+    params: { type: 'object', required: [], additionalProperties: false, properties: {} },
+    summary: () => 'Start focus',
+    run: async () => {
+      throw new Error('boom');
+    },
+  });
+
+  it('runs steps in order and reports each result', async () => {
+    const run = await executePlan(
+      [
+        { name: 'add_task', params: { text: 'a' }, summary: 'Add a' },
+        { name: 'add_task', params: { text: 'b' }, summary: 'Add b' },
+      ],
+      [okTool],
+    );
+    expect(run.ok).toBe(true);
+    expect(run.text).toBe('✓ Added a\n✓ Added b');
+  });
+
+  it('stops at the first failure and marks the rest skipped', async () => {
+    const seen: string[] = [];
+    const run = await executePlan(
+      [
+        { name: 'add_task', params: { text: 'a' }, summary: 'Add a' },
+        { name: 'start_focus', params: {}, summary: 'Start focus' },
+        { name: 'add_task', params: { text: 'c' }, summary: 'Add c' },
+      ],
+      [okTool, bombTool],
+      (i, outcome) => {
+        seen.push(`${i}:${outcome.status}`);
+      },
+    );
+    expect(run.ok).toBe(false);
+    expect(run.text).toBe('✓ Added a\n✗ boom\n– Skipped: Add c');
+    expect(seen).toEqual(['0:done', '1:failed', '2:skipped']);
+  });
+});
+
+describe('multi-step planning in runAssistantTurn', () => {
+  const nano = (replies: string[]) => scriptedProvider(replies);
+
+  function planCloud(planJson: string): AssistantProvider {
+    return {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema && JSON.stringify(req.responseSchema).includes('steps')) {
+          return { text: planJson };
+        }
+        throw new Error('cloud only expected the plan call');
+      },
+    };
+  }
+
+  const focusTool = fakeTool({
+    name: 'start_focus',
+    description: 'Start focus',
+    params: {
+      type: 'object',
+      required: [],
+      additionalProperties: false,
+      properties: { minutes: { type: 'number', description: 'length' } },
+    },
+    summary: (p) => `Start ${(p.minutes as number) ?? '?'}-min focus`,
+    run: async () => 'Focus started',
+  });
+
+  it('returns confirm-plan for a multi-step request with mutating steps', async () => {
+    const out = await runAssistantTurn('add a task to buy milk and start a 25 minute focus', [], {
+      nano: nano(['{"intent":"action","tool":"add_task"}']),
+      cloud: planCloud(
+        '{"steps":[{"tool":"add_task","params":{"text":"Buy milk"}},{"tool":"start_focus","params":{"minutes":25}}]}',
+      ),
+      tools: [fakeTool(), focusTool],
+    });
+    expect(out).toMatchObject({
+      kind: 'confirm-plan',
+      steps: [
+        { name: 'add_task', params: { text: 'Buy milk' } },
+        { name: 'start_focus', params: { minutes: 25 } },
+      ],
+    });
+  });
+
+  it('reduces a one-step plan to the ordinary confirm outcome', async () => {
+    const out = await runAssistantTurn('add a task to buy milk and eggs', [], {
+      nano: nano(['{"intent":"action","tool":"add_task"}']),
+      cloud: planCloud('{"steps":[{"tool":"add_task","params":{"text":"Buy milk and eggs"}}]}'),
+      tools: [fakeTool(), focusTool],
+    });
+    expect(out).toEqual({
+      kind: 'confirm',
+      toolName: 'add_task',
+      params: { text: 'Buy milk and eggs' },
+      summary: 'Add task "Buy milk and eggs"',
+    });
+  });
+
+  it('falls back to single-tool extraction when the plan is invalid', async () => {
+    const out = await runAssistantTurn('add a task to buy milk and start focus', [], {
+      nano: nano(['{"intent":"action","tool":"add_task"}', '{"text":"Buy milk"}']),
+      cloud: planCloud('{"steps":[{"tool":"launch_rocket","params":{}}]}'),
+      tools: [fakeTool(), focusTool],
+    });
+    expect(out).toMatchObject({ kind: 'confirm', toolName: 'add_task', params: { text: 'Buy milk' } });
+  });
+
+  it('never plans when multiStep is false', async () => {
+    const out = await runAssistantTurn('add a task to buy milk and start focus', [], {
+      nano: nano(['{"intent":"action","tool":"add_task"}', '{"text":"Buy milk"}']),
+      cloud: planCloud('{"steps":[{"tool":"add_task","params":{"text":"WRONG PATH"}}]}'),
+      tools: [fakeTool(), focusTool],
+      multiStep: false,
+    });
+    expect(out).toMatchObject({ kind: 'confirm', params: { text: 'Buy milk' } });
   });
 });
 

@@ -2,6 +2,7 @@ import type { CalendarEvent } from './calendar';
 import type { NotionDbSummary } from './notion';
 import type { SyncLocalState } from './storage';
 import type {
+  AssistantFact,
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
@@ -26,6 +27,7 @@ export type Message =
   | { type: 'ADD_TASK'; text: string; source: Task['source'] }
   | { type: 'TOGGLE_TASK'; id: string }
   | { type: 'DELETE_TASK'; id: string }
+  | { type: 'EDIT_TASK'; id: string; text: string }
   | { type: 'MOVE_TASK'; id: string; toIndex: number }
   | { type: 'MARK_ALL_READ' }
   | { type: 'VALIDATE_FEED'; url: string }
@@ -49,6 +51,8 @@ export type Message =
   | { type: 'MOVE_BOOKMARK'; id: string; groupId: string | null }
   | { type: 'ADD_BOOKMARK_GROUP'; name: string }
   | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
+  | { type: 'MEMORY_ADD'; text: string }
+  | { type: 'MEMORY_DELETE'; id: string }
   | { type: 'SAVE_NOTE'; rawText: string; willStructure: boolean }
   | { type: 'STRUCTURE_NOTE_RESULT'; id: string; bullets: string[]; tasks: string[] }
   | { type: 'NOTE_FAILED'; id: string }
@@ -79,6 +83,7 @@ export type Message =
   | { type: 'CAL_SIGN_OUT' }
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
+  | { type: 'CAL_LIST_EVENTS'; startMs: number; endMs: number }
   | { type: 'SYNC_STATUS' }
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
@@ -122,6 +127,7 @@ export interface MessageResponses {
   ADD_TASK: { ok: boolean; task: Task };
   TOGGLE_TASK: { ok: boolean };
   DELETE_TASK: { ok: boolean };
+  EDIT_TASK: { ok: boolean };
   MOVE_TASK: { ok: boolean };
   MARK_ALL_READ: { ok: boolean; count: number };
   VALIDATE_FEED: { ok: boolean; valid: boolean; title: string | null };
@@ -137,6 +143,8 @@ export interface MessageResponses {
   MOVE_BOOKMARK: { ok: boolean };
   ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
   DELETE_BOOKMARK_GROUP: { ok: boolean };
+  MEMORY_ADD: { ok: boolean; fact?: AssistantFact; error?: string };
+  MEMORY_DELETE: { ok: boolean };
   SAVE_NOTE: { ok: boolean; note: BrainDumpNote };
   STRUCTURE_NOTE_RESULT: { ok: boolean };
   NOTE_FAILED: { ok: boolean };
@@ -160,6 +168,7 @@ export interface MessageResponses {
   CAL_SIGN_OUT: { ok: boolean };
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
+  CAL_LIST_EVENTS: { ok: boolean; events?: CalendarEvent[]; error?: string };
   SYNC_STATUS: SyncLocalState;
   SYNC_SIGN_IN: { ok: boolean; error?: string };
   SYNC_SIGN_UP: { ok: boolean; error?: string };

@@ -14,6 +14,14 @@ export interface AssistantToolCall {
   status: 'pending-confirm' | 'done' | 'failed' | 'cancelled';
 }
 
+/** One step of a multi-tool plan (chat-only; the palette stays single-tool) */
+export interface AssistantPlanStep {
+  name: string;
+  params: Record<string, unknown>;
+  summary: string;
+  status: 'pending' | 'done' | 'failed' | 'skipped';
+}
+
 export interface AssistantTurn {
   id: string;
   role: 'user' | 'assistant';
@@ -22,6 +30,8 @@ export interface AssistantTurn {
   kind?: 'chat' | 'action-result' | 'briefing' | 'error';
   /** Set on assistant turns that propose (or ran) an extension action */
   toolCall?: AssistantToolCall;
+  /** Set on assistant turns that propose (or ran) a multi-step plan */
+  plan?: { steps: AssistantPlanStep[]; status: AssistantToolCall['status'] };
   /** Which engine produced this turn — 'local' = no model involved */
   source?: 'nano' | 'cloud' | 'local';
 }

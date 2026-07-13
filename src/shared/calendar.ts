@@ -173,6 +173,50 @@ function hhmm(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Resolve the assistant's list_events `date` word into local-day ms bounds.
+ * Accepts 'today' (or empty), 'tomorrow', or 'YYYY-MM-DD'; null on junk.
+ */
+export function dayRange(
+  dateWord: string | undefined,
+  now: Date,
+): { startMs: number; endMs: number; label: string } | null {
+  const word = (dateWord ?? '').trim().toLowerCase();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (word === '' || word === 'today') {
+    return { startMs: todayStart, endMs: todayStart + DAY_MS, label: 'today' };
+  }
+  if (word === 'tomorrow') {
+    return { startMs: todayStart + DAY_MS, endMs: todayStart + 2 * DAY_MS, label: 'tomorrow' };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(word)) {
+    const startMs = parseLocalDate(word);
+    if (Number.isNaN(startMs)) return null;
+    const label = new Date(startMs).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+    return { startMs, endMs: startMs + DAY_MS, label };
+  }
+  return null;
+}
+
+/** Human-readable agenda for one day, for the assistant to reply with */
+export function formatEventList(events: CalendarEvent[], label: string): string {
+  if (events.length === 0) return `No events ${label === 'today' || label === 'tomorrow' ? label : `on ${label}`}. 🎉`;
+  const lines = events.slice(0, 10).map((e) => {
+    const when = e.allDay ? 'all day' : `${hhmm(e.startMs)}–${hhmm(e.endMs)}`;
+    return `• ${when} — ${e.title}${e.location ? ` (${e.location})` : ''}`;
+  });
+  const head = `${events.length} event${events.length === 1 ? '' : 's'} ${
+    label === 'today' || label === 'tomorrow' ? label : `on ${label}`
+  }:`;
+  return [head, ...lines].join('\n');
+}
+
 /** Compact lines for the assistant data context / briefing (max 6 events) */
 export function calendarContextLines(events: CalendarEvent[], now: Date): string[] {
   const today = todayEvents(events, now);

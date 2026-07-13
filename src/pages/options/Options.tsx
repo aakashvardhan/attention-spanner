@@ -282,6 +282,57 @@ export function Options() {
               <option value={120}>After 2 hours</option>
             </select>
           </div>
+          <div className="setting-row">
+            <label htmlFor="monitor-enabled">
+              Jarvis check-ins{' '}
+              <span className="hint-inline">(streak at risk, cards piling up, event starting soon)</span>
+            </label>
+            <input
+              id="monitor-enabled"
+              type="checkbox"
+              checked={settings.assistantMonitorEnabled}
+              disabled={!settings.notificationsEnabled}
+              onChange={(e) => void patchSettings({ assistantMonitorEnabled: e.target.checked })}
+            />
+          </div>
+          <div className="setting-row">
+            <label htmlFor="monitor-evening-time">Evening check-in at:</label>
+            <select
+              id="monitor-evening-time"
+              value={settings.monitorEveningTime}
+              disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
+              onChange={(e) => void patchSettings({ monitorEveningTime: e.target.value })}
+            >
+              <option value="">Off</option>
+              <option value="17:00">5:00 PM</option>
+              <option value="18:00">6:00 PM</option>
+              <option value="19:00">7:00 PM</option>
+              <option value="20:00">8:00 PM</option>
+              <option value="21:00">9:00 PM</option>
+            </select>
+          </div>
+          <div className="setting-row">
+            <label htmlFor="monitor-quiet-start">
+              Quiet hours <span className="hint-inline">(no Jarvis check-ins)</span>
+            </label>
+            <span>
+              <input
+                id="monitor-quiet-start"
+                type="time"
+                value={settings.monitorQuietStart}
+                disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
+                onChange={(e) => void patchSettings({ monitorQuietStart: e.target.value })}
+              />
+              {' – '}
+              <input
+                id="monitor-quiet-end"
+                type="time"
+                value={settings.monitorQuietEnd}
+                disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
+                onChange={(e) => void patchSettings({ monitorQuietEnd: e.target.value })}
+              />
+            </span>
+          </div>
         </section>
 
         <section className="section">

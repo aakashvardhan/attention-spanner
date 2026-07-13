@@ -88,8 +88,49 @@
   margin-bottom: 4px;
 }
 
+.as-briefing-play {
+  float: right;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0 0 8px;
+  cursor: pointer;
+}
+
+.as-briefing-play:hover {
+  transform: scale(1.15);
+}
+
 .as-bubble.streaming {
   opacity: 0.9;
+}
+
+.as-plan {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.as-plan-icon {
+  display: inline-block;
+  min-width: 16px;
+  font-weight: 600;
+}
+
+.as-plan-step.done .as-plan-icon {
+  color: var(--success);
+}
+
+.as-plan-step.failed .as-plan-icon {
+  color: var(--danger);
+}
+
+.as-plan-step.skipped {
+  opacity: 0.6;
 }
 
 .as-thinking {

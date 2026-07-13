@@ -152,6 +152,7 @@ export function CommandPalette() {
       const outcome = await runAssistantTurn(q, [], {
         nano: nanoProvider,
         cloud: geminiProvider,
+        multiStep: false, // the palette is for single quick commands
       });
       if (outcome.kind === 'confirm') {
         setFooter({
@@ -160,10 +161,16 @@ export function CommandPalette() {
           params: outcome.params,
           summary: outcome.summary,
         });
+      } else if (outcome.kind === 'confirm-plan') {
+        // Unreachable with multiStep: false, but keep the union total
+        setFooter({
+          state: 'result',
+          text: 'That takes a few steps — ask in the assistant chat instead.',
+        });
       } else {
         setFooter({
           state: 'result',
-          text: outcome.kind === 'error' ? outcome.text : outcome.text,
+          text: outcome.text,
           error: outcome.kind === 'error',
         });
       }

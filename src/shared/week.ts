@@ -34,6 +34,25 @@ export function countInWeek(checkins: Record<string, number>, key: string): numb
   return weekDates(key).filter((date) => date in checkins).length;
 }
 
+/**
+ * Whether local `now` falls inside the [start, end) quiet window. A start
+ * after the end wraps overnight (22:00→08:00). Equal bounds = never quiet.
+ */
+export function inQuietHours(startHhmm: string, endHhmm: string, now = new Date()): boolean {
+  const toMin = (hhmm: string): number | null => {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+    if (!match) return null;
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    return h > 23 || m > 59 ? null : h * 60 + m;
+  };
+  const start = toMin(startHhmm);
+  const end = toMin(endHhmm);
+  if (start === null || end === null || start === end) return false;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return start < end ? cur >= start && cur < end : cur >= start || cur < end;
+}
+
 /** Next occurrence of a local 'HH:MM' wall-clock time, as ms epoch */
 export function nextDailyOccurrence(hhmm: string, now = new Date()): number {
   const [h, min] = hhmm.split(':').map(Number);

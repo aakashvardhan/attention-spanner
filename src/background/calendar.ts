@@ -39,7 +39,9 @@ async function markDisconnected(error: string): Promise<void> {
 /**
  * Authed fetch with the standard expiry policy: on 401/403 drop the cached
  * token, silently re-acquire, retry once; a second failure means access was
- * revoked → mark disconnected.
+ * revoked → mark disconnected. A failed non-interactive token grab ("OAuth2
+ * not granted or revoked") means the same thing — surface the reconnect hint,
+ * never Chrome's raw error.
  */
 async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> {
   const attempt = async (token: string) =>
@@ -48,11 +50,20 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> 
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
 
-  let token = await getToken(false);
+  const silentToken = async (): Promise<string> => {
+    try {
+      return await getToken(false);
+    } catch {
+      await markDisconnected(AUTH_ERROR_HINT);
+      throw new Error(AUTH_ERROR_HINT);
+    }
+  };
+
+  let token = await silentToken();
   let res = await attempt(token);
   if (res.status === 401 || res.status === 403) {
     await chrome.identity.removeCachedAuthToken({ token });
-    token = await getToken(false);
+    token = await silentToken();
     res = await attempt(token);
   }
   if (res.status === 401 || res.status === 403) {
@@ -213,6 +224,49 @@ export async function extendFocusBlock(eventId: string, endMs: number): Promise<
     });
   } catch (error) {
     console.warn('[calendar] focus block extend failed:', error);
+  }
+}
+
+/**
+ * Events overlapping [startMs, endMs), for the assistant's list_events tool.
+ * Served from the cached 48h window when the range fits (after a throttled
+ * refresh); arbitrary dates outside it hit the API directly.
+ */
+export async function listEvents(
+  startMs: number,
+  endMs: number,
+): Promise<{ ok: boolean; events?: CalendarEvent[]; error?: string }> {
+  const { calendar } = await getLocal('calendar');
+  if (!isConfigured() || !calendar.connected) {
+    return { ok: false, error: 'Google Calendar is not connected — connect it in Settings.' };
+  }
+  await refreshCalendar();
+
+  const { calendar: fresh } = await getLocal('calendar');
+  if (!fresh.connected) {
+    return { ok: false, error: AUTH_ERROR_HINT };
+  }
+  const fetched = new Date(fresh.fetchedAt);
+  const windowStart = new Date(fetched.getFullYear(), fetched.getMonth(), fetched.getDate()).getTime();
+  const windowEnd = windowStart + 48 * 60 * 60 * 1000;
+  if (fresh.fetchedAt > 0 && startMs >= windowStart && endMs <= windowEnd) {
+    return { ok: true, events: fresh.events.filter((e) => e.startMs < endMs && e.endMs > startMs) };
+  }
+
+  try {
+    const json = (await apiFetch(
+      '/calendars/primary/events?' +
+        new URLSearchParams({
+          singleEvents: 'true',
+          orderBy: 'startTime',
+          maxResults: '50',
+          timeMin: new Date(startMs).toISOString(),
+          timeMax: new Date(endMs).toISOString(),
+        }).toString(),
+    )) as { items?: unknown[] };
+    return { ok: true, events: mapApiEvents(json.items ?? []) };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message ?? 'Could not fetch events.' };
   }
 }
 

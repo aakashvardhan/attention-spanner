@@ -5,6 +5,7 @@ import { refreshCalendar } from './calendar';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
 import { fireGymReminder } from './gym';
+import { fireCalendarCheck, fireEveningCheck } from './monitor';
 import { flushQueue, sweepUnpushedNotes } from './notion';
 import { fireNudge, isNudgeAlarm } from './nudges';
 import { finishSprint } from './streaks';
@@ -39,6 +40,20 @@ export async function setupNotionFlushAlarm(): Promise<void> {
   // Created unconditionally — the handler no-ops in microseconds when
   // the queue is empty or Notion is unconfigured
   chrome.alarms.create(ALARMS.notionFlush, { periodInMinutes: 10 });
+}
+
+export async function setupMonitorAlarms(eveningTime?: string): Promise<void> {
+  await chrome.alarms.clear(ALARMS.monitorEvening);
+  await chrome.alarms.clear(ALARMS.monitorCalendar);
+  const hhmm = eveningTime ?? (await getSettings()).monitorEveningTime;
+  if (hhmm !== '') {
+    chrome.alarms.create(ALARMS.monitorEvening, {
+      when: nextDailyOccurrence(hhmm),
+      periodInMinutes: 24 * 60,
+    });
+  }
+  // Created unconditionally — the handler no-ops when calendar is disconnected
+  chrome.alarms.create(ALARMS.monitorCalendar, { periodInMinutes: 5 });
 }
 
 export async function setupCalendarRefreshAlarm(): Promise<void> {
@@ -78,6 +93,12 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
       break;
     case ALARMS.calendarRefresh:
       void refreshCalendar();
+      break;
+    case ALARMS.monitorEvening:
+      void fireEveningCheck();
+      break;
+    case ALARMS.monitorCalendar:
+      void fireCalendarCheck();
       break;
   }
 }

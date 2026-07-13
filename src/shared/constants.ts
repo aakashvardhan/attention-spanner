@@ -58,6 +58,11 @@ export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta
 export const NANO_INPUT_BUDGET_CHARS = 5000;
 /** Hard cap on extracted page text sent to any model */
 export const PAGE_TEXT_MAX_CHARS = 15000;
+/** Assistant memory: newest facts win once the store is full */
+export const MAX_ASSISTANT_FACTS = 50;
+export const FACT_MAX_CHARS = 280;
+/** Longest tool chain one request may plan (cloud-only feature) */
+export const MAX_PLAN_STEPS = 5;
 
 export const CAPTURE_WINDOW_TASK = { width: 440, height: 180 } as const;
 export const CAPTURE_WINDOW_DUMP = { width: 440, height: 520 } as const;
@@ -73,6 +78,8 @@ export const ALARMS = {
   focusBadgeTick: 'focus-badge-tick',
   notionFlush: 'notion-flush',
   calendarRefresh: 'calendar-refresh',
+  monitorEvening: 'monitor-evening',
+  monitorCalendar: 'monitor-calendar',
 } as const;
 
 export const NOTIFICATION_IDS = {
@@ -88,7 +95,14 @@ export const NOTIFICATION_IDS = {
   streakFreeze: 'streak-freeze',
   chest: 'chest',
   hyperfocus: 'hyperfocus',
+  monitorEvening: 'monitor-evening',
+  monitorEventPrefix: 'monitor-event|',
 } as const;
+
+/** Evening check only mentions due flashcards at or above this pile size */
+export const MONITOR_CARDS_DUE_MIN = 10;
+/** Notify when a calendar event starts within this many minutes */
+export const MONITOR_EVENT_WINDOW_MIN = 12;
 
 export const SAMPLE_FEEDS: ReadonlyArray<{ name: string; url: string }> = [
   { name: 'Hacker News', url: 'https://hnrss.org/frontpage' },

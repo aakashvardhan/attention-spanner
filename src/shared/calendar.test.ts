@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   calendarContextLines,
   currentEvent,
+  dayRange,
   formatCountdown,
+  formatEventList,
   mapApiEvent,
   mapApiEvents,
   nextUpcoming,
@@ -171,5 +173,57 @@ describe('calendarContextLines', () => {
 
   it('says so when the day is empty', () => {
     expect(calendarContextLines([], NOW)).toEqual(['Calendar today: no events.']);
+  });
+});
+
+describe('dayRange', () => {
+  const dayStart = at(0);
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('defaults to today for empty/omitted input', () => {
+    expect(dayRange(undefined, NOW)).toEqual({ startMs: dayStart, endMs: dayStart + DAY, label: 'today' });
+    expect(dayRange('  ', NOW)).toEqual({ startMs: dayStart, endMs: dayStart + DAY, label: 'today' });
+    expect(dayRange('Today', NOW)).toEqual({ startMs: dayStart, endMs: dayStart + DAY, label: 'today' });
+  });
+
+  it('handles tomorrow', () => {
+    expect(dayRange('tomorrow', NOW)).toEqual({
+      startMs: dayStart + DAY,
+      endMs: dayStart + 2 * DAY,
+      label: 'tomorrow',
+    });
+  });
+
+  it('parses explicit dates as local days with a readable label', () => {
+    const range = dayRange('2026-07-17', NOW);
+    expect(range).not.toBeNull();
+    expect(range!.startMs).toBe(new Date(2026, 6, 17).getTime());
+    expect(range!.endMs - range!.startMs).toBe(DAY);
+    expect(range!.label).toContain('Jul 17');
+  });
+
+  it('rejects junk', () => {
+    expect(dayRange('next tuesday', NOW)).toBeNull();
+    expect(dayRange('07/17/2026', NOW)).toBeNull();
+  });
+});
+
+describe('formatEventList', () => {
+  it('lists timed, all-day, and located events', () => {
+    const out = formatEventList(
+      [
+        ev({ id: 'a', title: 'Standup', startMs: at(10), endMs: at(10, 30), location: 'Zoom' }),
+        ev({ id: 'b', title: 'Conference', allDay: true }),
+      ],
+      'tomorrow',
+    );
+    expect(out).toContain('2 events tomorrow:');
+    expect(out).toContain('• 10:00–10:30 — Standup (Zoom)');
+    expect(out).toContain('• all day — Conference');
+  });
+
+  it('phrases empty days by label type', () => {
+    expect(formatEventList([], 'today')).toBe('No events today. 🎉');
+    expect(formatEventList([], 'Fri, Jul 17')).toBe('No events on Fri, Jul 17. 🎉');
   });
 });

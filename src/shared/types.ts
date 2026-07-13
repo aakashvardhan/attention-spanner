@@ -42,6 +42,17 @@ export interface Task extends SyncMeta {
   chest?: { bonusXp: number };
 }
 
+/**
+ * A lasting fact the user asked the assistant to remember ("I lift Mon/Wed/
+ * Fri"). Device-local v1; carries updatedAt so future sync needs no migration.
+ */
+export interface AssistantFact {
+  id: string;
+  text: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface BrainDumpNote extends SyncMeta {
   id: string;
   rawText: string;
@@ -148,6 +159,13 @@ export interface Settings {
   assistantTtsVoice: string;
   /** Create a "🎯 Focus" Google Calendar event when a focus session starts */
   focusCalendarBlockEnabled: boolean;
+  /** Proactive Jarvis nudges: streak-at-risk / cards-due evening check + event reminders */
+  assistantMonitorEnabled: boolean;
+  /** Local 'HH:MM' bounds where the monitor stays silent (wraps overnight) */
+  monitorQuietStart: string;
+  monitorQuietEnd: string;
+  /** Local 'HH:MM' for the daily evening check; '' = off */
+  monitorEveningTime: string;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
