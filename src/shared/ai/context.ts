@@ -1,4 +1,3 @@
-import { calendarContextLines, type CalendarState } from '../calendar';
 import { localDate } from '../format';
 import { levelForXp } from '../levels';
 import { dueCounts, newIntroducedToday, totalDue } from '../srs';
@@ -36,7 +35,6 @@ export interface AssistantContextData {
   siteTime: LocalSchema['siteTime'];
   readingProgress: Record<string, AnyProgress>;
   settings: Settings;
-  calendar: CalendarState;
 }
 
 function minutes(seconds: number): number {
@@ -105,11 +103,6 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
     );
   }
 
-  // Omitted entirely when not connected — the model shouldn't see an empty claim
-  if (data.calendar.connected) {
-    lines.push(...calendarContextLines(data.calendar.events, now));
-  }
-
   if (data.siteTime.date === today) {
     const hosts = Object.entries(data.siteTime.hosts)
       .sort(([, a], [, b]) => b - a)
@@ -132,7 +125,6 @@ export async function gatherDataContext(now = new Date()): Promise<string> {
     'papers',
     'siteTime',
     'readingProgress',
-    'calendar',
   );
   const settings = await getSettings();
   return buildDataContext({ ...data, settings }, now);

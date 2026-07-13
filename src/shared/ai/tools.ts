@@ -1,9 +1,4 @@
 import {
-  EVENT_MAX_MINUTES,
-  EVENT_MIN_MINUTES,
-  parseEventTimes,
-} from '../calendar';
-import {
   FLASHCARDS_PAGE_PATH,
   NEWTAB_PAGE_PATH,
   PAPERS_PAGE_PATH,
@@ -366,60 +361,6 @@ export const TOOLS: readonly Tool[] = [
       });
       if (!res.ok) throw new Error(res.error ?? 'Could not create the card');
       return `Flashcard created: “${p.front as string}”. 🃏`;
-    },
-  },
-  {
-    name: 'create_event',
-    description:
-      'Create a Google Calendar event ("block 2-3pm for deep work", "schedule dentist Friday 10am"). Times are 24h local.',
-    params: {
-      type: 'object',
-      required: ['title', 'startTime'],
-      additionalProperties: false,
-      properties: {
-        title: { type: 'string', description: 'Event title', maxLength: 200 },
-        startTime: { type: 'string', description: 'Start time as HH:MM, 24-hour local' },
-        date: { type: 'string', description: 'Date as YYYY-MM-DD; omit for today' },
-        durationMinutes: {
-          type: 'number',
-          description: 'Length in minutes (default 60)',
-          minimum: EVENT_MIN_MINUTES,
-          maximum: EVENT_MAX_MINUTES,
-        },
-      },
-    },
-    confirm: true,
-    palette: {
-      label: 'Create calendar event',
-      keywords: ['calendar', 'event', 'block', 'meeting', 'schedule'],
-    },
-    summary: (p) => {
-      const when = `${p.date ? `${p.date as string} ` : ''}${p.startTime as string}`;
-      return `Create calendar event “${p.title as string}” at ${when} (${(p.durationMinutes as number) ?? 60} min)`;
-    },
-    run: async (p) => {
-      const times = parseEventTimes(
-        {
-          startTime: p.startTime as string,
-          date: p.date as string | undefined,
-          durationMinutes: p.durationMinutes as number | undefined,
-        },
-        new Date(),
-      );
-      if (!times.ok) throw new Error(`That didn't quite work (${times.error}).`);
-      const res = await sendMessage({
-        type: 'CAL_CREATE_EVENT',
-        title: p.title as string,
-        startMs: times.startMs,
-        endMs: times.endMs,
-      });
-      if (!res.ok || !res.event) throw new Error(res.error ?? 'Could not create the event.');
-      const start = new Date(res.event.startMs);
-      return `Added “${res.event.title}” to your calendar for ${start.toLocaleString('en-US', {
-        weekday: 'short',
-        hour: 'numeric',
-        minute: '2-digit',
-      })}. 📅`;
     },
   },
   {

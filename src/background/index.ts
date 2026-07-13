@@ -4,12 +4,10 @@ import type { Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import {
   handleAlarm,
-  setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
 } from './alarms';
-import { refreshCalendar } from './calendar';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
@@ -66,7 +64,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupRefreshAlarm();
     await setupTaskReminderAlarm();
     await setupGymReminderAlarm();
-    await setupCalendarRefreshAlarm();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -97,7 +94,6 @@ chrome.runtime.onStartup.addListener(() => {
   // Re-anchor the daily reminder to the wall clock (bounds DST drift)
   void setupGymReminderAlarm();
   void reconcileFocusOnStartup();
-  void refreshCalendar();
 });
 
 chrome.alarms.onAlarm.addListener(handleAlarm);

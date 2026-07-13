@@ -1,4 +1,3 @@
-import { todayEvents } from '../calendar';
 import { localDate } from '../format';
 import { getLocal, getSettings, setLocal } from '../storage';
 import { countInWeek, weekKey } from '../week';
@@ -37,20 +36,6 @@ export function templateBriefing(data: AssistantContextData, now = new Date()): 
     parts.push('Fresh day, fresh start — a single 5-minute sprint gets a streak going.');
   }
 
-  if (data.calendar.connected) {
-    const meetings = todayEvents(data.calendar.events, now).filter((e) => !e.allDay);
-    if (meetings.length > 0) {
-      const first = meetings[0];
-      const time = new Date(first.startMs).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-      });
-      parts.push(
-        `${meetings.length} meeting${meetings.length === 1 ? '' : 's'} today — first: ${first.title} at ${time}.`,
-      );
-    }
-  }
-
   if (openTasks.length > 0) {
     parts.push(
       `${openTasks.length} task${openTasks.length === 1 ? '' : 's'} open; first up: “${openTasks[0].text}”.`,
@@ -84,7 +69,6 @@ export async function maybeGenerateBriefing(now = new Date()): Promise<void> {
     'papers',
     'siteTime',
     'readingProgress',
-    'calendar',
   );
   const contextData: AssistantContextData = { ...data, settings };
 

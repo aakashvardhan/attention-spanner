@@ -1,7 +1,6 @@
-import { ALARMS, CALENDAR_REFRESH_MINUTES } from '../shared/constants';
+import { ALARMS } from '../shared/constants';
 import { getSettings } from '../shared/storage';
 import { nextDailyOccurrence } from '../shared/week';
-import { refreshCalendar } from './calendar';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
 import { fireGymReminder } from './gym';
@@ -33,12 +32,6 @@ export async function setupGymReminderAlarm(time?: string): Promise<void> {
   });
 }
 
-export async function setupCalendarRefreshAlarm(): Promise<void> {
-  await chrome.alarms.clear(ALARMS.calendarRefresh);
-  // Created unconditionally — refreshCalendar no-ops when disconnected
-  chrome.alarms.create(ALARMS.calendarRefresh, { periodInMinutes: CALENDAR_REFRESH_MINUTES });
-}
-
 export function handleAlarm(alarm: chrome.alarms.Alarm): void {
   if (isNudgeAlarm(alarm.name)) {
     void fireNudge(alarm.name);
@@ -63,9 +56,6 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
       break;
     case ALARMS.focusBadgeTick:
       void updateBadge();
-      break;
-    case ALARMS.calendarRefresh:
-      void refreshCalendar();
       break;
   }
 }

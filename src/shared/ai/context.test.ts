@@ -36,7 +36,6 @@ function emptyData(): AssistantContextData {
     siteTime: { date: '', hosts: {} },
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
-    calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
   };
 }
 
@@ -79,28 +78,6 @@ describe('buildDataContext', () => {
 
     data.siteTime.date = '2026-07-10';
     expect(buildDataContext(data, NOW)).not.toContain('youtube.com');
-  });
-
-  it('includes calendar lines only when connected', () => {
-    const data = emptyData();
-    expect(buildDataContext(data, NOW)).not.toContain('Calendar');
-
-    data.calendar.connected = true;
-    data.calendar.events = [
-      {
-        id: 'e1',
-        title: 'Standup',
-        startMs: new Date(2026, 6, 11, 10, 0).getTime(),
-        endMs: new Date(2026, 6, 11, 10, 30).getTime(),
-        allDay: false,
-        location: '',
-        htmlLink: '',
-        hangoutLink: '',
-      },
-    ];
-    const out = buildDataContext(data, NOW);
-    expect(out).toContain('Calendar today (1 event)');
-    expect(out).toContain('Standup');
   });
 
   it('caps the snapshot length', () => {

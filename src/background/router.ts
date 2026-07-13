@@ -1,5 +1,4 @@
 import type { Message } from '../shared/messages';
-import { calSignIn, calSignOut, createCalendarEvent, refreshCalendar } from './calendar';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
@@ -108,14 +107,6 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return updatePaper(msg.id, msg.patch);
     case 'PAPER_DELETE':
       return deletePaper(msg.id);
-    case 'CAL_SIGN_IN':
-      return calSignIn();
-    case 'CAL_SIGN_OUT':
-      return calSignOut();
-    case 'CAL_REFRESH':
-      return refreshCalendar();
-    case 'CAL_CREATE_EVENT':
-      return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
     case 'STRUCTURE_NOTE_RESULT':
       await applyStructureResult(msg.id, msg.bullets, msg.tasks);
       return { ok: true };

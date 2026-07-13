@@ -1,4 +1,3 @@
-import type { CalendarEvent } from './calendar';
 import type {
   BookmarkGroup,
   BookmarkLink,
@@ -70,10 +69,6 @@ export type Message =
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
   | { type: 'PAPER_DELETE'; id: string }
-  | { type: 'CAL_SIGN_IN' }
-  | { type: 'CAL_SIGN_OUT' }
-  | { type: 'CAL_REFRESH' }
-  | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   // Content script → service worker
   | { type: 'TRACKER_READY' }
   | { type: 'TIME_PILL_READY'; host: string }
@@ -144,10 +139,6 @@ export interface MessageResponses {
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };
   PAPER_DELETE: { ok: boolean; error?: string };
-  CAL_SIGN_IN: { ok: boolean; email?: string; error?: string };
-  CAL_SIGN_OUT: { ok: boolean };
-  CAL_REFRESH: { ok: boolean; error?: string };
-  CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   TIME_PILL_READY: { ok: boolean; todaySeconds: number };
   TIME_PILL_TICK: { ok: boolean };

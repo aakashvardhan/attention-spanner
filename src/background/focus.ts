@@ -8,7 +8,6 @@ import {
 import { buildFocusRules, isBlockedHost } from '../shared/focusRules';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
-import { createFocusBlock, extendFocusBlock, finishFocusBlock } from './calendar';
 import { updateBadge } from './feeds';
 import { awardXp } from './gamification';
 import { recordFocusBlock } from './streaks';
@@ -118,8 +117,6 @@ export async function startFocus(config: {
   if (settings.focusMusicEnabled) {
     await openFocusMusic();
   }
-  // Fire-and-forget: a calendar failure must never break starting focus
-  void createFocusBlock(session);
   await updateBadge();
   return { ok: true };
 }
@@ -127,15 +124,10 @@ export async function startFocus(config: {
 export async function stopFocus(_early: boolean): Promise<{ ok: boolean }> {
   // No award on any manual stop: completed pomodoro blocks were already
   // awarded at each phase end; only the in-flight block is forfeited.
-  const { focusSession: session } = await getLocal('focusSession');
   await chrome.alarms.clear(ALARMS.focusPhaseEnd);
   await chrome.alarms.clear(ALARMS.focusBadgeTick);
   await clearBlockRules();
   await setLocal({ focusSession: null });
-  if (session?.calendarEventId) {
-    // Trim the calendar block to the time actually served (fire-and-forget)
-    void finishFocusBlock(session.calendarEventId, session.startedAt, session.phaseEndsAt);
-  }
   await updateBadge();
   return { ok: true };
 }
@@ -187,10 +179,6 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   session.phase = 'focus';
   session.phaseEndsAt = now + session.focusMinutes * 60_000;
   await setLocal({ focusSession: session });
-  if (session.calendarEventId) {
-    // One event spans the whole pomodoro session, breaks included
-    void extendFocusBlock(session.calendarEventId, session.phaseEndsAt);
-  }
   await installBlockRules(settings.focusBlocklist);
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   await redirectOpenBlockedTabs(settings.focusBlocklist);

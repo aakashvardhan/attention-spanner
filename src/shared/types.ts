@@ -55,7 +55,6 @@ export type ThemeSetting = 'light' | 'dark' | 'system';
 
 export const DASH_CARD_IDS = [
   'assistant',
-  'agenda',
   'links',
   'tasks',
   'continue',
@@ -121,8 +120,6 @@ export interface Settings {
   assistantVoiceEnabled: boolean;
   /** speechSynthesis voice name; '' = system default */
   assistantTtsVoice: string;
-  /** Create a "🎯 Focus" Google Calendar event when a focus session starts */
-  focusCalendarBlockEnabled: boolean;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
@@ -256,8 +253,6 @@ export interface FocusSession {
   taskId?: string;
   /** Ignition mode: the tiny first action shown in the banner and blocked page */
   intent?: string;
-  /** Google Calendar "🎯 Focus" event created for this session (time-blocking) */
-  calendarEventId?: string;
 }
 
 export interface GymState {

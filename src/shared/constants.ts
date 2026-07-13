@@ -45,12 +45,6 @@ export const PAPERS_PAGE_PATH = 'src/pages/papers/index.html';
    arXiv:<id>, DOI:<doi>, or URL:<url> as the paper reference. */
 export const SEMANTIC_SCHOLAR_PAPER_API = 'https://api.semanticscholar.org/graph/v1/paper/';
 
-/* Google Calendar (chrome.identity OAuth; see docs/google-calendar-setup.md) */
-export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3';
-export const CALENDAR_REFRESH_MINUTES = 15;
-/** Unforced refreshes (newtab opens) within this window reuse the cache */
-export const CALENDAR_REFRESH_THROTTLE_MS = 60_000;
-
 /* Assistant cloud fallback — Gemini API (user-supplied key in settings) */
 export const GEMINI_MODEL = 'gemini-3.5-flash';
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -71,7 +65,6 @@ export const ALARMS = {
   gymReminderSnooze: 'gym-reminder-snooze',
   focusPhaseEnd: 'focus-phase-end',
   focusBadgeTick: 'focus-badge-tick',
-  calendarRefresh: 'calendar-refresh',
 } as const;
 
 export const NOTIFICATION_IDS = {

@@ -37,7 +37,6 @@ function data(): AssistantContextData {
     siteTime: { date: '', hosts: {} },
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
-    calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
   };
 }
 
@@ -56,28 +55,6 @@ describe('templateBriefing', () => {
     expect(out).toContain('6-day reading streak');
     expect(out).toContain('2 tasks open');
     expect(out).toContain('Email advisor');
-  });
-
-  it('mentions meetings only when connected with timed events today', () => {
-    const d = data();
-    expect(templateBriefing(d, NOW)).not.toContain('meeting');
-
-    d.calendar.connected = true;
-    d.calendar.events = [
-      {
-        id: 'e1',
-        title: 'Standup',
-        startMs: new Date(2026, 6, 11, 10, 0).getTime(),
-        endMs: new Date(2026, 6, 11, 10, 30).getTime(),
-        allDay: false,
-        location: '',
-        htmlLink: '',
-        hangoutLink: '',
-      },
-    ];
-    const out = templateBriefing(d, NOW);
-    expect(out).toContain('1 meeting today');
-    expect(out).toContain('Standup at 10:00');
   });
 
   it('flags the gym gap only while under target', () => {

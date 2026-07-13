@@ -13,9 +13,6 @@ import { fileURLToPath } from 'node:url';
  *      embedded zip to ~/ReaderExtension and opens chrome://extensions with
  *      instructions. Chrome forbids programmatic installs outside the Web
  *      Store, so "Load unpacked" is the one manual step left.
- *
- * Note: the build embeds whatever is in .env.local (Firebase config, Google
- * OAuth client id) — package from a clean env if that shouldn't ship.
  */
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');

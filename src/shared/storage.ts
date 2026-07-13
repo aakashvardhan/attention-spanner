@@ -1,5 +1,4 @@
 import type { AssistantTurn } from './ai/assistantTypes';
-import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import { DASH_CARD_IDS } from './types';
 import type {
@@ -48,8 +47,6 @@ export interface LocalSchema {
   siteTime: { date: string; hosts: Record<string, number> };
   /** Today's assistant morning briefing; regenerated when `date` rolls over */
   assistantBriefing: { date: string; text: string } | null;
-  /** Google Calendar connection + cached agenda window. Device-local — never synced. */
-  calendar: CalendarState;
 }
 
 export interface SessionSchema {
@@ -99,7 +96,6 @@ export const DEFAULT_SETTINGS: Settings = {
   geminiApiKey: '',
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',
-  focusCalendarBlockEnabled: false,
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -140,7 +136,6 @@ export const DEFAULTS: LocalSchema = {
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
   assistantBriefing: null,
-  calendar: CALENDAR_DEFAULTS,
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {

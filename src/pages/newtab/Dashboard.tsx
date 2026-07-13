@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { maybeGenerateBriefing } from '../../shared/ai/briefing';
 import { BADGES } from '../../shared/badges';
-import {
-  currentEvent,
-  formatCountdown,
-  nextUpcoming,
-  todayEvents,
-} from '../../shared/calendar';
 import { AssistantChat } from '../../shared/components/AssistantChat';
 import { BrainDump } from '../../shared/components/BrainDump';
 import { HoldToQuit } from '../../shared/components/HoldToQuit';
@@ -42,7 +36,6 @@ import { DashboardGrid, type DashCard } from './DashboardGrid';
 
 const DASHBOARD_CARDS: readonly DashCard[] = [
   { id: 'assistant', title: '🤖 Assistant', Component: AssistantPanel },
-  { id: 'agenda', title: '📅 Today', Component: AgendaPanel },
   { id: 'links', title: '🔗 Links', Component: BookmarksPanel },
   { id: 'tasks', title: '📝 Tasks', Component: TaskPanel },
   { id: 'continue', title: '📖 Continue', Component: ContinuePanel },
@@ -109,118 +102,6 @@ function AssistantPanel() {
     <section className="panel">
       <h2>🤖 Assistant</h2>
       <AssistantChat />
-    </section>
-  );
-}
-
-function AgendaPanel() {
-  const [calendar] = useStorageValue('calendar');
-  const [now, setNow] = useState(() => new Date());
-  const [connecting, setConnecting] = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    // Throttled server-side; a fresh cache makes this a no-op
-    void sendMessage({ type: 'CAL_REFRESH' });
-  }, []);
-
-  const configured = Boolean(chrome.runtime.getManifest().oauth2?.client_id);
-
-  const connect = async () => {
-    setConnecting(true);
-    setConnectError(null);
-    const res = await sendMessage({ type: 'CAL_SIGN_IN' });
-    if (!res.ok) setConnectError(res.error ?? 'Google sign-in failed.');
-    setConnecting(false);
-  };
-
-  if (!configured) {
-    return (
-      <section className="panel">
-        <h2>📅 Today</h2>
-        <p className="panel-empty">
-          Google Calendar isn't configured for this build — see
-          docs/google-calendar-setup.md to enable it.
-        </p>
-      </section>
-    );
-  }
-
-  if (!calendar.connected) {
-    return (
-      <section className="panel">
-        <h2>📅 Today</h2>
-        <p className="panel-empty">See your day's events here and let the assistant block time.</p>
-        {(connectError ?? calendar.lastError) && (
-          <p className="ag-error">{connectError ?? calendar.lastError}</p>
-        )}
-        <button className="sprint-start" disabled={connecting} onClick={() => void connect()}>
-          {connecting ? 'Connecting…' : 'Connect Google Calendar'}
-        </button>
-      </section>
-    );
-  }
-
-  const today = todayEvents(calendar.events, now);
-  const current = currentEvent(today, now);
-  const next = nextUpcoming(today, now);
-  const timeOf = (ms: number) =>
-    new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-  return (
-    <section className="panel">
-      <h2>📅 Today</h2>
-      {next ? (
-        <p className="ag-next">
-          {next.event.title} <span className="ag-countdown">{formatCountdown(next.minutesUntil)}</span>
-        </p>
-      ) : current ? (
-        <p className="ag-next">
-          {current.title} <span className="ag-countdown">now</span>
-        </p>
-      ) : (
-        <p className="ag-next ag-clear">No more events — clear runway. 🛫</p>
-      )}
-      <div className="panel-scroll">
-        {today.length === 0 && <p className="panel-empty">Nothing scheduled today.</p>}
-        {today.map((event) => (
-          <a
-            key={event.id}
-            className={
-              event === current
-                ? 'ag-event current'
-                : event.endMs <= now.getTime() && !event.allDay
-                  ? 'ag-event past'
-                  : 'ag-event'
-            }
-            href={event.htmlLink || undefined}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span className="ag-time">
-              {event.allDay ? 'all day' : `${timeOf(event.startMs)}–${timeOf(event.endMs)}`}
-            </span>
-            <span className="ag-title">{event.title}</span>
-            {event.hangoutLink && (
-              <button
-                className="ag-join"
-                onClick={(e) => {
-                  e.preventDefault();
-                  void chrome.tabs.create({ url: event.hangoutLink });
-                }}
-              >
-                Join
-              </button>
-            )}
-          </a>
-        ))}
-      </div>
-      {calendar.lastError && <p className="ag-error">{calendar.lastError}</p>}
     </section>
   );
 }

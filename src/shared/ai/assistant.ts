@@ -111,7 +111,7 @@ export function buildRouterSystem(tools: readonly Tool[]): string {
     'You route messages for a personal productivity assistant. Classify the ' +
     "user's message:\n" +
     '- "action": they want to DO something the tools below can do\n' +
-    '- "question": they are asking about their own data (tasks, streaks, reading, gym, flashcards, papers, screen time, calendar/meetings/free time)\n' +
+    '- "question": they are asking about their own data (tasks, streaks, reading, gym, flashcards, papers, screen time)\n' +
     '- "page": they are asking about the web page they are currently viewing (summarize it, explain it, make cards from it)\n' +
     '- "chat": anything else\n\n' +
     'Tools:\n' +
