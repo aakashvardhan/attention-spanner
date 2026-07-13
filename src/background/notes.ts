@@ -2,7 +2,6 @@ import { MAX_NOTES } from '../shared/constants';
 import { getLocal, setLocal } from '../shared/storage';
 import type { BrainDumpNote } from '../shared/types';
 import { awardXp } from './gamification';
-import { pushBrainDump } from './notion';
 import { addTask } from './tasks';
 
 /**
@@ -11,7 +10,7 @@ import { addTask } from './tasks';
  * inference never loses the user's thoughts.
  */
 
-export async function saveNote(rawText: string, willStructure: boolean): Promise<BrainDumpNote> {
+export async function saveNote(rawText: string, _willStructure: boolean): Promise<BrainDumpNote> {
   const note: BrainDumpNote = {
     id: crypto.randomUUID(),
     rawText: rawText.trim(),
@@ -20,14 +19,11 @@ export async function saveNote(rawText: string, willStructure: boolean): Promise
     proposedTasks: [],
     createdAt: Date.now(),
     structuredAt: null,
-    notionPushedAt: null,
   };
   const { notes } = await getLocal('notes');
   notes.unshift(note);
   if (notes.length > MAX_NOTES) notes.length = MAX_NOTES;
   await setLocal({ notes });
-  // Raw-only saves are terminal; structure paths push at their own terminal event
-  if (!willStructure) void pushBrainDump(note);
   return note;
 }
 
@@ -46,7 +42,6 @@ export async function applyStructureResult(
   note.structuredAt = Date.now();
   await setLocal({ notes });
   await awardXp('braindump_structured');
-  if (note.notionPushedAt == null) void pushBrainDump(note);
 }
 
 export async function markNoteFailed(id: string): Promise<void> {
@@ -55,7 +50,6 @@ export async function markNoteFailed(id: string): Promise<void> {
   if (!note || note.status === 'structured') return;
   note.status = 'failed';
   await setLocal({ notes });
-  if (note.notionPushedAt == null) void pushBrainDump(note);
 }
 
 export async function deleteNote(id: string): Promise<void> {

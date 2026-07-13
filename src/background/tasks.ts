@@ -4,7 +4,6 @@ import { localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { Task } from '../shared/types';
 import { adjustXp, awardChest, awardXp, revokeXp } from './gamification';
-import { pushTaskCreate, pushTaskToggle } from './notion';
 import { recordTaskToggled } from './streaks';
 
 /**
@@ -24,7 +23,6 @@ export async function addTask(text: string, source: Task['source']): Promise<Tas
   const { tasks } = await getLocal('tasks');
   tasks.unshift(task);
   await setLocal({ tasks });
-  void pushTaskCreate(task);
   return task;
 }
 
@@ -61,7 +59,6 @@ export async function toggleTask(id: string): Promise<void> {
       await recordTaskToggled(-1);
     }
   }
-  void pushTaskToggle(task);
 }
 
 /**

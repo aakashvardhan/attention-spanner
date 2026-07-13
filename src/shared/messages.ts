@@ -1,5 +1,4 @@
 import type { CalendarEvent } from './calendar';
-import type { NotionDbSummary } from './notion';
 import type {
   BookmarkGroup,
   BookmarkLink,
@@ -53,9 +52,6 @@ export type Message =
   | { type: 'NOTE_FAILED'; id: string }
   | { type: 'DELETE_NOTE'; id: string }
   | { type: 'CONFIRM_NOTE_TASKS'; id: string; taskIndexes: number[] }
-  | { type: 'NOTION_LIST_DBS' }
-  | { type: 'NOTION_TEST' }
-  | { type: 'NOTION_FLUSH_NOW' }
   | { type: 'FLASH_ADD_DECK'; name: string; kind: DeckKind }
   | { type: 'FLASH_RENAME_DECK'; id: string; name: string }
   | { type: 'FLASH_DELETE_DECK'; id: string }
@@ -137,9 +133,6 @@ export interface MessageResponses {
   NOTE_FAILED: { ok: boolean };
   DELETE_NOTE: { ok: boolean };
   CONFIRM_NOTE_TASKS: { ok: boolean; addedCount: number };
-  NOTION_LIST_DBS: { ok: boolean; databases: NotionDbSummary[]; error: string | null };
-  NOTION_TEST: { ok: boolean; name: string | null; error: string | null };
-  NOTION_FLUSH_NOW: { ok: boolean };
   FLASH_ADD_DECK: { ok: boolean; deck?: Deck; error?: string };
   FLASH_RENAME_DECK: { ok: boolean; error?: string };
   FLASH_DELETE_DECK: { ok: boolean; error?: string };

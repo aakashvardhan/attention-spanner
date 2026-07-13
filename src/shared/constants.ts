@@ -71,7 +71,6 @@ export const ALARMS = {
   gymReminderSnooze: 'gym-reminder-snooze',
   focusPhaseEnd: 'focus-phase-end',
   focusBadgeTick: 'focus-badge-tick',
-  notionFlush: 'notion-flush',
   calendarRefresh: 'calendar-refresh',
 } as const;
 

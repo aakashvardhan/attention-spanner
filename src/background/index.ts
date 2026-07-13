@@ -6,12 +6,10 @@ import {
   handleAlarm,
   setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
-  setupNotionFlushAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
 } from './alarms';
 import { refreshCalendar } from './calendar';
-import { flushQueue, handleTokenChanged } from './notion';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
@@ -68,7 +66,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupRefreshAlarm();
     await setupTaskReminderAlarm();
     await setupGymReminderAlarm();
-    await setupNotionFlushAlarm();
     await setupCalendarRefreshAlarm();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
@@ -100,8 +97,6 @@ chrome.runtime.onStartup.addListener(() => {
   // Re-anchor the daily reminder to the wall clock (bounds DST drift)
   void setupGymReminderAlarm();
   void reconcileFocusOnStartup();
-  // Drain Notion pushes left queued when the previous SW instance died
-  void flushQueue();
   void refreshCalendar();
 });
 
@@ -138,10 +133,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
     if (oldSettings.gymReminderTime !== newSettings.gymReminderTime) {
       void setupGymReminderAlarm(newSettings.gymReminderTime);
-    }
-    // A re-pasted token lifts the 401 pause and drains the queue immediately
-    if (oldSettings.notionToken !== newSettings.notionToken && newSettings.notionToken) {
-      void handleTokenChanged();
     }
     // Arrays need a structural compare, unlike the scalar settings above
     if (

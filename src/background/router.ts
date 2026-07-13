@@ -28,7 +28,6 @@ import {
 } from './flashcards';
 import { addPaper, deletePaper, updatePaper } from './papers';
 import { startFocus, stopFocus } from './focus';
-import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
 import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, moveTask, snoozeTask, toggleTask } from './tasks';
@@ -87,13 +86,6 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return { ok: true };
     case 'SAVE_NOTE':
       return { ok: true, note: await saveNote(msg.rawText, msg.willStructure) };
-    case 'NOTION_LIST_DBS':
-      return listDatabases();
-    case 'NOTION_TEST':
-      return testConnection();
-    case 'NOTION_FLUSH_NOW':
-      void flushQueue();
-      return { ok: true };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
     case 'FLASH_RENAME_DECK':

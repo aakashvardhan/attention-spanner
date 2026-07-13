@@ -5,7 +5,6 @@ import { normalizeUrl } from '../shared/urlNormalize';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { awardXp } from './gamification';
 import { recordEngagement } from './hyperfocus';
-import { pushReadingFinished } from './notion';
 import { scheduleNudge, cancelNudge } from './nudges';
 import { recordReading } from './streaks';
 
@@ -171,7 +170,6 @@ export async function handleProgressUpdate(
   await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
   if (finishedNow) {
     await awardXp('article_finished'); // latches once per article via completedAt
-    void pushReadingFinished(progress);
   }
 
   if (update.hidden) {

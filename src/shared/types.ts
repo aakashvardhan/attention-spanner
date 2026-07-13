@@ -30,8 +30,6 @@ export interface Task extends SyncMeta {
   /** Excluded from reminder digests until this timestamp */
   snoozedUntil: number | null;
   source: 'capture' | 'popup' | 'newtab' | 'braindump';
-  /** Notion page created for this task; set after the create push succeeds */
-  notionPageId?: string;
   /**
    * Mystery-chest roll for this task, made once on first completion
    * (bonusXp 0 = rolled and missed). Present ⇒ never re-roll, so
@@ -50,8 +48,6 @@ export interface BrainDumpNote extends SyncMeta {
   proposedTasks: { text: string; addedTaskId: string | null }[];
   createdAt: number;
   structuredAt: number | null;
-  /** Set at enqueue time of the note's one Notion push; pre-Notion notes lack it (read with == null) */
-  notionPushedAt?: number | null;
 }
 
 /** UI color theme; 'system' follows the OS prefers-color-scheme */
@@ -115,25 +111,6 @@ export interface Settings {
   dashCardOrder: DashCardId[];
   dashHiddenCards: DashCardId[];
   dashFullWidthCards: DashCardId[];
-  /** Notion internal integration token; '' = integration off */
-  notionToken: string;
-  /** Target database ids per push kind; '' = that push unconfigured */
-  notionLinksDbId: string;
-  notionBrainDumpDbId: string;
-  notionTasksDbId: string;
-  notionReadingLogDbId: string;
-  /** Checkbox property name in the tasks DB for completion sync; '' = creates only */
-  notionTasksDoneProp: string;
-  /** Property names detected by type when a DB is picked; '' = DB lacks that type */
-  notionLinksUrlProp: string;
-  notionLinksTagsProp: string;
-  notionReadingUrlProp: string;
-  notionReadingTypeProp: string;
-  notionReadingDateProp: string;
-  notionPushLinks: boolean;
-  notionPushBrainDumps: boolean;
-  notionPushTasks: boolean;
-  notionPushReading: boolean;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
   /** The Jarvis assistant (dashboard card, popup tab, command palette) */

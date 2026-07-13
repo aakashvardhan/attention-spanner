@@ -8,7 +8,6 @@ import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage'
 import type { Settings, ThemeSetting } from '../../shared/types';
 import { AssistantSection } from './AssistantSection';
 import { CalendarSection } from './CalendarSection';
-import { NotionSection } from './NotionSection';
 import { PapersSection } from './PapersSection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
@@ -503,8 +502,6 @@ export function Options() {
         <AssistantSection />
 
         <CalendarSection />
-
-        <NotionSection />
 
         <PapersSection />
 

@@ -1,7 +1,6 @@
 import { MAX_BOOKMARKS, NOTIFICATION_IDS } from '../shared/constants';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { BookmarkGroup, BookmarkLink } from '../shared/types';
-import { pushLink } from './notion';
 
 /**
  * Curated bookmark links + groups. All writes serialized in the service
@@ -40,8 +39,6 @@ export async function addBookmark(
   bookmarks.unshift(bookmark);
   if (bookmarks.length > MAX_BOOKMARKS) bookmarks.length = MAX_BOOKMARKS;
   await setLocal({ bookmarks });
-  // New bookmarks only — the re-add path above would duplicate Notion pages
-  void pushLink(bookmark);
   return bookmark;
 }
 

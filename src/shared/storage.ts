@@ -1,7 +1,6 @@
 import type { AssistantTurn } from './ai/assistantTypes';
 import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
-import type { NotionPush, NotionStatus } from './notion';
 import { DASH_CARD_IDS } from './types';
 import type {
   AnyProgress,
@@ -38,8 +37,6 @@ export interface LocalSchema {
   focusSession: FocusSession | null;
   bookmarks: BookmarkLink[];
   bookmarkGroups: BookmarkGroup[];
-  notionQueue: NotionPush[];
-  notionStatus: NotionStatus;
   decks: Deck[];
   flashNotes: FlashNote[];
   flashCards: FlashCard[];
@@ -97,21 +94,6 @@ export const DEFAULT_SETTINGS: Settings = {
   dashCardOrder: [...DASH_CARD_IDS],
   dashHiddenCards: [],
   dashFullWidthCards: [],
-  notionToken: '',
-  notionLinksDbId: '',
-  notionBrainDumpDbId: '',
-  notionTasksDbId: '',
-  notionReadingLogDbId: '',
-  notionTasksDoneProp: '',
-  notionLinksUrlProp: 'URL',
-  notionLinksTagsProp: 'Tags',
-  notionReadingUrlProp: 'URL',
-  notionReadingTypeProp: 'Type',
-  notionReadingDateProp: 'Finished',
-  notionPushLinks: false,
-  notionPushBrainDumps: false,
-  notionPushTasks: false,
-  notionPushReading: false,
   semanticScholarApiKey: '',
   assistantEnabled: true,
   geminiApiKey: '',
@@ -151,8 +133,6 @@ export const DEFAULTS: LocalSchema = {
   focusSession: null,
   bookmarks: [],
   bookmarkGroups: [],
-  notionQueue: [],
-  notionStatus: { lastSuccessAt: 0, lastError: '', lastErrorAt: 0, authError: false },
   decks: [],
   flashNotes: [],
   flashCards: [],

@@ -3,7 +3,6 @@ import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { awardXp } from './gamification';
 import { recordEngagement } from './hyperfocus';
-import { pushReadingFinished } from './notion';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
 import { recordWatching } from './streaks';
@@ -131,7 +130,6 @@ export async function handleVideoProgress(
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
   if (finishedNow) {
     await awardXp('video_finished');
-    void pushReadingFinished(progress);
   }
 
   if (msg.stopped) {

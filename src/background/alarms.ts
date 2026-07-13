@@ -5,7 +5,6 @@ import { refreshCalendar } from './calendar';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
 import { fireGymReminder } from './gym';
-import { flushQueue, sweepUnpushedNotes } from './notion';
 import { fireNudge, isNudgeAlarm } from './nudges';
 import { finishSprint } from './streaks';
 import { showTaskDigest } from './tasks';
@@ -32,13 +31,6 @@ export async function setupGymReminderAlarm(time?: string): Promise<void> {
     when: nextDailyOccurrence(hhmm),
     periodInMinutes: 24 * 60,
   });
-}
-
-export async function setupNotionFlushAlarm(): Promise<void> {
-  await chrome.alarms.clear(ALARMS.notionFlush);
-  // Created unconditionally — the handler no-ops in microseconds when
-  // the queue is empty or Notion is unconfigured
-  chrome.alarms.create(ALARMS.notionFlush, { periodInMinutes: 10 });
 }
 
 export async function setupCalendarRefreshAlarm(): Promise<void> {
@@ -71,10 +63,6 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
       break;
     case ALARMS.focusBadgeTick:
       void updateBadge();
-      break;
-    case ALARMS.notionFlush:
-      void flushQueue();
-      void sweepUnpushedNotes();
       break;
     case ALARMS.calendarRefresh:
       void refreshCalendar();
