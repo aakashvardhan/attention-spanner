@@ -1,8 +1,14 @@
 import type { CalendarEvent } from './calendar';
 import type { NotionDbSummary } from './notion';
+import type { AssistantTurn } from './ai/assistantTypes';
+import type { PageContent } from './ai/pageContent';
 import type { SyncLocalState } from './storage';
 import type {
+  AgentProposal,
+  AssistantAutomation,
   AssistantFact,
+  AssistantSkill,
+  AutomationSchedule,
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
@@ -12,6 +18,8 @@ import type {
   FlashNoteType,
   Paper,
   PaperDraft,
+  PdfAnnotation,
+  PdfAnnotationDraft,
   Rating,
   Task,
 } from './types';
@@ -36,6 +44,7 @@ export type Message =
   | { type: 'CANCEL_SPRINT' }
   | { type: 'GYM_CHECKIN' }
   | { type: 'GYM_UNDO' }
+  | { type: 'WARMUP_COMPLETE'; score: number; total: number }
   | {
       type: 'START_FOCUS';
       mode: 'oneshot' | 'pomodoro';
@@ -53,6 +62,22 @@ export type Message =
   | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
   | { type: 'MEMORY_ADD'; text: string }
   | { type: 'MEMORY_DELETE'; id: string }
+  | { type: 'SKILL_ADD'; name: string; keywords: string[]; body: string }
+  | {
+      type: 'SKILL_UPDATE';
+      id: string;
+      patch: Partial<Pick<AssistantSkill, 'name' | 'keywords' | 'body' | 'enabled'>>;
+    }
+  | { type: 'SKILL_DELETE'; id: string }
+  | { type: 'AGENT_APPLY_PROPOSALS'; proposals: AgentProposal[] }
+  | { type: 'AUTOMATION_ADD'; name: string; prompt: string; schedule: AutomationSchedule }
+  | {
+      type: 'AUTOMATION_UPDATE';
+      id: string;
+      patch: Partial<Pick<AssistantAutomation, 'name' | 'prompt' | 'schedule' | 'enabled'>>;
+    }
+  | { type: 'AUTOMATION_DELETE'; id: string }
+  | { type: 'AUTOMATION_RUN_NOW'; id: string }
   | { type: 'SAVE_NOTE'; rawText: string; willStructure: boolean }
   | { type: 'STRUCTURE_NOTE_RESULT'; id: string; bullets: string[]; tasks: string[] }
   | { type: 'NOTE_FAILED'; id: string }
@@ -79,15 +104,50 @@ export type Message =
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
   | { type: 'PAPER_DELETE'; id: string }
+  // PDF reader → service worker (single writer keeps progress monotonic)
+  | {
+      type: 'PAPER_READER_PROGRESS';
+      paperId: string;
+      pdfUrl: string;
+      page: number;
+      pageCount: number;
+      offset: number;
+      leftOff: string;
+    }
+  | { type: 'READER_OPEN_NATIVE'; url: string }
+  // PDF reader annotations (highlights / sticky notes)
+  | { type: 'ANNOT_ADD'; draft: PdfAnnotationDraft }
+  | {
+      type: 'ANNOT_UPDATE';
+      id: string;
+      patch: Partial<Pick<PdfAnnotation, 'note' | 'color' | 'x' | 'y'>>;
+    }
+  | { type: 'ANNOT_DELETE'; id: string }
   | { type: 'CAL_SIGN_IN' }
   | { type: 'CAL_SIGN_OUT' }
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   | { type: 'CAL_LIST_EVENTS'; startMs: number; endMs: number }
+  | { type: 'MEETING_NOTES_REFRESH' }
   | { type: 'SYNC_STATUS' }
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
   | { type: 'SYNC_SIGN_OUT' }
+  // Offscreen wake-word listener ↔ service worker
+  | {
+      type: 'PROXY_STORAGE';
+      area: 'local' | 'session';
+      op: 'get' | 'set';
+      keys?: string[];
+      items?: Record<string, unknown>;
+    }
+  | { type: 'ASSISTANT_APPEND_TURN'; turn: AssistantTurn }
+| { type: 'ASSISTANT_BEGIN_TURN'; turn: AssistantTurn }
+  | { type: 'ASSISTANT_PATCH_TURN'; id: string; patch: Partial<AssistantTurn> }
+  | { type: 'WAKE_GET_PAGE' }
+  | { type: 'WAKE_EVENT'; event: 'replied' | 'needs-ui' | 'handoff' | 'mic-denied'; text?: string }
+  // Extension pages → offscreen doc (push-to-talk holds the mic; router no-ops it)
+  | { type: 'WAKE_MIC_BUSY'; busy: boolean }
   // Content script → service worker
   | { type: 'TRACKER_READY' }
   | { type: 'TIME_PILL_READY'; host: string }
@@ -136,6 +196,7 @@ export interface MessageResponses {
   CANCEL_SPRINT: { ok: boolean };
   GYM_CHECKIN: { ok: boolean };
   GYM_UNDO: { ok: boolean };
+  WARMUP_COMPLETE: { ok: boolean; firstToday: boolean };
   START_FOCUS: { ok: boolean };
   STOP_FOCUS: { ok: boolean };
   ADD_BOOKMARK: { ok: boolean; bookmark: BookmarkLink };
@@ -145,6 +206,18 @@ export interface MessageResponses {
   DELETE_BOOKMARK_GROUP: { ok: boolean };
   MEMORY_ADD: { ok: boolean; fact?: AssistantFact; error?: string };
   MEMORY_DELETE: { ok: boolean };
+  SKILL_ADD: { ok: boolean; skill?: AssistantSkill; error?: string };
+  SKILL_UPDATE: { ok: boolean; error?: string };
+  SKILL_DELETE: { ok: boolean };
+  AGENT_APPLY_PROPOSALS: {
+    ok: boolean;
+    outcomes: { status: 'done' | 'failed' | 'skipped'; detail: string }[];
+    text: string;
+  };
+  AUTOMATION_ADD: { ok: boolean; automation?: AssistantAutomation; error?: string };
+  AUTOMATION_UPDATE: { ok: boolean; error?: string };
+  AUTOMATION_DELETE: { ok: boolean };
+  AUTOMATION_RUN_NOW: { ok: boolean; error?: string };
   SAVE_NOTE: { ok: boolean; note: BrainDumpNote };
   STRUCTURE_NOTE_RESULT: { ok: boolean };
   NOTE_FAILED: { ok: boolean };
@@ -164,15 +237,28 @@ export interface MessageResponses {
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };
   PAPER_DELETE: { ok: boolean; error?: string };
+  PAPER_READER_PROGRESS: { ok: boolean; error?: string };
+  READER_OPEN_NATIVE: { ok: boolean };
+  ANNOT_ADD: { ok: boolean; annotation?: PdfAnnotation; error?: string };
+  ANNOT_UPDATE: { ok: boolean; error?: string };
+  ANNOT_DELETE: { ok: boolean; error?: string };
   CAL_SIGN_IN: { ok: boolean; email?: string; error?: string };
   CAL_SIGN_OUT: { ok: boolean };
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   CAL_LIST_EVENTS: { ok: boolean; events?: CalendarEvent[]; error?: string };
+  MEETING_NOTES_REFRESH: { ok: boolean; error?: string };
   SYNC_STATUS: SyncLocalState;
   SYNC_SIGN_IN: { ok: boolean; error?: string };
   SYNC_SIGN_UP: { ok: boolean; error?: string };
   SYNC_SIGN_OUT: { ok: boolean; error?: string };
+  PROXY_STORAGE: Record<string, unknown>;
+  ASSISTANT_APPEND_TURN: { ok: boolean };
+ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
+  ASSISTANT_PATCH_TURN: { ok: boolean };
+  WAKE_GET_PAGE: { page: PageContent | null };
+  WAKE_EVENT: { ok: boolean };
+  WAKE_MIC_BUSY: { ok: boolean };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   TIME_PILL_READY: { ok: boolean; todaySeconds: number };
   TIME_PILL_TICK: { ok: boolean };
@@ -185,8 +271,22 @@ export interface MessageResponses {
   VIDEO_PROGRESS: { ok: boolean };
 }
 
+/**
+ * In-process dispatcher, registered only by the service worker: runtime
+ * messages a context sends to itself never reach its own onMessage listener,
+ * so without this the SW couldn't run tools (they all call sendMessage).
+ * With it, every tool becomes SW-runnable with zero per-tool changes —
+ * pages and the offscreen doc keep the normal runtime path.
+ */
+let localDispatcher: ((msg: Message) => Promise<unknown>) | null = null;
+
+export function setLocalDispatcher(fn: (msg: Message) => Promise<unknown>): void {
+  localDispatcher = fn;
+}
+
 export function sendMessage<T extends Message['type']>(
   msg: Extract<Message, { type: T }>,
 ): Promise<MessageResponses[T]> {
+  if (localDispatcher) return localDispatcher(msg) as Promise<MessageResponses[T]>;
   return chrome.runtime.sendMessage(msg);
 }

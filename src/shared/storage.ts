@@ -1,11 +1,14 @@
 import type { AssistantTurn } from './ai/assistantTypes';
 import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
+import { MEETING_NOTES_DEFAULTS, type MeetingNotesState } from './meetingNotes';
 import type { NotionPush, NotionStatus } from './notion';
 import { DASH_CARD_IDS } from './types';
 import type {
   AnyProgress,
+  AssistantAutomation,
   AssistantFact,
+  AssistantSkill,
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
@@ -17,10 +20,12 @@ import type {
   Gamification,
   GymState,
   Paper,
+  PdfAnnotation,
   Settings,
   SrsDayStats,
   Streaks,
   Task,
+  WarmupState,
 } from './types';
 
 export interface LocalSchema {
@@ -36,6 +41,7 @@ export interface LocalSchema {
   streaks: Streaks;
   gym: GymState;
   gamification: Gamification;
+  warmup: WarmupState;
   focusSession: FocusSession | null;
   bookmarks: BookmarkLink[];
   bookmarkGroups: BookmarkGroup[];
@@ -46,6 +52,8 @@ export interface LocalSchema {
   flashCards: FlashCard[];
   /** Research papers, grouped into decks (shared with flashcards) */
   papers: Paper[];
+  /** PDF reader highlights & sticky notes, keyed by docKey. Local-only (v1); shaped for future per-record sync. */
+  pdfAnnotations: PdfAnnotation[];
   /** Keyed by local date 'YYYY-MM-DD', pruned to SRS_DAILY_RETENTION_DAYS */
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
@@ -62,8 +70,14 @@ export interface LocalSchema {
   assistantBriefing: { date: string; text: string } | null;
   /** Facts the user asked the assistant to remember. Device-local — not synced (v1). */
   assistantMemory: AssistantFact[];
+  /** User-written instruction docs the assistant consults. Device-local — not synced (v1). */
+  assistantSkills: AssistantSkill[];
+  /** Scheduled agent runs (discovery/triage on alarms). Device-local. */
+  assistantAutomations: AssistantAutomation[];
   /** Google Calendar connection + cached agenda window. Device-local — never synced. */
   calendar: CalendarState;
+  /** Meeting notes pulled from Notion. Device-local cache — never synced. */
+  meetingNotes: MeetingNotesState;
 }
 
 /** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
@@ -92,6 +106,14 @@ export interface SessionSchema {
   assistantThread: AssistantTurn[];
   /** Calendar events already notified by the monitor (session lifetime = dedupe lifetime) */
   monitorNotifiedEventIds: string[];
+  /** Command captured by the wake-word listener, handed off to the dashboard to run */
+  assistantPendingInput: string;
+  /** Assistant response cache, shared across contexts (see src/shared/ai/cache.ts) */
+  assistantCache: Record<string, { v: unknown; exp: number; tag: string }>;
+  /** Automations waiting for an on-device run (no cloud key) — drained on dashboard open */
+  pendingAutomationRuns: string[];
+  /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
+  pdfNativeBypass: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -137,11 +159,14 @@ export const DEFAULT_SETTINGS: Settings = {
   notionPushBrainDumps: false,
   notionPushTasks: false,
   notionPushReading: false,
+  notionMeetingNotesDbId: '',
+  notionMeetingNotesDateProp: '',
   semanticScholarApiKey: '',
   assistantEnabled: true,
   geminiApiKey: '',
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',
+  assistantWakeWordEnabled: false,
   focusCalendarBlockEnabled: false,
   assistantMonitorEnabled: true,
   monitorQuietStart: '22:00',
@@ -175,8 +200,10 @@ export const DEFAULTS: LocalSchema = {
       focusBlocks: 0,
       cardsReviewed: 0,
       chestsOpened: 0,
+      warmups: 0,
     },
   },
+  warmup: { days: {}, currentStreak: 0, longestStreak: 0, lastPlayedDate: '', bestScore: 0 },
   focusSession: null,
   bookmarks: [],
   bookmarkGroups: [],
@@ -186,13 +213,17 @@ export const DEFAULTS: LocalSchema = {
   flashNotes: [],
   flashCards: [],
   papers: [],
+  pdfAnnotations: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
   sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
   tombstones: {},
   assistantBriefing: null,
   assistantMemory: [],
+  assistantSkills: [],
+  assistantAutomations: [],
   calendar: CALENDAR_DEFAULTS,
+  meetingNotes: MEETING_NOTES_DEFAULTS,
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -203,36 +234,57 @@ export const SESSION_DEFAULTS: SessionSchema = {
   hyperfocus: { unbrokenSeconds: 0, lastDeltaAt: 0, notifiedAtSeconds: 0 },
   assistantThread: [],
   monitorNotifiedEventIds: [],
+  assistantPendingInput: '',
+  assistantCache: {},
+  pendingAutomationRuns: [],
+  pdfNativeBypass: [],
 };
+
+/* Offscreen documents get chrome.runtime but not chrome.storage — route their
+   reads/writes through the service worker instead. Feature-detected so pages,
+   the worker, and vitest (no chrome at all) keep the direct path. */
+const hasStorageApi = typeof chrome !== 'undefined' && !!chrome.storage;
+
+async function proxyGet(area: 'local' | 'session', keys: string[]): Promise<Record<string, unknown>> {
+  return chrome.runtime.sendMessage({ type: 'PROXY_STORAGE', area, op: 'get', keys });
+}
+
+async function proxySet(area: 'local' | 'session', items: Record<string, unknown>): Promise<void> {
+  await chrome.runtime.sendMessage({ type: 'PROXY_STORAGE', area, op: 'set', items });
+}
 
 export async function getLocal<K extends keyof LocalSchema>(
   ...keys: K[]
 ): Promise<Pick<LocalSchema, K>> {
-  const stored = await chrome.storage.local.get(keys);
+  const stored = hasStorageApi ? await chrome.storage.local.get(keys) : await proxyGet('local', keys);
   const out = {} as Pick<LocalSchema, K>;
   for (const key of keys) {
-    out[key] = stored[key] ?? structuredClone(DEFAULTS[key]);
+    out[key] = (stored[key] as LocalSchema[K] | undefined) ?? structuredClone(DEFAULTS[key]);
   }
   return out;
 }
 
 export async function setLocal(items: Partial<LocalSchema>): Promise<void> {
-  await chrome.storage.local.set(items);
+  if (hasStorageApi) await chrome.storage.local.set(items);
+  else await proxySet('local', items);
 }
 
 export async function getSession<K extends keyof SessionSchema>(
   ...keys: K[]
 ): Promise<Pick<SessionSchema, K>> {
-  const stored = await chrome.storage.session.get(keys);
+  const stored = hasStorageApi
+    ? await chrome.storage.session.get(keys)
+    : await proxyGet('session', keys);
   const out = {} as Pick<SessionSchema, K>;
   for (const key of keys) {
-    out[key] = stored[key] ?? structuredClone(SESSION_DEFAULTS[key]);
+    out[key] = (stored[key] as SessionSchema[K] | undefined) ?? structuredClone(SESSION_DEFAULTS[key]);
   }
   return out;
 }
 
 export async function setSession(items: Partial<SessionSchema>): Promise<void> {
-  await chrome.storage.session.set(items);
+  if (hasStorageApi) await chrome.storage.session.set(items);
+  else await proxySet('session', items);
 }
 
 export async function getSettings(): Promise<Settings> {

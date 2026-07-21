@@ -29,7 +29,8 @@ import type { AnyProgress, BookmarkLink, BrainDumpNote, Task } from '../shared/t
 
 const REQUEST_SPACING_MS = 350; // ~3 req/s Notion rate limit headroom
 
-async function notionFetch(
+/** Exported for the meeting-notes read path (src/background/meetingNotes.ts) */
+export async function notionFetch(
   token: string,
   method: 'GET' | 'POST' | 'PATCH',
   path: string,

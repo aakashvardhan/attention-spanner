@@ -206,7 +206,7 @@ export function dayRange(
 
 /** Human-readable agenda for one day, for the assistant to reply with */
 export function formatEventList(events: CalendarEvent[], label: string): string {
-  if (events.length === 0) return `No events ${label === 'today' || label === 'tomorrow' ? label : `on ${label}`}. 🎉`;
+  if (events.length === 0) return `No events ${label === 'today' || label === 'tomorrow' ? label : `on ${label}`}.`;
   const lines = events.slice(0, 10).map((e) => {
     const when = e.allDay ? 'all day' : `${hhmm(e.startMs)}–${hhmm(e.endMs)}`;
     return `• ${when} — ${e.title}${e.location ? ` (${e.location})` : ''}`;

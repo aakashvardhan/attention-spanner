@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { runPendingAutomations } from '../../shared/ai/automations';
 import { maybeGenerateBriefing } from '../../shared/ai/briefing';
+import { nanoProvider } from '../../shared/ai/nanoProvider';
 import { BADGES } from '../../shared/badges';
 import {
   currentEvent,
@@ -13,7 +15,12 @@ import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { IgnitionCard } from '../../shared/components/IgnitionCard';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { SortableTaskList } from '../../shared/components/SortableTaskList';
-import { FLASHCARDS_PAGE_PATH, FOCUS_PRESETS, PAPERS_PAGE_PATH } from '../../shared/constants';
+import {
+  FLASHCARDS_PAGE_PATH,
+  FOCUS_PRESETS,
+  MAX_LIST_ITEMS,
+  PAPERS_PAGE_PATH,
+} from '../../shared/constants';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 import {
   daysAgo,
@@ -24,6 +31,7 @@ import {
   localDate,
 } from '../../shared/format';
 import { useBookmarks } from '../../shared/hooks/useBookmarks';
+import { useFeed } from '../../shared/hooks/useFeed';
 import { usePapers } from '../../shared/hooks/usePapers';
 import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -34,14 +42,18 @@ import { sendMessage } from '../../shared/messages';
 import { questProgress } from '../../shared/quest';
 import { dueCounts, newIntroducedToday, totalDue } from '../../shared/srs';
 import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
-import type { Task } from '../../shared/types';
+import type { Paper, Task } from '../../shared/types';
+import { paperOpenUrl } from '../../shared/pdf';
 import { weekDates, weekKey } from '../../shared/week';
+import type { MeetingNote } from '../../shared/meetingNotes';
 import { ActivityCalendar } from './ActivityCalendar';
 import { CommandPalette } from './CommandPalette';
 import { DashboardGrid, type DashCard } from './DashboardGrid';
+import { MeetingNoteReader } from './MeetingNoteReader';
+import { WarmupPanel } from './WarmupPanel';
 
 const DASHBOARD_CARDS: readonly DashCard[] = [
-  { id: 'assistant', title: '🤖 Assistant', Component: AssistantPanel },
+  { id: 'feeds', title: '📰 Feeds', Component: FeedsPanel },
   { id: 'agenda', title: '📅 Today', Component: AgendaPanel },
   { id: 'links', title: '🔗 Links', Component: BookmarksPanel },
   { id: 'tasks', title: '📝 Tasks', Component: TaskPanel },
@@ -52,6 +64,8 @@ const DASHBOARD_CARDS: readonly DashCard[] = [
   { id: 'braindump', title: '🧠 Brain dump', Component: BrainDumpPanel },
   { id: 'flashcards', title: '🃏 Flashcards', Component: FlashcardsPanel },
   { id: 'papers', title: '📄 Papers', Component: PapersPanel },
+  { id: 'meetings', title: '🗓️ Meetings', Component: MeetingNotesPanel },
+  { id: 'warmup', title: '⚡ Warm-up', Component: WarmupPanel },
 ];
 
 export function Dashboard() {
@@ -60,6 +74,8 @@ export function Dashboard() {
   const focus = useFocusSession();
   const inFocus = focus.active && focus.phase === 'focus';
   const theme = useTheme();
+  const [storedSettings] = useStorageValue('settings');
+  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
 
   useEffect(() => {
     document.body.classList.toggle('focus-active', inFocus);
@@ -68,6 +84,8 @@ export function Dashboard() {
 
   useEffect(() => {
     void maybeGenerateBriefing();
+    // Automations queued while no cloud key was reachable run on-device here
+    void runPendingAutomations(nanoProvider);
   }, []);
 
   return (
@@ -100,15 +118,158 @@ export function Dashboard() {
         <ActivityCalendar />
       </div>
       <DashboardGrid cards={DASHBOARD_CARDS} />
+      {/* Headless: the wake-word handoff runs only on a non-compact AssistantChat.
+          The visible assistant now lives in the popup, so mount a hidden one here
+          to keep "Hey Jarvis" commands executing when the setting is on. */}
+      {settings.assistantWakeWordEnabled && (
+        <div className="sr-only">
+          <AssistantChat />
+        </div>
+      )}
     </div>
   );
 }
 
-function AssistantPanel() {
+function FeedsPanel() {
+  const feed = useFeed();
+  const [filter, setFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  const sources = useMemo(
+    () => [...new Set(feed.items.map((item) => item.source))].sort(),
+    [feed.items],
+  );
+  const categories = useMemo(
+    () => [...new Set(feed.items.flatMap((item) => item.categories ?? []))].sort(),
+    [feed.items],
+  );
+  const effectiveFilter = filter !== 'all' && !sources.includes(filter) ? 'all' : filter;
+  const effectiveCategory =
+    categoryFilter !== 'all' && !categories.includes(categoryFilter) ? 'all' : categoryFilter;
+  const query = search.trim().toLowerCase();
+
+  const filtered = feed.items.filter((item) => {
+    if (effectiveFilter !== 'all' && item.source !== effectiveFilter) return false;
+    if (effectiveCategory !== 'all' && !(item.categories ?? []).includes(effectiveCategory))
+      return false;
+    if (unreadOnly && feed.readItems.includes(item.id)) return false;
+    if (
+      query &&
+      !`${item.title} ${item.snippet} ${item.source}`.toLowerCase().includes(query)
+    )
+      return false;
+    return true;
+  });
+
+  const hasFilters = query !== '' || unreadOnly || effectiveFilter !== 'all' || effectiveCategory !== 'all';
+
   return (
     <section className="panel">
-      <h2>🤖 Assistant</h2>
-      <AssistantChat />
+      <div className="panel-head">
+        <h2>📰 Feeds</h2>
+        <button
+          className="ghost-btn"
+          title="Refresh feeds"
+          onClick={() => void feed.refresh()}
+          disabled={feed.refreshing}
+        >
+          ↻
+        </button>
+      </div>
+
+      {feed.items.length > 0 && (
+        <div className="dash-feed-filters">
+          <input
+            type="search"
+            className="dash-feed-search"
+            placeholder="Search articles…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {sources.length > 1 && (
+            <select
+              className="dash-feed-filter"
+              value={effectiveFilter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="all">All feeds ({feed.items.length})</option>
+              {sources.map((source) => (
+                <option key={source} value={source}>
+                  {source} ({feed.items.filter((item) => item.source === source).length})
+                </option>
+              ))}
+            </select>
+          )}
+          {categories.length > 0 && (
+            <select
+              className="dash-feed-filter"
+              value={effectiveCategory}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="all">All topics</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            className={unreadOnly ? 'dash-feed-toggle active' : 'dash-feed-toggle'}
+            aria-pressed={unreadOnly}
+            title="Show unread only"
+            onClick={() => setUnreadOnly((v) => !v)}
+          >
+            Unread
+          </button>
+        </div>
+      )}
+
+      <div className="panel-scroll">
+        {feed.feeds.length === 0 ? (
+          <p className="panel-empty">
+            No feeds yet.{' '}
+            <button className="link-btn" onClick={() => chrome.runtime.openOptionsPage()}>
+              Add a feed
+            </button>
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="panel-empty">
+            {feed.refreshing
+              ? 'Loading feeds…'
+              : hasFilters
+                ? 'No items match your filters.'
+                : 'No items — try refreshing.'}
+          </p>
+        ) : (
+          filtered.slice(0, MAX_LIST_ITEMS).map((item) => {
+            const read = feed.readItems.includes(item.id);
+            return (
+              <div
+                key={item.id}
+                className={read ? 'dash-article read' : 'dash-article'}
+                onClick={() =>
+                  void sendMessage({
+                    type: 'OPEN_ARTICLE',
+                    url: item.link,
+                    feedItemId: item.id,
+                    resume: false,
+                  })
+                }
+              >
+                <div className="dash-article-top">
+                  <span className="dash-article-title">{item.title}</span>
+                </div>
+                <span className="dash-article-meta">
+                  {item.source} · {formatRelativeDate(new Date(item.pubDate))}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
     </section>
   );
 }
@@ -221,6 +382,50 @@ function AgendaPanel() {
         ))}
       </div>
       {calendar.lastError && <p className="ag-error">{calendar.lastError}</p>}
+    </section>
+  );
+}
+
+function MeetingNotesPanel() {
+  const [state] = useStorageValue('meetingNotes');
+  const [settings] = useStorageValue('settings');
+  const [readerNote, setReaderNote] = useState<MeetingNote | null>(null);
+
+  useEffect(() => {
+    // Throttled server-side; a fresh cache makes this a no-op
+    void sendMessage({ type: 'MEETING_NOTES_REFRESH' });
+  }, []);
+
+  const configured = settings.notionToken !== '' && settings.notionMeetingNotesDbId !== '';
+
+  if (!configured) {
+    return (
+      <section className="panel">
+        <h2>🗓️ Meetings</h2>
+        <p className="panel-empty">
+          Pull your Notion meeting notes here — pick a database in Settings → Notion Sync.
+        </p>
+        <button className="sprint-start" onClick={() => void chrome.runtime.openOptionsPage()}>
+          Open Settings
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel">
+      <h2>🗓️ Meetings</h2>
+      <div className="panel-scroll">
+        {state.notes.length === 0 && <p className="panel-empty">No notes yet.</p>}
+        {state.notes.map((note) => (
+          <button key={note.id} className="mn-row" onClick={() => setReaderNote(note)}>
+            <span className="mn-row-title">{note.title}</span>
+            <span className="mn-date">{formatRelativeDate(new Date(note.dateMs))}</span>
+          </button>
+        ))}
+      </div>
+      {state.lastError && <p className="ag-error">{state.lastError}</p>}
+      {readerNote && <MeetingNoteReader note={readerNote} onClose={() => setReaderNote(null)} />}
     </section>
   );
 }
@@ -634,7 +839,12 @@ function FlashcardsPanel() {
 function PapersPanel() {
   const { readingNow, toReadCount } = usePapers();
   const openPage = () => void chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) });
-  const openPaper = (url: string) => (url ? void chrome.tabs.create({ url }) : openPage());
+  // Papers read in the PDF reader reopen there, resuming the saved position
+  const openPaper = (p: Paper) => {
+    const url = paperOpenUrl(p);
+    if (url) void chrome.tabs.create({ url });
+    else openPage();
+  };
   const top = readingNow.slice(0, 4);
 
   return (
@@ -655,7 +865,7 @@ function PapersPanel() {
                 key={p.id}
                 className="paper-now"
                 title={p.leftOff ? `Left off: ${p.leftOff}` : p.title}
-                onClick={() => openPaper(p.url)}
+                onClick={() => openPaper(p)}
               >
                 <div className="paper-now-top">
                   <span className="paper-now-title">{p.title}</span>

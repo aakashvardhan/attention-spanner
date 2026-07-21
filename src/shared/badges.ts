@@ -15,6 +15,7 @@ export interface StatsSnapshot {
   focusBlocks: number;
   cardsReviewed: number;
   chestsOpened: number;
+  warmups: number;
   level: number;
 }
 

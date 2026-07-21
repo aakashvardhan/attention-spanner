@@ -34,8 +34,17 @@ export function Flashcards() {
 
   const deck = screen.name === 'decks' ? null : decks.find((d) => d.id === screen.deckId);
 
+  // Immersive review: dark full-screen focus, chrome hidden (theme-invariant,
+  // so the toggle being unreachable during review is intentional)
+  const inReview = screen.name === 'review' && !!deck;
+  useEffect(() => {
+    document.body.classList.toggle('fc-review-active', inReview);
+    return () => document.body.classList.remove('fc-review-active');
+  }, [inReview]);
+
   return (
     <div className="fc-page">
+      {!inReview && (
       <header className="fc-header">
         <div className="fc-header-left">
           {screen.name === 'decks' ? (
@@ -71,6 +80,7 @@ export function Flashcards() {
           {theme.resolved === 'dark' ? '☀️' : '🌙'}
         </button>
       </header>
+      )}
 
       {screen.name === 'decks' && (
         <DeckList

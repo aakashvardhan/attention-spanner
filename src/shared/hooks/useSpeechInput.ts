@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sendMessage } from '../messages';
 
 /**
  * Push-to-talk speech input over webkitSpeechRecognition (Chrome's built-in,
@@ -73,6 +74,8 @@ export function useSpeechInput(handlers: {
     rec.onend = () => {
       recRef.current = null;
       setListening(false);
+      // Fires on stop, abort, and unmount alike — release the wake-word mic
+      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: false }).catch(() => undefined);
       const text = finalRef.current.trim();
       if (text) handlersRef.current.onFinal(text);
     };
@@ -81,6 +84,8 @@ export function useSpeechInput(handlers: {
       rec.start();
       recRef.current = rec;
       setListening(true);
+      // Pause the always-on "hey Jarvis" listener — two sessions conflict
+      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: true }).catch(() => undefined);
     } catch {
       // start() throws if a session is already active — ignore
     }

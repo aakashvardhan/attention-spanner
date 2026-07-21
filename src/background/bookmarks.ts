@@ -105,7 +105,7 @@ export async function bookmarkFromContextMenu(
     chrome.notifications.create(NOTIFICATION_IDS.bookmarkSaved, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-      title: 'Bookmarked 🔖',
+      title: 'Bookmarked',
       message: `"${bookmark.title}" saved — group it on your dashboard.`,
       priority: 0,
     });

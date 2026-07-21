@@ -21,6 +21,7 @@ const COUNTER_FOR_EVENT: Record<XpEvent, keyof StatsSnapshot & string> = {
   braindump_structured: 'brainDumps',
   focus_block: 'focusBlocks',
   flashcard_review: 'cardsReviewed',
+  warmup_complete: 'warmups',
 };
 
 interface QueuedNotification {
@@ -55,6 +56,7 @@ function snapshotOf({ gamification, gym, streaks }: Trio): StatsSnapshot {
     focusBlocks: gamification.counters.focusBlocks ?? 0,
     cardsReviewed: gamification.counters.cardsReviewed ?? 0,
     chestsOpened: gamification.counters.chestsOpened ?? 0,
+    warmups: gamification.counters.warmups ?? 0,
     gymWeekStreak: gym.currentWeekStreak,
     readingStreak: streaks.currentStreak,
     level: levelForXp(gamification.xp).level,
@@ -96,8 +98,8 @@ export async function awardXp(event: XpEvent): Promise<void> {
     gamification.xp += QUEST_XP_BONUS;
     queue.push({
       id: NOTIFICATION_IDS.questComplete,
-      title: 'Weekly quest complete 🎉',
-      message: `${quest.lines.map((l) => `${l.emoji} ${l.current}/${l.target}`).join(' · ')} — +${QUEST_XP_BONUS} XP`,
+      title: 'Weekly quest complete',
+      message: `${quest.lines.map((l) => `${l.current}/${l.target}`).join(' · ')} — +${QUEST_XP_BONUS} XP`,
     });
   }
 
@@ -105,8 +107,8 @@ export async function awardXp(event: XpEvent): Promise<void> {
   if (levelAfter > levelBefore) {
     queue.push({
       id: NOTIFICATION_IDS.levelUp,
-      title: `Level ${levelAfter}! ⭐`,
-      message: `${gamification.xp} XP across reading, tasks, and the gym. Keep stacking.`,
+      title: `Level ${levelAfter}`,
+      message: `${gamification.xp} XP across reading, tasks, and the gym.`,
     });
   }
 
@@ -131,7 +133,7 @@ export async function awardChest(bonusXp: number): Promise<void> {
   gamification.xp += bonusXp;
   queue.push({
     id: NOTIFICATION_IDS.chest,
-    title: '🎁 Mystery chest!',
+    title: 'Mystery chest',
     message: `+${bonusXp} bonus XP dropped from that completion.`,
   });
 
@@ -139,8 +141,8 @@ export async function awardChest(bonusXp: number): Promise<void> {
   if (levelAfter > levelBefore) {
     queue.push({
       id: NOTIFICATION_IDS.levelUp,
-      title: `Level ${levelAfter}! ⭐`,
-      message: `${gamification.xp} XP across reading, tasks, and the gym. Keep stacking.`,
+      title: `Level ${levelAfter}`,
+      message: `${gamification.xp} XP across reading, tasks, and the gym.`,
     });
   }
 

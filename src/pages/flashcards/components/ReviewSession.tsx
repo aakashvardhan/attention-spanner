@@ -100,21 +100,42 @@ export function ReviewSession({ deck, onExit }: { deck: Deck; onExit: () => void
     );
   }
 
-  return (
-    <main className="fc-main">
-      <p className="fc-review-progress">
-        {queue.length} card{queue.length === 1 ? '' : 's'} left · {answered} done
-      </p>
+  const total = answered + queue.length;
 
-      <div className="panel fc-card" onClick={() => !showBack && setShowBack(true)}>
+  return (
+    <main className="fc-main fc-review">
+      <div className="fc-review-top">
+        <button className="fc-exit-btn" onClick={onExit}>
+          ✕ End session <span className="fc-rating-key">esc</span>
+        </button>
+        <div className="fc-progress">
+          {total <= 12 && (
+            <div className="fc-progress-dots" aria-hidden="true">
+              {Array.from({ length: total }, (_, i) => (
+                <span
+                  key={i}
+                  className={`fc-progress-dot${i < answered ? ' done' : i === answered ? ' current' : ''}`}
+                />
+              ))}
+            </div>
+          )}
+          <p className="fc-progress-count">
+            {Math.min(answered + 1, total)} of {total}
+          </p>
+        </div>
+        <span className="fc-review-top-spacer" />
+      </div>
+
+      {/* key remounts per card so the entrance animation replays */}
+      <div className="panel fc-card" key={card.id} onClick={() => !showBack && setShowBack(true)}>
         {note ? (
           <>
             <CardFace note={note} card={card} side="front" />
             {showBack && (
-              <>
+              <div className="fc-answer">
                 <hr className="fc-divider" />
                 <CardFace note={note} card={card} side="back" />
-              </>
+              </div>
             )}
           </>
         ) : (

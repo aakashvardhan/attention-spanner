@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg-page);
   color: var(--text-primary);
   min-height: 100vh;
@@ -49,7 +49,7 @@ body {
 
 .dash-clock {
   font-size: 48px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -150,16 +150,16 @@ body {
 }
 
 .panel-empty {
-  color: var(--text-faint);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: 14px;
   padding: 24px 0;
   text-align: center;
 }
 
 .row-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 8px;
@@ -241,14 +241,14 @@ body {
 }
 
 .dash-task-meta {
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .ghost-btn {
   background: transparent;
   border: none;
-  color: var(--text-faint);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 13px;
   padding: 4px 6px;
@@ -315,8 +315,95 @@ body {
 }
 
 .dash-article-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
+}
+
+.dash-article.read {
+  opacity: 0.55;
+}
+
+.dash-feed-filter {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.dash-feed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* Search, selects, and toggle share one look so the bar reads as a set */
+.dash-feed-search,
+.dash-feed-filters .dash-feed-filter,
+.dash-feed-toggle {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.dash-feed-search {
+  flex: 2 1 100%;
+}
+
+.dash-feed-filters .dash-feed-filter {
+  flex: 1 1 120px;
+  min-width: 0;
+  width: auto;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.dash-feed-search:focus,
+.dash-feed-filters .dash-feed-filter:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dash-feed-toggle {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dash-feed-toggle:hover {
+  border-color: var(--accent);
+}
+
+.dash-feed-toggle.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Visually hidden but kept mounted (e.g. the wake-word AssistantChat handler) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Streak panel */
@@ -336,13 +423,13 @@ body {
 
 .streak-value {
   font-size: 30px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 
 .streak-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -377,7 +464,7 @@ body {
 
 .heat-label {
   font-size: 9px;
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 .sprint-start {
@@ -410,7 +497,7 @@ body {
 
 .sprint-countdown {
   font-size: 40px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
@@ -423,7 +510,7 @@ body {
 .sprint-cancel {
   background: transparent;
   border: none;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   text-decoration: underline;
@@ -431,6 +518,75 @@ body {
 
 .sprint-cancel:hover {
   color: var(--danger);
+}
+
+/* Warm-up panel (Stroop sprint) */
+
+.stroop-hud {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stroop-word {
+  font-size: 42px;
+  font-weight: 700;
+  text-align: center;
+  padding: 18px 0;
+  letter-spacing: 2px;
+}
+
+.stroop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.stroop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.stroop-btn:hover {
+  background: var(--bg-hover);
+}
+
+.stroop-btn.wrong {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.stroop-key {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.warmup-best {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--success);
+  text-align: center;
+}
+
+.warmup-done-stats {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 /* Bookmarks panel */
@@ -502,14 +658,14 @@ body {
   background: var(--accent-wash);
   color: var(--accent);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .bm-name {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.25;
   text-align: center;
   display: -webkit-box;
@@ -528,7 +684,7 @@ body {
 .bm-edit select {
   flex: 1;
   min-width: 0;
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px;
   border: 1px solid var(--border-subtle);
   border-radius: 5px;
@@ -590,7 +746,7 @@ body {
 }
 
 .bm-error {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--danger);
 }
 
@@ -623,7 +779,7 @@ body.focus-active .panel:hover {
 
 .focus-banner {
   background: var(--focus-panel);
-  border: 1px solid rgba(255, 107, 53, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.4);
   border-radius: 16px;
   padding: 10px 20px;
   margin-bottom: 16px;
@@ -636,7 +792,7 @@ body.focus-active .panel:hover {
 .focus-banner-label {
   font-size: 13px;
   font-weight: 700;
-  color: #ffb397;
+  color: #bae6fd;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -649,7 +805,7 @@ body.focus-active .panel:hover {
 
 .focus-banner-countdown {
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -744,13 +900,13 @@ body.focus-active .panel:hover {
 
 .focus-mode-countdown {
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 
 .focus-mode-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -772,12 +928,12 @@ body.focus-active .panel:hover {
 
 .level-title {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--accent);
 }
 
 .level-xp {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -819,7 +975,7 @@ body.focus-active .panel:hover {
 }
 
 .quest-count {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -873,8 +1029,7 @@ body.focus-active .panel:hover {
 /* Activity calendar (GitHub-style year strip pinned above the grid) */
 
 .activity-strip {
-  --act-cell: 13px; /* minimum cell size; cells stretch above this to fill width */
-  --act-cell-cap: 20px; /* max cell size, so squares stay tasteful on wide screens */
+  --act-cell: 14px; /* square cell size, GitHub-style */
   --act-gap: 3px;
   position: relative;
   min-height: 0;
@@ -903,7 +1058,7 @@ body.focus-active .panel:hover {
 }
 
 .act-headline {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -913,23 +1068,23 @@ body.focus-active .panel:hover {
   padding-bottom: 2px;
 }
 
-/* Fill the strip width so the graph spreads out instead of floating in the
-   middle; max-width caps the cell size on ultra-wide screens and margin auto
-   keeps the capped graph centered. Columns stretch (1fr) down to --act-cell,
-   below which the grid overflows and .act-scroll scrolls horizontally. */
+/* Cells are fixed-size squares, so the grid takes its natural width and is
+   left-aligned; if the 6-month window is wider than the strip, .act-scroll
+   scrolls horizontally. */
 .act-inner {
   width: 100%;
-  max-width: calc(32px + 53 * var(--act-cell-cap) + 52 * var(--act-gap));
-  margin: 0 auto;
+  margin: 0;
 }
 
+/* grid-template-columns is set inline (repeat() can't take a custom property);
+   the literal below is only a fallback. */
 .act-months {
   display: grid;
-  grid-template-columns: repeat(53, minmax(var(--act-cell), 1fr));
+  grid-template-columns: repeat(27, var(--act-cell));
   gap: var(--act-gap);
   margin-left: 32px;
   margin-bottom: 4px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -943,12 +1098,14 @@ body.focus-active .panel:hover {
   gap: 6px;
 }
 
+/* 1fr rows so the labels track the cell rows however tall they stretch */
 .act-day-labels {
   display: grid;
-  grid-template-rows: repeat(7, var(--act-cell));
+  grid-template-rows: repeat(7, 1fr);
+  align-items: center;
   gap: var(--act-gap);
   width: 26px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -966,9 +1123,8 @@ body.focus-active .panel:hover {
 
 .act-grid {
   display: grid;
-  grid-template-columns: repeat(53, minmax(var(--act-cell), 1fr));
+  grid-template-columns: repeat(27, var(--act-cell));
   gap: var(--act-gap);
-  flex: 1;
   min-width: 0;
 }
 
@@ -979,8 +1135,8 @@ body.focus-active .panel:hover {
 }
 
 .act-cell {
-  width: 100%;
-  aspect-ratio: 1;
+  width: var(--act-cell);
+  height: var(--act-cell);
   border-radius: 3px;
   background: var(--heat-0);
   box-shadow: inset 0 0 0 1px var(--heat-cell-border);
@@ -1002,8 +1158,9 @@ body.focus-active .panel:hover {
   background: var(--heat-4);
 }
 
+/* Upcoming days: faint empty squares to fill in over the month */
 .act-cell.future {
-  visibility: hidden;
+  opacity: 0.4;
 }
 
 .act-legend {
@@ -1012,7 +1169,7 @@ body.focus-active .panel:hover {
   justify-content: flex-end;
   gap: 3px;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -1064,7 +1221,7 @@ body.focus-active .panel:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -1078,7 +1235,7 @@ body.focus-active .panel:hover {
 }
 
 .paper-now-leftoff {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1108,7 +1265,7 @@ body.focus-active .panel:hover {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-primary);
   text-align: left;
 }
@@ -1297,6 +1454,10 @@ body.focus-active .panel:hover {
   .dash-card {
     transition: none !important;
   }
+
+  .stroop-btn {
+    transition: none !important;
+  }
 }
 
 /* Command palette (Cmd/Ctrl+K) */
@@ -1360,7 +1521,7 @@ body.focus-active .panel:hover {
   border-radius: 7px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -1370,8 +1531,8 @@ body.focus-active .panel:hover {
 }
 
 .cp-row-arg {
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .cp-empty {
@@ -1396,7 +1557,7 @@ body.focus-active .panel:hover {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -1491,7 +1652,7 @@ body.focus-active .panel:hover {
 }
 
 .ag-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
@@ -1499,7 +1660,7 @@ body.focus-active .panel:hover {
 }
 
 .ag-title {
-  font-size: 13px;
+  font-size: 14px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1508,7 +1669,7 @@ body.focus-active .panel:hover {
 }
 
 .ag-join {
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 10px;
   padding: 3px 10px;
   border: 1px solid var(--accent-border);
@@ -1529,4 +1690,137 @@ body.focus-active .panel:hover {
   padding: 8px 10px;
   border-radius: 6px;
   margin: 0;
+}
+
+/* Meetings panel + note reader */
+
+.mn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  margin-bottom: 6px;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mn-row:hover {
+  border-color: var(--accent-border);
+}
+
+.mn-row-title {
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mn-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.mn-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 6vh 16px;
+  z-index: 1000;
+}
+
+.mn-reader {
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  padding: 20px 24px;
+}
+
+.mn-reader-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+}
+
+.mn-reader-head h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.mn-reader-head a {
+  color: var(--accent);
+}
+
+.mn-reader-body {
+  overflow-y: auto;
+  padding-top: 12px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.mn-reader-body p {
+  margin: 0 0 8px;
+}
+
+.mn-reader-body h3,
+.mn-reader-body h4,
+.mn-reader-body h5 {
+  margin: 14px 0 6px;
+}
+
+.mn-reader-body blockquote {
+  margin: 0 0 8px;
+  padding: 4px 12px;
+  border-left: 3px solid var(--accent-border);
+  color: var(--text-secondary);
+}
+
+.mn-li {
+  display: block;
+}
+
+.mn-marker {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.mn-done {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.mn-code {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.mn-truncated {
+  color: var(--text-muted);
+  font-style: italic;
 }

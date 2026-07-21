@@ -71,7 +71,7 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
 
   const open = data.tasks.filter((t) => t.completedAt === null);
   if (open.length === 0) {
-    lines.push('Open tasks: none. 🎉');
+    lines.push('Open tasks: none.');
   } else {
     const shown = open.slice(0, 10).map((t) => {
       const snoozed = t.snoozedUntil !== null && t.snoozedUntil > now.getTime();

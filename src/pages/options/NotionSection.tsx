@@ -130,11 +130,20 @@ export function NotionSection() {
 
   const hasToken = settings.notionToken !== '';
 
+  // Pull row (arrow flipped) — no toggle: a picked database is the enable signal
+  const meetingDbId = settings.notionMeetingNotesDbId;
+  const meetingPicked = databases?.find((d) => d.id === meetingDbId);
+  const meetingWarning =
+    meetingPicked && !meetingPicked.props.dateProp
+      ? 'No date property found — notes will be ordered by last edit time.'
+      : null;
+
   return (
     <section className="section">
       <h2>Notion Sync</h2>
       <p className="hint">
-        Pushes links, brain dumps, tasks, and finished reads into your Notion workspace. Create an
+        Pushes links, brain dumps, tasks, and finished reads into your Notion workspace, and pulls
+        meeting notes onto the dashboard. Create an
         internal integration at notion.so/my-integrations, paste its token here, and share each
         target database with the integration (··· menu → Connections).
       </p>
@@ -212,6 +221,35 @@ export function NotionSection() {
           </div>
         );
       })}
+
+      <div>
+        <div className="setting-row">
+          <label htmlFor="notionMeetingNotesDbId">🗓️ Meeting notes ← Notion</label>
+          <select
+            id="notionMeetingNotesDbId"
+            value={meetingDbId}
+            disabled={!hasToken}
+            onChange={(e) => {
+              const id = e.target.value;
+              const db = databases?.find((d) => d.id === id);
+              void patchSettings({
+                notionMeetingNotesDbId: id,
+                notionMeetingNotesDateProp: db?.props.dateProp ?? '',
+              });
+            }}
+          >
+            <option value="">— pick a database —</option>
+            {/* Keep the saved choice visible before "Load databases" runs */}
+            {meetingDbId !== '' && !meetingPicked && <option value={meetingDbId}>Saved database</option>}
+            {databases?.map((db) => (
+              <option key={db.id} value={db.id}>
+                {db.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        {meetingWarning && <p className="feedback error">{meetingWarning}</p>}
+      </div>
 
       {status.authError && (
         <p className="feedback error">

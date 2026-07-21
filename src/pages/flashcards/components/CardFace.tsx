@@ -16,9 +16,10 @@ export function CardFace({
 }) {
   if (note.type === 'cloze') {
     const segments = renderCloze(note.front, card.variant, side);
+    const long = note.front.length > 220;
     return (
       <div className="fc-face">
-        <p className="fc-face-text">
+        <p className={`fc-face-text${long ? ' fc-face-text-long' : ''}`}>
           {segments.map((seg, i) =>
             seg.cloze?.active ? (
               <mark key={i} className="fc-cloze">
@@ -36,9 +37,10 @@ export function CardFace({
 
   const reversed = card.variant === 1;
   const text = (side === 'front') !== reversed ? note.front : note.back;
+  const long = text.length > 220;
   return (
     <div className="fc-face">
-      <p className="fc-face-text">{text}</p>
+      <p className={`fc-face-text${long ? ' fc-face-text-long' : ''}`}>{text}</p>
     </div>
   );
 }

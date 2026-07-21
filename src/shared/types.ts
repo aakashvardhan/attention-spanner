@@ -22,6 +22,8 @@ export interface FeedItem {
   snippet: string;
   /** Feed (channel) title */
   source: string;
+  /** Feed-declared category/tag labels; absent on pre-category cached items */
+  categories?: string[];
 }
 
 export interface Task extends SyncMeta {
@@ -53,6 +55,64 @@ export interface AssistantFact {
   updatedAt: number;
 }
 
+export type AutomationSchedule =
+  | { kind: 'daily'; time: string /* HH:MM local */ }
+  | { kind: 'every'; minutes: number };
+
+/**
+ * A scheduled agent run: on its schedule the agent gets the user's data
+ * snapshot plus this prompt, does discovery/triage on its own, and leaves a
+ * digest (and up to a few proposed actions behind confirm chips) in the
+ * assistant chat. Device-local.
+ */
+export interface AssistantAutomation {
+  id: string;
+  name: string;
+  /** What to discover/triage each run ("review my open tasks, pick 3 for today") */
+  prompt: string;
+  schedule: AutomationSchedule;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastRunAt: number;
+  lastDigest: string;
+  /** '' = healthy; surfaced on the automation row in settings */
+  lastError: string;
+}
+
+/**
+ * One agent-proposed tool call, applied atomically in the service worker
+ * (src/background/agentRuns.ts). The optional precondition pins the record
+ * state the proposer saw — the apply step skips as stale when the target
+ * changed or vanished since (updatedAt/tombstone check).
+ */
+export interface AgentProposal {
+  tool: string;
+  params: Record<string, unknown>;
+  /** Human phrasing, for skipped/failed transcript lines */
+  summary: string;
+  precondition?: { collection: string; id: string; snapshotAt: number };
+}
+
+/**
+ * A skill: user-written instructions the assistant consults instead of
+ * guessing ("tasks are always phrased as verbs; grocery items go in the
+ * Errands deck"). Unlike 280-char memory facts (data about the user), skills
+ * are markdown *instructions* selected by keyword/tool relevance and injected
+ * into prompts. Device-local, like assistantMemory.
+ */
+export interface AssistantSkill {
+  id: string;
+  name: string;
+  /** Utterance keywords that select this skill (lowercase) */
+  keywords: string[];
+  /** Markdown instructions, capped at SKILL_MAX_CHARS */
+  body: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface BrainDumpNote extends SyncMeta {
   id: string;
   rawText: string;
@@ -71,7 +131,7 @@ export interface BrainDumpNote extends SyncMeta {
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
 export const DASH_CARD_IDS = [
-  'assistant',
+  'feeds',
   'agenda',
   'links',
   'tasks',
@@ -82,6 +142,8 @@ export const DASH_CARD_IDS = [
   'braindump',
   'flashcards',
   'papers',
+  'meetings',
+  'warmup',
 ] as const;
 export type DashCardId = (typeof DASH_CARD_IDS)[number];
 
@@ -147,6 +209,10 @@ export interface Settings {
   notionPushBrainDumps: boolean;
   notionPushTasks: boolean;
   notionPushReading: boolean;
+  /** Meeting-notes database to pull from; '' = feature off (no separate toggle) */
+  notionMeetingNotesDbId: string;
+  /** Date property in that DB; '' = order/date by last_edited_time */
+  notionMeetingNotesDateProp: string;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
   /** The Jarvis assistant (dashboard card, popup tab, command palette) */
@@ -157,6 +223,8 @@ export interface Settings {
   assistantVoiceEnabled: boolean;
   /** speechSynthesis voice name; '' = system default */
   assistantTtsVoice: string;
+  /** Always-on "Hey Jarvis" wake word (offscreen mic listener) */
+  assistantWakeWordEnabled: boolean;
   /** Create a "🎯 Focus" Google Calendar event when a focus session starts */
   focusCalendarBlockEnabled: boolean;
   /** Proactive Jarvis nudges: streak-at-risk / cards-due evening check + event reminders */
@@ -234,8 +302,8 @@ export interface SrsDayStats {
 
 /* Research papers. Each paper belongs to a Deck (shared with flashcards), so a
    deck holds both the papers you read and the cards you make from them. Reading
-   progress is tracked manually (papers usually open in the PDF viewer, where
-   scroll tracking can't reach). */
+   progress is tracked automatically when the paper is read in the in-extension
+   PDF reader (src/pages/reader/); it can still be edited manually. */
 
 export type PaperStatus = 'to-read' | 'reading' | 'read';
 
@@ -258,10 +326,20 @@ export interface Paper extends SyncMeta {
   /** Free text: why this paper matters to me */
   relevance: string;
   status: PaperStatus;
-  /** 0–100, set manually */
+  /** 0–100; auto-ratcheted by the PDF reader, editable by hand */
   progressPercent: number;
   /** "Where I left off" note, e.g. "Section 4.2 — ablations" */
   leftOff: string;
+  /** Set by the in-extension PDF reader; absent until the paper is opened there */
+  pdf?: {
+    /** The PDF URL the reader loaded (`url` above is often the abs/DOI page) */
+    url: string;
+    /** 1-based page the user was last on */
+    page: number;
+    pageCount: number;
+    /** Scroll position within `page`, 0–1 */
+    offset: number;
+  };
   addedAt: number;
   updatedAt: number;
   /** Bumped whenever status/progress changes while reading */
@@ -270,6 +348,49 @@ export interface Paper extends SyncMeta {
 
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
 export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
+
+/* PDF reader annotations: text highlights and free-floating sticky notes made
+   in src/pages/reader/. Keyed by docKey (not paperId) so they work on
+   untracked PDFs and survive arXiv abs/pdf URL variants. Local-only for now,
+   but id-addressable + SyncMeta so per-record sync can be added later. */
+
+export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
+
+/** One box on a page; all fields 0–1 fractions of the page size (y-down). */
+export interface AnnotationRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface PdfAnnotation extends SyncMeta {
+  id: string;
+  /** Stable doc identity: paperMatchKey(pdfUrl) ?? pdfUrl */
+  docKey: string;
+  /** The exact PDF URL the annotation was made on */
+  pdfUrl: string;
+  /** Tracked paper at creation time; null for untracked PDFs */
+  paperId: string | null;
+  kind: 'highlight' | 'sticky';
+  /** 1-based */
+  page: number;
+  /** highlight: merged per-line boxes; sticky: [] */
+  rects: AnnotationRect[];
+  /** Sticky pin anchor, 0–1 of the page box; 0 for highlights */
+  x: number;
+  y: number;
+  /** Selected text snippet (highlights, capped) or '' */
+  text: string;
+  color: AnnotationColor;
+  /** The attached note; '' = none */
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Draft from the reader; the service worker fills id/timestamps. */
+export type PdfAnnotationDraft = Omit<PdfAnnotation, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface BookmarkGroup extends SyncMeta {
   id: string;
@@ -313,6 +434,17 @@ export interface GymState {
   lastQualifiedWeek: string;
 }
 
+export interface WarmupState {
+  /** Local date 'YYYY-MM-DD' → that day's best Stroop sprint; pruned to a year */
+  days: Record<string, { score: number; accuracy: number }>;
+  /** Consecutive days with at least one completed warm-up */
+  currentStreak: number;
+  longestStreak: number;
+  /** Local date of the most recent completion; '' = never */
+  lastPlayedDate: string;
+  bestScore: number;
+}
+
 /** Survive pruning of readingProgress/streaks.daily/gym.checkins — badge math uses these */
 export interface LifetimeCounters {
   workouts: number;
@@ -325,6 +457,8 @@ export interface LifetimeCounters {
   cardsReviewed: number;
   /** Added in Phase 15 (mystery chests) — read with `?? 0` */
   chestsOpened?: number;
+  /** Added with the warm-up card — read with `?? 0` */
+  warmups?: number;
 }
 
 export interface Gamification {

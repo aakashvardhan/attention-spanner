@@ -1,5 +1,10 @@
 import type { Message } from '../shared/messages';
+import { appendTurn } from '../shared/ai/assistantTypes';
+import { getActivePageContent } from '../shared/ai/pageContent';
+import { getSession, setSession } from '../shared/storage';
+import { handleWakeEvent } from './offscreen';
 import { calSignIn, calSignOut, createCalendarEvent, listEvents, refreshCalendar } from './calendar';
+import { refreshMeetingNotes } from './meetingNotes';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
@@ -26,13 +31,19 @@ import {
   resetCard,
   updateNote,
 } from './flashcards';
-import { addPaper, deletePaper, updatePaper } from './papers';
+import { addAnnotation, deleteAnnotation, updateAnnotation } from './annotations';
+import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
+import { openNativePdf } from './pdfIntercept';
 import { getSyncStatus } from './sync';
 import { signIn, signOutSync, signUp } from './firestoreBackend';
 import { startFocus, stopFocus } from './focus';
 import { addFact, deleteFact } from './memory';
+import { addSkill, deleteSkill, updateSkill } from './skills';
+import { applyProposals } from './agentRuns';
+import { addAutomation, deleteAutomation, runAutomation, updateAutomation } from './automations';
 import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
+import { completeWarmup } from './warmup';
 import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
@@ -63,7 +74,8 @@ async function authResult(action: () => Promise<void>): Promise<{ ok: boolean; e
   }
 }
 
-async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
+/** Exported so the SW can register itself as the in-process message dispatcher */
+export async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
   switch (msg.type) {
     case 'REFRESH_FEEDS':
       return refreshFeeds();
@@ -98,6 +110,8 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return gymCheckin();
     case 'GYM_UNDO':
       return gymUndo();
+    case 'WARMUP_COMPLETE':
+      return completeWarmup(msg.score, msg.total);
     case 'START_FOCUS':
       return startFocus(msg);
     case 'STOP_FOCUS':
@@ -120,6 +134,24 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
     case 'MEMORY_DELETE':
       await deleteFact(msg.id);
       return { ok: true };
+    case 'SKILL_ADD':
+      return addSkill({ name: msg.name, keywords: msg.keywords, body: msg.body });
+    case 'SKILL_UPDATE':
+      return updateSkill(msg.id, msg.patch);
+    case 'SKILL_DELETE':
+      await deleteSkill(msg.id);
+      return { ok: true };
+    case 'AGENT_APPLY_PROPOSALS':
+      return applyProposals(msg.proposals);
+    case 'AUTOMATION_ADD':
+      return addAutomation({ name: msg.name, prompt: msg.prompt, schedule: msg.schedule });
+    case 'AUTOMATION_UPDATE':
+      return updateAutomation(msg.id, msg.patch);
+    case 'AUTOMATION_DELETE':
+      await deleteAutomation(msg.id);
+      return { ok: true };
+    case 'AUTOMATION_RUN_NOW':
+      return runAutomation(msg.id, { force: true });
     case 'SAVE_NOTE':
       return { ok: true, note: await saveNote(msg.rawText, msg.willStructure) };
     case 'NOTION_LIST_DBS':
@@ -151,6 +183,25 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return updatePaper(msg.id, msg.patch);
     case 'PAPER_DELETE':
       return deletePaper(msg.id);
+    case 'PAPER_READER_PROGRESS':
+      return handleReaderProgress(msg.paperId, {
+        pdfUrl: msg.pdfUrl,
+        page: msg.page,
+        pageCount: msg.pageCount,
+        offset: msg.offset,
+        leftOff: msg.leftOff,
+      });
+    case 'ANNOT_ADD':
+      return addAnnotation(msg.draft);
+    case 'ANNOT_UPDATE':
+      return updateAnnotation(msg.id, msg.patch);
+    case 'ANNOT_DELETE':
+      return deleteAnnotation(msg.id);
+    case 'READER_OPEN_NATIVE': {
+      const tabId = sender.tab?.id;
+      if (tabId === undefined) return { ok: false };
+      return openNativePdf(tabId, msg.url);
+    }
     case 'CAL_SIGN_IN':
       return calSignIn();
     case 'CAL_SIGN_OUT':
@@ -161,6 +212,8 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
     case 'CAL_LIST_EVENTS':
       return listEvents(msg.startMs, msg.endMs);
+    case 'MEETING_NOTES_REFRESH':
+      return refreshMeetingNotes();
     case 'SYNC_STATUS':
       return getSyncStatus();
     case 'SYNC_SIGN_IN':
@@ -197,6 +250,40 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
       return handleTimePillReady(msg.host);
     case 'TIME_PILL_TICK':
       return handleTimePillTick(msg.host, msg.seconds);
+    // Offscreen wake-word listener (no chrome.storage/tabs there — SW does it)
+    case 'PROXY_STORAGE': {
+      if (msg.op === 'get') return chrome.storage[msg.area].get(msg.keys ?? []);
+      await chrome.storage[msg.area].set(msg.items ?? {});
+      return {};
+    }
+    case 'ASSISTANT_APPEND_TURN': {
+      // Read-modify-write is safe here: the single SW context serializes it
+      const { assistantThread } = await getSession('assistantThread');
+      await setSession({ assistantThread: appendTurn(assistantThread, msg.turn) });
+      return { ok: true };
+    }
+    case 'ASSISTANT_BEGIN_TURN': {
+      // Append the user turn and hand back the PRIOR thread in one round
+      // trip — saves the offscreen doc a getSession hop per wake turn
+      const { assistantThread } = await getSession('assistantThread');
+      await setSession({ assistantThread: appendTurn(assistantThread, msg.turn) });
+      return { thread: assistantThread };
+    }
+    case 'ASSISTANT_PATCH_TURN': {
+      const { assistantThread } = await getSession('assistantThread');
+      await setSession({
+        assistantThread: assistantThread.map((t) => (t.id === msg.id ? { ...t, ...msg.patch } : t)),
+      });
+      return { ok: true };
+    }
+    case 'WAKE_GET_PAGE':
+      return { page: await getActivePageContent() };
+    case 'WAKE_EVENT':
+      await handleWakeEvent(msg.event, msg.text);
+      return { ok: true };
+    case 'WAKE_MIC_BUSY':
+      // Addressed to the offscreen doc, which listens on the same broadcast
+      return { ok: true };
   }
 }
 

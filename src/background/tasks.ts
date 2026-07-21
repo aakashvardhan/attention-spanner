@@ -2,6 +2,7 @@ import { rollChest } from '../shared/chests';
 import { COMPLETED_TASK_TTL_MS, NOTIFICATION_IDS } from '../shared/constants';
 import { localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
+import { newTask } from '../shared/sync/recordShapes';
 import type { Task } from '../shared/types';
 import { adjustXp, awardChest, awardXp, revokeXp } from './gamification';
 import { pushTaskCreate, pushTaskToggle } from './notion';
@@ -13,14 +14,7 @@ import { recordTaskToggled } from './streaks';
  */
 
 export async function addTask(text: string, source: Task['source']): Promise<Task> {
-  const task: Task = {
-    id: crypto.randomUUID(),
-    text: text.trim(),
-    createdAt: Date.now(),
-    completedAt: null,
-    snoozedUntil: null,
-    source,
-  };
+  const task = newTask(text, Date.now(), crypto.randomUUID(), source);
   const { tasks } = await getLocal('tasks');
   tasks.unshift(task);
   await setLocal({ tasks });

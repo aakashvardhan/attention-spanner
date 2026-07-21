@@ -1,9 +1,24 @@
 import { MAX_PLAN_STEPS, NANO_INPUT_BUDGET_CHARS } from '../constants';
+import type { AssistantSkill } from '../types';
 import type { AssistantProvider, AssistantTurn } from './assistantTypes';
 import { newTurn } from './assistantTypes';
+import {
+  ANSWER_CACHE_TTL_MS,
+  cacheGet,
+  cacheInvalidateTag,
+  cacheSet,
+  CONTEXT_CACHE_TTL_MS,
+  hash32,
+  INTENT_CACHE_TTL_MS,
+  normalizeUtterance,
+} from './cache';
 import { gatherDataContext } from './context';
+import { heuristicRoute } from './heuristics';
+import { buildSkillBlock, loadSkills, selectSkills } from './skills';
+import { verifyPlan } from './verifier';
 import { getActivePageContent, type PageContent } from './pageContent';
 import { findTool, TOOLS, validateToolCall, type Tool } from './tools';
+import { stripEmoji } from './tts';
 
 /**
  * The assistant orchestrator. Runs in extension pages (Nano constraint — see
@@ -48,12 +63,24 @@ export interface AssistantDeps {
   onToken?: (partial: string) => void;
   /** false = never plan multi-tool chains (the palette wants single commands) */
   multiStep?: boolean;
+  /** Pre-probed availability — skips both provider probes (wake path memoizes) */
+  availability?: { nano: boolean; cloud: boolean };
+  /**
+   * Opt into the shared response cache (intent classifications, data context,
+   * repeated question answers). Production surfaces pass true; tests with
+   * scripted providers stay deterministic by leaving it off.
+   */
+  cache?: boolean;
+  /** Injectable for tests; defaults to the stored assistantSkills */
+  skills?: AssistantSkill[];
 }
 
 export const PERSONA =
   'You are the built-in assistant of an ADHD-friendly reading and productivity ' +
-  'browser extension. Be warm, encouraging, and concrete. Keep replies to 1-3 ' +
-  'short sentences unless the user asks for more. Never invent data.';
+  'browser extension. Be blunt, direct, and concrete. Lead with the answer — ' +
+  'no greetings, no pep talk, no filler, no exclamation marks, no emoji. Keep ' +
+  'replies to 1-2 short sentences unless the user asks for more. Never invent ' +
+  'data; say plainly when the snapshot lacks the answer.';
 
 const INTENTS: AssistantIntent[] = ['action', 'question', 'page', 'chat'];
 
@@ -249,17 +276,17 @@ export async function executePlan(
   let failed = false;
   for (const [i, step] of steps.entries()) {
     if (failed) {
-      lines.push(`– Skipped: ${step.summary}`);
+      lines.push(`Skipped: ${step.summary}`);
       await onStep?.(i, { status: 'skipped', detail: '' });
       continue;
     }
     try {
       const result = await executeTool(step.name, step.params, tools);
-      lines.push(`✓ ${result}`);
+      lines.push(`Done: ${result}`);
       await onStep?.(i, { status: 'done', detail: result });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'That step failed.';
-      lines.push(`✗ ${message}`);
+      lines.push(`Failed: ${message}`);
       await onStep?.(i, { status: 'failed', detail: message });
       failed = true;
     }
@@ -281,6 +308,16 @@ function recentHistory(thread: AssistantTurn[]): AssistantTurn[] {
   return thread.filter((t) => t.kind !== 'error' && t.text.trim() !== '').slice(-8);
 }
 
+/** Data snapshot with a short shared cache — bounds one gather per question burst */
+async function cachedDataContext(useCache: boolean): Promise<string> {
+  if (!useCache) return gatherDataContext();
+  const hit = await cacheGet<string>('ctx:data');
+  if (hit !== undefined) return hit;
+  const context = await gatherDataContext();
+  void cacheSet('ctx:data', context, CONTEXT_CACHE_TTL_MS, 'data');
+  return context;
+}
+
 /** Look up, validate, and run a tool call. Throws Error with a friendly message. */
 export async function executeTool(
   name: string,
@@ -291,7 +328,10 @@ export async function executeTool(
   if (!tool) throw new Error(`Unknown tool "${name}"`);
   const valid = validateToolCall(tool, params);
   if (!valid.ok) throw new Error(`That didn't quite work (${valid.error}).`);
-  return tool.run(valid.params);
+  const result = await tool.run(valid.params);
+  // Any tool run may have touched user data — cached answers/context are void
+  void cacheInvalidateTag('data');
+  return result;
 }
 
 export async function runAssistantTurn(
@@ -301,10 +341,17 @@ export async function runAssistantTurn(
 ): Promise<AssistantOutcome> {
   const tools = deps.tools ?? TOOLS;
   const trimmed = input.trim();
-  if (!trimmed) return { kind: 'error', text: 'Say something first. 🙂' };
+  if (!trimmed) return { kind: 'error', text: 'Say something first.' };
 
-  const nanoOk = await deps.nano.available();
-  const cloudOk = deps.cloud ? await deps.cloud.available() : false;
+  let availability = deps.availability;
+  if (!availability) {
+    const [nano, cloud] = await Promise.all([
+      deps.nano.available(),
+      deps.cloud ? deps.cloud.available() : Promise.resolve(false),
+    ]);
+    availability = { nano, cloud };
+  }
+  const { nano: nanoOk, cloud: cloudOk } = availability;
   if (!nanoOk && !cloudOk) {
     return {
       kind: 'error',
@@ -318,18 +365,33 @@ export async function runAssistantTurn(
   const router = pick(trimmed.length);
   const userTurn = newTurn('user', trimmed);
 
-  // Step 1 — classify. A router failure degrades to plain chat, never an error.
-  let routed: RoutedIntent;
-  try {
-    const reply = await router.generate({
-      system: buildRouterSystem(tools),
-      turns: [userTurn],
-      responseSchema: buildRouterSchema(tools),
-    });
-    routed = parseIntentResult(reply.text, tools.map((t) => t.name));
-  } catch {
-    routed = { intent: 'chat', tool: null };
+  // Step 1 — classify. Deterministic prefix rules first (no LLM call), then
+  // the intent cache, then the model. Router failure degrades to chat.
+  const useCache = deps.cache === true;
+  const intentKey = `intent:${normalizeUtterance(trimmed)}`;
+  let routed: RoutedIntent | null = heuristicRoute(trimmed, tools);
+  if (!routed && useCache) routed = (await cacheGet<RoutedIntent>(intentKey)) ?? null;
+  if (!routed) {
+    try {
+      const reply = await router.generate({
+        system: buildRouterSystem(tools),
+        turns: [userTurn],
+        responseSchema: buildRouterSchema(tools),
+      });
+      routed = parseIntentResult(reply.text, tools.map((t) => t.name));
+      // Classification depends only on the utterance — safe to keep for a day
+      if (useCache) void cacheSet(intentKey, routed, INTENT_CACHE_TTL_MS, 'intent');
+    } catch {
+      routed = { intent: 'chat', tool: null };
+    }
   }
+
+  // User-written skills: written-down knowledge beats guessing. Selected by
+  // keyword/tool relevance, injected into extraction and answer prompts.
+  const skills = deps.skills ?? (await loadSkills());
+  const skillBlock = buildSkillBlock(
+    selectSkills(trimmed, routed.intent === 'action' ? routed.tool : null, skills),
+  );
 
   // Step 2a — action: fill the one tool's schema, validate, confirm/run
   if (routed.intent === 'action' && routed.tool) {
@@ -345,7 +407,7 @@ export async function runAssistantTurn(
           turns: [userTurn],
           responseSchema: buildPlanSchema(tools),
         });
-        const steps = parsePlan(reply.text, tools);
+        let steps = parsePlan(reply.text, tools);
         if (steps.length === 1) {
           // One-step plan ≡ today's single-tool flow
           const only = steps[0];
@@ -356,10 +418,23 @@ export async function runAssistantTurn(
           return { kind: 'done', text: await executeTool(only.name, only.params, tools) };
         }
         if (steps.some((s) => tools.find((t) => t.name === s.name)?.confirm)) {
+          // Sub-agent critic: a second pass checks the plan against the data
+          // before confirm chips appear. Failures never block (verifyPlan
+          // swallows them); a revision replaces the steps, issues surface as
+          // "Check:" lines above the plan.
+          const verified = await verifyPlan(
+            trimmed,
+            steps,
+            tools,
+            deps.cloud!,
+            () => (deps.getContext ? deps.getContext() : cachedDataContext(useCache)),
+          );
+          if (verified.steps) steps = verified.steps;
+          const checkLines = verified.issues.map((issue) => `Check: ${issue}`);
           return {
             kind: 'confirm-plan',
             steps,
-            summary: steps.map((s, i) => `${i + 1}. ${s.summary}`).join('\n'),
+            summary: [...checkLines, ...steps.map((s, i) => `${i + 1}. ${s.summary}`)].join('\n'),
           };
         }
         // Nothing mutating — run the whole chain immediately
@@ -381,7 +456,7 @@ export async function runAssistantTurn(
       for (const provider of attempts) {
         try {
           const reply = await provider.generate({
-            system: buildExtractSystem(tool, new Date()),
+            system: buildExtractSystem(tool, new Date()) + skillBlock,
             turns: [userTurn],
             responseSchema: tool.params,
           });
@@ -399,7 +474,7 @@ export async function runAssistantTurn(
       if (!extracted) {
         return {
           kind: 'error',
-          text: `I understood you want to ${tool.summary({}).toLowerCase()}, but couldn't work out the details (${lastError}). Could you rephrase?`,
+          text: `Got the intent (${tool.summary({}).toLowerCase()}) but not the details (${lastError}). Rephrase.`,
         };
       }
     }
@@ -465,21 +540,41 @@ export async function runAssistantTurn(
         turns: [userTurn],
         onToken: deps.onToken,
       });
-      return { kind: 'reply', text: reply.text.trim(), source: provider.id === 'nano' ? 'nano' : 'cloud' };
+      return {
+        kind: 'reply',
+        text: stripEmoji(reply.text.trim()),
+        source: provider.id === 'nano' ? 'nano' : 'cloud',
+      };
     } catch {
-      return { kind: 'error', text: 'Reading the page failed. Try again?' };
+      return { kind: 'error', text: 'Reading the page failed. Try again.' };
     }
   }
 
   // Step 2b/2d — question (with data snapshot) or plain chat
   const history = recentHistory(thread);
-  let system = PERSONA;
+  let system = PERSONA + skillBlock;
+  let answerKey: string | null = null;
   if (routed.intent === 'question') {
-    const context = await (deps.getContext ?? gatherDataContext)();
+    // Injected getContext (tests, custom surfaces) bypasses the cache
+    const context = deps.getContext
+      ? await deps.getContext()
+      : await cachedDataContext(useCache);
     system =
       PERSONA +
+      skillBlock +
       '\n\nAnswer using ONLY this snapshot of the user\'s data (say so if it lacks the answer):\n' +
       context;
+    if (useCache) {
+      const historyText = history.map((t) => t.text).join('\n');
+      // skillBlock in the key: editing a skill must miss, not serve stale
+      answerKey = `answer:${normalizeUtterance(trimmed)}#${hash32(context)}#${hash32(historyText)}#${hash32(skillBlock)}`;
+      const cached = await cacheGet<{ text: string; source: 'nano' | 'cloud' }>(answerKey);
+      if (cached) {
+        // Streamed surfaces still get their token callback — instant reply
+        deps.onToken?.(cached.text);
+        return { kind: 'reply', text: cached.text, source: cached.source };
+      }
+    }
   }
 
   const provider = pick(
@@ -491,18 +586,17 @@ export async function runAssistantTurn(
       turns: [...history, userTurn],
       onToken: deps.onToken,
     });
-    return {
-      kind: 'reply',
-      text: reply.text.trim(),
-      source: provider.id === 'nano' ? 'nano' : 'cloud',
-    };
+    const text = stripEmoji(reply.text.trim());
+    const source = provider.id === 'nano' ? ('nano' as const) : ('cloud' as const);
+    if (answerKey) void cacheSet(answerKey, { text, source }, ANSWER_CACHE_TTL_MS, 'data');
+    return { kind: 'reply', text, source };
   } catch (err) {
     return {
       kind: 'error',
       text:
         err instanceof Error && err.name === 'TimeoutError'
-          ? 'That took too long on the on-device model — try a shorter question.'
-          : 'Something went wrong generating a reply. Try again?',
+          ? 'That took too long on the on-device model — ask a shorter question.'
+          : 'Reply generation failed. Try again.',
     };
   }
 }

@@ -68,7 +68,7 @@ async function notifyStreakFrozen(tokensSpent: number, tokensLeft: number): Prom
   chrome.notifications.create(NOTIFICATION_IDS.streakFreeze, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: '🧊 Streak protected',
+    title: 'Streak protected',
     message: `A freeze token covered ${tokensSpent === 1 ? 'a missed day' : `${tokensSpent} missed days`} — your streak lives. ${tokensLeft} left.`,
     priority: 0,
   });
@@ -166,7 +166,7 @@ export async function finishSprint(): Promise<void> {
   chrome.notifications.create(NOTIFICATION_IDS.sprintDone, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: 'Sprint done — nice work 🔥',
+    title: 'Sprint done',
     message:
       streaks.currentStreak > 1
         ? `That keeps your ${streaks.currentStreak}-day streak alive.`

@@ -150,7 +150,7 @@
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1px 6px;
@@ -276,7 +276,7 @@
 
 .as-clear {
   background: transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   border: none;
   font-size: 12px;
   cursor: pointer;

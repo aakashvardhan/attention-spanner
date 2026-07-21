@@ -4,6 +4,7 @@ import {
   buildActivityDays,
   dayActivityScore,
   formatDayTooltip,
+  forwardMonthWindow,
   type DayActivityParts,
 } from './activity';
 import type { DayStats, SrsDayStats } from './types';
@@ -161,5 +162,29 @@ describe('buildActivityDays', () => {
     const model = buildActivityDays({}, {}, {}, TODAY);
     expect(model.totalActivities).toBe(0);
     expect(model.weeks.flat().every((d) => d.level === 0)).toBe(true);
+  });
+});
+
+describe('forwardMonthWindow', () => {
+  const TODAY = '2026-07-06'; // a Monday
+
+  it('starts at the Monday of the current month and spans three months', () => {
+    const { startKey, weeks } = forwardMonthWindow(TODAY, 3);
+    expect(startKey).toBe('2026-06-29'); // Monday of the week containing Jul 1
+    expect(weeks).toBe(14); // through the Sunday after Sep 30
+
+    const model = buildActivityDays({}, {}, {}, TODAY, weeks, startKey);
+    expect(model.weeks).toHaveLength(14);
+    expect(model.weeks[0][0].date).toBe('2026-06-29');
+    expect(model.monthLabels.map((l) => l.label)).toEqual(['Jul', 'Aug', 'Sep']);
+  });
+
+  it('marks days after today as future and keeps today lit', () => {
+    const { startKey, weeks } = forwardMonthWindow(TODAY, 3);
+    const model = buildActivityDays({}, {}, {}, TODAY, weeks, startKey);
+    const byDate = Object.fromEntries(model.weeks.flat().map((d) => [d.date, d]));
+    expect(byDate[TODAY].future).toBe(false);
+    expect(byDate['2026-07-07'].future).toBe(true);
+    expect(byDate['2026-08-15'].future).toBe(true);
   });
 });

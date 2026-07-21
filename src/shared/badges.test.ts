@@ -13,6 +13,7 @@ const ZERO: StatsSnapshot = {
   focusBlocks: 0,
   cardsReviewed: 0,
   chestsOpened: 0,
+  warmups: 0,
   level: 1,
 };
 

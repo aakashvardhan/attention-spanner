@@ -1,11 +1,11 @@
 import { memo, useMemo, useRef, useState } from 'react';
-import { buildActivityDays } from '../../shared/activity';
+import { buildActivityDays, forwardMonthWindow } from '../../shared/activity';
 import { localDate } from '../../shared/format';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 
 const DAY_LABELS = ['Mon', 'Wed', 'Fri'] as const; // rows 0, 2, 4
 
-/** GitHub-style year contribution calendar, pinned above the card grid */
+/** Contribution calendar for the current month plus the next five months */
 export const ActivityCalendar = memo(function ActivityCalendar() {
   const [streaks] = useStorageValue('streaks');
   const [gym] = useStorageValue('gym');
@@ -13,10 +13,14 @@ export const ActivityCalendar = memo(function ActivityCalendar() {
   const stripRef = useRef<HTMLElement>(null);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
-  const model = useMemo(
-    () => buildActivityDays(streaks.daily, gym.checkins, srsDaily, localDate()),
-    [streaks, gym, srsDaily],
-  );
+  const model = useMemo(() => {
+    const { startKey, weeks } = forwardMonthWindow(localDate(), 6);
+    return buildActivityDays(streaks.daily, gym.checkins, srsDaily, localDate(), weeks, startKey);
+  }, [streaks, gym, srsDaily]);
+
+  const cols = model.weeks.length;
+  // Fixed-width columns so cells render as GitHub-style squares (see --act-cell)
+  const gridCols = `repeat(${cols}, var(--act-cell))`;
 
   // Delegated hover: one listener for all 371 cells
   const onMouseOver = (e: React.MouseEvent) => {
@@ -40,17 +44,18 @@ export const ActivityCalendar = memo(function ActivityCalendar() {
     <section
       className="panel activity-strip"
       ref={stripRef}
+      style={{ '--act-cols': cols } as React.CSSProperties}
       onMouseOver={onMouseOver}
       onMouseLeave={() => setTip(null)}
     >
       <p className="act-headline">
         {model.totalActivities > 0
-          ? `${model.totalActivities} activities in the last year`
-          : 'No activity yet — finish a task, read, or hit the gym to light up your year'}
+          ? `${model.totalActivities} activities this month`
+          : 'No activity yet — finish a task, read, or hit the gym to light up the month'}
       </p>
       <div className="act-scroll">
         <div className="act-inner">
-          <div className="act-months">
+          <div className="act-months" style={{ gridTemplateColumns: gridCols }}>
           {model.monthLabels.map(({ columnIndex, label }) => (
             <span key={columnIndex} style={{ gridColumnStart: columnIndex + 1 }}>
               {label}
@@ -63,7 +68,7 @@ export const ActivityCalendar = memo(function ActivityCalendar() {
               <span key={label}>{label}</span>
             ))}
           </div>
-          <div className="act-grid">
+          <div className="act-grid" style={{ gridTemplateColumns: gridCols }}>
             {model.weeks.map((week) => (
               <div className="act-week" key={week[0].date}>
                 {week.map((day) =>

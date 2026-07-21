@@ -69,6 +69,8 @@ export async function createSession(
       onDownloadProgress?.((e as ProgressEvent).loaded);
     });
   };
+  // Chrome warns (and may degrade output) without an explicit language declaration.
+  const languages: LanguageModelExpected[] = [{ type: 'text', languages: ['en'] }];
 
   // Low temperature for faithful structuring; both params must be set together.
   // Retry without sampling params if the platform rejects them.
@@ -77,11 +79,18 @@ export async function createSession(
     return await api.create({
       initialPrompts,
       monitor,
+      expectedInputs: languages,
+      expectedOutputs: languages,
       temperature: Math.min(0.3, params?.maxTemperature ?? 0.3),
       topK: Math.min(3, params?.maxTopK ?? 3),
     });
   } catch {
-    return await api.create({ initialPrompts, monitor });
+    return await api.create({
+      initialPrompts,
+      monitor,
+      expectedInputs: languages,
+      expectedOutputs: languages,
+    });
   }
 }
 

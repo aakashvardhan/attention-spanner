@@ -153,6 +153,7 @@ export function CommandPalette() {
         nano: nanoProvider,
         cloud: geminiProvider,
         multiStep: false, // the palette is for single quick commands
+        cache: true,
       });
       if (outcome.kind === 'confirm') {
         setFooter({

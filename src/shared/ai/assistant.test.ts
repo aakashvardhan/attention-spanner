@@ -13,6 +13,7 @@ import {
 } from './assistant';
 import type { AssistantProvider, GenerateRequest } from './assistantTypes';
 import { appendTurn, MAX_THREAD_TURNS, newTurn } from './assistantTypes';
+import { cacheResetMemory } from './cache';
 import { TOOLS, type Tool } from './tools';
 
 const TOOL_NAMES = ['add_task', 'start_focus'];
@@ -96,6 +97,58 @@ describe('runAssistantTurn', () => {
     nano: scriptedProvider(replies),
     tools,
     getContext: async () => 'Open tasks: none.',
+  });
+
+  it('answers a repeated question from the cache with zero provider calls', async () => {
+    cacheResetMemory();
+    let calls = 0;
+    const counting = (replies: string[]): AssistantProvider => {
+      const inner = scriptedProvider(replies);
+      return {
+        ...inner,
+        generate: (req) => {
+          calls += 1;
+          return inner.generate(req);
+        },
+      };
+    };
+    const makeDeps = () => ({
+      nano: counting(['{"intent":"question","tool":null}', 'You have no tasks.']),
+      tools: [fakeTool()],
+      getContext: async () => 'Open tasks: none.',
+      cache: true,
+    });
+    // "how many" hits the question heuristic (no router call), so the first
+    // turn costs exactly one generate; the second turn costs zero.
+    const first = await runAssistantTurn('how many tasks do I have?', [], makeDeps());
+    expect(first).toMatchObject({ kind: 'reply' });
+    const callsAfterFirst = calls;
+    let streamed = '';
+    const second = await runAssistantTurn('how many tasks do I have?', [], {
+      ...makeDeps(),
+      onToken: (t: string) => {
+        streamed = t;
+      },
+    });
+    expect(second).toEqual(first);
+    expect(calls).toBe(callsAfterFirst);
+    expect(streamed).toBe((first as { text: string }).text);
+    cacheResetMemory();
+  });
+
+  it('skips provider probes when availability is injected', async () => {
+    const provider = scriptedProvider(['{"intent":"chat","tool":null}', 'Short answer.']);
+    const out = await runAssistantTurn('tell me something motivating', [], {
+      nano: {
+        ...provider,
+        available: async () => {
+          throw new Error('probe must not run');
+        },
+      },
+      tools: [fakeTool()],
+      availability: { nano: true, cloud: false },
+    });
+    expect(out.kind).toBe('reply');
   });
 
   it('routes an action to a confirm outcome with extracted params', async () => {
@@ -355,7 +408,7 @@ describe('executePlan', () => {
       [okTool],
     );
     expect(run.ok).toBe(true);
-    expect(run.text).toBe('✓ Added a\n✓ Added b');
+    expect(run.text).toBe('Done: Added a\nDone: Added b');
   });
 
   it('stops at the first failure and marks the rest skipped', async () => {
@@ -372,7 +425,7 @@ describe('executePlan', () => {
       },
     );
     expect(run.ok).toBe(false);
-    expect(run.text).toBe('✓ Added a\n✗ boom\n– Skipped: Add c');
+    expect(run.text).toBe('Done: Added a\nFailed: boom\nSkipped: Add c');
     expect(seen).toEqual(['0:done', '1:failed', '2:skipped']);
   });
 });

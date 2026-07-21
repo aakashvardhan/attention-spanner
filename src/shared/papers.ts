@@ -56,6 +56,14 @@ export function paperMatchKey(url: string): string | null {
   }
 }
 
+/**
+ * Title comparison key for duplicate detection: URLs for the same paper don't
+ * always collapse (project page vs arXiv vs DOI), but the title does.
+ */
+export function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 interface S2Response {
   title?: string | null;
   abstract?: string | null;

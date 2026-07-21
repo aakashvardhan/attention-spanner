@@ -49,6 +49,7 @@ export default defineManifest(async (env) => {
       'declarativeNetRequest',
       'contextMenus',
       'identity',
+      'offscreen',
     ],
     ...(gcalClientId
       ? {

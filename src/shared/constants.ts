@@ -1,4 +1,4 @@
-export const ACCENT_COLOR = '#ff6b35';
+export const ACCENT_COLOR = '#0ea5e9';
 
 export const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json?rss_url=';
 export const FETCH_TIMEOUT_MS = 15000;
@@ -41,6 +41,10 @@ export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
 /* Research-paper tracker */
 export const MAX_PAPERS = 500;
 export const PAPERS_PAGE_PATH = 'src/pages/papers/index.html';
+/** The in-extension PDF reader; opened as <path>?src=<encoded pdf url> */
+export const READER_PAGE_PATH = 'src/pages/reader/index.html';
+export const MAX_PDF_ANNOTATIONS = 2000;
+export const ANNOTATION_TEXT_MAX_CHARS = 500;
 /* Semantic Scholar Graph API — free, unauthenticated (rate-limited). Accepts
    arXiv:<id>, DOI:<doi>, or URL:<url> as the paper reference. */
 export const SEMANTIC_SCHOLAR_PAPER_API = 'https://api.semanticscholar.org/graph/v1/paper/';
@@ -51,6 +55,11 @@ export const CALENDAR_REFRESH_MINUTES = 15;
 /** Unforced refreshes (newtab opens) within this window reuse the cache */
 export const CALENDAR_REFRESH_THROTTLE_MS = 60_000;
 
+/* Notion meeting notes pull (token/DB configured in Notion sync settings) */
+export const MEETING_NOTES_REFRESH_MINUTES = 30;
+/** Unforced refreshes (newtab opens) within this window reuse the cache */
+export const MEETING_NOTES_THROTTLE_MS = 60_000;
+
 /* Assistant cloud fallback — Gemini API (user-supplied key in settings) */
 export const GEMINI_MODEL = 'gemini-3.5-flash';
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -58,11 +67,40 @@ export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta
 export const NANO_INPUT_BUDGET_CHARS = 5000;
 /** Hard cap on extracted page text sent to any model */
 export const PAGE_TEXT_MAX_CHARS = 15000;
+/** Hard cap on PDF text sent to the cloud model for the reader's Q&A panel.
+ * Larger than PAGE_TEXT_MAX_CHARS — a whole paper, not a single web page. */
+export const PDF_QA_CLOUD_MAX_CHARS = 120000;
 /** Assistant memory: newest facts win once the store is full */
 export const MAX_ASSISTANT_FACTS = 50;
 export const FACT_MAX_CHARS = 280;
+/** Assistant skills: user-written instruction docs (see types.AssistantSkill) */
+export const MAX_ASSISTANT_SKILLS = 20;
+export const SKILL_MAX_CHARS = 2000;
+/** Prompt budget for injected skills per turn (top 2 within budget) */
+export const SKILL_BUDGET_CHARS = 1200;
+/** Scheduled automations: caps + per-run proposal budget */
+export const MAX_AUTOMATIONS = 10;
+export const AUTOMATION_MAX_PROPOSALS = 3;
+export const AUTOMATION_DIGEST_MAX_CHARS = 400;
+/** Interval automations may not fire more often than this */
+export const AUTOMATION_MIN_INTERVAL_MINUTES = 15;
+/** Two contexts racing the same automation: second run within this window skips */
+export const AUTOMATION_DEBOUNCE_MS = 60_000;
 /** Longest tool chain one request may plan (cloud-only feature) */
 export const MAX_PLAN_STEPS = 5;
+
+/* "Hey Jarvis" wake word — always-on mic in an offscreen document */
+export const OFFSCREEN_PAGE_PATH = 'src/pages/offscreen/index.html';
+/** Quiet gap that ends command capture after the wake word. Chrome's
+    recognizer already endpoints ~500ms before emitting a final result,
+    so this stacks on top of that — keep it short. */
+export const WAKE_CAPTURE_SILENCE_MS = 800;
+/** Hard cap on one command capture */
+export const WAKE_CAPTURE_MAX_MS = 15_000;
+/** Wake word said alone: how long the "Yes?" window stays open */
+export const WAKE_ACK_TIMEOUT_MS = 5000;
+/** Auto-resume if a push-to-talk page died without sending busy:false */
+export const WAKE_PTT_FAILSAFE_MS = 60_000;
 
 export const CAPTURE_WINDOW_TASK = { width: 440, height: 180 } as const;
 export const CAPTURE_WINDOW_DUMP = { width: 440, height: 520 } as const;
@@ -78,8 +116,10 @@ export const ALARMS = {
   focusBadgeTick: 'focus-badge-tick',
   notionFlush: 'notion-flush',
   calendarRefresh: 'calendar-refresh',
+  meetingNotesRefresh: 'meeting-notes-refresh',
   monitorEvening: 'monitor-evening',
   monitorCalendar: 'monitor-calendar',
+  automationPrefix: 'automation|',
 } as const;
 
 export const NOTIFICATION_IDS = {
@@ -97,6 +137,9 @@ export const NOTIFICATION_IDS = {
   hyperfocus: 'hyperfocus',
   monitorEvening: 'monitor-evening',
   monitorEventPrefix: 'monitor-event|',
+  wakeReply: 'wake-reply',
+  wakeMicDenied: 'wake-mic-denied',
+  automationPrefix: 'automation|',
 } as const;
 
 /** Evening check only mentions due flashcards at or above this pile size */

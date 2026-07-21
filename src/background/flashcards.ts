@@ -7,6 +7,7 @@ import {
 import { localDate } from '../shared/format';
 import { answerCard as scheduleAnswer, isRewardableAnswer, newCard, reconcileCards } from '../shared/srs';
 import { getLocal, setLocal } from '../shared/storage';
+import { newFlashNoteWithCards } from '../shared/sync/recordShapes';
 import type { Deck, DeckKind, FlashNote, FlashNoteType, Rating, SrsDayStats } from '../shared/types';
 import { awardXp } from './gamification';
 
@@ -72,17 +73,15 @@ export async function addNote(
   reversed: boolean,
 ): Promise<FlashResult<{ note: FlashNote }>> {
   const now = Date.now();
-  const note: FlashNote = {
+  const { note, cards } = newFlashNoteWithCards({
     id: crypto.randomUUID(),
     deckId,
     type: noteType,
-    front: front.trim(),
-    back: back.trim(),
-    reversed: noteType === 'basic' && reversed,
-    createdAt: now,
-    updatedAt: now,
-  };
-  const cards = reconcileCards(note, [], now);
+    front,
+    back,
+    reversed,
+    now,
+  });
   const error = await validateNote(note, cards.length, null);
   if (error) return { ok: false, error };
 

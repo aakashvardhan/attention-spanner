@@ -6,6 +6,7 @@ import { countInWeek, weekKey } from '../week';
 import { newTurn } from './assistantTypes';
 import { buildDataContext, computeFeedUnread, type AssistantContextData } from './context';
 import { nanoProvider } from './nanoProvider';
+import { stripEmoji } from './tts';
 
 /**
  * Morning briefing: generated once per local day on the first newtab open
@@ -18,11 +19,11 @@ export const BRIEFING_MAX_CHARS = 600;
 
 export function buildBriefingPrompt(context: string): string {
   return (
-    'You write a tiny morning check-in for a person with ADHD using a reading/productivity ' +
-    'extension. From the data snapshot, write 2-4 warm, concrete sentences: acknowledge one ' +
-    'win or streak worth protecting, then point at the single most useful next thing (a due ' +
-    'task, cards to review, gym gap, or article to finish). No lists, no headings, no ' +
-    'questions back, no invented facts.\n\nData snapshot:\n' +
+    'You write a tiny morning status line for a person with ADHD using a reading/productivity ' +
+    'extension. From the data snapshot, write 2-3 blunt, concrete sentences: state the single ' +
+    'most urgent thing first (a due task, cards piling up, a streak about to break), then at ' +
+    'most one secondary item. No greetings, no praise, no pep talk, no emoji, no lists, no ' +
+    'headings, no questions back, no invented facts.\n\nData snapshot:\n' +
     context
   );
 }
@@ -36,12 +37,12 @@ export function templateBriefing(data: AssistantContextData, now = new Date()): 
   const activeToday = (todayStats?.minutes ?? 0) > 0 || (todayStats?.sprints ?? 0) > 0;
   if (data.streaks.currentStreak > 0 && !activeToday) {
     parts.push(
-      `You're on a ${data.streaks.currentStreak}-day reading streak — nothing's counted yet today, so a quick sprint protects it.`,
+      `${data.streaks.currentStreak}-day reading streak, nothing counted today. One sprint keeps it.`,
     );
   } else if (data.streaks.currentStreak > 0) {
-    parts.push(`You're on a ${data.streaks.currentStreak}-day reading streak — keep it alive today.`);
+    parts.push(`${data.streaks.currentStreak}-day reading streak. Keep it alive today.`);
   } else {
-    parts.push('Fresh day, fresh start — a single 5-minute sprint gets a streak going.');
+    parts.push('No streak. One 5-minute sprint starts one.');
   }
 
   if (data.calendar.connected) {
@@ -123,7 +124,7 @@ export async function maybeGenerateBriefing(now = new Date()): Promise<void> {
         system: buildBriefingPrompt(buildDataContext(contextData, now)),
         turns: [newTurn('user', 'Write my morning check-in for today.')],
       });
-      const generated = reply.text.trim().slice(0, BRIEFING_MAX_CHARS);
+      const generated = stripEmoji(reply.text.trim()).slice(0, BRIEFING_MAX_CHARS);
       if (generated) text = generated;
     }
   } catch {

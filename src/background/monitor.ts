@@ -117,7 +117,7 @@ export async function fireCalendarCheck(now = new Date()): Promise<void> {
   chrome.notifications.create(NOTIFICATION_IDS.monitorEventPrefix + hit.event.id, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: 'Coming up 📅',
+    title: 'Coming up',
     message,
     priority: 1,
   });

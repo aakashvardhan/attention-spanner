@@ -14,6 +14,8 @@ export default defineConfig({
         blocked: 'src/pages/blocked/index.html',
         flashcards: 'src/pages/flashcards/index.html',
         papers: 'src/pages/papers/index.html',
+        reader: 'src/pages/reader/index.html',
+        offscreen: 'src/pages/offscreen/index.html',
       },
     },
   },

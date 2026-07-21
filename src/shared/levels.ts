@@ -12,7 +12,8 @@ export type XpEvent =
   | 'task_completed'
   | 'braindump_structured'
   | 'focus_block'
-  | 'flashcard_review';
+  | 'flashcard_review'
+  | 'warmup_complete';
 
 export const XP_VALUES: Record<XpEvent, number> = {
   focus_block: 25,
@@ -20,6 +21,7 @@ export const XP_VALUES: Record<XpEvent, number> = {
   article_finished: 15,
   video_finished: 15,
   sprint_completed: 10,
+  warmup_complete: 10,
   task_completed: 5,
   braindump_structured: 5,
   flashcard_review: 5,

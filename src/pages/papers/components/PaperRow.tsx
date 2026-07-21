@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatRelativeDate } from '../../../shared/format';
+import { paperOpenUrl } from '../../../shared/pdf';
 import type { Deck, Paper, PaperDraft, PaperStatus } from '../../../shared/types';
 import { PaperForm } from './PaperForm';
 
@@ -65,7 +66,7 @@ export function PaperRow({
       <div className="pp-row-head">
         <div className="pp-row-title-wrap">
           {paper.url ? (
-            <a className="pp-row-title" href={paper.url} target="_blank" rel="noreferrer">
+            <a className="pp-row-title" href={paperOpenUrl(paper)} target="_blank" rel="noreferrer">
               {paper.title}
             </a>
           ) : (
@@ -153,7 +154,7 @@ export function PaperRow({
             </button>
           )}
           {paper.url && (
-            <a className="ghost-btn" href={paper.url} target="_blank" rel="noreferrer">
+            <a className="ghost-btn" href={paperOpenUrl(paper)} target="_blank" rel="noreferrer">
               Open ↗
             </a>
           )}

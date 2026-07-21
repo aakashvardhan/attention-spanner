@@ -100,9 +100,9 @@ export async function fireGymReminder(): Promise<void> {
   chrome.notifications.create(NOTIFICATION_IDS.gymReminder, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: 'Gym today? 💪',
+    title: 'Gym today?',
     message: `${remaining} more session${remaining === 1 ? '' : 's'}${streakPart}.`,
-    buttons: [{ title: '💪 I went today' }, { title: 'Snooze 1h' }],
+    buttons: [{ title: 'I went today' }, { title: 'Snooze 1h' }],
     priority: 0,
   });
 }

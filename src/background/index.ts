@@ -1,22 +1,27 @@
+import { cacheInvalidateTag } from '../shared/ai/cache';
 import { ALARMS, CAPTURE_WINDOW_TASK, NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
 import { migrate } from '../shared/storage';
-import type { Message } from '../shared/messages';
+import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import {
   handleAlarm,
+  setupAutomationAlarms,
   setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
+  setupMeetingNotesAlarm,
   setupMonitorAlarms,
   setupNotionFlushAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
 } from './alarms';
 import { refreshCalendar } from './calendar';
+import { refreshMeetingNotes } from './meetingNotes';
 import { flushQueue, handleTokenChanged } from './notion';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
 import { gymCheckin, recomputeGymStreak } from './gym';
+import { recomputeWarmupStreak } from './warmup';
 import {
   dismissNudgesForArticle,
   isNudgeNotification,
@@ -27,13 +32,15 @@ import { recomputeStreak } from './streaks';
 import { pruneCompletedTasks, snoozeOpenTasks } from './tasks';
 import { maybeInjectTimePill } from './timePill';
 import { markPaperReadingByUrl } from './papers';
+import { maybeInterceptPdf } from './pdfIntercept';
+import { openDashboard, syncWakeWordListener } from './offscreen';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
 import { initSync, onLocalChanged } from './sync';
 // Side-effect import: registers the Firestore transport + auth listener on every
 // service-worker instantiation (guarded by whether firebaseConfig is filled in).
 import './firestoreBackend';
-import { handleMessage } from './router';
+import { dispatch, handleMessage } from './router';
 
 /**
  * MV3 service worker entry. Every listener is registered synchronously at
@@ -76,12 +83,15 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupGymReminderAlarm();
     await setupNotionFlushAlarm();
     await setupCalendarRefreshAlarm();
+    await setupMeetingNotesAlarm();
     await setupMonitorAlarms();
+    await setupAutomationAlarms();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
     await recomputeStreak();
     await recomputeGymStreak();
+    await recomputeWarmupStreak();
     // onInstalled also fires on extension reloads — clear before re-creating
     await chrome.contextMenus.removeAll();
     chrome.contextMenus.create({
@@ -92,6 +102,7 @@ chrome.runtime.onInstalled.addListener(() => {
     await refreshFeeds();
     // Resume cloud sync if signed in (inert until a transport is registered)
     await initSync();
+    await syncWakeWordListener();
   })();
 });
 
@@ -106,15 +117,19 @@ chrome.runtime.onStartup.addListener(() => {
   void updateBadge();
   void recomputeStreak();
   void recomputeGymStreak();
+  void recomputeWarmupStreak();
   // Re-anchor the daily reminders to the wall clock (bounds DST drift)
   void setupGymReminderAlarm();
   void setupMonitorAlarms();
+  void setupAutomationAlarms();
   void reconcileFocusOnStartup();
   // Drain Notion pushes left queued when the previous SW instance died
   void flushQueue();
   void refreshCalendar();
+  void refreshMeetingNotes();
   // Resume cloud sync if signed in (inert until a transport is registered)
   void initSync();
+  void syncWakeWordListener();
 });
 
 chrome.alarms.onAlarm.addListener(handleAlarm);
@@ -122,6 +137,11 @@ chrome.alarms.onAlarm.addListener(handleAlarm);
 chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) =>
   handleMessage(msg, sender, sendResponse),
 );
+
+// sendMessage from the SW itself never reaches the listener above — register
+// the router as the in-process dispatcher so tools are runnable here too
+// (agent runs, automations). Pages/offscreen keep the runtime path.
+setLocalDispatcher((msg) => dispatch(msg, {} as chrome.runtime.MessageSender));
 
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'quick-capture-task') {
@@ -139,6 +159,30 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // (focusSession flips it between countdown and unread-count modes)
   if (changes.cachedItems || changes.readItems || changes.focusSession) {
     void updateBadge();
+  }
+
+  // Automation schedules changed — re-arm their alarms
+  if (changes.assistantAutomations) {
+    void setupAutomationAlarms();
+  }
+
+  // Any user-data mutation voids the assistant's cached context and answers
+  if (
+    changes.tasks ||
+    changes.notes ||
+    changes.flashCards ||
+    changes.flashNotes ||
+    changes.decks ||
+    changes.papers ||
+    changes.gym ||
+    changes.streaks ||
+    changes.gamification ||
+    changes.bookmarks ||
+    changes.calendar ||
+    changes.assistantMemory ||
+    changes.readingProgress
+  ) {
+    void cacheInvalidateTag('data');
   }
 
   // Re-arm alarms when their intervals change
@@ -161,6 +205,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (oldSettings.notionToken !== newSettings.notionToken && newSettings.notionToken) {
       void handleTokenChanged();
     }
+    // Picking a meeting-notes database populates the card immediately
+    if (
+      oldSettings.notionMeetingNotesDbId !== newSettings.notionMeetingNotesDbId &&
+      newSettings.notionMeetingNotesDbId
+    ) {
+      void refreshMeetingNotes(true);
+    }
     // Arrays need a structural compare, unlike the scalar settings above
     if (
       JSON.stringify(oldSettings.focusBlocklist) !== JSON.stringify(newSettings.focusBlocklist) &&
@@ -168,10 +219,21 @@ chrome.storage.onChanged.addListener((changes, area) => {
     ) {
       void refreshFocusRules(newSettings.focusBlocklist);
     }
+    if (
+      oldSettings.assistantWakeWordEnabled !== newSettings.assistantWakeWordEnabled ||
+      oldSettings.assistantEnabled !== newSettings.assistantEnabled
+    ) {
+      void syncWakeWordListener();
+    }
   }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // PDF navigations bounce into the in-extension reader (unless bypassed).
+  // Checked first so the trackers below never run against a soon-gone page.
+  if (changeInfo.url) {
+    void maybeInterceptPdf(tabId, changeInfo.url);
+  }
   if (changeInfo.status === 'complete' && tab.url) {
     void maybeInjectTracker(tabId, tab.url);
     void maybeInjectTimePill(tabId, tab.url);
@@ -237,5 +299,16 @@ chrome.notifications.onClicked.addListener((notificationId) => {
     chrome.notifications.clear(notificationId);
     // The nudge is already waiting in the assistant chat on the dashboard
     void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
+    return;
+  }
+  if (notificationId === NOTIFICATION_IDS.wakeReply) {
+    chrome.notifications.clear(notificationId);
+    // The exchange is already in the assistant chat on the dashboard
+    void openDashboard();
+    return;
+  }
+  if (notificationId === NOTIFICATION_IDS.wakeMicDenied) {
+    chrome.notifications.clear(notificationId);
+    void chrome.runtime.openOptionsPage();
   }
 });

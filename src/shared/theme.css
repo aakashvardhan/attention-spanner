@@ -2,31 +2,61 @@
  * Theme tokens shared by every extension page. Import from main.tsx before the
  * page stylesheet. The resolved theme lands on <html data-theme="light|dark">
  * (see theme.ts); page CSS uses only these tokens for colors.
+ *
+ * Typeface: Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — license
+ * ships at /fonts/OFL.txt). Bundled locally; extension pages load their own
+ * resources so no web_accessible_resources entry is needed. Only 400/700
+ * exist — never use font-weight 800+, Chrome would synthesize a faux-bold.
  */
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Regular.woff2) format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Bold.woff2) format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Italic.woff2) format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
 
-  --bg-page: #f5f2ef;
-  --bg-surface: #ffffff;
-  --bg-subtle: #fafafa;
-  --bg-hover: #f0f0f0;
+  --font-sans: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
 
-  --text-primary: #333;
-  --text-secondary: #555;
-  --text-muted: #999;
+  --bg-page: #f2f2f2;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f9f9f9;
+  --bg-hover: #e5e5e5;
+
+  --text-primary: #0f0f0f;
+  --text-secondary: #606060;
+  --text-muted: #909090;
   --text-faint: #b3b3b3;
 
-  --border: #ddd;
-  --border-subtle: #eee;
+  --border: #e5e5e5;
+  --border-subtle: #eeeeee;
   --disabled: #ccc;
 
-  --accent: #ff6b35;
-  --accent-hover: #e55a2b;
-  --accent-soft: #fff8f4;
-  --accent-wash: #fff0e8;
-  --accent-border: #ffd9c7;
-  --accent-track: #ffe3d5;
-  --accent-text: #b45a2e;
+  --accent: #0ea5e9;
+  --accent-hover: #0284c7;
+  --accent-soft: #f0f9ff;
+  --accent-wash: #e0f2fe;
+  --accent-border: #bae6fd;
+  --accent-track: #d5eeff;
+  --accent-text: #0369a1;
   --on-accent: #fff;
 
   --success: #2e7d32;
@@ -34,12 +64,12 @@
   --success-border: #c8e6c9;
   --danger: #d32f2f;
   --danger-bg: #fdecea;
-  --warning: #e65100;
-  --warning-bg: #fff3e0;
+  --warning: #b45309;
+  --warning-bg: #fef3c7;
 
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.18);
-  --shadow-accent: 0 2px 10px rgba(255, 107, 53, 0.15);
+  --shadow-accent: 0 2px 10px rgba(14, 165, 233, 0.15);
 
   /* Activity-calendar heat scale (GitHub greens); inset border keeps the
      faint steps legible against the panel surface */
@@ -50,55 +80,79 @@
   --heat-4: #216e39;
   --heat-cell-border: rgba(27, 31, 35, 0.06);
 
-  /* Focus-immersion palette: intentionally dark in BOTH themes */
-  --focus-bg: #1e1a17;
-  --focus-panel: #292420;
-  --focus-text: #f5f2ef;
-  --focus-muted: #8d8279;
-  --focus-border: #4a423c;
+  /* Stroop warm-up ink colors — per-theme hues so every ink stays legible
+     on --bg-surface (purple over classic yellow for the same reason) */
+  --stroop-red: #d32f2f;
+  --stroop-blue: #0284c7;
+  --stroop-green: #2e7d32;
+  --stroop-purple: #8e24aa;
+
+  /* Focus-immersion palette: intentionally dark in BOTH themes.
+     Off-white on near-black (never pure #fff on #000) limits halation for
+     astigmatic eyes. The --focus-again/hard/good/easy + cloze tokens exist
+     because theme-variant tokens (--danger etc.) are illegible on #212121
+     when the light theme is active — use only --focus-* (and bare --accent)
+     inside immersive review. */
+  --focus-bg: #0f0f0f;
+  --focus-panel: #212121;
+  --focus-text: #f1f1f1;
+  --focus-text-secondary: #cfcfcf;
+  --focus-muted: #909090;
+  --focus-border: #3f3f3f;
+  --focus-again: #f28b82;
+  --focus-hard: #fdd663;
+  --focus-good: #81c995;
+  --focus-easy: #4fc3f7;
+  --focus-cloze-bg: rgba(56, 189, 248, 0.18);
+  --focus-cloze-text: #7dd3fc;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg-page: #1b1815;
-  --bg-surface: #262220;
-  --bg-subtle: #2e2926;
-  --bg-hover: #38322e;
+  --bg-page: #0f0f0f;
+  --bg-surface: #212121;
+  --bg-subtle: #272727;
+  --bg-hover: #3d3d3d;
 
-  --text-primary: #ece7e2;
-  --text-secondary: #c2bab3;
-  --text-muted: #8d8279;
-  --text-faint: #6b625b;
+  --text-primary: #f1f1f1;
+  --text-secondary: #aaaaaa;
+  --text-muted: #909090;
+  --text-faint: #717171;
 
-  --border: #453e39;
-  --border-subtle: #332e2a;
-  --disabled: #55504b;
+  --border: #3f3f3f;
+  --border-subtle: #303030;
+  --disabled: #535353;
 
-  --accent: #ff7a45;
-  --accent-hover: #ff8f61;
-  --accent-soft: #2e2520;
-  --accent-wash: #3a2b21;
-  --accent-border: #5c3d2a;
-  --accent-track: #4a2f1f;
-  --accent-text: #ffb397;
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-soft: #1a2733;
+  --accent-wash: #17303f;
+  --accent-border: #2a5064;
+  --accent-track: #1f4152;
+  --accent-text: #bae6fd;
 
-  --success: #81c784;
-  --success-bg: #1f2f23;
-  --success-border: #3a5a40;
-  --danger: #ef9a9a;
-  --danger-bg: #3a2426;
-  --warning: #ffb74d;
-  --warning-bg: #3a2f1d;
+  --success: #81c995;
+  --success-bg: #1c2b20;
+  --success-border: #34503c;
+  --danger: #f28b82;
+  --danger-bg: #332222;
+  --warning: #fbbf24;
+  --warning-bg: #332c1a;
 
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-accent: 0 2px 10px rgba(0, 0, 0, 0.5);
 
-  --heat-0: #2e2926;
+  --heat-0: #272727;
   --heat-1: #0e4429;
   --heat-2: #006d32;
   --heat-3: #26a641;
   --heat-4: #39d353;
   --heat-cell-border: rgba(255, 255, 255, 0.05);
+
+  --stroop-red: #f28b82;
+  --stroop-blue: #4fc3f7;
+  --stroop-green: #81c995;
+  --stroop-purple: #ce93d8;
 }

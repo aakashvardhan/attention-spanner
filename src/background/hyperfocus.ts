@@ -48,7 +48,7 @@ export async function recordEngagement(deltaSeconds: number, ended: boolean): Pr
       chrome.notifications.create(NOTIFICATION_IDS.hyperfocus, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-        title: `🌊 ${minutes} minutes locked in`,
+        title: `${minutes} minutes locked in`,
         message:
           'Hyperfocus check: water, stand up, look 20 feet away for 20 seconds. The work will still be here.',
         priority: 0,

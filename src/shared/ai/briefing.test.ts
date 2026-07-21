@@ -85,10 +85,10 @@ describe('templateBriefing', () => {
   it('sharpens the streak line when nothing counted yet today', () => {
     const d = data();
     d.streaks.currentStreak = 6;
-    expect(templateBriefing(d, NOW)).toContain("nothing's counted yet today");
+    expect(templateBriefing(d, NOW)).toContain('nothing counted today');
 
     d.streaks.daily['2026-07-11'] = { minutes: 10, sprints: 0, articlesFinished: 0 };
-    expect(templateBriefing(d, NOW)).toContain('keep it alive today');
+    expect(templateBriefing(d, NOW)).toContain('Keep it alive today');
   });
 
   it('mentions due flashcards only when some are due', () => {
@@ -131,6 +131,6 @@ describe('buildBriefingPrompt', () => {
   it('embeds the data snapshot', () => {
     const prompt = buildBriefingPrompt('Open tasks: none.');
     expect(prompt).toContain('Open tasks: none.');
-    expect(prompt).toContain('2-4 warm, concrete sentences');
+    expect(prompt).toContain('2-3 blunt, concrete sentences');
   });
 });

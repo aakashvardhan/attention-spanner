@@ -160,7 +160,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
       await setLocal({ focusSession: null });
       await updateBadge();
       notifyPhase(
-        'Focus complete 🎉',
+        'Focus complete',
         `${session.focusMinutes} minutes banked. Sites are open again.`,
         settings.notificationsEnabled,
       );
@@ -176,7 +176,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
     chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
     await updateBadge();
     notifyPhase(
-      'Break time ☕',
+      'Break time',
       `${session.breakMinutes} minutes — sites are open. Block ${session.completedBlocks} done.`,
       settings.notificationsEnabled,
     );
@@ -196,7 +196,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   await redirectOpenBlockedTabs(settings.focusBlocklist);
   await updateBadge();
   notifyPhase(
-    'Back to focus 🎯',
+    'Back to focus',
     `${session.focusMinutes} minutes. Sites re-blocked.`,
     settings.notificationsEnabled,
   );

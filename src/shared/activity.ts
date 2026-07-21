@@ -81,7 +81,34 @@ export function formatDayTooltip(date: Date, parts: DayActivityParts, score: num
   return `${head} — ${bits.join(' · ')}`;
 }
 
-const MIN_LABEL_GAP_COLUMNS = 3;
+/** Monday (0) … Sunday (6) index for a date */
+function weekdayIndex(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
+/**
+ * Column count and start for a forward window: the current month plus the next
+ * `months - 1` months. Starts at the Monday of the week containing the 1st of
+ * the current month and runs through the Sunday of the week containing the last
+ * day of the final month. Today lands near the left; later days are `future`.
+ */
+export function forwardMonthWindow(
+  todayKey: string,
+  months = 3,
+): { startKey: string; weeks: number } {
+  const [y, m] = todayKey.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const startMonday = new Date(first);
+  startMonday.setDate(first.getDate() - weekdayIndex(first));
+  const lastDay = new Date(y, m - 1 + months, 0); // last day of (current + months - 1)
+  const endSunday = new Date(lastDay);
+  endSunday.setDate(lastDay.getDate() + (6 - weekdayIndex(lastDay)));
+  let weeks = 0;
+  for (const cur = new Date(startMonday); cur <= endSunday; cur.setDate(cur.getDate() + 7)) {
+    weeks++;
+  }
+  return { startKey: localDate(startMonday), weeks };
+}
 
 export function buildActivityDays(
   streaksDaily: Record<string, DayStats>,
@@ -89,11 +116,20 @@ export function buildActivityDays(
   srsDaily: Record<string, SrsDayStats>,
   todayKey: string,
   weeks = 53,
+  startKey?: string,
 ): ActivityModel {
   const [y, m, d] = todayKey.split('-').map(Number);
   const today = new Date(y, m - 1, d);
-  const startMonday = new Date(today);
-  startMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7) - (weeks - 1) * 7);
+  let startMonday: Date;
+  if (startKey) {
+    const [sy, sm, sd] = startKey.split('-').map(Number);
+    const start = new Date(sy, sm - 1, sd);
+    startMonday = new Date(start);
+    startMonday.setDate(start.getDate() - weekdayIndex(start));
+  } else {
+    startMonday = new Date(today);
+    startMonday.setDate(today.getDate() - weekdayIndex(today) - (weeks - 1) * 7);
+  }
 
   // First pass: assemble days with scores
   const columns: { day: ActivityDay; parts: DayActivityParts; dateObj: Date }[][] = [];
@@ -138,23 +174,18 @@ export function buildActivityDays(
     })),
   );
 
-  // Month labels: where a column's Monday enters a new month (collision-guarded)
+  // Month labels: one per month, at the column whose Monday falls in that
+  // month's first week. Window-agnostic — no gap guard needed since each
+  // month contributes exactly one first-week Monday, ~4–5 columns apart.
   const monthLabels: ActivityModel['monthLabels'] = [];
-  let prevMonth = -1;
-  let lastLabelColumn = -Infinity;
   for (let w = 0; w < weeks; w++) {
     const monday = new Date(startMonday);
     monday.setDate(startMonday.getDate() + w * 7);
-    const month = monday.getMonth();
-    if (month !== prevMonth) {
-      if (w - lastLabelColumn >= MIN_LABEL_GAP_COLUMNS) {
-        monthLabels.push({
-          columnIndex: w,
-          label: monday.toLocaleDateString('en-US', { month: 'short' }),
-        });
-        lastLabelColumn = w;
-      }
-      prevMonth = month;
+    if (monday.getDate() <= 7) {
+      monthLabels.push({
+        columnIndex: w,
+        label: monday.toLocaleDateString('en-US', { month: 'short' }),
+      });
     }
   }
 

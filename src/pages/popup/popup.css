@@ -7,7 +7,8 @@
 body {
   width: 400px;
   height: 500px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
   background: var(--bg-page);
   color: var(--text-primary);
 }
@@ -72,7 +73,7 @@ header h1 {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -90,7 +91,7 @@ header h1 {
 .tab-count {
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   border-radius: 9px;
   padding: 1px 6px;
@@ -170,7 +171,7 @@ main {
 .feed-item-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 6px;
 }
@@ -181,7 +182,7 @@ main {
 }
 
 .feed-item-snippet {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.4;
   display: -webkit-box;
@@ -274,7 +275,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .level-chip {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent);
   background: var(--bg-surface);
@@ -309,7 +310,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   border: none;
   padding: 4px 12px !important;
   border-radius: 12px;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600;
   cursor: pointer;
 }
@@ -353,7 +354,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   border: 1px solid var(--accent-border);
   border-radius: 10px;
   padding: 3px 10px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600;
   cursor: pointer;
 }
@@ -367,7 +368,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   padding: 3px 8px;
   border: 1px dashed var(--border);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .bookmark-newgroup input:focus {
@@ -385,9 +386,9 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .continue-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -414,7 +415,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .continue-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -446,7 +447,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 .continue-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -459,7 +460,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 .progress-chip {
   background: var(--accent-wash);
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   border-radius: 8px;
   padding: 1px 6px;
@@ -483,7 +484,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .task-add input:focus {
@@ -553,8 +554,8 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .task-text {
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.4;
   word-break: break-word;
 }
 
@@ -563,8 +564,8 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .task-date {
-  font-size: 10px;
-  color: var(--text-faint);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .task-delete {
@@ -584,9 +585,9 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .task-section-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 10px 0 2px;
@@ -611,7 +612,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   border-left: 3px solid var(--accent);
   border-radius: 8px;
   padding: 10px 12px !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
@@ -636,7 +637,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .cards-deck-due.zero {
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 .cards-open-btn {
@@ -647,7 +648,7 @@ footer {
   padding: 8px 16px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   text-align: center;
   flex-shrink: 0;

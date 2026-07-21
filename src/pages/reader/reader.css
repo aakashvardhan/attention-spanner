@@ -1,0 +1,633 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.reader-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Toolbar */
+
+.reader-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.reader-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.reader-toolbar-left h1 {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.reader-pageno {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.ghost-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.ghost-btn:disabled {
+  color: var(--disabled);
+  cursor: default;
+  background: transparent;
+}
+
+.fc-primary-btn {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fc-primary-btn:hover {
+  background: var(--accent-hover);
+}
+
+.fc-primary-btn:disabled {
+  background: var(--disabled);
+  cursor: default;
+}
+
+.fc-error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* Track-this-paper banner / form */
+
+.reader-track-banner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-border);
+  font-size: 13px;
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+.reader-track-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-border);
+  flex-shrink: 0;
+}
+
+.reader-track-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reader-track-fields input,
+.reader-track-fields select {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.reader-track-year {
+  flex: 0 1 70px;
+}
+
+.reader-track-msg {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.reader-track-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Body: outline sidebar + page viewport */
+
+.reader-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.reader-outline {
+  width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 12px 8px;
+}
+
+.reader-outline h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0 10px 8px;
+}
+
+.reader-outline ul {
+  list-style: none;
+}
+
+.reader-outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-outline-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.reader-outline-item.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+.reader-viewport {
+  flex: 1;
+  overflow: auto;
+  min-width: 0;
+}
+
+.reader-page-list {
+  position: relative;
+}
+
+.reader-page {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Pages are white regardless of theme — the PDF's own background */
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  /* Only the text layer's spans are selectable */
+  user-select: none;
+  /* pdf.js layer-sizing vars; --scale-factor is set inline per page */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+
+.reader-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Text layer — minimal subset of pdf.js web/pdf_viewer.css `.textLayer` rules.
+   Transparent glyphs positioned over the canvas so native selection works. */
+
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 2;
+  color-scheme: only light;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--total-scale-factor) * var(--min-font-size) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(calc(1 / var(--min-font-size)));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer ::selection {
+  background: rgba(14, 165, 233, 0.35);
+}
+
+/* Annotations: highlights, sticky pins, popover */
+
+.annot-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.annot-layer.note-mode {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.annot-highlight {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+}
+
+.annot-highlight.annot-has-note::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.annot-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px 6px 6px 0;
+  background: var(--warning);
+  border: 2px solid #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.annot-popover {
+  position: absolute;
+  z-index: 4;
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 320px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: text;
+  cursor: auto;
+}
+
+.annot-popover-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--border);
+  padding-left: 8px;
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.annot-popover textarea {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  resize: vertical;
+  min-height: 56px;
+}
+
+.annot-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.annot-popover-actions .annot-delete {
+  margin-left: auto;
+  color: var(--danger);
+}
+
+.annot-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.annot-swatch.active {
+  border-color: var(--text-primary);
+}
+
+/* Floating pill shown over an active text selection */
+
+.annot-selection-menu {
+  position: fixed;
+  z-index: 10;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px 10px;
+}
+
+/* Citation hover markers + preview tooltip */
+
+.textLayer .cite-marker {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.textLayer .cite-marker:hover {
+  background: rgba(14, 165, 233, 0.28);
+}
+
+.cite-tooltip {
+  position: fixed;
+  z-index: 10;
+  transform: translate(-50%, -100%);
+  width: max-content;
+  max-width: 360px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: text;
+  cursor: auto;
+}
+
+.cite-tooltip-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cite-tooltip-entry + .cite-tooltip-entry {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.cite-tooltip-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.cite-tooltip-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.cite-tooltip-link {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cite-tooltip-link:hover {
+  text-decoration: underline;
+}
+
+/* Annotations sidebar (right rail) */
+
+.reader-notes {
+  width: 300px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 12px 8px;
+}
+
+/* Q&A panel — chat bubbles come from assistant.css (.as-*); this is the shell. */
+.reader-ask {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  flex-shrink: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 12px 10px;
+}
+
+.reader-ask .as-log {
+  max-height: none;
+  flex: 1;
+}
+
+.reader-notes h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0 10px 8px;
+}
+
+.reader-notes h3 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 8px 10px 4px;
+}
+
+.annot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.annot-row:hover {
+  background: var(--bg-hover);
+}
+
+.annot-row-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.annot-row-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.annot-row-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.annot-row-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annot-row-delete {
+  visibility: hidden;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.annot-row:hover .annot-row-delete {
+  visibility: visible;
+}
+
+.annot-row-delete:hover {
+  color: var(--danger);
+}
+
+.reader-notes-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 10px;
+}
+
+.ghost-btn.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+/* Loading / error states */
+
+.reader-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 40px;
+  text-align: center;
+}

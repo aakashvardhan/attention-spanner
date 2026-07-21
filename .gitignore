@@ -13,6 +13,12 @@ release/
 # Google Calendar OAuth signing key (see docs/google-calendar-setup.md)
 gcal-key.pem
 
+# Firebase Functions build output + emulator state (WhatsApp bridge)
+functions/lib/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
 # iOS Swift package build artifacts
 ios/**/.build/
 demo/.profile/

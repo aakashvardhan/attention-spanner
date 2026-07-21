@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { executePlan, executeTool, runAssistantTurn } from '../ai/assistant';
+import { executeTool, runAssistantTurn } from '../ai/assistant';
 import {
   appendTurn,
   newTurn,
@@ -10,6 +10,7 @@ import { geminiProvider } from '../ai/geminiProvider';
 import { nanoProvider } from '../ai/nanoProvider';
 import { cancelSpeech, speak } from '../ai/tts';
 import { localDate } from '../format';
+import { sendMessage } from '../messages';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { useSessionValue } from '../hooks/useSessionValue';
 import { useSpeechInput } from '../hooks/useSpeechInput';
@@ -89,6 +90,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
         nano: nanoProvider,
         cloud: geminiProvider,
         onToken: setPartial,
+        cache: true,
       });
       void ai.refresh();
       if (outcome.kind === 'reply') {
@@ -131,6 +133,20 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  const sendRef = useRef(send);
+  sendRef.current = send;
+
+  // Wake-word handoff: a command the offscreen listener captured but couldn't
+  // run (no model reachable there) — run it here, where Nano can download
+  useEffect(() => {
+    if (compact) return;
+    void getSession('assistantPendingInput').then(({ assistantPendingInput }) => {
+      if (!assistantPendingInput) return;
+      void setSession({ assistantPendingInput: '' });
+      void sendRef.current(assistantPendingInput);
+    });
+  }, [compact]);
+
   const confirm = async (turn: AssistantTurn) => {
     if (!turn.toolCall || busy) return;
     setBusy(true);
@@ -166,9 +182,14 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
     setBusy(true);
     const steps: AssistantPlanStep[] = turn.plan.steps.map((s) => ({ ...s }));
     try {
-      const run = await executePlan(steps, undefined, async (i, outcome) => {
-        steps[i] = { ...steps[i], status: outcome.status };
-        await patchTurn(turn.id, { plan: { steps: [...steps], status: 'pending-confirm' } });
+      // Confirmed plans apply atomically in the SW (single writer, run lock) —
+      // a parallel agent run can't interleave with these steps
+      const run = await sendMessage({
+        type: 'AGENT_APPLY_PROPOSALS',
+        proposals: steps.map((s) => ({ tool: s.name, params: s.params, summary: s.summary })),
+      });
+      run.outcomes.forEach((outcome, i) => {
+        if (steps[i]) steps[i] = { ...steps[i], status: outcome.status };
       });
       await patchTurn(turn.id, { plan: { steps, status: run.ok ? 'done' : 'failed' } });
       await persistTurn(newTurn('assistant', run.text, { kind: 'action-result', source: 'local' }));

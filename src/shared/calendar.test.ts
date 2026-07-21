@@ -223,7 +223,7 @@ describe('formatEventList', () => {
   });
 
   it('phrases empty days by label type', () => {
-    expect(formatEventList([], 'today')).toBe('No events today. 🎉');
-    expect(formatEventList([], 'Fri, Jul 17')).toBe('No events on Fri, Jul 17. 🎉');
+    expect(formatEventList([], 'today')).toBe('No events today.');
+    expect(formatEventList([], 'Fri, Jul 17')).toBe('No events on Fri, Jul 17.');
   });
 });

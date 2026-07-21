@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: var(--font-sans);
   background: #1e1a17;
   color: #f5f2ef;
   min-height: 100vh;
@@ -40,8 +40,8 @@ body {
 
 .blocked-countdown {
   font-size: 88px;
-  font-weight: 800;
-  color: #ff6b35;
+  font-weight: 700;
+  color: #38bdf8;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -49,7 +49,7 @@ body {
 .blocked-tasks {
   margin-top: 18px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 107, 53, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 12px;
   padding: 16px 24px;
   max-width: 480px;
@@ -60,9 +60,9 @@ body {
 }
 
 .blocked-tasks-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  color: #ff6b35;
+  color: #38bdf8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
@@ -76,7 +76,7 @@ body {
 .blocked-intent-text {
   font-size: 16px;
   font-weight: 700;
-  color: #ffd9c9;
+  color: #bae6fd;
 }
 
 .blocked-quit {
@@ -95,15 +95,15 @@ body {
 
 .blocked-continue {
   font-size: 16px;
-  color: #ff6b35;
+  color: #38bdf8;
   font-weight: 600;
   text-decoration: none;
-  border: 1px solid #ff6b35;
+  border: 1px solid #38bdf8;
   border-radius: 8px;
   padding: 12px 24px;
   margin-top: 10px;
 }
 
 .blocked-continue:hover {
-  background: rgba(255, 107, 53, 0.12);
+  background: rgba(56, 189, 248, 0.12);
 }

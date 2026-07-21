@@ -59,7 +59,30 @@ function toIsoDate(raw: string): string {
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
-function makeItem(link: string, title: string, pubDate: string, description: string, source: string): FeedItem {
+/**
+ * RSS `<category>` yields a string (or {#text}); Atom `<category term="...">`
+ * yields an object with `@_term`. Either can appear once or repeated (array).
+ * Normalize any of those shapes into a deduped list of non-empty labels.
+ */
+function toCategories(raw: unknown): string[] {
+  const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+  const labels = values
+    .map((value) => {
+      const term = (value as Record<string, unknown>)?.['@_term'];
+      return text(term !== undefined ? term : value).trim();
+    })
+    .filter((label) => label.length > 0);
+  return [...new Set(labels)];
+}
+
+function makeItem(
+  link: string,
+  title: string,
+  pubDate: string,
+  description: string,
+  source: string,
+  categories: string[] = [],
+): FeedItem {
   return {
     id: generateItemId(link, title),
     title,
@@ -68,6 +91,7 @@ function makeItem(link: string, title: string, pubDate: string, description: str
     pubDate: toIsoDate(pubDate),
     snippet: stripHtml(description).slice(0, 200),
     source,
+    categories,
   };
 }
 
@@ -98,6 +122,7 @@ export function parseFeedXml(xml: string, feedUrl: string): FeedItem[] {
         text(item.pubDate),
         text(item.description),
         feedTitle,
+        toCategories(item.category),
       ),
     );
   }
@@ -111,7 +136,7 @@ export function parseFeedXml(xml: string, feedUrl: string): FeedItem[] {
       const link = alternate?.['@_href'] ?? '';
       const updated = text(entry.updated) || text(entry.published);
       const summary = text(entry.summary) || text(entry.content);
-      return makeItem(link, text(entry.title), updated, summary, feedTitle);
+      return makeItem(link, text(entry.title), updated, summary, feedTitle, toCategories(entry.category));
     });
   }
 
@@ -129,6 +154,7 @@ interface Rss2JsonItem {
   link?: string;
   pubDate?: string;
   description?: string;
+  categories?: string[];
 }
 
 async function fetchFeedViaApi(feedUrl: string): Promise<FeedItem[]> {
@@ -146,7 +172,14 @@ async function fetchFeedViaApi(feedUrl: string): Promise<FeedItem[]> {
 
   const feedTitle = data.feed?.title || feedUrl;
   return (data.items ?? []).map((item) =>
-    makeItem(item.link ?? '', item.title ?? '', item.pubDate ?? '', item.description ?? '', feedTitle),
+    makeItem(
+      item.link ?? '',
+      item.title ?? '',
+      item.pubDate ?? '',
+      item.description ?? '',
+      feedTitle,
+      toCategories(item.categories),
+    ),
   );
 }
 
