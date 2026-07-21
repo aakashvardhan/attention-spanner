@@ -112,6 +112,20 @@ handle harder assistant queries).
 
 ## Installation
 
+### Easiest — you cloned this repo (no commands to type)
+
+After you download or `git clone` this project, just run the installer for your
+system. It builds the extension for you and opens Chrome to the last step.
+
+- **macOS** — double-click **`install.command`** in Finder.
+- **Windows** — double-click **`install.bat`** in File Explorer.
+- **Linux** — run `sh install.command`.
+
+The only thing it needs is [Node.js](https://nodejs.org) (download the "LTS"
+button once) — the installer checks for it and links you there if it's missing.
+When it finishes, Chrome opens to `chrome://extensions`: turn on **Developer
+mode**, click **Load unpacked**, and pick the `dist` folder it points you to.
+
 ### Without building (share with anyone)
 
 ```bash
