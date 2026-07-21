@@ -1,6 +1,6 @@
 # Reader
 
-**An RSS reader rebuilt as a full attention-management system for ADHD brains.**
+**An RSS reader rebuilt as a full attention-management system **
 
 Reader helps you finish what you start, capture thoughts before they vanish,
 and build the habits that keep you on track — everything runs locally, and
