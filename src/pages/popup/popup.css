@@ -229,25 +229,8 @@ main {
   font-size: var(--text-md);
 }
 
-button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.task-ignite):not(.ignition-start):not(.ignition-ghost) {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-md);
-  cursor: pointer;
-  transition: background var(--transition-base);
-}
 
-button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.task-ignite):not(.ignition-start):not(.ignition-ghost):hover {
-  background: var(--accent-hover);
-}
 
-button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.task-ignite):not(.ignition-start):not(.ignition-ghost):disabled {
-  background: var(--disabled);
-  cursor: default;
-}
 
 /* Focus bar (streak + sprint) */
 
@@ -284,44 +267,42 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   padding: 2px 8px;
 }
 
-/* The blanket `button:not(...)` rule above out-specifies these chips, so the
-   overrides need !important until Phase F's Button primitive retires it.
-   `color` was `inherit` and therefore lost to that rule's --on-accent: white
-   text on a white chip. Emoji hid it (they ignore `color`); text labels don't. */
+/* `color` was `inherit` here, which the retired blanket button rule turned
+   into white text on a white chip. Always state a chip's colour. */
 .gym-chip {
-  background: var(--bg-surface) !important;
+  background: var(--bg-surface);
   border: 1px solid var(--accent-border);
   border-radius: 10px;
-  padding: 2px 8px !important;
-  font-size: 12px !important;
+  padding: 2px 8px;
+  font-size: 12px;
   cursor: pointer;
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
 }
 
 .gym-chip:hover {
-  background: var(--accent-wash) !important;
+  background: var(--accent-wash);
 }
 
 .gym-chip.done {
   border-color: var(--success-border);
-  background: var(--success-bg) !important;
-  color: var(--success) !important;
+  background: var(--success-bg);
+  color: var(--success);
   cursor: default;
 }
 
 .sprint-btn {
-  background: var(--accent) !important;
+  background: var(--accent);
   color: var(--on-accent);
   border: none;
-  padding: 4px 12px !important;
+  padding: 4px 12px;
   border-radius: var(--radius-lg);
-  font-size: 12px !important;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .sprint-btn.active {
-  background: #333 !important;
+  background: #333;
   font-variant-numeric: tabular-nums;
 }
 
@@ -354,18 +335,18 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .bookmark-chip {
-  background: var(--bg-surface) !important;
+  background: var(--bg-surface);
   color: var(--accent);
   border: 1px solid var(--accent-border);
   border-radius: 10px;
-  padding: 3px 10px !important;
-  font-size: 12px !important;
+  padding: 3px 10px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .bookmark-chip:hover {
-  background: var(--accent-wash) !important;
+  background: var(--accent-wash);
 }
 
 .bookmark-newgroup input {
@@ -498,7 +479,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .task-add button {
-  padding: 10px 16px !important;
+  padding: 10px 16px;
 }
 
 .task-list {
@@ -608,16 +589,16 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .cards-deck-row {
-  display: flex !important;
+  display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-2);
-  background: var(--bg-surface) !important;
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: 10px 12px !important;
-  font-size: 14px !important;
+  padding: 10px 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
@@ -625,7 +606,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 }
 
 .cards-deck-row:hover {
-  background: var(--bg-subtle) !important;
+  background: var(--bg-subtle);
 }
 
 .cards-deck-name {

@@ -6,6 +6,7 @@ import { useSprint } from '../../../shared/hooks/useSprint';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../../shared/messages';
 import { DEFAULT_SETTINGS } from '../../../shared/storage';
+import { Button } from '../../../shared/components/ui';
 
 export function FocusBar() {
   const sprint = useSprint();
@@ -83,13 +84,13 @@ export function FocusBar() {
           </button>
         )}
         {sprint.active ? (
-          <button className="sprint-btn active" onClick={() => void sprint.cancel()}>
+          <Button className="sprint-btn active" onClick={() => void sprint.cancel()}>
             Stop {sprint.countdown}
-          </button>
+          </Button>
         ) : (
-          <button className="sprint-btn" onClick={() => void sprint.start()}>
+          <Button className="sprint-btn" onClick={() => void sprint.start()}>
             Sprint
-          </button>
+          </Button>
         )}
       </span>
     </div>

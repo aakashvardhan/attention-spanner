@@ -4,6 +4,7 @@ import { SortableTaskList } from '../../../shared/components/SortableTaskList';
 import { formatRelativeDate } from '../../../shared/format';
 import type { useTasks } from '../../../shared/hooks/useTasks';
 import type { Task } from '../../../shared/types';
+import { Button } from '../../../shared/components/ui';
 
 export function TaskPane({ tasks }: { tasks: ReturnType<typeof useTasks> }) {
   const [text, setText] = useState('');
@@ -32,9 +33,9 @@ export function TaskPane({ tasks }: { tasks: ReturnType<typeof useTasks> }) {
           placeholder="Add a task… (or press ⌘⇧Y anywhere)"
           maxLength={300}
         />
-        <button type="submit" disabled={!text.trim()}>
+        <Button type="submit" disabled={!text.trim()}>
           Add
-        </button>
+        </Button>
       </form>
 
       {tasks.openTasks.length === 0 && tasks.completedTasks.length === 0 ? (

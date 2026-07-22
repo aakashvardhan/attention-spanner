@@ -124,22 +124,7 @@ body {
   }
 }
 
-.panel {
-  background: var(--bg-surface);
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 320px;
-}
 
-.panel h2 {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
 .panel-scroll {
   display: flex;
@@ -149,12 +134,6 @@ body {
   overflow-y: auto;
 }
 
-.panel-empty {
-  color: var(--text-muted);
-  font-size: var(--text-md);
-  padding: var(--space-5) 0;
-  text-align: center;
-}
 
 .row-label {
   font-size: var(--text-sm);
@@ -245,21 +224,7 @@ body {
   color: var(--text-muted);
 }
 
-.ghost-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--text-base);
-  padding: 4px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
 
-.ghost-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
 
 /* Continue reading */
 
@@ -301,18 +266,7 @@ body {
   flex-shrink: 0;
 }
 
-.dash-bar {
-  height: 5px;
-  background: var(--accent-track);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
 
-.dash-bar-fill {
-  height: 100%;
-  background: var(--accent);
-}
 
 .dash-article-meta {
   font-size: var(--text-sm);
@@ -408,32 +362,9 @@ body {
 
 /* Streak panel */
 
-.streak-numbers {
-  display: flex;
-  justify-content: space-around;
-  padding: var(--space-2) 0;
-}
 
-.streak-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
 
-.streak-value {
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
 
-.streak-label {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
 .heatmap {
   display: flex;
@@ -467,22 +398,7 @@ body {
   color: var(--text-muted);
 }
 
-.sprint-start {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  padding: 14px;
-  border-radius: 10px;
-  font-size: var(--text-md);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-base);
-  margin-top: auto;
-}
 
-.sprint-start:hover {
-  background: var(--accent-hover);
-}
 
 .sprint-live {
   display: flex;
@@ -591,13 +507,8 @@ body {
 
 /* Bookmarks panel */
 
-.panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 
-.ghost-btn.editing {
+.ui-btn--ghost.editing {
   color: var(--accent);
   font-weight: 700;
 }

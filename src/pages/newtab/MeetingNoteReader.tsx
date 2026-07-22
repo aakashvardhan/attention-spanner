@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { MeetingNote, NoteBlock } from '../../shared/meetingNotes';
+import { Button, EmptyState } from '../../shared/components/ui';
 
 /** Full-screen reader overlay for one cached meeting note (see MeetingNotesPanel). */
 export function MeetingNoteReader({
@@ -39,12 +40,12 @@ export function MeetingNoteReader({
               )}
             </p>
           </div>
-          <button className="ghost-btn" title="Close (Esc)" onClick={onClose}>
+          <Button variant="ghost" title="Close (Esc)" onClick={onClose}>
             ✕
-          </button>
+          </Button>
         </header>
         <div className="mn-reader-body">
-          {note.blocks.length === 0 && <p className="panel-empty">This note has no content.</p>}
+          {note.blocks.length === 0 && <EmptyState>This note has no content.</EmptyState>}
           {note.blocks.map((block, i) => (
             <Block key={i} block={block} />
           ))}

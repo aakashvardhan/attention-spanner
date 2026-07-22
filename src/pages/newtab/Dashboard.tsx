@@ -14,6 +14,14 @@ import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { IgnitionCard } from '../../shared/components/IgnitionCard';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { SortableTaskList } from '../../shared/components/SortableTaskList';
+import {
+  Button,
+  EmptyState,
+  Panel,
+  ProgressBar,
+  Stat,
+  StatRow,
+} from '../../shared/components/ui';
 import { WakeHandoff } from '../../shared/components/WakeHandoff';
 import {
   FLASHCARDS_PAGE_PATH,
@@ -102,14 +110,15 @@ export function Dashboard() {
             </p>
           </div>
           <div className="dash-header-right">
-            <button
-              className="ghost-btn theme-toggle"
+            <Button
+              variant="ghost"
+              className="theme-toggle"
               title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
             >
               {theme.resolved === 'dark' ? 'Light' : 'Dark'}
-            </button>
+            </Button>
             <Clock />
           </div>
         </header>
@@ -160,18 +169,19 @@ function FeedsPanel() {
   const hasFilters = query !== '' || unreadOnly || effectiveFilter !== 'all' || effectiveCategory !== 'all';
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Feeds</h2>
-        <button
-          className="ghost-btn"
+    <Panel
+        title="Feeds"
+        action={
+        <Button
+          variant="ghost"
           title="Refresh feeds"
           onClick={() => void feed.refresh()}
           disabled={feed.refreshing}
         >
           ↻
-        </button>
-      </div>
+        </Button>
+        }
+      >
 
       {feed.items.length > 0 && (
         <div className="dash-feed-filters">
@@ -223,20 +233,20 @@ function FeedsPanel() {
 
       <div className="panel-scroll">
         {feed.feeds.length === 0 ? (
-          <p className="panel-empty">
+          <EmptyState>
             No feeds yet.{' '}
             <button className="link-btn" onClick={() => chrome.runtime.openOptionsPage()}>
               Add a feed
             </button>
-          </p>
+          </EmptyState>
         ) : filtered.length === 0 ? (
-          <p className="panel-empty">
+          <EmptyState>
             {feed.refreshing
               ? 'Loading feeds…'
               : hasFilters
                 ? 'No items match your filters.'
                 : 'No items — try refreshing.'}
-          </p>
+          </EmptyState>
         ) : (
           filtered.slice(0, MAX_LIST_ITEMS).map((item) => {
             const read = feed.readItems.includes(item.id);
@@ -264,7 +274,7 @@ function FeedsPanel() {
           })
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -296,28 +306,26 @@ function AgendaPanel() {
 
   if (!configured) {
     return (
-      <section className="panel">
-        <h2>Today</h2>
-        <p className="panel-empty">
+      <Panel title="Today">
+        <EmptyState>
           Google Calendar isn't configured for this build — see
           docs/google-calendar-setup.md to enable it.
-        </p>
-      </section>
+        </EmptyState>
+      </Panel>
     );
   }
 
   if (!calendar.connected) {
     return (
-      <section className="panel">
-        <h2>Today</h2>
-        <p className="panel-empty">See your day's events here and let the assistant block time.</p>
+      <Panel title="Today">
+        <EmptyState>See your day's events here and let the assistant block time.</EmptyState>
         {(connectError ?? calendar.lastError) && (
           <p className="ag-error">{connectError ?? calendar.lastError}</p>
         )}
-        <button className="sprint-start" disabled={connecting} onClick={() => void connect()}>
+        <Button block disabled={connecting} onClick={() => void connect()}>
           {connecting ? 'Connecting…' : 'Connect Google Calendar'}
-        </button>
-      </section>
+        </Button>
+      </Panel>
     );
   }
 
@@ -328,8 +336,7 @@ function AgendaPanel() {
     new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   return (
-    <section className="panel">
-      <h2>Today</h2>
+    <Panel title="Today">
       {next ? (
         <p className="ag-next">
           {next.event.title} <span className="ag-countdown">{formatCountdown(next.minutesUntil)}</span>
@@ -342,7 +349,7 @@ function AgendaPanel() {
         <p className="ag-next ag-clear">No more events — clear runway.</p>
       )}
       <div className="panel-scroll">
-        {today.length === 0 && <p className="panel-empty">Nothing scheduled today.</p>}
+        {today.length === 0 && <EmptyState>Nothing scheduled today.</EmptyState>}
         {today.map((event) => (
           <a
             key={event.id}
@@ -376,7 +383,7 @@ function AgendaPanel() {
         ))}
       </div>
       {calendar.lastError && <p className="ag-error">{calendar.lastError}</p>}
-    </section>
+    </Panel>
   );
 }
 
@@ -394,23 +401,21 @@ function MeetingNotesPanel() {
 
   if (!configured) {
     return (
-      <section className="panel">
-        <h2>Meetings</h2>
-        <p className="panel-empty">
+      <Panel title="Meetings">
+        <EmptyState>
           Pull your Notion meeting notes here — pick a database in Settings → Notion Sync.
-        </p>
-        <button className="sprint-start" onClick={() => void chrome.runtime.openOptionsPage()}>
+        </EmptyState>
+        <Button block onClick={() => void chrome.runtime.openOptionsPage()}>
           Open Settings
-        </button>
-      </section>
+        </Button>
+      </Panel>
     );
   }
 
   return (
-    <section className="panel">
-      <h2>Meetings</h2>
+    <Panel title="Meetings">
       <div className="panel-scroll">
-        {state.notes.length === 0 && <p className="panel-empty">No notes yet.</p>}
+        {state.notes.length === 0 && <EmptyState>No notes yet.</EmptyState>}
         {state.notes.map((note) => (
           <button key={note.id} className="mn-row" onClick={() => setReaderNote(note)}>
             <span className="mn-row-title">{note.title}</span>
@@ -420,7 +425,7 @@ function MeetingNotesPanel() {
       </div>
       {state.lastError && <p className="ag-error">{state.lastError}</p>}
       {readerNote && <MeetingNoteReader note={readerNote} onClose={() => setReaderNote(null)} />}
-    </section>
+    </Panel>
   );
 }
 
@@ -462,29 +467,31 @@ function BookmarksPanel() {
   };
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Links</h2>
-        <button
-          className={editing ? 'ghost-btn editing' : 'ghost-btn'}
+    <Panel
+        title="Links"
+        action={
+        <Button
+          variant="ghost"
+          className={editing ? 'editing' : undefined}
           title={editing ? 'Done editing' : 'Edit links'}
           onClick={() => setEditing((e) => !e)}
         >
           {editing ? 'Done' : '✎'}
-        </button>
-      </div>
+        </Button>
+        }
+      >
 
       <div className="panel-scroll">
         {bm.grouped.length === 0 && (
-          <p className="panel-empty">No links yet — add your go-to sites below.</p>
+          <EmptyState>No links yet — add your go-to sites below.</EmptyState>
         )}
         {bm.grouped.map((section) => (
           <div key={section.id ?? 'unsorted'} className="bm-group">
             <p className="row-label bm-group-head">
               {section.name}
               {editing && section.id !== null && (
-                <button
-                  className="ghost-btn"
+                <Button
+                  variant="ghost"
                   title="Delete group (links move to Unsorted)"
                   onClick={() => {
                     if (window.confirm(`Delete group "${section.name}"? Its links move to Unsorted.`)) {
@@ -493,7 +500,7 @@ function BookmarksPanel() {
                   }}
                 >
                   ✕
-                </button>
+                </Button>
               )}
             </p>
             <div className="bm-grid">
@@ -521,13 +528,13 @@ function BookmarksPanel() {
                         ))}
                         <option value="unsorted">Unsorted</option>
                       </select>
-                      <button
-                        className="ghost-btn"
+                      <Button
+                        variant="ghost"
                         title="Delete link"
                         onClick={() => void bm.deleteBookmark(link.id)}
                       >
                         ✕
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -581,7 +588,7 @@ function BookmarksPanel() {
         </div>
         {error && <p className="bm-error">{error}</p>}
       </form>
-    </section>
+    </Panel>
   );
 }
 
@@ -647,24 +654,12 @@ function GymPanel() {
   const weekCount = thisWeek.filter((date) => date in gym.checkins).length;
 
   return (
-    <section className="panel">
-      <h2>Gym</h2>
-      <div className="streak-numbers">
-        <div className="streak-stat">
-          <span className="streak-value">{gym.currentWeekStreak}</span>
-          <span className="streak-label">week streak</span>
-        </div>
-        <div className="streak-stat">
-          <span className="streak-value">{gym.longestWeekStreak}</span>
-          <span className="streak-label">longest</span>
-        </div>
-        <div className="streak-stat">
-          <span className="streak-value">
-            {weekCount}/{settings.gymWeeklyTarget}
-          </span>
-          <span className="streak-label">this week</span>
-        </div>
-      </div>
+    <Panel title="Gym">
+      <StatRow>
+        <Stat value={gym.currentWeekStreak} label="week streak" />
+        <Stat value={gym.longestWeekStreak} label="longest" />
+        <Stat value={<>{weekCount}/{settings.gymWeeklyTarget}</>} label="this week" />
+      </StatRow>
 
       <div className="heatmap" title={`Goal: ${settings.gymWeeklyTarget} sessions per week`}>
         {thisWeek.map((date, i) => (
@@ -689,14 +684,14 @@ function GymPanel() {
           </button>
         </div>
       ) : (
-        <button
-          className="sprint-start"
+        <Button
+          block
           onClick={() => void sendMessage({ type: 'GYM_CHECKIN' })}
         >
           I went today
-        </button>
+        </Button>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -730,13 +725,12 @@ function MilestoneLine() {
 
 function BrainDumpPanel() {
   return (
-    <section className="panel">
-      <h2>Brain dump</h2>
+    <Panel title="Brain dump">
       <BrainDump source="newtab" />
       <div className="panel-scroll">
         <NotesHistory />
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -760,18 +754,14 @@ function FlashcardsPanel() {
     void chrome.tabs.create({ url: chrome.runtime.getURL(FLASHCARDS_PAGE_PATH) + hash });
 
   return (
-    <section className="panel">
-      <h2>Flashcards</h2>
+    <Panel title="Flashcards">
       {decks.length === 0 ? (
-        <p className="panel-empty">No decks yet — create one to start studying.</p>
+        <EmptyState>No decks yet — create one to start studying.</EmptyState>
       ) : (
         <>
-          <div className="streak-numbers">
-            <div className="streak-stat">
-              <span className="streak-value">{due}</span>
-              <span className="streak-label">due now</span>
-            </div>
-          </div>
+          <StatRow>
+            <Stat value={due} label="due now" />
+          </StatRow>
           <div className="fc-dash-decks">
             {topDecks.map(({ deck, due: d }) => (
               <button className="fc-dash-deck" key={deck.id} onClick={() => open(`#deck=${deck.id}`)}>
@@ -782,10 +772,10 @@ function FlashcardsPanel() {
           </div>
         </>
       )}
-      <button className="sprint-start" onClick={() => open(due > 0 && topDecks[0] ? `#review=${topDecks[0].deck.id}` : '')}>
+      <Button block onClick={() => open(due > 0 && topDecks[0] ? `#review=${topDecks[0].deck.id}` : '')}>
         {due > 0 ? 'Study now' : 'Open flashcards'}
-      </button>
-    </section>
+      </Button>
+    </Panel>
   );
 }
 
@@ -801,14 +791,13 @@ function PapersPanel() {
   const top = readingNow.slice(0, 4);
 
   return (
-    <section className="panel">
-      <h2>Papers</h2>
+    <Panel title="Papers">
       {readingNow.length === 0 ? (
-        <p className="panel-empty">
+        <EmptyState>
           {toReadCount > 0
             ? `${toReadCount} paper${toReadCount === 1 ? '' : 's'} queued to read.`
             : 'No papers yet — track what you read, and pick up where you drifted off.'}
-        </p>
+        </EmptyState>
       ) : (
         <>
           <p className="row-label">Reading now</p>
@@ -824,9 +813,7 @@ function PapersPanel() {
                   <span className="paper-now-title">{p.title}</span>
                   <span className="paper-now-pct">{p.progressPercent}%</span>
                 </div>
-                <div className="dash-bar">
-                  <div className="dash-bar-fill" style={{ width: `${p.progressPercent}%` }} />
-                </div>
+                <ProgressBar percent={p.progressPercent} />
                 {p.leftOff && <span className="paper-now-leftoff">↳ {p.leftOff}</span>}
               </button>
             ))}
@@ -838,10 +825,10 @@ function PapersPanel() {
           )}
         </>
       )}
-      <button className="sprint-start" onClick={openPage}>
+      <Button block onClick={openPage}>
         {readingNow.length > 0 || toReadCount > 0 ? 'Open Papers' : '+ Track a paper'}
-      </button>
-    </section>
+      </Button>
+    </Panel>
   );
 }
 
@@ -858,8 +845,7 @@ function TaskPanel() {
   };
 
   return (
-    <section className="panel">
-      <h2>Tasks</h2>
+    <Panel title="Tasks">
       <form
         className="dash-task-add"
         onSubmit={(e) => {
@@ -877,7 +863,7 @@ function TaskPanel() {
       </form>
       <div className="panel-scroll">
         {tasks.openTasks.length === 0 ? (
-          <p className="panel-empty">Nothing pending.</p>
+          <EmptyState>Nothing pending.</EmptyState>
         ) : (
           <SortableTaskList
             tasks={tasks.openTasks}
@@ -908,7 +894,7 @@ function TaskPanel() {
           </>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -942,17 +928,17 @@ function DashTaskRow({
         </button>
       )}
       {!done && (
-        <button
-          className="ghost-btn"
+        <Button
+          variant="ghost"
           title="Snooze reminders for 1 hour"
           onClick={() => void sendMessage({ type: 'SNOOZE_TASK', id: task.id, minutes: 60 })}
         >
           Snooze
-        </button>
+        </Button>
       )}
-      <button className="ghost-btn" title="Delete" onClick={() => void tasks.deleteTask(task.id)}>
+      <Button variant="ghost" title="Delete" onClick={() => void tasks.deleteTask(task.id)}>
         ✕
-      </button>
+      </Button>
     </div>
   );
 }
@@ -969,11 +955,10 @@ function ContinuePanel() {
   );
 
   return (
-    <section className="panel">
-      <h2>Continue</h2>
+    <Panel title="Continue">
       <div className="panel-scroll">
         {inProgress.length === 0 ? (
-          <p className="panel-empty">No half-read articles or videos. Open one from the popup!</p>
+          <EmptyState>No half-read articles or videos. Open one from the popup!</EmptyState>
         ) : (
           inProgress.map(([key, p]) => (
             <div
@@ -995,9 +980,7 @@ function ContinuePanel() {
                 </span>
                 <span className="dash-article-percent">{p.maxPercent}%</span>
               </div>
-              <div className="dash-bar">
-                <div className="dash-bar-fill" style={{ width: `${p.maxPercent}%` }} />
-              </div>
+              <ProgressBar percent={p.maxPercent} />
               <span className="dash-article-meta">
                 {p.kind === 'video'
                   ? `${formatWatchTime(p.positionSeconds)} / ${formatWatchTime(p.durationSeconds)} · `
@@ -1009,7 +992,7 @@ function ContinuePanel() {
           ))
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1039,29 +1022,17 @@ function StreakPanel() {
   const today = streaks.daily[localDate()];
 
   return (
-    <section className="panel">
-      <h2>Focus</h2>
-      <div className="streak-numbers">
-        <div className="streak-stat">
-          <span className="streak-value">{streaks.currentStreak}</span>
-          <span className="streak-label">day streak</span>
-        </div>
-        <div className="streak-stat">
-          <span className="streak-value">{streaks.longestStreak}</span>
-          <span className="streak-label">longest</span>
-        </div>
-        <div className="streak-stat">
-          <span className="streak-value">{Math.round(today?.minutes ?? 0)}</span>
-          <span className="streak-label">min today</span>
-        </div>
-        <div
-          className="streak-stat"
-          title="Freeze tokens auto-cover missed days so a bad day can't break your streak. Earn one every 5 consecutive days (max 3)."
-        >
-          <span className="streak-value">{streaks.freezeTokens ?? 0}</span>
-          <span className="streak-label">freezes</span>
-        </div>
-      </div>
+    <Panel title="Focus">
+      <StatRow>
+        <Stat value={streaks.currentStreak} label="day streak" />
+        <Stat value={streaks.longestStreak} label="longest" />
+        <Stat value={Math.round(today?.minutes ?? 0)} label="min today" />
+        <Stat
+          title="Freeze tokens auto-cover missed days so a bad day can't break your streak. Earn one every 5 consecutive days (max 3), or as a surprise drop when you finish something."
+          value={streaks.freezeTokens ?? 0}
+          label="freezes"
+        />
+      </StatRow>
 
       <div className="heatmap" title={`Goal: ${settings.dailyGoalMinutes} min of reading (or one sprint) per day`}>
         {days.map((day) => (
@@ -1084,15 +1055,15 @@ function StreakPanel() {
           </button>
         </div>
       ) : (
-        <button className="sprint-start" onClick={() => void sprint.start()}>
+        <Button block onClick={() => void sprint.start()}>
           Start a {settings.sprintMinutes}-minute reading sprint
-        </button>
+        </Button>
       )}
 
       <MilestoneLine />
 
       <FocusModeSection />
-    </section>
+    </Panel>
   );
 }
 

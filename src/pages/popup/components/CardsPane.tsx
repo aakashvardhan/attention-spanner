@@ -2,6 +2,7 @@ import { FLASHCARDS_PAGE_PATH } from '../../../shared/constants';
 import { localDate } from '../../../shared/format';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { dueCounts, newIntroducedToday } from '../../../shared/srs';
+import { Button } from '../../../shared/components/ui';
 
 export function CardsPane() {
   const [decks] = useStorageValue('decks');
@@ -41,9 +42,9 @@ export function CardsPane() {
           })}
         </div>
       )}
-      <button className="cards-open-btn" onClick={() => open()}>
+      <Button block onClick={() => open()}>
         Open Flashcards
-      </button>
+      </Button>
     </main>
   );
 }

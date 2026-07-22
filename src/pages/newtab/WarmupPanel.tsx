@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { localDate } from '../../shared/format';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { Button, Panel, ProgressBar, Stat, StatRow } from '../../shared/components/ui';
 import { sendMessage } from '../../shared/messages';
 import {
   nextTrial,
@@ -128,32 +129,22 @@ export function WarmupPanel() {
   const todayResult = warmup.days[localDate()];
 
   return (
-    <section className="panel">
-      <h2>Warm-up</h2>
+    <Panel title="Warm-up">
 
       {phase === 'idle' && (
         <>
-          <div className="streak-numbers">
-            <div className="streak-stat">
-              <span className="streak-value">{warmup.currentStreak}</span>
-              <span className="streak-label">day streak</span>
-            </div>
-            <div className="streak-stat">
-              <span className="streak-value">{warmup.longestStreak}</span>
-              <span className="streak-label">longest</span>
-            </div>
-            <div className="streak-stat">
-              <span className="streak-value">{warmup.bestScore}</span>
-              <span className="streak-label">best score</span>
-            </div>
-          </div>
+          <StatRow>
+            <Stat value={warmup.currentStreak} label="day streak" />
+            <Stat value={warmup.longestStreak} label="longest" />
+            <Stat value={warmup.bestScore} label="best score" />
+          </StatRow>
           {todayResult && (
             <p className="gym-logged">Warmed up today — {todayResult.score} correct</p>
           )}
           <p className="sprint-hint">Tap the ink color, not the word — 60 seconds.</p>
-          <button className="sprint-start" onClick={start}>
+          <Button block onClick={start}>
             {todayResult ? 'Play again' : 'Start 60-second sprint'}
-          </button>
+          </Button>
         </>
       )}
 
@@ -170,12 +161,7 @@ export function WarmupPanel() {
             <span>{Math.ceil(remainingMs / 1000)}s</span>
             <span>{correct} correct</span>
           </div>
-          <div className="dash-bar">
-            <div
-              className="dash-bar-fill"
-              style={{ width: `${(remainingMs / (WARMUP_SECONDS * 1000)) * 100}%` }}
-            />
-          </div>
+          <ProgressBar percent={(remainingMs / (WARMUP_SECONDS * 1000)) * 100} />
           <div className="stroop-word" style={{ color: `var(--stroop-${trial.ink})` }}>
             {trial.word.toUpperCase()}
           </div>
@@ -208,14 +194,14 @@ export function WarmupPanel() {
                 : 'Already counted today — nice reps anyway.'}
             </p>
           </div>
-          <button className="sprint-start" onClick={start}>
+          <Button block onClick={start}>
             Play again
-          </button>
+          </Button>
           <button className="sprint-cancel" onClick={() => setPhase('idle')}>
             done
           </button>
         </>
       )}
-    </section>
+    </Panel>
   );
 }
