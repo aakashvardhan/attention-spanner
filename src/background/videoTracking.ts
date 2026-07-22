@@ -1,4 +1,5 @@
-import { getLocal, getSession, getSettings, setLocal, setSession } from '../shared/storage';
+import { VIDEO_MIN_MINUTES } from '../shared/constants';
+import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { recordEvent } from './gamification';
@@ -30,15 +31,14 @@ export async function maybeInjectVideoTracker(tabId: number, url: string): Promi
   }
 }
 
-/** Gate + resume handshake. The duration threshold lives here — settings stay SW-owned. */
+/** Gate + resume handshake. VIDEO_MIN_MINUTES is the tracking threshold. */
 export async function handleVideoReady(
   sender: chrome.runtime.MessageSender,
   msg: { videoId: string; durationSeconds: number },
 ): Promise<{ ok: boolean; track: boolean; resume: { positionSeconds: number } | null }> {
-  const settings = await getSettings();
   const longEnough =
     Number.isFinite(msg.durationSeconds) &&
-    msg.durationSeconds >= settings.videoMinMinutes * 60;
+    msg.durationSeconds >= VIDEO_MIN_MINUTES * 60;
   if (!longEnough) return { ok: true, track: false, resume: null };
 
   // Prefer an explicit pending resume (tab opened from Continue Watching / nudge)

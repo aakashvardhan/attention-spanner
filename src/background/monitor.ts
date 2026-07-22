@@ -4,6 +4,8 @@ import {
   MONITOR_CARDS_DUE_MIN,
   MONITOR_EVENT_WINDOW_MIN,
   NOTIFICATION_IDS,
+  QUIET_HOURS_END,
+  QUIET_HOURS_START,
 } from '../shared/constants';
 import { localDate } from '../shared/format';
 import { dueCounts, newIntroducedToday, totalDue } from '../shared/srs';
@@ -69,7 +71,7 @@ function monitorGatesOpen(settings: Settings, now: Date): boolean {
   return (
     settings.notificationsEnabled &&
     settings.assistantMonitorEnabled &&
-    !inQuietHours(settings.monitorQuietStart, settings.monitorQuietEnd, now)
+    !inQuietHours(QUIET_HOURS_START, QUIET_HOURS_END, now)
   );
 }
 

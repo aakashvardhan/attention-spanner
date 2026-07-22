@@ -3,6 +3,8 @@ import {
   AUTOMATION_DIGEST_MAX_CHARS,
   AUTOMATION_MAX_PROPOSALS,
   NOTIFICATION_IDS,
+  QUIET_HOURS_END,
+  QUIET_HOURS_START,
 } from '../constants';
 import { getLocal, getSession, getSettings, setLocal, setSession } from '../storage';
 import type { AssistantAutomation } from '../types';
@@ -131,7 +133,7 @@ export async function executeAutomation(
 ): Promise<{ ok: boolean; error?: string }> {
   const settings = await getSettings();
   if (!settings.assistantEnabled) return { ok: false, error: 'assistant disabled' };
-  if (!opts.force && inQuietHours(settings.monitorQuietStart, settings.monitorQuietEnd, now)) {
+  if (!opts.force && inQuietHours(QUIET_HOURS_START, QUIET_HOURS_END, now)) {
     return { ok: false, error: 'quiet hours' };
   }
   // Debounce: an alarm and a pending-queue drain racing the same automation

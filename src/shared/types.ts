@@ -151,11 +151,6 @@ export interface Settings {
   refreshInterval: number;
   notificationsEnabled: boolean;
   nudgesEnabled: boolean;
-  /** Minutes away from a partially-read article before a nudge fires */
-  nudgeDelayMinutes: number;
-  /** Per-article cooldown between nudges, minutes */
-  nudgeCooldownMinutes: number;
-  nudgeMaxPerArticle: number;
   /** 0 = reminders off */
   taskReminderIntervalMinutes: number;
   sprintMinutes: number;
@@ -165,10 +160,8 @@ export interface Settings {
   gymWeeklyTarget: number;
   /** Local 'HH:MM' for the daily gym reminder; '' = off */
   gymReminderTime: string;
-  /** Only auto-track YouTube videos at least this long */
-  videoMinMinutes: number;
-  /** Unbroken engagement minutes before the hyperfocus break nudge; 0 = off */
-  hyperfocusMinutes: number;
+  /** Warn after a long unbroken reading/watching run (HYPERFOCUS_MINUTES) */
+  hyperfocusEnabled: boolean;
   /** Domains that get the floating time-on-site pill */
   timePillHosts: string[];
   /** Domains blocked during focus sessions */
@@ -222,9 +215,6 @@ export interface Settings {
   focusCalendarBlockEnabled: boolean;
   /** Proactive Jarvis nudges: streak-at-risk / cards-due evening check + event reminders */
   assistantMonitorEnabled: boolean;
-  /** Local 'HH:MM' bounds where the monitor stays silent (wraps overnight) */
-  monitorQuietStart: string;
-  monitorQuietEnd: string;
   /** Local 'HH:MM' for the daily evening check; '' = off */
   monitorEveningTime: string;
 }

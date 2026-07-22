@@ -1,4 +1,4 @@
-import { NOTIFICATION_IDS } from '../shared/constants';
+import { HYPERFOCUS_MINUTES, NOTIFICATION_IDS } from '../shared/constants';
 import { getSession, getSettings, setSession } from '../shared/storage';
 
 /**
@@ -34,9 +34,9 @@ export async function recordEngagement(deltaSeconds: number, ended: boolean): Pr
   state.lastDeltaAt = now;
 
   const settings = await getSettings();
-  const threshold = settings.hyperfocusMinutes * 60;
+  const threshold = HYPERFOCUS_MINUTES * 60;
   const due =
-    settings.hyperfocusMinutes > 0 &&
+    settings.hyperfocusEnabled &&
     state.unbrokenSeconds >= threshold &&
     (state.notifiedAtSeconds === 0 ||
       state.unbrokenSeconds - state.notifiedAtSeconds >= RENOTIFY_SECONDS);

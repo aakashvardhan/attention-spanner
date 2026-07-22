@@ -3,6 +3,22 @@ export const ACCENT_COLOR = '#0ea5e9';
 export const FETCH_TIMEOUT_MS = 15000;
 export const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/* Come-back nudges. These were settings; nobody retunes them, and the ADHD-
+   tuned values are the point of the feature. `nudgesEnabled` still switches
+   the whole thing off. */
+/** Minutes away from a partially-read article before a nudge fires */
+export const NUDGE_DELAY_MINUTES = 3;
+/** Per-article cooldown between nudges */
+export const NUDGE_COOLDOWN_MINUTES = 60;
+export const NUDGE_MAX_PER_ARTICLE = 2;
+/** Only auto-track YouTube videos at least this long */
+export const VIDEO_MIN_MINUTES = 15;
+/** Unbroken engagement before the hyperfocus break nudge (hyperfocusEnabled gates it) */
+export const HYPERFOCUS_MINUTES = 90;
+/** Local 'HH:MM' bounds where proactive nudges stay silent (wraps overnight) */
+export const QUIET_HOURS_START = '22:00';
+export const QUIET_HOURS_END = '08:00';
+
 export const MAX_READ_ITEMS = 500;
 export const MAX_LIST_ITEMS = 50;
 export const COMPLETED_TASK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -126,8 +142,6 @@ export const NOTIFICATION_IDS = {
   sprintDone: 'sprint-done',
   nudgePrefix: 'nudge|',
   gymReminder: 'gym-reminder',
-  levelUp: 'level-up',
-  questComplete: 'quest-complete',
   badgePrefix: 'badge|',
   focusPhase: 'focus-phase',
   bookmarkSaved: 'bookmark-saved',

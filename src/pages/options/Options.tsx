@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SAMPLE_FEEDS } from '../../shared/constants';
+import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
@@ -250,37 +250,19 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="nudge-delay">Nudge me after I've been away for:</label>
-            <select
-              id="nudge-delay"
-              value={settings.nudgeDelayMinutes}
-              disabled={!settings.notificationsEnabled || !settings.nudgesEnabled}
-              onChange={(e) => void patchSettings({ nudgeDelayMinutes: Number(e.target.value) })}
-            >
-              <option value={1}>1 minute</option>
-              <option value={3}>3 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="hyperfocus-minutes">
+            <label htmlFor="hyperfocus-enabled">
               Hyperfocus check-in{' '}
-              <span className="hint-inline">(break reminder after unbroken reading/watching)</span>
+              <span className="hint-inline">
+                (break reminder after {HYPERFOCUS_MINUTES} min unbroken reading/watching)
+              </span>
             </label>
-            <select
-              id="hyperfocus-minutes"
-              value={settings.hyperfocusMinutes}
+            <input
+              id="hyperfocus-enabled"
+              type="checkbox"
+              checked={settings.hyperfocusEnabled}
               disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ hyperfocusMinutes: Number(e.target.value) })}
-            >
-              <option value={0}>Off</option>
-              <option value={45}>After 45 min</option>
-              <option value={60}>After 1 hour</option>
-              <option value={90}>After 90 min</option>
-              <option value={120}>After 2 hours</option>
-            </select>
+              onChange={(e) => void patchSettings({ hyperfocusEnabled: e.target.checked })}
+            />
           </div>
           <div className="setting-row">
             <label htmlFor="monitor-enabled">
@@ -310,28 +292,6 @@ export function Options() {
               <option value="20:00">8:00 PM</option>
               <option value="21:00">9:00 PM</option>
             </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="monitor-quiet-start">
-              Quiet hours <span className="hint-inline">(no Jarvis check-ins)</span>
-            </label>
-            <span>
-              <input
-                id="monitor-quiet-start"
-                type="time"
-                value={settings.monitorQuietStart}
-                disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
-                onChange={(e) => void patchSettings({ monitorQuietStart: e.target.value })}
-              />
-              {' – '}
-              <input
-                id="monitor-quiet-end"
-                type="time"
-                value={settings.monitorQuietEnd}
-                disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
-                onChange={(e) => void patchSettings({ monitorQuietEnd: e.target.value })}
-              />
-            </span>
           </div>
         </section>
 
@@ -365,20 +325,6 @@ export function Options() {
               <option value="19:00">7:00 PM</option>
               <option value="20:00">8:00 PM</option>
               <option value="21:00">9:00 PM</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="video-min-minutes">Track YouTube videos longer than:</label>
-            <select
-              id="video-min-minutes"
-              value={settings.videoMinMinutes}
-              onChange={(e) => void patchSettings({ videoMinMinutes: Number(e.target.value) })}
-            >
-              {[1, 5, 10, 15, 20, 30].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
             </select>
           </div>
         </section>

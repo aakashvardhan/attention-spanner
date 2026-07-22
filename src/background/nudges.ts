@@ -1,4 +1,10 @@
-import { ALARMS, NOTIFICATION_IDS } from '../shared/constants';
+import {
+  ALARMS,
+  NOTIFICATION_IDS,
+  NUDGE_COOLDOWN_MINUTES,
+  NUDGE_DELAY_MINUTES,
+  NUDGE_MAX_PER_ARTICLE,
+} from '../shared/constants';
 import { getLocal, getSession, getSettings, setLocal, setSession } from '../shared/storage';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { keyMatchesUrl } from '../shared/youtube';
@@ -23,7 +29,7 @@ export async function scheduleNudge(key: string): Promise<void> {
   const settings = await getSettings();
   if (!settings.notificationsEnabled || !settings.nudgesEnabled) return;
   chrome.alarms.create(alarmName(key), {
-    delayInMinutes: Math.max(0.5, settings.nudgeDelayMinutes),
+    delayInMinutes: NUDGE_DELAY_MINUTES,
   });
 }
 
@@ -55,8 +61,8 @@ export async function fireNudge(alarmNameFired: string): Promise<void> {
     progress.completedAt === null &&
     progress.activeSeconds >= MIN_ACTIVE_SECONDS &&
     !progress.nudge.dismissed &&
-    progress.nudge.count < settings.nudgeMaxPerArticle &&
-    now - progress.nudge.lastAt > settings.nudgeCooldownMinutes * 60 * 1000 &&
+    progress.nudge.count < NUDGE_MAX_PER_ARTICLE &&
+    now - progress.nudge.lastAt > NUDGE_COOLDOWN_MINUTES * 60 * 1000 &&
     now - lastGlobalNudgeAt > GLOBAL_NUDGE_GAP_MS;
   if (!eligible) return;
 
