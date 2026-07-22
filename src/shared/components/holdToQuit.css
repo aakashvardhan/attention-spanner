@@ -5,8 +5,8 @@
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;

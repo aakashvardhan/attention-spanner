@@ -21,7 +21,7 @@ header {
   background: var(--accent);
   color: var(--on-accent);
   border-radius: 0 0 12px 12px;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-5);
 }
 
 header h1 {
@@ -33,7 +33,7 @@ header h1 {
   background: var(--bg-surface);
   border-radius: 10px;
   padding: 20px;
-  margin: 0 16px 16px;
+  margin: 0 var(--space-4) var(--space-4);
   box-shadow: var(--shadow-sm);
 }
 
@@ -46,15 +46,15 @@ header h1 {
 
 .add-feed-form {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .add-feed-form input {
   flex: 1;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
 }
 
 .add-feed-form input:focus {
@@ -67,10 +67,10 @@ button {
   color: var(--on-accent);
   border: none;
   padding: 10px 18px;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-base);
 }
 
 button:hover {
@@ -79,9 +79,9 @@ button:hover {
 
 .feedback {
   margin-top: 10px;
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 6px;
+  font-size: var(--text-base);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
 }
 
 .feedback.success {
@@ -102,22 +102,22 @@ button:hover {
 .feeds-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .feed-entry {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
 }
 
 .feed-entry-url {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -127,8 +127,8 @@ button:hover {
 .remove-feed-btn {
   background: transparent;
   color: var(--text-faint);
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-base);
 }
 
 .remove-feed-btn:hover {
@@ -138,27 +138,27 @@ button:hover {
 
 .empty-message {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
 }
 
 .setting-row label {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
 }
 
 .setting-row select {
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
   background: var(--bg-subtle);
   cursor: pointer;
 }
@@ -173,7 +173,7 @@ button:hover {
 .hint-inline {
   color: var(--text-faint);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .button-group {
@@ -191,7 +191,7 @@ button:hover {
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-bottom: 10px;
 }
@@ -199,7 +199,7 @@ button:hover {
 .sample-feeds {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .sample-feed {

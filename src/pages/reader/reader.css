@@ -23,7 +23,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
@@ -33,7 +33,7 @@ body {
 .reader-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -48,12 +48,12 @@ body {
 .reader-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   flex-shrink: 0;
 }
 
 .reader-pageno {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   padding: 0 6px;
   font-variant-numeric: tabular-nums;
@@ -64,7 +64,7 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 4px 6px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -85,9 +85,9 @@ body {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 14px;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
@@ -104,7 +104,7 @@ body {
 
 .fc-error {
   color: var(--danger);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* Track-this-paper banner / form */
@@ -113,11 +113,11 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   padding: 8px 14px;
   background: var(--accent-soft);
   border-bottom: 1px solid var(--accent-border);
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--accent-text);
   flex-shrink: 0;
 }
@@ -125,7 +125,7 @@ body {
 .reader-track-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 10px 14px;
   background: var(--accent-soft);
   border-bottom: 1px solid var(--accent-border);
@@ -134,17 +134,17 @@ body {
 
 .reader-track-fields {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .reader-track-fields input,
 .reader-track-fields select {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-primary);
   flex: 1 1 160px;
@@ -156,14 +156,14 @@ body {
 }
 
 .reader-track-msg {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
 .reader-track-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* Body: outline sidebar + page viewport */
@@ -180,11 +180,11 @@ body {
   overflow-y: auto;
   border-right: 1px solid var(--border);
   background: var(--bg-surface);
-  padding: 12px 8px;
+  padding: var(--space-3) var(--space-2);
 }
 
 .reader-outline h2 {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -203,10 +203,10 @@ body {
   background: transparent;
   border: none;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   padding: 5px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -355,32 +355,32 @@ body {
   max-width: 320px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   user-select: text;
   cursor: auto;
 }
 
 .annot-popover-snippet {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   border-left: 3px solid var(--border);
-  padding-left: 8px;
+  padding-left: var(--space-2);
   max-height: 60px;
   overflow: hidden;
 }
 
 .annot-popover textarea {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-primary);
   background: var(--bg-page);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   resize: vertical;
   min-height: 56px;
@@ -422,7 +422,7 @@ body {
   gap: 6px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   box-shadow: var(--shadow-lg);
   padding: 6px 10px;
 }
@@ -447,7 +447,7 @@ body {
   max-width: 360px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 10px 12px;
   display: flex;
@@ -460,7 +460,7 @@ body {
 .cite-tooltip-entry {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .cite-tooltip-entry + .cite-tooltip-entry {
@@ -469,7 +469,7 @@ body {
 }
 
 .cite-tooltip-text {
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.4;
   color: var(--text-primary);
   max-height: 140px;
@@ -479,12 +479,12 @@ body {
 .cite-tooltip-label {
   color: var(--text-secondary);
   font-weight: 700;
-  margin-right: 4px;
+  margin-right: var(--space-1);
 }
 
 .cite-tooltip-link {
   align-self: flex-start;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--accent);
   text-decoration: none;
@@ -502,7 +502,7 @@ body {
   overflow-y: auto;
   border-left: 1px solid var(--border);
   background: var(--bg-surface);
-  padding: 12px 8px;
+  padding: var(--space-3) var(--space-2);
 }
 
 /* Q&A panel — chat bubbles come from assistant.css (.as-*); this is the shell. */
@@ -523,7 +523,7 @@ body {
 }
 
 .reader-notes h2 {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -532,7 +532,7 @@ body {
 }
 
 .reader-notes h3 {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-muted);
   padding: 8px 10px 4px;
@@ -541,14 +541,14 @@ body {
 .annot-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
   text-align: left;
   background: transparent;
   border: none;
   font-family: var(--font-sans);
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -570,7 +570,7 @@ body {
 }
 
 .annot-row-text {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -579,7 +579,7 @@ body {
 }
 
 .annot-row-note {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   font-style: italic;
   overflow: hidden;
@@ -593,7 +593,7 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 0 2px;
   flex-shrink: 0;
 }
@@ -607,7 +607,7 @@ body {
 }
 
 .reader-notes-empty {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   padding: 8px 10px;
 }
@@ -627,7 +627,7 @@ body {
   align-items: center;
   gap: 14px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-md);
   padding: 40px;
   text-align: center;
 }

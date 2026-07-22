@@ -3,7 +3,7 @@
 .as-chat {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 0;
   flex: 1;
 }
@@ -11,7 +11,7 @@
 .as-log {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   overflow-y: auto;
   max-height: 300px;
   min-height: 120px;
@@ -25,21 +25,21 @@
 .as-empty {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   padding: 8px 2px;
 }
 
 .as-suggestion {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 
 .as-bubble {
   max-width: 88%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -85,16 +85,16 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--accent);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 }
 
 .as-briefing-play {
   float: right;
   background: transparent;
   border: none;
-  font-size: 14px;
+  font-size: var(--text-md);
   line-height: 1;
-  padding: 0 0 0 8px;
+  padding: 0 0 0 var(--space-2);
   cursor: pointer;
 }
 
@@ -152,7 +152,7 @@
   letter-spacing: 0.5px;
   color: var(--text-muted);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1px 6px;
   vertical-align: middle;
 }
@@ -160,7 +160,7 @@
 .as-confirm {
   display: flex;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 
 .as-confirm-yes {
@@ -168,8 +168,8 @@
   color: var(--on-accent);
   border: none;
   padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -183,8 +183,8 @@
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 
@@ -195,7 +195,7 @@
 }
 
 .as-hint {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin: 0;
 }
@@ -210,8 +210,8 @@
   flex: 1;
   padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   font-family: inherit;
   box-sizing: border-box;
   min-width: 0;
@@ -228,7 +228,7 @@
   border: none;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
@@ -250,8 +250,8 @@
   border: 1px solid var(--border);
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
   cursor: pointer;
   flex-shrink: 0;
   user-select: none;
@@ -278,9 +278,9 @@
   background: transparent;
   color: var(--text-muted);
   border: none;
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: pointer;
-  padding: 4px;
+  padding: var(--space-1);
   flex-shrink: 0;
 }
 

@@ -21,7 +21,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   margin-bottom: 20px;
 }
 
@@ -33,7 +33,7 @@ body {
 }
 
 .fc-header h1 {
-  font-size: 24px;
+  font-size: var(--text-2xl);
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -45,7 +45,7 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 4px 6px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -58,13 +58,13 @@ body {
 }
 
 .fc-back {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .fc-theme-toggle {
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 
 .fc-main {
@@ -84,12 +84,12 @@ body {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .row-label {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -98,17 +98,17 @@ body {
 }
 
 .fc-empty p {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   line-height: 1.5;
 }
 
 .fc-error {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--danger);
   background: var(--danger-bg);
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .fc-primary-btn {
@@ -116,11 +116,11 @@ body {
   color: var(--on-accent);
   border: none;
   padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-base);
 }
 
 .fc-primary-btn:hover {
@@ -143,7 +143,7 @@ body {
 .fc-deck-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   padding: 14px 18px;
 }
 
@@ -153,7 +153,7 @@ body {
   background: none;
   border: none;
   text-align: left;
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
@@ -168,14 +168,14 @@ body {
 
 .fc-deck-counts {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .fc-chip {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 2px 8px;
   text-align: center;
   white-space: nowrap;
@@ -199,7 +199,7 @@ body {
 .fc-deck-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .fc-study-btn {
@@ -207,8 +207,8 @@ body {
   color: var(--on-accent);
   border: none;
   padding: 7px 16px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   font-weight: 700;
   cursor: pointer;
 }
@@ -219,15 +219,15 @@ body {
 
 .fc-add-deck {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .fc-add-deck input {
   flex: 1;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
 }
 
 .fc-add-deck input:focus {
@@ -240,14 +240,14 @@ body {
 .dash-bar {
   height: 6px;
   background: var(--bg-subtle);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .dash-bar-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: width 0.3s;
 }
 
@@ -262,37 +262,37 @@ body {
 .pp-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .pp-fetch-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .pp-fetch-row input {
   flex: 1;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
 }
 
 .pp-fetch-msg {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .pp-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   flex: 1;
   min-width: 0;
 }
 
 .pp-field > span {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -301,10 +301,10 @@ body {
 .pp-field select,
 .pp-field textarea {
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
   font-family: inherit;
   background: var(--bg-surface);
   color: var(--text-primary);
@@ -335,7 +335,7 @@ body {
 .pp-form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* Paper list + rows */
@@ -355,7 +355,7 @@ body {
 .pp-row-head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .pp-row-title-wrap {
@@ -376,23 +376,23 @@ a.pp-row-title:hover {
 }
 
 .pp-row-authors {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   margin-top: 2px;
 }
 
 .pp-row-meta {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-top: 2px;
 }
 
 .pp-status {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -419,7 +419,7 @@ a.pp-row-title:hover {
 .pp-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
@@ -427,8 +427,8 @@ a.pp-row-title:hover {
 .pp-controls input {
   padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   background: var(--bg-surface);
   color: var(--text-primary);
 }
@@ -436,8 +436,8 @@ a.pp-row-title:hover {
 .pp-pct {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  gap: var(--space-1);
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
@@ -453,13 +453,13 @@ a.pp-row-title:hover {
 .pp-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   border-top: 1px solid var(--border-subtle);
   padding-top: 10px;
 }
 
 .pp-detail {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   line-height: 1.5;
   white-space: pre-wrap;
@@ -469,18 +469,18 @@ a.pp-row-title:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .pp-updated {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .pp-row-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .pp-row-editing {

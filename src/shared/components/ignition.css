@@ -7,12 +7,12 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1;
   padding: 2px 4px;
   flex-shrink: 0;
   opacity: 0.55;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .task-ignite:hover {
@@ -24,35 +24,35 @@
   margin: 6px 0 2px 24px;
   padding: 10px 12px;
   border-left: 3px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .ignition-status {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .ignition-action {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
 }
 
 .ignition-hint {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
 .ignition-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .ignition-start {
@@ -60,8 +60,8 @@
   color: var(--on-accent, #fff);
   border: none;
   padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -80,7 +80,7 @@
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 2px 4px;
 }
 

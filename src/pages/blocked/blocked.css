@@ -50,8 +50,8 @@ body {
   margin-top: 18px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 12px;
-  padding: 16px 24px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
   max-width: 480px;
   text-align: left;
   display: flex;
@@ -60,21 +60,21 @@ body {
 }
 
 .blocked-tasks-label {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: #38bdf8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 }
 
 .blocked-task {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: #e8e2dc;
 }
 
 .blocked-intent-text {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: #bae6fd;
 }
@@ -94,13 +94,13 @@ body {
 }
 
 .blocked-continue {
-  font-size: 16px;
+  font-size: var(--text-lg);
   color: #38bdf8;
   font-weight: 600;
   text-decoration: none;
   border: 1px solid #38bdf8;
-  border-radius: 8px;
-  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
   margin-top: 10px;
 }
 
