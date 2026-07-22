@@ -9,12 +9,12 @@ import {
   nextUpcoming,
   todayEvents,
 } from '../../shared/calendar';
-import { AssistantChat } from '../../shared/components/AssistantChat';
 import { BrainDump } from '../../shared/components/BrainDump';
 import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { IgnitionCard } from '../../shared/components/IgnitionCard';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { SortableTaskList } from '../../shared/components/SortableTaskList';
+import { WakeHandoff } from '../../shared/components/WakeHandoff';
 import {
   FLASHCARDS_PAGE_PATH,
   FOCUS_PRESETS,
@@ -118,14 +118,10 @@ export function Dashboard() {
         <ActivityCalendar />
       </div>
       <DashboardGrid cards={DASHBOARD_CARDS} />
-      {/* Headless: the wake-word handoff runs only on a non-compact AssistantChat.
-          The visible assistant now lives in the popup, so mount a hidden one here
-          to keep "Hey Jarvis" commands executing when the setting is on. */}
-      {settings.assistantWakeWordEnabled && (
-        <div className="sr-only">
-          <AssistantChat />
-        </div>
-      )}
+      {/* The visible assistant lives in the popup; the wake-word listener opens
+          this page when it can't run a command itself, so keep a headless
+          runner here to execute the handed-off command. */}
+      {settings.assistantWakeWordEnabled && <WakeHandoff />}
     </div>
   );
 }

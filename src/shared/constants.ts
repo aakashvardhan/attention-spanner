@@ -1,6 +1,5 @@
 export const ACCENT_COLOR = '#0ea5e9';
 
-export const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json?rss_url=';
 export const FETCH_TIMEOUT_MS = 15000;
 export const CACHE_TTL_MS = 5 * 60 * 1000;
 

@@ -1,13 +1,14 @@
 import { XMLParser } from 'fast-xml-parser';
-import { FETCH_TIMEOUT_MS, RSS2JSON_API } from '../shared/constants';
+import { FETCH_TIMEOUT_MS } from '../shared/constants';
 import type { FeedItem } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 
 /**
  * Feed fetching + parsing, service-worker safe. The legacy extension used
  * DOMParser in its worker, which doesn't exist there — every background
- * refresh silently fell back to rss2json. fast-xml-parser makes direct
- * parsing the real primary path; rss2json remains the fallback.
+ * refresh silently fell back to a third-party JSON proxy. fast-xml-parser
+ * parses directly, so feeds are fetched from their own origin and nowhere
+ * else; a feed that fails to fetch or parse fails visibly.
  */
 
 const parser = new XMLParser({
@@ -149,64 +150,20 @@ async function fetchFeedDirect(feedUrl: string): Promise<FeedItem[]> {
   return parseFeedXml(await response.text(), feedUrl);
 }
 
-interface Rss2JsonItem {
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  description?: string;
-  categories?: string[];
-}
-
-async function fetchFeedViaApi(feedUrl: string): Promise<FeedItem[]> {
-  const apiUrl = RSS2JSON_API + encodeURIComponent(feedUrl);
-  const response = await fetch(apiUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-  const data = (await response.json()) as {
-    status?: string;
-    message?: string;
-    feed?: { title?: string };
-    items?: Rss2JsonItem[];
-  };
-  if (data.status !== 'ok') throw new Error(data.message || 'API returned error status');
-
-  const feedTitle = data.feed?.title || feedUrl;
-  return (data.items ?? []).map((item) =>
-    makeItem(
-      item.link ?? '',
-      item.title ?? '',
-      item.pubDate ?? '',
-      item.description ?? '',
-      feedTitle,
-      toCategories(item.categories),
-    ),
-  );
-}
-
+/** One failing feed must not sink a whole refresh — log it and yield nothing. */
 export async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
   try {
     return await fetchFeedDirect(feedUrl);
-  } catch (directError) {
-    console.warn(`[feeds] Direct parse failed for ${feedUrl}:`, directError);
-  }
-  try {
-    return await fetchFeedViaApi(feedUrl);
-  } catch (apiError) {
-    console.warn(`[feeds] All methods failed for ${feedUrl}:`, apiError);
+  } catch (error) {
+    console.warn(`[feeds] Fetch failed for ${feedUrl}:`, error);
     return [];
   }
 }
 
-/** Used by feed validation in options: direct fetch first, rss2json fallback */
+/** Used by feed validation in options */
 export async function validateFeed(url: string): Promise<{ valid: boolean; title: string | null }> {
   try {
     const items = await fetchFeedDirect(url);
-    if (items.length > 0) return { valid: true, title: items[0].source };
-  } catch {
-    // fall through to API
-  }
-  try {
-    const items = await fetchFeedViaApi(url);
     if (items.length > 0) return { valid: true, title: items[0].source };
   } catch {
     // invalid

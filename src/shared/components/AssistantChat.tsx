@@ -1,21 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { executeTool, runAssistantTurn } from '../ai/assistant';
-import {
-  appendTurn,
-  newTurn,
-  type AssistantPlanStep,
-  type AssistantTurn,
-} from '../ai/assistantTypes';
+import { newTurn, type AssistantPlanStep, type AssistantTurn } from '../ai/assistantTypes';
 import { geminiProvider } from '../ai/geminiProvider';
 import { nanoProvider } from '../ai/nanoProvider';
 import { cancelSpeech, speak } from '../ai/tts';
+import { patchTurn, persistOutcome, persistTurn } from '../ai/turnLog';
 import { localDate } from '../format';
 import { sendMessage } from '../messages';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { useSessionValue } from '../hooks/useSessionValue';
 import { useSpeechInput } from '../hooks/useSpeechInput';
 import { useStorageValue } from '../hooks/useStorageValue';
-import { DEFAULT_SETTINGS, getSession, patchSettings, setSession } from '../storage';
+import { DEFAULT_SETTINGS, patchSettings, setSession } from '../storage';
 import './assistant.css';
 
 const SUGGESTIONS = [
@@ -23,22 +19,6 @@ const SUGGESTIONS = [
   '“How’s my streak doing?”',
   '“Start a 25-minute focus session”',
 ];
-
-/** Read-modify-write against the freshest session thread (avoids clobbering
- * a turn another surface appended while we were thinking). */
-async function persistTurn(turn: AssistantTurn): Promise<void> {
-  const { assistantThread } = await getSession('assistantThread');
-  await setSession({ assistantThread: appendTurn(assistantThread, turn) });
-}
-
-async function patchTurn(id: string, patch: Partial<AssistantTurn>): Promise<void> {
-  const { assistantThread } = await getSession('assistantThread');
-  await setSession({
-    assistantThread: assistantThread.map((t) =>
-      t.id === id ? { ...t, ...patch, toolCall: patch.toolCall ?? t.toolCall } : t,
-    ),
-  });
-}
 
 export function AssistantChat({ compact = false }: { compact?: boolean }) {
   const [thread] = useSessionValue('assistantThread');
@@ -93,36 +73,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
         cache: true,
       });
       void ai.refresh();
-      if (outcome.kind === 'reply') {
-        await persistTurn(newTurn('assistant', outcome.text, { source: outcome.source }));
-        say(outcome.text);
-      } else if (outcome.kind === 'confirm') {
-        await persistTurn(
-          newTurn('assistant', outcome.summary, {
-            source: 'nano',
-            toolCall: { name: outcome.toolName, params: outcome.params, status: 'pending-confirm' },
-          }),
-        );
-        say(`Should I ${outcome.summary}?`);
-      } else if (outcome.kind === 'confirm-plan') {
-        await persistTurn(
-          newTurn('assistant', `That's ${outcome.steps.length} steps:`, {
-            source: 'cloud',
-            plan: {
-              steps: outcome.steps.map((s) => ({ ...s, status: 'pending' as const })),
-              status: 'pending-confirm',
-            },
-          }),
-        );
-        say(`Should I do these ${outcome.steps.length} things?`);
-      } else if (outcome.kind === 'done') {
-        await persistTurn(
-          newTurn('assistant', outcome.text, { kind: 'action-result', source: 'nano' }),
-        );
-        say(outcome.text);
-      } else {
-        await persistTurn(newTurn('assistant', outcome.text, { kind: 'error', source: 'local' }));
-      }
+      await persistOutcome(outcome, say);
     } catch {
       await persistTurn(
         newTurn('assistant', 'Something went wrong. Try again?', { kind: 'error', source: 'local' }),
@@ -137,15 +88,14 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
   sendRef.current = send;
 
   // Wake-word handoff: a command the offscreen listener captured but couldn't
-  // run (no model reachable there) — run it here, where Nano can download
+  // run (no model reachable there) — run it here, where Nano can download.
+  // Claimed through the SW so this and the dashboard's headless drainer
+  // (WakeHandoff) can both be mounted without double-running the command.
   useEffect(() => {
-    if (compact) return;
-    void getSession('assistantPendingInput').then(({ assistantPendingInput }) => {
-      if (!assistantPendingInput) return;
-      void setSession({ assistantPendingInput: '' });
-      void sendRef.current(assistantPendingInput);
+    void sendMessage({ type: 'ASSISTANT_CLAIM_PENDING' }).then(({ input }) => {
+      if (input) void sendRef.current(input);
     });
-  }, [compact]);
+  }, []);
 
   const confirm = async (turn: AssistantTurn) => {
     if (!turn.toolCall || busy) return;

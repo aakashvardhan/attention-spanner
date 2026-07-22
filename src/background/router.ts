@@ -276,6 +276,14 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       });
       return { ok: true };
     }
+    case 'ASSISTANT_CLAIM_PENDING': {
+      // Read-and-clear in one hop. Any surface may be open when a wake command
+      // hands off; the single SW context serializes this, so exactly one of
+      // them claims the command and the others get ''.
+      const { assistantPendingInput } = await getSession('assistantPendingInput');
+      if (assistantPendingInput) await setSession({ assistantPendingInput: '' });
+      return { input: assistantPendingInput };
+    }
     case 'WAKE_GET_PAGE':
       return { page: await getActivePageContent() };
     case 'WAKE_EVENT':
