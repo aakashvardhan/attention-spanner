@@ -83,7 +83,7 @@ export function DashboardGrid({ cards }: { cards: readonly DashCard[] }) {
           className={editing ? 'ghost-btn editing' : 'ghost-btn'}
           onClick={() => setEditing((e) => !e)}
         >
-          {editing ? '✓ Done' : '⚙ Customize'}
+          {editing ? 'Done' : 'Customize'}
         </button>
       </div>
       {editing && (

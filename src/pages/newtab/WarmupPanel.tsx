@@ -130,7 +130,7 @@ export function WarmupPanel() {
 
   return (
     <section className="panel">
-      <h2>⚡ Warm-up</h2>
+      <h2>Warm-up</h2>
 
       {phase === 'idle' && (
         <>
@@ -149,11 +149,11 @@ export function WarmupPanel() {
             </div>
           </div>
           {todayResult && (
-            <p className="gym-logged">Warmed up today ✔ — {todayResult.score} correct</p>
+            <p className="gym-logged">Warmed up today — {todayResult.score} correct</p>
           )}
           <p className="sprint-hint">Tap the ink color, not the word — 60 seconds.</p>
           <button className="sprint-start" onClick={start}>
-            {todayResult ? '⚡ Play again' : '⚡ Start 60-second sprint'}
+            {todayResult ? 'Play again' : 'Start 60-second sprint'}
           </button>
         </>
       )}
@@ -210,7 +210,7 @@ export function WarmupPanel() {
             </p>
           </div>
           <button className="sprint-start" onClick={start}>
-            ⚡ Play again
+            Play again
           </button>
           <button className="sprint-cancel" onClick={() => setPhase('idle')}>
             done

@@ -159,10 +159,10 @@ export async function refreshCalendar(force = false): Promise<{ ok: boolean; err
 /* Focus time-blocking. Every function here is fire-and-forget from focus.ts —
    errors are swallowed so a calendar hiccup can never break a focus session. */
 
-const FOCUS_BLOCK_TITLE = '🎯 Focus';
+const FOCUS_BLOCK_TITLE = 'Focus';
 const FOCUS_BLOCK_MIN_MS = 2 * 60_000;
 
-/** Create the "🎯 Focus" event for a just-started session */
+/** Create the "Focus" event for a just-started session */
 export async function createFocusBlock(session: FocusSession): Promise<void> {
   try {
     const settings = await getSettings();

@@ -1015,9 +1015,6 @@ body.focus-active .panel:hover {
   background: var(--accent-soft);
 }
 
-.badge-emoji {
-  font-size: 20px;
-}
 
 .badge-name {
   font-size: 9px;

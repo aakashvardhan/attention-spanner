@@ -39,7 +39,7 @@ export function TaskPane({ tasks }: { tasks: ReturnType<typeof useTasks> }) {
 
       {tasks.openTasks.length === 0 && tasks.completedTasks.length === 0 ? (
         <div className="center-state">
-          <p>No tasks yet. Nothing forgotten so far. 🎉</p>
+          <p>No tasks yet. Nothing forgotten so far.</p>
         </div>
       ) : (
         <div className="task-list">
@@ -103,7 +103,7 @@ function TaskRow({
       </div>
       {!done && onIgnite && (
         <button className="task-ignite" title="Stuck? Get a 2-minute first step" onClick={onIgnite}>
-          ⚡
+          Start
         </button>
       )}
       <button

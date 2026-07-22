@@ -263,7 +263,7 @@ export function CommandPalette() {
                 onMouseEnter={() => setSel(matches.length)}
                 onClick={() => void ask(query.trim())}
               >
-                💬 Ask: “{query.trim()}”
+                Ask: “{query.trim()}”
               </button>
             )}
             {rowCount === 0 && <p className="cp-empty">No matching commands.</p>}

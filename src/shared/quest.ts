@@ -8,7 +8,6 @@ import { countInWeek, weekDates, weekKey } from './week';
 
 export interface QuestLine {
   key: 'gym' | 'articles' | 'sprints' | 'videos' | 'focus';
-  emoji: string;
   label: string;
   current: number;
   target: number;
@@ -39,35 +38,30 @@ export function questProgress(
   const all: QuestLine[] = [
     {
       key: 'gym',
-      emoji: '💪',
       label: 'Gym',
       current: countInWeek(checkins, week),
       target: settings.gymWeeklyTarget,
     },
     {
       key: 'articles',
-      emoji: '📖',
       label: 'Articles',
       current: sum((d) => d.articlesFinished),
       target: settings.questArticlesPerWeek,
     },
     {
       key: 'sprints',
-      emoji: '⏱️',
       label: 'Sprints',
       current: sum((d) => d.sprints),
       target: settings.questSprintsPerWeek,
     },
     {
       key: 'videos',
-      emoji: '🎬',
       label: 'Videos',
       current: sum((d) => d.videosFinished ?? 0),
       target: settings.questVideosPerWeek,
     },
     {
       key: 'focus',
-      emoji: '🎯',
       label: 'Focus blocks',
       current: sum((d) => d.focusBlocks ?? 0),
       target: settings.questFocusPerWeek,

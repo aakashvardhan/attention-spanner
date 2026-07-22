@@ -225,7 +225,7 @@ export interface Settings {
   assistantTtsVoice: string;
   /** Always-on "Hey Jarvis" wake word (offscreen mic listener) */
   assistantWakeWordEnabled: boolean;
-  /** Create a "🎯 Focus" Google Calendar event when a focus session starts */
+  /** Create a "Focus" Google Calendar event when a focus session starts */
   focusCalendarBlockEnabled: boolean;
   /** Proactive Jarvis nudges: streak-at-risk / cards-due evening check + event reminders */
   assistantMonitorEnabled: boolean;
@@ -420,7 +420,7 @@ export interface FocusSession {
   taskId?: string;
   /** Ignition mode: the tiny first action shown in the banner and blocked page */
   intent?: string;
-  /** Google Calendar "🎯 Focus" event created for this session (time-blocking) */
+  /** Google Calendar "Focus" event created for this session (time-blocking) */
   calendarEventId?: string;
 }
 

@@ -53,19 +53,19 @@ import { MeetingNoteReader } from './MeetingNoteReader';
 import { WarmupPanel } from './WarmupPanel';
 
 const DASHBOARD_CARDS: readonly DashCard[] = [
-  { id: 'feeds', title: '📰 Feeds', Component: FeedsPanel },
-  { id: 'agenda', title: '📅 Today', Component: AgendaPanel },
-  { id: 'links', title: '🔗 Links', Component: BookmarksPanel },
-  { id: 'tasks', title: '📝 Tasks', Component: TaskPanel },
-  { id: 'continue', title: '📖 Continue', Component: ContinuePanel },
-  { id: 'streak', title: '🔥 Focus', Component: StreakPanel },
-  { id: 'gym', title: '💪 Gym', Component: GymPanel },
-  { id: 'progress', title: '🏆 Progress', Component: GamificationPanel },
-  { id: 'braindump', title: '🧠 Brain dump', Component: BrainDumpPanel },
-  { id: 'flashcards', title: '🃏 Flashcards', Component: FlashcardsPanel },
-  { id: 'papers', title: '📄 Papers', Component: PapersPanel },
-  { id: 'meetings', title: '🗓️ Meetings', Component: MeetingNotesPanel },
-  { id: 'warmup', title: '⚡ Warm-up', Component: WarmupPanel },
+  { id: 'feeds', title: 'Feeds', Component: FeedsPanel },
+  { id: 'agenda', title: 'Today', Component: AgendaPanel },
+  { id: 'links', title: 'Links', Component: BookmarksPanel },
+  { id: 'tasks', title: 'Tasks', Component: TaskPanel },
+  { id: 'continue', title: 'Continue', Component: ContinuePanel },
+  { id: 'streak', title: 'Focus', Component: StreakPanel },
+  { id: 'gym', title: 'Gym', Component: GymPanel },
+  { id: 'progress', title: 'Progress', Component: GamificationPanel },
+  { id: 'braindump', title: 'Brain dump', Component: BrainDumpPanel },
+  { id: 'flashcards', title: 'Flashcards', Component: FlashcardsPanel },
+  { id: 'papers', title: 'Papers', Component: PapersPanel },
+  { id: 'meetings', title: 'Meetings', Component: MeetingNotesPanel },
+  { id: 'warmup', title: 'Warm-up', Component: WarmupPanel },
 ];
 
 export function Dashboard() {
@@ -108,9 +108,10 @@ export function Dashboard() {
             <button
               className="ghost-btn theme-toggle"
               title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
             >
-              {theme.resolved === 'dark' ? '☀️' : '🌙'}
+              {theme.resolved === 'dark' ? 'Light' : 'Dark'}
             </button>
             <Clock />
           </div>
@@ -164,7 +165,7 @@ function FeedsPanel() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>📰 Feeds</h2>
+        <h2>Feeds</h2>
         <button
           className="ghost-btn"
           title="Refresh feeds"
@@ -299,7 +300,7 @@ function AgendaPanel() {
   if (!configured) {
     return (
       <section className="panel">
-        <h2>📅 Today</h2>
+        <h2>Today</h2>
         <p className="panel-empty">
           Google Calendar isn't configured for this build — see
           docs/google-calendar-setup.md to enable it.
@@ -311,7 +312,7 @@ function AgendaPanel() {
   if (!calendar.connected) {
     return (
       <section className="panel">
-        <h2>📅 Today</h2>
+        <h2>Today</h2>
         <p className="panel-empty">See your day's events here and let the assistant block time.</p>
         {(connectError ?? calendar.lastError) && (
           <p className="ag-error">{connectError ?? calendar.lastError}</p>
@@ -331,7 +332,7 @@ function AgendaPanel() {
 
   return (
     <section className="panel">
-      <h2>📅 Today</h2>
+      <h2>Today</h2>
       {next ? (
         <p className="ag-next">
           {next.event.title} <span className="ag-countdown">{formatCountdown(next.minutesUntil)}</span>
@@ -341,7 +342,7 @@ function AgendaPanel() {
           {current.title} <span className="ag-countdown">now</span>
         </p>
       ) : (
-        <p className="ag-next ag-clear">No more events — clear runway. 🛫</p>
+        <p className="ag-next ag-clear">No more events — clear runway.</p>
       )}
       <div className="panel-scroll">
         {today.length === 0 && <p className="panel-empty">Nothing scheduled today.</p>}
@@ -397,7 +398,7 @@ function MeetingNotesPanel() {
   if (!configured) {
     return (
       <section className="panel">
-        <h2>🗓️ Meetings</h2>
+        <h2>Meetings</h2>
         <p className="panel-empty">
           Pull your Notion meeting notes here — pick a database in Settings → Notion Sync.
         </p>
@@ -410,7 +411,7 @@ function MeetingNotesPanel() {
 
   return (
     <section className="panel">
-      <h2>🗓️ Meetings</h2>
+      <h2>Meetings</h2>
       <div className="panel-scroll">
         {state.notes.length === 0 && <p className="panel-empty">No notes yet.</p>}
         {state.notes.map((note) => (
@@ -466,7 +467,7 @@ function BookmarksPanel() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>🔗 Links</h2>
+        <h2>Links</h2>
         <button
           className={editing ? 'ghost-btn editing' : 'ghost-btn'}
           title={editing ? 'Done editing' : 'Edit links'}
@@ -609,7 +610,7 @@ function FocusBanner({ focus }: { focus: ReturnType<typeof useFocusSession> }) {
   return (
     <div className="focus-banner">
       <p className="focus-banner-label">
-        🎯 Focus — {settings.focusBlocklist.length} sites blocked
+        Focus — {settings.focusBlocklist.length} sites blocked
         {focus.session?.mode === 'pomodoro' && ` · block ${focus.completedBlocks + 1}`}
         {focus.session?.intent && (
           <span className="focus-banner-intent"> · {focus.session.intent}</span>
@@ -650,7 +651,7 @@ function GymPanel() {
 
   return (
     <section className="panel">
-      <h2>💪 Gym</h2>
+      <h2>Gym</h2>
       <div className="streak-numbers">
         <div className="streak-stat">
           <span className="streak-value">{gym.currentWeekStreak}</span>
@@ -682,7 +683,7 @@ function GymPanel() {
 
       {checkedInToday ? (
         <div className="sprint-live">
-          <p className="gym-logged">Logged for today ✔</p>
+          <p className="gym-logged">Logged for today</p>
           <button
             className="sprint-cancel"
             onClick={() => void sendMessage({ type: 'GYM_UNDO' })}
@@ -695,7 +696,7 @@ function GymPanel() {
           className="sprint-start"
           onClick={() => void sendMessage({ type: 'GYM_CHECKIN' })}
         >
-          💪 I went today
+          I went today
         </button>
       )}
     </section>
@@ -714,7 +715,7 @@ function GamificationPanel() {
 
   return (
     <section className="panel">
-      <h2>🏆 Progress</h2>
+      <h2>Progress</h2>
 
       <div className="level-row">
         <span className="level-title">Level {level}</span>
@@ -730,9 +731,7 @@ function GamificationPanel() {
         <p className="row-label">This week's quest</p>
         {quest.lines.map((line) => (
           <div key={line.key} className="quest-line">
-            <span className="quest-label">
-              {line.emoji} {line.label}
-            </span>
+            <span className="quest-label">{line.label}</span>
             <div className="quest-bar">
               <div
                 className="quest-bar-fill"
@@ -744,7 +743,7 @@ function GamificationPanel() {
             </span>
           </div>
         ))}
-        {quest.complete && <p className="quest-done">Quest complete 🎉 +50 XP</p>}
+        {quest.complete && <p className="quest-done">Quest complete — +50 XP</p>}
       </div>
 
       <p className="row-label">Trophies</p>
@@ -761,7 +760,6 @@ function GamificationPanel() {
                   : `${badge.title} — ${badge.description}`
               }
             >
-              <span className="badge-emoji">{badge.emoji}</span>
               <span className="badge-name">{badge.title}</span>
             </div>
           );
@@ -774,7 +772,7 @@ function GamificationPanel() {
 function BrainDumpPanel() {
   return (
     <section className="panel">
-      <h2>🧠 Brain dump</h2>
+      <h2>Brain dump</h2>
       <BrainDump source="newtab" />
       <div className="panel-scroll">
         <NotesHistory />
@@ -804,7 +802,7 @@ function FlashcardsPanel() {
 
   return (
     <section className="panel">
-      <h2>🃏 Flashcards</h2>
+      <h2>Flashcards</h2>
       {decks.length === 0 ? (
         <p className="panel-empty">No decks yet — create one to start studying.</p>
       ) : (
@@ -826,7 +824,7 @@ function FlashcardsPanel() {
         </>
       )}
       <button className="sprint-start" onClick={() => open(due > 0 && topDecks[0] ? `#review=${topDecks[0].deck.id}` : '')}>
-        {due > 0 ? '▶ Study now' : 'Open flashcards'}
+        {due > 0 ? 'Study now' : 'Open flashcards'}
       </button>
     </section>
   );
@@ -845,7 +843,7 @@ function PapersPanel() {
 
   return (
     <section className="panel">
-      <h2>📄 Papers</h2>
+      <h2>Papers</h2>
       {readingNow.length === 0 ? (
         <p className="panel-empty">
           {toReadCount > 0
@@ -902,7 +900,7 @@ function TaskPanel() {
 
   return (
     <section className="panel">
-      <h2>📝 Tasks</h2>
+      <h2>Tasks</h2>
       <form
         className="dash-task-add"
         onSubmit={(e) => {
@@ -920,7 +918,7 @@ function TaskPanel() {
       </form>
       <div className="panel-scroll">
         {tasks.openTasks.length === 0 ? (
-          <p className="panel-empty">Nothing pending. 🎉</p>
+          <p className="panel-empty">Nothing pending.</p>
         ) : (
           <SortableTaskList
             tasks={tasks.openTasks}
@@ -981,7 +979,7 @@ function DashTaskRow({
       </div>
       {!done && onIgnite && (
         <button className="task-ignite" title="Stuck? Get a 2-minute first step" onClick={onIgnite}>
-          ⚡
+          Start
         </button>
       )}
       {!done && (
@@ -990,7 +988,7 @@ function DashTaskRow({
           title="Snooze reminders for 1 hour"
           onClick={() => void sendMessage({ type: 'SNOOZE_TASK', id: task.id, minutes: 60 })}
         >
-          💤
+          Snooze
         </button>
       )}
       <button className="ghost-btn" title="Delete" onClick={() => void tasks.deleteTask(task.id)}>
@@ -1013,7 +1011,7 @@ function ContinuePanel() {
 
   return (
     <section className="panel">
-      <h2>📖 Continue</h2>
+      <h2>Continue</h2>
       <div className="panel-scroll">
         {inProgress.length === 0 ? (
           <p className="panel-empty">No half-read articles or videos. Open one from the popup!</p>
@@ -1033,7 +1031,7 @@ function ContinuePanel() {
             >
               <div className="dash-article-top">
                 <span className="dash-article-title">
-                  {p.kind === 'video' ? '🎬 ' : ''}
+                  {p.kind === 'video' ? 'Video · ' : ''}
                   {p.title || p.url}
                 </span>
                 <span className="dash-article-percent">{p.maxPercent}%</span>
@@ -1083,7 +1081,7 @@ function StreakPanel() {
 
   return (
     <section className="panel">
-      <h2>🔥 Focus</h2>
+      <h2>Focus</h2>
       <div className="streak-numbers">
         <div className="streak-stat">
           <span className="streak-value">{streaks.currentStreak}</span>
@@ -1101,7 +1099,7 @@ function StreakPanel() {
           className="streak-stat"
           title="Freeze tokens auto-cover missed days so a bad day can't break your streak. Earn one every 5 consecutive days (max 3)."
         >
-          <span className="streak-value">🧊{streaks.freezeTokens ?? 0}</span>
+          <span className="streak-value">{streaks.freezeTokens ?? 0}</span>
           <span className="streak-label">freezes</span>
         </div>
       </div>
@@ -1128,7 +1126,7 @@ function StreakPanel() {
         </div>
       ) : (
         <button className="sprint-start" onClick={() => void sprint.start()}>
-          ▶ Start a {settings.sprintMinutes}-minute reading sprint
+          Start a {settings.sprintMinutes}-minute reading sprint
         </button>
       )}
 
@@ -1148,7 +1146,7 @@ function FocusModeSection() {
     return (
       <div className="focus-mode active">
         <div className="focus-mode-status">
-          <span className="focus-mode-phase">{inFocus ? '🎯 Focus' : '☕ Break'}</span>
+          <span className="focus-mode-phase">{inFocus ? 'Focus' : 'Break'}</span>
           <span className="focus-mode-countdown">{focus.countdown}</span>
         </div>
         {focus.session?.mode === 'pomodoro' && (
@@ -1206,7 +1204,7 @@ function FocusModeSection() {
             })
           }
         >
-          🍅 {settings.focusMinutes}:{settings.focusBreakMinutes}
+          {settings.focusMinutes}:{settings.focusBreakMinutes} pomodoro
         </button>
         <button
           className={settings.focusMusicEnabled ? 'focus-preset music on' : 'focus-preset music'}
@@ -1219,7 +1217,7 @@ function FocusModeSection() {
             void patchSettings({ focusMusicEnabled: !settings.focusMusicEnabled })
           }
         >
-          🎵
+          Music
         </button>
       </div>
     </div>

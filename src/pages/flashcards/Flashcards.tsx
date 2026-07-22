@@ -70,14 +70,14 @@ export function Flashcards() {
               ← {screen.name === 'review' ? deck?.name : 'Decks'}
             </button>
           )}
-          <h1>🃏 {screen.name === 'decks' ? 'Flashcards' : deck?.name}</h1>
+          <h1>{screen.name === 'decks' ? 'Flashcards' : deck?.name}</h1>
         </div>
         <button
           className="ghost-btn fc-theme-toggle"
           title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
         >
-          {theme.resolved === 'dark' ? '☀️' : '🌙'}
+          {theme.resolved === 'dark' ? 'Light' : 'Dark'}
         </button>
       </header>
       )}

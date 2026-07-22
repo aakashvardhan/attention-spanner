@@ -203,7 +203,7 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
       <div className="bd-actions">
         {aiUsable && (
           <button className="bd-primary" disabled={!text.trim()} onClick={() => void structure()}>
-            {ai.availability === 'downloadable' ? '✨ Enable AI & structure' : '✨ Structure'}
+            {ai.availability === 'downloadable' ? 'Enable AI & structure' : 'Structure'}
           </button>
         )}
         <button

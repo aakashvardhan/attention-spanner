@@ -52,7 +52,7 @@ export function IgnitionCard({ task, onClose }: { task: Task; onClose: () => voi
   return (
     <div className="ignition-card">
       {thinking ? (
-        <p className="ignition-status">⚡ Finding the smallest first step…</p>
+        <p className="ignition-status">Finding the smallest first step…</p>
       ) : (
         <>
           <p className="ignition-action">
@@ -66,7 +66,7 @@ export function IgnitionCard({ task, onClose }: { task: Task; onClose: () => voi
       )}
       <div className="ignition-actions">
         <button className="ignition-start" disabled={thinking} onClick={() => void start()}>
-          ▶ Start {MICRO_SPRINT_MINUTES}-min sprint
+          Start {MICRO_SPRINT_MINUTES}-min sprint
         </button>
         {aiReady && (
           <button

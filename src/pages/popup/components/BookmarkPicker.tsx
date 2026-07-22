@@ -43,7 +43,7 @@ export function BookmarkPicker({ onDone }: { onDone: () => void }) {
   return (
     <div className="bookmark-picker">
       <span className="bookmark-picker-title" title={tab.title}>
-        {saved ? '✓ Bookmarked!' : `🔖 ${tab.title}`}
+        {saved ? 'Bookmarked' : `Bookmark: ${tab.title}`}
       </span>
       {!saved && (
         <div className="bookmark-picker-groups">

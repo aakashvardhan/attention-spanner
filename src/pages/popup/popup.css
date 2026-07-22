@@ -284,6 +284,10 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   padding: 2px 8px;
 }
 
+/* The blanket `button:not(...)` rule above out-specifies these chips, so the
+   overrides need !important until Phase F's Button primitive retires it.
+   `color` was `inherit` and therefore lost to that rule's --on-accent: white
+   text on a white chip. Emoji hid it (they ignore `color`); text labels don't. */
 .gym-chip {
   background: var(--bg-surface) !important;
   border: 1px solid var(--accent-border);
@@ -291,7 +295,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
   padding: 2px 8px !important;
   font-size: 12px !important;
   cursor: pointer;
-  color: inherit;
+  color: var(--text-primary) !important;
 }
 
 .gym-chip:hover {
@@ -301,6 +305,7 @@ button:not(.icon-btn):not(.tab):not(.task-delete):not(.task-drag-handle):not(.ta
 .gym-chip.done {
   border-color: var(--success-border);
   background: var(--success-bg) !important;
+  color: var(--success) !important;
   cursor: default;
 }
 

@@ -32,7 +32,7 @@ export async function updateBadge(): Promise<void> {
   const { focusSession } = await getLocal('focusSession');
   if (focusSession) {
     if (focusSession.phase === 'break') {
-      await chrome.action.setBadgeText({ text: '☕' });
+      await chrome.action.setBadgeText({ text: 'brk' });
       await chrome.action.setBadgeBackgroundColor({ color: '#2e7d32' });
     } else {
       const minutesLeft = Math.max(

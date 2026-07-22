@@ -24,7 +24,7 @@ interface IntegrationRow {
 
 const ROWS: IntegrationRow[] = [
   {
-    label: '🔗 Links → Notion',
+    label: 'Links → Notion',
     toggleKey: 'notionPushLinks',
     dbKey: 'notionLinksDbId',
     warn: (db) =>
@@ -33,13 +33,13 @@ const ROWS: IntegrationRow[] = [
         : 'Database has no url-type property — links will be saved title-only.',
   },
   {
-    label: '🧠 Brain dumps → Notion',
+    label: 'Brain dumps → Notion',
     toggleKey: 'notionPushBrainDumps',
     dbKey: 'notionBrainDumpDbId',
     warn: () => null, // title-only pages work with any database
   },
   {
-    label: '📝 Tasks → Notion',
+    label: 'Tasks → Notion',
     toggleKey: 'notionPushTasks',
     dbKey: 'notionTasksDbId',
     warn: (db) =>
@@ -48,7 +48,7 @@ const ROWS: IntegrationRow[] = [
         : 'No checkbox property found — tasks will be created but completions won’t sync.',
   },
   {
-    label: '📖 Reading log → Notion',
+    label: 'Reading log → Notion',
     toggleKey: 'notionPushReading',
     dbKey: 'notionReadingLogDbId',
     warn: (db) => {
@@ -224,7 +224,7 @@ export function NotionSection() {
 
       <div>
         <div className="setting-row">
-          <label htmlFor="notionMeetingNotesDbId">🗓️ Meeting notes ← Notion</label>
+          <label htmlFor="notionMeetingNotesDbId">Meeting notes ← Notion</label>
           <select
             id="notionMeetingNotesDbId"
             value={meetingDbId}

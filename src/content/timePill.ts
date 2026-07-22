@@ -1,7 +1,7 @@
 import { sendMessage } from '../shared/messages';
 
 /**
- * Visible time pill — a small floating "⏱ 23m" badge on user-chosen sites,
+ * Visible time pill — a small floating "23m" badge on user-chosen sites,
  * externalizing time-on-site for time-blind brains. Counts only visible
  * seconds; totals are per-host per-local-day, persisted by the service
  * worker so navigations and tab switches don't reset the number.
@@ -64,7 +64,7 @@ function initPill() {
   function render() {
     const minutes = Math.floor(totalSeconds / 60);
     pill.textContent =
-      minutes < 60 ? `⏱ ${minutes}m` : `⏱ ${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+      minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
     pill.dataset.level = minutes >= HOT_MINUTES ? 'hot' : minutes >= WARM_MINUTES ? 'warm' : 'cool';
   }
 

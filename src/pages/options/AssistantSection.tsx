@@ -142,18 +142,18 @@ export function AssistantSection() {
         </div>
       )}
 
-      {test.state === 'ok' && <p className="feedback success">Key works ✔ — cloud fallback is on.</p>}
+      {test.state === 'ok' && <p className="feedback success">Key works — cloud fallback is on.</p>}
       {test.state === 'error' && <p className="feedback error">{test.message}</p>}
 
       <p className="hint" style={{ marginTop: 16 }}>
-        Voice: hold the 🎙 button in the assistant to talk instead of typing (uses Chrome's speech
+        Voice: hold the mic button in the assistant to talk instead of typing (uses Chrome's speech
         recognition, which sends audio to Google), and have replies read aloud.
       </p>
       <div className="setting-row">
         <label>Microphone for voice input</label>
         {mic.state === 'granted' ? (
           <span className="feedback success" style={{ margin: 0 }}>
-            Granted ✔
+            Granted
           </span>
         ) : (
           <button type="button" className="secondary-btn" onClick={() => void grantMic()}>

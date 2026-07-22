@@ -26,31 +26,31 @@ export function Popup() {
   return (
     <div className="container">
       <header>
-        <h1>📖 Reader</h1>
+        <h1>Reader</h1>
         <div className="header-actions">
           <button
             className="icon-btn"
             title="Settings"
             onClick={() => chrome.runtime.openOptionsPage()}
           >
-            ⚙️
+            Settings
           </button>
         </div>
       </header>
 
       <nav className="tab-bar">
         <button className={tab === 'ask' ? 'tab active' : 'tab'} onClick={() => setTab('ask')}>
-          🤖 Ask
+          Ask
         </button>
         <button className={tab === 'tasks' ? 'tab active' : 'tab'} onClick={() => setTab('tasks')}>
           Tasks
           {tasks.openTasks.length > 0 && <span className="tab-count">{tasks.openTasks.length}</span>}
         </button>
         <button className={tab === 'dump' ? 'tab active' : 'tab'} onClick={() => setTab('dump')}>
-          🧠 Dump
+          Dump
         </button>
         <button className={tab === 'cards' ? 'tab active' : 'tab'} onClick={() => setTab('cards')}>
-          🃏 Cards
+          Cards
           {cardsDue > 0 && <span className="tab-count">{cardsDue}</span>}
         </button>
       </nav>

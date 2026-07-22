@@ -71,7 +71,7 @@ function badgePass(state: Trio, queue: QueuedNotification[]): void {
       state.gamification.badges[badge.id] = Date.now();
       queue.push({
         id: NOTIFICATION_IDS.badgePrefix + badge.id,
-        title: `Badge unlocked: ${badge.emoji} ${badge.title}`,
+        title: `Badge unlocked: ${badge.title}`,
         message: badge.description,
       });
     }

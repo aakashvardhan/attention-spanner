@@ -48,7 +48,7 @@ export function DeckView({ deck, onStudy }: { deck: Deck; onStudy: () => void })
           }
           onClick={onStudy}
         >
-          ▶ Study now
+          Study now
         </button>
       </div>
 

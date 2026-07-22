@@ -92,7 +92,7 @@ export function PapersSection() {
       )}
 
       {test.state === 'testing' && <p className="feedback loading">Checking the key…</p>}
-      {test.state === 'ok' && <p className="feedback success">Key works ✔ — lookups are authenticated.</p>}
+      {test.state === 'ok' && <p className="feedback success">Key works — lookups are authenticated.</p>}
       {test.state === 'error' && <p className="feedback error">{test.message}</p>}
     </section>
   );

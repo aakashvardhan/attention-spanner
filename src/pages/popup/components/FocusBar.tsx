@@ -26,10 +26,10 @@ export function FocusBar() {
     <div className="focus-bar">
       <span className="focus-left">
         <span className="level-chip" title={`${intoLevel}/${toNext} XP to level ${level + 1}`}>
-          ⭐ L{level}
+          L{level}
         </span>
         <span className="focus-streak" title={`Longest: ${streaks.longestStreak} days`}>
-          🔥 {streaks.currentStreak} day{streaks.currentStreak === 1 ? '' : 's'}
+          {streaks.currentStreak} day{streaks.currentStreak === 1 ? '' : 's'}
         </span>
       </span>
       <span className="focus-right">
@@ -38,7 +38,7 @@ export function FocusBar() {
           title="Bookmark this tab"
           onClick={() => setPicking((p) => !p)}
         >
-          🔖
+          Bookmark
         </button>
         {focus.active ? (
           <span
@@ -49,7 +49,7 @@ export function FocusBar() {
                 : 'Pomodoro break'
             }
           >
-            {focus.phase === 'focus' ? '🎯' : '☕'} {focus.countdown}
+            {focus.phase === 'focus' ? 'Focus' : 'Break'} {focus.countdown}
           </span>
         ) : (
           <button
@@ -63,12 +63,12 @@ export function FocusBar() {
               })
             }
           >
-            🎯
+            Focus
           </button>
         )}
         {checkedInToday ? (
           <span className="gym-chip done" title="Gym logged today — undo on the dashboard">
-            💪✓
+            Gym done
           </span>
         ) : (
           <button
@@ -76,16 +76,16 @@ export function FocusBar() {
             title="I went to the gym today"
             onClick={() => void sendMessage({ type: 'GYM_CHECKIN' })}
           >
-            💪
+            Gym
           </button>
         )}
         {sprint.active ? (
           <button className="sprint-btn active" onClick={() => void sprint.cancel()}>
-            ⏹ {sprint.countdown}
+            Stop {sprint.countdown}
           </button>
         ) : (
           <button className="sprint-btn" onClick={() => void sprint.start()}>
-            ▶ Sprint
+            Sprint
           </button>
         )}
       </span>

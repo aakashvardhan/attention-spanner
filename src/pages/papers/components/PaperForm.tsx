@@ -77,7 +77,7 @@ export function PaperForm({
       abstract: meta.abstract || d.abstract,
       url: meta.url || d.url,
     }));
-    setFetchMsg('Fetched ✔ — review and edit anything below.');
+    setFetchMsg('Fetched — review and edit anything below.');
   };
 
   const submit = async () => {

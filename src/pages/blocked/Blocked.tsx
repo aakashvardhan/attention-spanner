@@ -29,7 +29,7 @@ export function Blocked() {
   if (!blocking) {
     return (
       <div className="blocked">
-        <p className="blocked-emoji">{focus.active ? '☕' : '🎉'}</p>
+        
         <h1>{focus.active ? 'Break time' : 'Focus session over'}</h1>
         {blockedUrl ? (
           <a className="blocked-continue" href={blockedUrl.href}>
@@ -44,7 +44,7 @@ export function Blocked() {
 
   return (
     <div className="blocked">
-      <p className="blocked-emoji">🎯</p>
+      
       <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
       <p className="blocked-sub">
         Focus mode{focus.session?.mode === 'pomodoro' ? ` · block ${focus.completedBlocks + 1}` : ''}

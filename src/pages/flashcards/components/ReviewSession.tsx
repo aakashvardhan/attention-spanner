@@ -78,7 +78,7 @@ export function ReviewSession({ deck, onExit }: { deck: Deck; onExit: () => void
       <main className="fc-main">
         <div className="panel fc-done">
           <p className="fc-done-title">
-            {answered > 0 ? '🎉 Session complete' : '✨ All caught up'}
+            {answered > 0 ? 'Session complete' : 'All caught up'}
           </p>
           {answered > 0 && (
             <p className="fc-done-tally">

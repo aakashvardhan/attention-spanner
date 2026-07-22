@@ -85,7 +85,7 @@ export function ReaderToolbar({
           title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
         >
-          {theme.resolved === 'dark' ? '☀️' : '🌙'}
+          {theme.resolved === 'dark' ? 'Light' : 'Dark'}
         </button>
         <button
           className={noteMode ? 'ghost-btn active' : 'ghost-btn'}

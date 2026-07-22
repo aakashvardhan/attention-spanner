@@ -244,14 +244,16 @@
   cursor: default;
 }
 
+/* Text labels, not glyphs — size to the content instead of a 32px square. */
 .as-mic,
 .as-voice {
   background: transparent;
   border: 1px solid var(--border);
-  width: 32px;
-  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   cursor: pointer;
   flex-shrink: 0;
   user-select: none;

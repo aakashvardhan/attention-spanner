@@ -53,7 +53,7 @@ export function PaperDeckList({ onOpen }: { onOpen: (deckId: string) => void }) 
               </button>
               <div className="fc-deck-counts">
                 <span className="fc-chip fc-chip-review" title="Papers in this deck">
-                  {papers.length} 📄
+                  {papers.length} papers
                 </span>
                 {reading > 0 && (
                   <span className="fc-chip fc-chip-learning" title="Currently reading">

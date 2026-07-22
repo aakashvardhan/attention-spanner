@@ -118,7 +118,7 @@ export function Options() {
   return (
     <div className="container">
       <header>
-        <h1>⚙️ Reader Settings</h1>
+        <h1>Reader Settings</h1>
       </header>
 
       <main>
@@ -465,7 +465,7 @@ export function Options() {
             ))}
           </div>
           <p className="hint" style={{ marginTop: 18 }}>
-            ⏱ Time pill — show a floating "time on this site today" badge on these sites:
+            Time pill — show a floating "time on this site today" badge on these sites:
           </p>
           <form
             className="add-feed-form"
@@ -499,7 +499,7 @@ export function Options() {
           </div>
           <div className="setting-row">
             <label htmlFor="focus-music">
-              🎵 Open Flowtunes focus music when a session starts
+              Open Flowtunes focus music when a session starts
             </label>
             <input
               id="focus-music"

@@ -62,7 +62,7 @@ export function Capture() {
           className={mode === 'dump' ? 'mode-btn active' : 'mode-btn'}
           onClick={() => setMode('dump')}
         >
-          🧠 Brain dump
+          Brain dump
         </button>
       </div>
 

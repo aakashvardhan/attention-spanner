@@ -180,7 +180,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
                 }
               }}
             >
-              {speakingBriefing ? '⏹' : '🔊'}
+              {speakingBriefing ? 'Stop' : 'Play'}
             </button>
             {todaysBriefing}
           </div>
@@ -258,7 +258,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
             onPointerUp={speech.stop}
             onPointerLeave={speech.stop}
           >
-            🎙
+            Talk
           </button>
         )}
         <button
@@ -270,7 +270,7 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
             void patchSettings({ assistantVoiceEnabled: !settings.assistantVoiceEnabled });
           }}
         >
-          {settings.assistantVoiceEnabled ? '🔊' : '🔇'}
+          {settings.assistantVoiceEnabled ? 'Voice on' : 'Voice off'}
         </button>
         <button type="submit" className="as-send" disabled={busy || !usable || !text.trim()}>
           ↑

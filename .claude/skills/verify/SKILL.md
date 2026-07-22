@@ -53,6 +53,7 @@ Pages to open directly (no need to trigger chrome UI):
 - Settings checkboxes are controlled via an async chrome.storage round-trip:
   Playwright's `check()/uncheck()` post-click assertion races it. Use
   `click({ force: true })` + `waitForFunction` on the storage value.
-- Popup tab locator: `hasText: 'Ask'` also matches "T**ask**s" — use the emoji
-  (`'🤖 Ask'`) or exact text.
+- Popup tab locator: `hasText: 'Ask'` also matches "T**ask**s". The tabs used to
+  carry emoji to disambiguate; they are plain text now, so match exactly
+  (`getByRole('button', { name: 'Ask', exact: true })`).
 - The extension id changes per profile; always derive it from the service worker.
