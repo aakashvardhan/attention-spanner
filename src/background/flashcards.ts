@@ -9,7 +9,7 @@ import { answerCard as scheduleAnswer, isRewardableAnswer, newCard, reconcileCar
 import { getLocal, setLocal } from '../shared/storage';
 import { newFlashNoteWithCards } from '../shared/sync/recordShapes';
 import type { Deck, DeckKind, FlashNote, FlashNoteType, Rating, SrsDayStats } from '../shared/types';
-import { awardXp } from './gamification';
+import { recordEvent } from './gamification';
 
 /**
  * All flashcard writes happen here in the service worker so the flashcards
@@ -169,7 +169,7 @@ export async function answerCard(cardId: string, rating: Rating): Promise<FlashR
 
   // XP only for scheduled reviews and first graduations — non-farmable
   if (isRewardableAnswer(prevPhase, next)) {
-    await awardXp('flashcard_review');
+    await recordEvent('flashcard_review');
   }
   return { ok: true };
 }

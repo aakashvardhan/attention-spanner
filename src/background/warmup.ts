@@ -1,7 +1,7 @@
-import { rollChest } from '../shared/chests';
+import { rollFreeze } from '../shared/chests';
 import { daysAgo, localDate } from '../shared/format';
 import { getLocal, setLocal } from '../shared/storage';
-import { awardChest, awardXp } from './gamification';
+import { grantFreezeToken, recordEvent } from './gamification';
 
 /**
  * Brain warm-up (Stroop sprint) — pre-work ritual. Replays are unlimited,
@@ -47,9 +47,8 @@ export async function completeWarmup(
   await setLocal({ warmup });
 
   if (firstToday) {
-    await awardXp('warmup_complete');
-    const bonus = rollChest();
-    if (bonus !== null) await awardChest(bonus);
+    await recordEvent('warmup_complete');
+    if (rollFreeze()) await grantFreezeToken();
   }
   return { ok: true, firstToday };
 }

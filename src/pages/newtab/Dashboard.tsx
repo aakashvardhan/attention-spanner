@@ -37,9 +37,7 @@ import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
 import { useTheme } from '../../shared/hooks/useTheme';
-import { levelForXp } from '../../shared/levels';
 import { sendMessage } from '../../shared/messages';
-import { questProgress } from '../../shared/quest';
 import { dueCounts, newIntroducedToday, totalDue } from '../../shared/srs';
 import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
 import type { Paper, Task } from '../../shared/types';
@@ -60,7 +58,6 @@ const DASHBOARD_CARDS: readonly DashCard[] = [
   { id: 'continue', title: 'Continue', Component: ContinuePanel },
   { id: 'streak', title: 'Focus', Component: StreakPanel },
   { id: 'gym', title: 'Gym', Component: GymPanel },
-  { id: 'progress', title: 'Progress', Component: GamificationPanel },
   { id: 'braindump', title: 'Brain dump', Component: BrainDumpPanel },
   { id: 'flashcards', title: 'Flashcards', Component: FlashcardsPanel },
   { id: 'papers', title: 'Papers', Component: PapersPanel },
@@ -703,69 +700,31 @@ function GymPanel() {
   );
 }
 
-function GamificationPanel() {
+/**
+ * Milestones, folded into the streak card. Deliberately one line, not a grid
+ * of 24 tiles: the count is a nudge, the detail lives behind the tooltip.
+ */
+function MilestoneLine() {
   const [gamification] = useStorageValue('gamification');
-  const [gym] = useStorageValue('gym');
-  const [streaks] = useStorageValue('streaks');
-  const [storedSettings] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  const unlocked = BADGES.filter((b) => gamification.badges[b.id]);
+  if (unlocked.length === 0) return null;
 
-  const { level, intoLevel, toNext } = levelForXp(gamification.xp);
-  const quest = questProgress(gym.checkins, streaks.daily, settings);
+  const recent = [...unlocked]
+    .sort((a, b) => gamification.badges[b.id] - gamification.badges[a.id])
+    .slice(0, 3);
 
   return (
-    <section className="panel">
-      <h2>Progress</h2>
-
-      <div className="level-row">
-        <span className="level-title">Level {level}</span>
-        <span className="level-xp">
-          {intoLevel} / {toNext} XP
-        </span>
-      </div>
-      <div className="dash-bar">
-        <div className="dash-bar-fill" style={{ width: `${(intoLevel / toNext) * 100}%` }} />
-      </div>
-
-      <div className="quest-card">
-        <p className="row-label">This week's quest</p>
-        {quest.lines.map((line) => (
-          <div key={line.key} className="quest-line">
-            <span className="quest-label">{line.label}</span>
-            <div className="quest-bar">
-              <div
-                className="quest-bar-fill"
-                style={{ width: `${Math.min(100, (line.current / line.target) * 100)}%` }}
-              />
-            </div>
-            <span className="quest-count">
-              {Math.min(line.current, line.target)}/{line.target}
-            </span>
-          </div>
-        ))}
-        {quest.complete && <p className="quest-done">Quest complete — +50 XP</p>}
-      </div>
-
-      <p className="row-label">Trophies</p>
-      <div className="badge-grid">
-        {BADGES.map((badge) => {
-          const unlockedAt = gamification.badges[badge.id];
-          return (
-            <div
-              key={badge.id}
-              className={unlockedAt ? 'badge-tile unlocked' : 'badge-tile'}
-              title={
-                unlockedAt
-                  ? `${badge.title} — unlocked ${new Date(unlockedAt).toLocaleDateString()}`
-                  : `${badge.title} — ${badge.description}`
-              }
-            >
-              <span className="badge-name">{badge.title}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+    <p
+      className="milestone-line"
+      title={recent
+        .map(
+          (b) =>
+            `${b.title} — ${new Date(gamification.badges[b.id]).toLocaleDateString()}`,
+        )
+        .join('\n')}
+    >
+      {unlocked.length} of {BADGES.length} milestones · latest: {recent[0].title}
+    </p>
   );
 }
 
@@ -1129,6 +1088,8 @@ function StreakPanel() {
           Start a {settings.sprintMinutes}-minute reading sprint
         </button>
       )}
+
+      <MilestoneLine />
 
       <FocusModeSection />
     </section>

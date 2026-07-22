@@ -10,7 +10,7 @@ import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
 import { createFocusBlock, extendFocusBlock, finishFocusBlock } from './calendar';
 import { updateBadge } from './feeds';
-import { awardXp } from './gamification';
+import { recordEvent } from './gamification';
 import { recordFocusBlock } from './streaks';
 
 /**
@@ -75,7 +75,7 @@ function notifyPhase(title: string, message: string, notificationsEnabled: boole
 
 async function awardFocusBlock(): Promise<void> {
   await recordFocusBlock();
-  await awardXp('focus_block');
+  await recordEvent('focus_block');
 }
 
 /** Open Flowtunes pinned and unfocused; reuse an existing tab (never steal focus) */

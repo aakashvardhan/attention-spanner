@@ -14,9 +14,8 @@ export interface StatsSnapshot {
   brainDumps: number;
   focusBlocks: number;
   cardsReviewed: number;
-  chestsOpened: number;
+  freezesEarned: number;
   warmups: number;
-  level: number;
 }
 
 export interface Badge {
@@ -48,7 +47,5 @@ export const BADGES: readonly Badge[] = [
   { id: 'tasks-50', title: 'Task Slayer', description: 'Complete 50 tasks', earned: (s) => s.tasksCompleted >= 50 },
   { id: 'cards-100', title: 'Century Recall', description: 'Review 100 flashcards', earned: (s) => s.cardsReviewed >= 100 },
   { id: 'dumps-10', title: 'Mind Gardener', description: 'Structure 10 brain dumps', earned: (s) => s.brainDumps >= 10 },
-  { id: 'chests-10', title: 'Lucky Day', description: 'Open 10 mystery chests', earned: (s) => (s.chestsOpened ?? 0) >= 10 },
-  { id: 'level-5', title: 'Level 5', description: 'Reach level 5', earned: (s) => s.level >= 5 },
-  { id: 'level-10', title: 'Level 10', description: 'Reach level 10', earned: (s) => s.level >= 10 },
+  { id: 'freezes-10', title: 'Lucky Streak', description: 'Bank 10 streak freezes', earned: (s) => (s.freezesEarned ?? 0) >= 10 },
 ];

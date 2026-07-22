@@ -1,10 +1,10 @@
 import { ALARMS, NOTIFICATION_IDS } from '../shared/constants';
 import { daysAgo, localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal, setSession } from '../shared/storage';
-import { rollChest } from '../shared/chests';
+import { rollFreeze } from '../shared/chests';
 import { bridgeGap, maybeEarnToken } from '../shared/streakInsurance';
 import type { DayStats, Streaks } from '../shared/types';
-import { awardChest, awardXp, checkBadges } from './gamification';
+import { grantFreezeToken, recordEvent, checkBadges } from './gamification';
 
 /**
  * Daily reading stats + streaks. A day "qualifies" once active reading
@@ -155,10 +155,9 @@ export async function cancelSprint(): Promise<{ ok: boolean }> {
 export async function finishSprint(): Promise<void> {
   await setSession({ activeSprint: null });
   await recordSprintFinished();
-  await awardXp('sprint_completed');
+  await recordEvent('sprint_completed');
   // Sprints can't be un-finished, so a fresh roll per sprint is farm-safe
-  const chestBonus = rollChest();
-  if (chestBonus !== null) await awardChest(chestBonus);
+  if (rollFreeze()) await grantFreezeToken();
 
   const settings = await getSettings();
   if (!settings.notificationsEnabled) return;

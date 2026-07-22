@@ -16,9 +16,7 @@ function data(): AssistantContextData {
     streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
     gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
     gamification: {
-      xp: 0,
       badges: {},
-      lastQuestCelebratedWeek: '',
       counters: {
         workouts: 0,
         articlesFinished: 0,
@@ -28,7 +26,7 @@ function data(): AssistantContextData {
         brainDumps: 0,
         focusBlocks: 0,
         cardsReviewed: 0,
-        chestsOpened: 0,
+        freezesEarned: 0,
       },
     },
     flashCards: [],

@@ -1,7 +1,7 @@
 import { MAX_NOTES } from '../shared/constants';
 import { getLocal, setLocal } from '../shared/storage';
 import type { BrainDumpNote } from '../shared/types';
-import { awardXp } from './gamification';
+import { recordEvent } from './gamification';
 import { pushBrainDump } from './notion';
 import { addTask } from './tasks';
 
@@ -45,7 +45,7 @@ export async function applyStructureResult(
   note.proposedTasks = tasks.map((text) => ({ text, addedTaskId: null }));
   note.structuredAt = Date.now();
   await setLocal({ notes });
-  await awardXp('braindump_structured');
+  await recordEvent('braindump_structured');
   if (note.notionPushedAt == null) void pushBrainDump(note);
 }
 

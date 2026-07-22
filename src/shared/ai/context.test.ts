@@ -15,9 +15,7 @@ function emptyData(): AssistantContextData {
     streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
     gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
     gamification: {
-      xp: 0,
       badges: {},
-      lastQuestCelebratedWeek: '',
       counters: {
         workouts: 0,
         articlesFinished: 0,
@@ -27,7 +25,7 @@ function emptyData(): AssistantContextData {
         brainDumps: 0,
         focusBlocks: 0,
         cardsReviewed: 0,
-        chestsOpened: 0,
+        freezesEarned: 0,
       },
     },
     flashCards: [],
@@ -60,18 +58,18 @@ describe('buildDataContext', () => {
     expect(out).not.toContain('Old thing');
   });
 
-  it('includes streak, gym, and level numbers', () => {
+  it('includes streak, gym, and lifetime numbers', () => {
     const data = emptyData();
     data.streaks.currentStreak = 7;
     data.streaks.daily['2026-07-11'] = { minutes: 22, sprints: 1, articlesFinished: 0 };
     data.gym.checkins['2026-07-11'] = 1;
-    data.gamification.xp = 350;
+    data.gamification.counters.articlesFinished = 12;
     const out = buildDataContext(data, NOW);
     expect(out).toContain('Reading streak: 7 days');
     expect(out).toContain('Today: 22 min read');
     expect(out).toContain('1/3 sessions this week');
     expect(out).toContain('checked in today');
-    expect(out).toContain('Level 3');
+    expect(out).toContain('12 articles');
   });
 
   it('reports today site time but not stale days', () => {

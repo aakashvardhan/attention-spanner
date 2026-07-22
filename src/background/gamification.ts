@@ -1,18 +1,34 @@
 import { BADGES, type StatsSnapshot } from '../shared/badges';
 import { NOTIFICATION_IDS } from '../shared/constants';
-import { levelForXp, QUEST_XP_BONUS, XP_VALUES, type XpEvent } from '../shared/levels';
-import { questProgress } from '../shared/quest';
+import { FREEZE_TOKEN_CAP } from '../shared/streakInsurance';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { Gamification, GymState, Streaks } from '../shared/types';
-import { weekKey } from '../shared/week';
 
 /**
- * Unified XP/levels/badges/quest engine. Called from every habit module
- * (gym, tracking, streaks, tasks, notes) — imports only shared code and
- * storage, so no import cycles.
+ * Habit bookkeeping: lifetime counters + one-time milestones. Called from
+ * every habit module (gym, tracking, streaks, tasks, notes) — imports only
+ * shared code and storage, so no import cycles.
+ *
+ * There used to be an XP economy, a level curve, and a weekly quest layered
+ * on top of this. They were four visible scoreboards competing with the
+ * streak, so they are gone; the counters survive because milestones and the
+ * assistant's data snapshot read them. Milestones fire a notification once
+ * and are never rendered as a wall of tiles.
  */
 
-const COUNTER_FOR_EVENT: Record<XpEvent, keyof StatsSnapshot & string> = {
+/** Habit events worth counting. Formerly XP-bearing; now counters only. */
+export type HabitEvent =
+  | 'gym_checkin'
+  | 'article_finished'
+  | 'video_finished'
+  | 'sprint_completed'
+  | 'task_completed'
+  | 'braindump_structured'
+  | 'focus_block'
+  | 'flashcard_review'
+  | 'warmup_complete';
+
+const COUNTER_FOR_EVENT: Record<HabitEvent, keyof StatsSnapshot & string> = {
   gym_checkin: 'workouts',
   article_finished: 'articlesFinished',
   video_finished: 'videosFinished',
@@ -55,15 +71,14 @@ function snapshotOf({ gamification, gym, streaks }: Trio): StatsSnapshot {
     videosFinished: gamification.counters.videosFinished ?? 0,
     focusBlocks: gamification.counters.focusBlocks ?? 0,
     cardsReviewed: gamification.counters.cardsReviewed ?? 0,
-    chestsOpened: gamification.counters.chestsOpened ?? 0,
+    freezesEarned: gamification.counters.freezesEarned ?? 0,
     warmups: gamification.counters.warmups ?? 0,
     gymWeekStreak: gym.currentWeekStreak,
     readingStreak: streaks.currentStreak,
-    level: levelForXp(gamification.xp).level,
   };
 }
 
-/** Unlock any newly-earned badges; queues one notification per unlock */
+/** Unlock any newly-earned milestones; queues one notification per unlock */
 function badgePass(state: Trio, queue: QueuedNotification[]): void {
   const snapshot = snapshotOf(state);
   for (const badge of BADGES) {
@@ -71,14 +86,15 @@ function badgePass(state: Trio, queue: QueuedNotification[]): void {
       state.gamification.badges[badge.id] = Date.now();
       queue.push({
         id: NOTIFICATION_IDS.badgePrefix + badge.id,
-        title: `Badge unlocked: ${badge.title}`,
+        title: `Milestone: ${badge.title}`,
         message: badge.description,
       });
     }
   }
 }
 
-export async function awardXp(event: XpEvent): Promise<void> {
+/** Count a habit event and check whether it unlocked a milestone. */
+export async function recordEvent(event: HabitEvent): Promise<void> {
   const { gamification, gym, streaks } = await getLocal('gamification', 'gym', 'streaks');
   const settings = await getSettings();
   const queue: QueuedNotification[] = [];
@@ -87,90 +103,48 @@ export async function awardXp(event: XpEvent): Promise<void> {
   // ?? 0: profiles from before a counter existed may lack the key
   gamification.counters[counterKey] = (gamification.counters[counterKey] ?? 0) + 1;
 
-  const levelBefore = levelForXp(gamification.xp).level;
-  gamification.xp += XP_VALUES[event];
-
-  // Weekly quest — derived from live data, celebrated once per week
-  const thisWeek = weekKey();
-  const quest = questProgress(gym.checkins, streaks.daily, settings, thisWeek);
-  if (quest.complete && gamification.lastQuestCelebratedWeek !== thisWeek) {
-    gamification.lastQuestCelebratedWeek = thisWeek;
-    gamification.xp += QUEST_XP_BONUS;
-    queue.push({
-      id: NOTIFICATION_IDS.questComplete,
-      title: 'Weekly quest complete',
-      message: `${quest.lines.map((l) => `${l.current}/${l.target}`).join(' · ')} — +${QUEST_XP_BONUS} XP`,
-    });
-  }
-
-  const levelAfter = levelForXp(gamification.xp).level;
-  if (levelAfter > levelBefore) {
-    queue.push({
-      id: NOTIFICATION_IDS.levelUp,
-      title: `Level ${levelAfter}`,
-      message: `${gamification.xp} XP across reading, tasks, and the gym.`,
-    });
-  }
-
-  // Badge pass over the final snapshot (sees quest bonus / new level)
   badgePass({ gamification, gym, streaks }, queue);
 
   await setLocal({ gamification });
   if (settings.notificationsEnabled) notify(queue);
 }
 
-/**
- * Mystery-chest drop: bonus XP + lifetime chest counter + level/badge pass.
- * Callers decide when a chest may be rolled (see chests.ts + tasks.ts).
- */
-export async function awardChest(bonusXp: number): Promise<void> {
-  const { gamification, gym, streaks } = await getLocal('gamification', 'gym', 'streaks');
-  const settings = await getSettings();
-  const queue: QueuedNotification[] = [];
-
-  gamification.counters.chestsOpened = (gamification.counters.chestsOpened ?? 0) + 1;
-  const levelBefore = levelForXp(gamification.xp).level;
-  gamification.xp += bonusXp;
-  queue.push({
-    id: NOTIFICATION_IDS.chest,
-    title: 'Mystery chest',
-    message: `+${bonusXp} bonus XP dropped from that completion.`,
-  });
-
-  const levelAfter = levelForXp(gamification.xp).level;
-  if (levelAfter > levelBefore) {
-    queue.push({
-      id: NOTIFICATION_IDS.levelUp,
-      title: `Level ${levelAfter}`,
-      message: `${gamification.xp} XP across reading, tasks, and the gym.`,
-    });
-  }
-
-  badgePass({ gamification, gym, streaks }, queue);
-  await setLocal({ gamification });
-  if (settings.notificationsEnabled) notify(queue);
-}
-
-/**
- * Raw XP delta for chest-bonus undo/redo on task re-toggles; counters,
- * badges, and quests stay untouched.
- */
-export async function adjustXp(delta: number): Promise<void> {
-  const { gamification } = await getLocal('gamification');
-  gamification.xp = Math.max(0, gamification.xp + delta);
-  await setLocal({ gamification });
-}
-
-/** Inverse of awardXp for undo paths (gym undo, task un-complete). Badges/quests stay. */
-export async function revokeXp(event: XpEvent): Promise<void> {
+/** Inverse of recordEvent for undo paths (gym undo, task un-complete). Milestones stay. */
+export async function revokeEvent(event: HabitEvent): Promise<void> {
   const { gamification } = await getLocal('gamification');
   const counterKey = COUNTER_FOR_EVENT[event] as keyof typeof gamification.counters;
   gamification.counters[counterKey] = Math.max(0, (gamification.counters[counterKey] ?? 0) - 1);
-  gamification.xp = Math.max(0, gamification.xp - XP_VALUES[event]);
   await setLocal({ gamification });
 }
 
-/** Badge-only evaluation for events that carry no XP (e.g. reading day qualified) */
+/**
+ * The variable-ratio drop (see shared/chests.ts): bank one streak freeze
+ * token. No-op at the cap, so a lucky run can't stockpile immunity. Granted
+ * once per task and never revoked — un-completing a task must not claw back a
+ * token the user may already have spent.
+ */
+export async function grantFreezeToken(): Promise<void> {
+  const { gamification, gym, streaks } = await getLocal('gamification', 'gym', 'streaks');
+  if ((streaks.freezeTokens ?? 0) >= FREEZE_TOKEN_CAP) return;
+
+  streaks.freezeTokens = (streaks.freezeTokens ?? 0) + 1;
+  gamification.counters.freezesEarned = (gamification.counters.freezesEarned ?? 0) + 1;
+
+  const settings = await getSettings();
+  const queue: QueuedNotification[] = [
+    {
+      id: NOTIFICATION_IDS.chest,
+      title: 'Streak freeze banked',
+      message: `That completion dropped a freeze token — ${streaks.freezeTokens} in the bank.`,
+    },
+  ];
+  badgePass({ gamification, gym, streaks }, queue);
+
+  await setLocal({ gamification, streaks });
+  if (settings.notificationsEnabled) notify(queue);
+}
+
+/** Milestone-only evaluation for events that carry no counter (e.g. reading day qualified) */
 export async function checkBadges(): Promise<void> {
   const state = await getLocal('gamification', 'gym', 'streaks');
   const settings = await getSettings();

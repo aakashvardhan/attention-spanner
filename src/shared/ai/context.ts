@@ -1,6 +1,5 @@
 import { calendarContextLines, type CalendarState } from '../calendar';
 import { localDate } from '../format';
-import { levelForXp } from '../levels';
 import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, type LocalSchema } from '../storage';
 import type {
@@ -95,8 +94,11 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
       `week streak ${data.gym.currentWeekStreak} (longest ${data.gym.longestWeekStreak}).`,
   );
 
-  const { level, intoLevel, toNext } = levelForXp(data.gamification.xp);
-  lines.push(`Level ${level} — ${intoLevel}/${toNext} XP into the level (${data.gamification.xp} total XP).`);
+  const c = data.gamification.counters;
+  lines.push(
+    `Lifetime: ${c.articlesFinished} articles, ${c.videosFinished ?? 0} videos, ` +
+      `${c.focusBlocks ?? 0} focus blocks, ${c.tasksCompleted} tasks, ${c.workouts} workouts.`,
+  );
 
   const due = totalDue(dueCounts(data.flashCards, now.getTime(), newIntroducedToday(data.srsDaily, today)));
   lines.push(`Flashcards due now: ${due}.`);

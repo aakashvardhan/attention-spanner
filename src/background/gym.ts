@@ -2,7 +2,7 @@ import { GYM_WINDOW_DAYS, NOTIFICATION_IDS } from '../shared/constants';
 import { daysAgo, localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import { countInWeek, prevWeekKey, weekKey } from '../shared/week';
-import { awardXp, revokeXp } from './gamification';
+import { recordEvent, revokeEvent } from './gamification';
 
 /**
  * Gym check-ins + weekly-goal streak. A week qualifies the instant its Nth
@@ -36,7 +36,7 @@ export async function gymCheckin(): Promise<{ ok: boolean }> {
 
   pruneCheckins(gym.checkins);
   await setLocal({ gym });
-  await awardXp('gym_checkin');
+  await recordEvent('gym_checkin');
   return { ok: true };
 }
 
@@ -61,7 +61,7 @@ export async function gymUndo(): Promise<{ ok: boolean }> {
   }
 
   await setLocal({ gym });
-  await revokeXp('gym_checkin');
+  await revokeEvent('gym_checkin');
   return { ok: true };
 }
 

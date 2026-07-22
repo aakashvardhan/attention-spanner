@@ -3,7 +3,7 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { awardXp } from './gamification';
+import { recordEvent } from './gamification';
 import { recordEngagement } from './hyperfocus';
 import { pushReadingFinished } from './notion';
 import { scheduleNudge, cancelNudge } from './nudges';
@@ -170,7 +170,7 @@ export async function handleProgressUpdate(
   await recordReading(Math.max(0, update.activeSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
   if (finishedNow) {
-    await awardXp('article_finished'); // latches once per article via completedAt
+    await recordEvent('article_finished'); // latches once per article via completedAt
     void pushReadingFinished(progress);
   }
 

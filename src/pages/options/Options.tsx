@@ -368,22 +368,6 @@ export function Options() {
             </select>
           </div>
           <div className="setting-row">
-            <label htmlFor="quest-articles">Weekly quest — articles to finish:</label>
-            <select
-              id="quest-articles"
-              value={settings.questArticlesPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questArticlesPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
             <label htmlFor="video-min-minutes">Track YouTube videos longer than:</label>
             <select
               id="video-min-minutes"
@@ -393,38 +377,6 @@ export function Options() {
               {[1, 5, 10, 15, 20, 30].map((n) => (
                 <option key={n} value={n}>
                   {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-videos">Weekly quest — videos to finish:</label>
-            <select
-              id="quest-videos"
-              value={settings.questVideosPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questVideosPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-sprints">Weekly quest — sprints to complete:</label>
-            <select
-              id="quest-sprints"
-              value={settings.questSprintsPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questSprintsPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
                 </option>
               ))}
             </select>
@@ -532,20 +484,6 @@ export function Options() {
               {[5, 10, 15, 20].map((n) => (
                 <option key={n} value={n}>
                   {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-focus">Weekly quest — focus blocks:</label>
-            <select
-              id="quest-focus"
-              value={settings.questFocusPerWeek}
-              onChange={(e) => void patchSettings({ questFocusPerWeek: Number(e.target.value) })}
-            >
-              {[0, 3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
                 </option>
               ))}
             </select>

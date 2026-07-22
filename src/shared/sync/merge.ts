@@ -21,7 +21,7 @@ import type {
  *     ids there is no way to dedup, and the pull→merge→push loop would double
  *     count a summed field. Max never over-counts and still lets any device
  *     cross a daily threshold (streak qualification only needs the max).
- *  3. Monotonic aggregates (gamification xp/counters) → `max` per field;
+ *  3. Monotonic aggregates (gamification counters) → `max` per field;
  *     badges → union keeping the earliest unlock.
  *
  * Derived values (currentStreak, longestStreak, level, due counts) are NOT
@@ -149,7 +149,7 @@ export function mergeCounters(local: LifetimeCounters, remote: LifetimeCounters)
     brainDumps: max(local.brainDumps, remote.brainDumps),
     focusBlocks: max(local.focusBlocks, remote.focusBlocks),
     cardsReviewed: max(local.cardsReviewed, remote.cardsReviewed),
-    chestsOpened: max(local.chestsOpened, remote.chestsOpened),
+    freezesEarned: max(local.freezesEarned, remote.freezesEarned),
   };
 }
 
@@ -165,16 +165,10 @@ export function mergeBadges(
   return out;
 }
 
-/** Merge the singleton gamification doc: xp/counters max, badges union. */
+/** Merge the singleton gamification doc: counters max, milestones union. */
 export function mergeGamification(local: Gamification, remote: Gamification): Gamification {
   return {
-    xp: max(local.xp, remote.xp),
     badges: mergeBadges(local.badges, remote.badges),
-    // Week keys are ISO 'YYYY-MM-DD' (Monday), so lexical max = most recent.
-    lastQuestCelebratedWeek:
-      local.lastQuestCelebratedWeek >= remote.lastQuestCelebratedWeek
-        ? local.lastQuestCelebratedWeek
-        : remote.lastQuestCelebratedWeek,
     counters: mergeCounters(local.counters, remote.counters),
   };
 }

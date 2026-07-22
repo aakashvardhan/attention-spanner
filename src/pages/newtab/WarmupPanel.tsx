@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { localDate } from '../../shared/format';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
-import { XP_VALUES } from '../../shared/levels';
 import { sendMessage } from '../../shared/messages';
 import {
   nextTrial,
@@ -205,7 +204,7 @@ export function WarmupPanel() {
             {result.isBest && <p className="warmup-best">New personal best!</p>}
             <p className="sprint-hint">
               {result.firstToday
-                ? `+${XP_VALUES.warmup_complete} XP · day ${warmup.currentStreak} of your warm-up streak`
+                ? `Day ${warmup.currentStreak} of your warm-up streak`
                 : 'Already counted today — nice reps anyway.'}
             </p>
           </div>

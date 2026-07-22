@@ -4,7 +4,6 @@ import { useFocusSession } from '../../../shared/hooks/useFocusSession';
 import { BookmarkPicker } from './BookmarkPicker';
 import { useSprint } from '../../../shared/hooks/useSprint';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
-import { levelForXp } from '../../../shared/levels';
 import { sendMessage } from '../../../shared/messages';
 import { DEFAULT_SETTINGS } from '../../../shared/storage';
 
@@ -12,12 +11,11 @@ export function FocusBar() {
   const sprint = useSprint();
   const focus = useFocusSession();
   const [streaks] = useStorageValue('streaks');
-  const [gamification] = useStorageValue('gamification');
   const [gym] = useStorageValue('gym');
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
 
-  const { level, intoLevel, toNext } = levelForXp(gamification.xp);
+  const freezes = streaks.freezeTokens ?? 0;
   const checkedInToday = localDate() in gym.checkins;
   const [picking, setPicking] = useState(false);
 
@@ -25,12 +23,17 @@ export function FocusBar() {
     <>
     <div className="focus-bar">
       <span className="focus-left">
-        <span className="level-chip" title={`${intoLevel}/${toNext} XP to level ${level + 1}`}>
-          L{level}
-        </span>
         <span className="focus-streak" title={`Longest: ${streaks.longestStreak} days`}>
           {streaks.currentStreak} day{streaks.currentStreak === 1 ? '' : 's'}
         </span>
+        {freezes > 0 && (
+          <span
+            className="level-chip"
+            title={`${freezes} streak freeze${freezes === 1 ? '' : 's'} banked — a missed day is covered automatically`}
+          >
+            {freezes} freeze{freezes === 1 ? '' : 's'}
+          </span>
+        )}
       </span>
       <span className="focus-right">
         <button

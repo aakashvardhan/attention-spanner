@@ -12,9 +12,8 @@ const ZERO: StatsSnapshot = {
   brainDumps: 0,
   focusBlocks: 0,
   cardsReviewed: 0,
-  chestsOpened: 0,
+  freezesEarned: 0,
   warmups: 0,
-  level: 1,
 };
 
 // [badgeId, snapshot field, threshold]
@@ -40,9 +39,7 @@ const THRESHOLDS: [string, keyof StatsSnapshot, number][] = [
   ['tasks-50', 'tasksCompleted', 50],
   ['cards-100', 'cardsReviewed', 100],
   ['dumps-10', 'brainDumps', 10],
-  ['chests-10', 'chestsOpened', 10],
-  ['level-5', 'level', 5],
-  ['level-10', 'level', 10],
+  ['freezes-10', 'freezesEarned', 10],
 ];
 
 describe('BADGES', () => {

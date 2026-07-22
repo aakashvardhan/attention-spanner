@@ -37,11 +37,10 @@ export interface Task extends SyncMeta {
   /** Notion page created for this task; set after the create push succeeds */
   notionPageId?: string;
   /**
-   * Mystery-chest roll for this task, made once on first completion
-   * (bonusXp 0 = rolled and missed). Present ⇒ never re-roll, so
-   * toggle-farming can't fish for a drop.
+   * The variable-ratio drop was rolled for this task on its first completion.
+   * Present ⇒ never re-roll, so toggle-farming can't fish for a drop.
    */
-  chest?: { bonusXp: number };
+  chest?: { rolled: true };
 }
 
 /**
@@ -138,7 +137,6 @@ export const DASH_CARD_IDS = [
   'continue',
   'streak',
   'gym',
-  'progress',
   'braindump',
   'flashcards',
   'papers',
@@ -167,10 +165,6 @@ export interface Settings {
   gymWeeklyTarget: number;
   /** Local 'HH:MM' for the daily gym reminder; '' = off */
   gymReminderTime: string;
-  /** Weekly quest targets; 0 excludes the line from the quest */
-  questArticlesPerWeek: number;
-  questSprintsPerWeek: number;
-  questVideosPerWeek: number;
   /** Only auto-track YouTube videos at least this long */
   videoMinMinutes: number;
   /** Unbroken engagement minutes before the hyperfocus break nudge; 0 = off */
@@ -181,7 +175,6 @@ export interface Settings {
   focusBlocklist: string[];
   focusMinutes: number;
   focusBreakMinutes: number;
-  questFocusPerWeek: number;
   /** Auto-open Flowtunes in a pinned tab when a focus session starts */
   focusMusicEnabled: boolean;
   /** Dashboard grid columns (1–4); narrow viewports still collapse responsively */
@@ -455,18 +448,20 @@ export interface LifetimeCounters {
   brainDumps: number;
   focusBlocks: number;
   cardsReviewed: number;
-  /** Added in Phase 15 (mystery chests) — read with `?? 0` */
-  chestsOpened?: number;
+  /** Freeze tokens banked from the variable-ratio drop — read with `?? 0` */
+  freezesEarned?: number;
   /** Added with the warm-up card — read with `?? 0` */
   warmups?: number;
 }
 
+/**
+ * Habit bookkeeping. Held an XP total and weekly-quest state until those were
+ * removed — streak days is the one visible signal now, and these counters
+ * exist to drive one-time milestones and the assistant's data snapshot.
+ */
 export interface Gamification {
-  xp: number;
-  /** badgeId → unlockedAt (ms). Badges are never revoked. */
+  /** milestoneId → unlockedAt (ms). Never revoked. */
   badges: Record<string, number>;
-  /** weekKey of the last week whose quest-complete celebration fired */
-  lastQuestCelebratedWeek: string;
   counters: LifetimeCounters;
 }
 

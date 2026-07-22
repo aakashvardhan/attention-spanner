@@ -156,7 +156,7 @@ const counters = (over: Partial<LifetimeCounters> = {}): LifetimeCounters => ({
   brainDumps: 0,
   focusBlocks: 0,
   cardsReviewed: 0,
-  chestsOpened: 0,
+  freezesEarned: 0,
   ...over,
 });
 
@@ -181,22 +181,16 @@ describe('mergeBadges', () => {
 describe('mergeGamification', () => {
   it('maxes xp/counters, unions badges, keeps latest quest week', () => {
     const a: Gamification = {
-      xp: 100,
       badges: { x: 10 },
-      lastQuestCelebratedWeek: '2026-07-06',
       counters: counters({ sprints: 4 }),
     };
     const b: Gamification = {
-      xp: 80,
       badges: { y: 20 },
-      lastQuestCelebratedWeek: '2026-06-29',
       counters: counters({ sprints: 6 }),
     };
     const merged = mergeGamification(a, b);
-    expect(merged.xp).toBe(100);
     expect(merged.counters.sprints).toBe(6);
     expect(merged.badges).toEqual({ x: 10, y: 20 });
-    expect(merged.lastQuestCelebratedWeek).toBe('2026-07-06');
   });
 });
 

@@ -1,7 +1,7 @@
 import { getLocal, getSession, getSettings, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { awardXp } from './gamification';
+import { recordEvent } from './gamification';
 import { recordEngagement } from './hyperfocus';
 import { pushReadingFinished } from './notion';
 import { cancelNudge, scheduleNudge } from './nudges';
@@ -130,7 +130,7 @@ export async function handleVideoProgress(
   await recordWatching(Math.max(0, msg.watchedSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
   if (finishedNow) {
-    await awardXp('video_finished');
+    await recordEvent('video_finished');
     void pushReadingFinished(progress);
   }
 

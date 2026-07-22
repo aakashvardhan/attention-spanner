@@ -1,10 +1,10 @@
-import { rollChest } from '../shared/chests';
+import { rollFreeze } from '../shared/chests';
 import { COMPLETED_TASK_TTL_MS, NOTIFICATION_IDS } from '../shared/constants';
 import { localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import { newTask } from '../shared/sync/recordShapes';
 import type { Task } from '../shared/types';
-import { adjustXp, awardChest, awardXp, revokeXp } from './gamification';
+import { grantFreezeToken, recordEvent, revokeEvent } from './gamification';
 import { pushTaskCreate, pushTaskToggle } from './notion';
 import { recordTaskToggled } from './streaks';
 
@@ -29,26 +29,19 @@ export async function toggleTask(id: string): Promise<void> {
   const completing = task.completedAt === null;
   const prevCompletedAt = task.completedAt;
   task.completedAt = completing ? Date.now() : null;
-  // Chest odds are rolled once per task, ever — a persisted miss (bonusXp 0)
-  // means un-complete/re-complete can't fish for a drop
+  // The drop is rolled once per task, ever — the persisted marker means
+  // un-complete/re-complete can't fish for one
   const firstRoll = completing && task.chest === undefined;
-  if (firstRoll) {
-    task.chest = { bonusXp: rollChest() ?? 0 };
-  }
+  if (firstRoll) task.chest = { rolled: true };
   await setLocal({ tasks });
-  // Symmetric award/revoke so toggle-farming yields no XP
-  const chestBonus = task.chest?.bonusXp ?? 0;
   if (completing) {
-    await awardXp('task_completed');
+    await recordEvent('task_completed');
     await recordTaskToggled(1);
-    if (chestBonus > 0) {
-      // First completion celebrates the drop; re-completions silently restore it
-      if (firstRoll) await awardChest(chestBonus);
-      else await adjustXp(chestBonus);
-    }
+    // Tokens are granted once and never clawed back — the user may already
+    // have spent one by the time a task gets un-completed
+    if (firstRoll && rollFreeze()) await grantFreezeToken();
   } else {
-    await revokeXp('task_completed');
-    if (chestBonus > 0) await adjustXp(-chestBonus);
+    await revokeEvent('task_completed');
     // Only walk back today's activity count — un-completing a task finished
     // on a past day must not corrupt that day's calendar cell
     if (prevCompletedAt !== null && localDate(new Date(prevCompletedAt)) === localDate()) {

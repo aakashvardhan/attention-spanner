@@ -18,6 +18,7 @@ import type {
   FlashNote,
   FocusSession,
   Gamification,
+  LifetimeCounters,
   GymState,
   Paper,
   PdfAnnotation,
@@ -129,16 +130,12 @@ export const DEFAULT_SETTINGS: Settings = {
   dailyGoalMinutes: 5,
   gymWeeklyTarget: 3,
   gymReminderTime: '18:00',
-  questArticlesPerWeek: 2,
-  questSprintsPerWeek: 5,
-  questVideosPerWeek: 1,
   videoMinMinutes: 15,
   hyperfocusMinutes: 90,
   timePillHosts: [],
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
   focusBreakMinutes: 10,
-  questFocusPerWeek: 5,
   focusMusicEnabled: false,
   dashColumns: 3,
   dashCardOrder: [...DASH_CARD_IDS],
@@ -187,9 +184,7 @@ export const DEFAULTS: LocalSchema = {
   streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
   gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
   gamification: {
-    xp: 0,
     badges: {},
-    lastQuestCelebratedWeek: '',
     counters: {
       workouts: 0,
       articlesFinished: 0,
@@ -199,7 +194,7 @@ export const DEFAULTS: LocalSchema = {
       brainDumps: 0,
       focusBlocks: 0,
       cardsReviewed: 0,
-      chestsOpened: 0,
+      freezesEarned: 0,
       warmups: 0,
     },
   },
@@ -315,6 +310,11 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * (tasks, notes, decks, flashCards, bookmarks, bookmarkGroups) from createdAt,
  * so last-write-wins merge has a stable timestamp. FlashNote/Paper already
  * carry updatedAt; deletedAt stays unset (== null) until a real delete.
+ * v6 → v7 (one reward currency): the XP economy, level curve and weekly quest
+ * are gone, so drop `gamification.xp` / `lastQuestCelebratedWeek` and the four
+ * quest* settings. `counters.chestsOpened` becomes `freezesEarned` (chests now
+ * drop streak freezes), `Task.chest.bonusXp` becomes a bare `rolled` marker,
+ * and the merged 'progress' card leaves dashCardOrder.
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -324,7 +324,7 @@ export async function migrate(): Promise<void> {
     'gamification',
   ]);
   const version = (stored.schemaVersion as number | undefined) ?? 0;
-  if (version >= 6) return;
+  if (version >= 7) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -389,5 +389,67 @@ export async function migrate(): Promise<void> {
     if (Object.keys(patch).length) await chrome.storage.local.set(patch);
   }
 
-  await chrome.storage.local.set({ schemaVersion: 6 });
+  if (version < 7) await migrateToV7();
+
+  await chrome.storage.local.set({ schemaVersion: 7 });
+}
+
+/**
+ * Pure core of the v7 rewrite, so the reward-currency collapse is testable
+ * without a chrome.storage stub. Returns only the keys that changed.
+ */
+export function v7Patch(stored: Record<string, unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  const gamification = stored.gamification as
+    | (Gamification & { xp?: number; lastQuestCelebratedWeek?: string })
+    | undefined;
+  if (gamification) {
+    const counters = (gamification.counters ?? {}) as LifetimeCounters & { chestsOpened?: number };
+    if (counters.chestsOpened !== undefined) {
+      counters.freezesEarned = counters.chestsOpened;
+      delete counters.chestsOpened;
+    }
+    delete gamification.xp;
+    delete gamification.lastQuestCelebratedWeek;
+    patch.gamification = { badges: gamification.badges ?? {}, counters };
+  }
+
+  const settings = stored.settings as (Partial<Settings> & Record<string, unknown>) | undefined;
+  if (settings) {
+    for (const dead of [
+      'questArticlesPerWeek',
+      'questSprintsPerWeek',
+      'questVideosPerWeek',
+      'questFocusPerWeek',
+    ]) {
+      delete settings[dead];
+    }
+    // The Progress card merged into the streak card; drop its slot so the
+    // grid's drop-unknown-ids reconcile doesn't have to carry it forever.
+    for (const key of ['dashCardOrder', 'dashHiddenCards', 'dashFullWidthCards'] as const) {
+      const list = settings[key];
+      // 'progress' has left DashCardId, so compare as a plain string
+      if (Array.isArray(list)) {
+        settings[key] = list.filter((id) => (id as string) !== 'progress');
+      }
+    }
+    patch.settings = settings;
+  }
+
+  // chest marked "already rolled" by carrying a bonusXp; only presence matters now
+  const tasks = stored.tasks as ({ chest?: { bonusXp?: number; rolled?: true } }[]) | undefined;
+  if (tasks?.some((t) => t.chest !== undefined && t.chest.rolled === undefined)) {
+    patch.tasks = tasks.map((t) =>
+      t.chest !== undefined ? { ...t, chest: { rolled: true as const } } : t,
+    );
+  }
+
+  return patch;
+}
+
+async function migrateToV7(): Promise<void> {
+  const stored = await chrome.storage.local.get(['gamification', 'settings', 'tasks']);
+  const patch = v7Patch(stored);
+  if (Object.keys(patch).length) await chrome.storage.local.set(patch);
 }

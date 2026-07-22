@@ -918,109 +918,13 @@ body.focus-active .panel:hover {
   color: var(--success);
 }
 
-/* Gamification panel */
+/* Milestones — one line inside the streak card, not a wall of tiles */
 
-.level-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.level-title {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.level-xp {
+.milestone-line {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.quest-card {
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-track);
-  border-radius: 10px;
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.quest-line {
-  display: grid;
-  grid-template-columns: 90px 1fr 34px;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.quest-label {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.quest-bar {
-  height: 6px;
-  background: var(--accent-track);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.quest-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.3s;
-}
-
-.quest-count {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.quest-done {
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--success);
   text-align: center;
-}
-
-.badge-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-
-.badge-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: var(--space-2) var(--space-1);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-subtle);
-  opacity: 0.35;
-  filter: grayscale(1);
   cursor: default;
-}
-
-.badge-tile.unlocked {
-  opacity: 1;
-  filter: none;
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-
-.badge-name {
-  font-size: 9px;
-  color: var(--text-secondary);
-  text-align: center;
-  line-height: 1.2;
 }
 
 /* Activity calendar (GitHub-style year strip pinned above the grid) */
