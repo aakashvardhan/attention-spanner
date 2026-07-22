@@ -1,5 +1,5 @@
 import { paperMatchKey } from './papers';
-import type { AnnotationColor, AnnotationRect, PdfAnnotation } from './types';
+import type { Annotation, AnnotationColor, AnnotationRect } from './types';
 
 /** Highlight tints — translucent so canvas text stays readable underneath. */
 export const ANNOTATION_COLORS: Record<AnnotationColor, string> = {
@@ -108,13 +108,21 @@ export function mergeLineRects(rects: AnnotationRect[]): AnnotationRect[] {
   return out.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
-/** 0–1 vertical anchor within the page, for scrollToPosition jumps. */
-export function annotationOffset(a: Pick<PdfAnnotation, 'kind' | 'rects' | 'y'>): number {
-  if (a.kind === 'sticky') return a.y;
-  return a.rects.length ? Math.min(...a.rects.map((r) => r.y)) : 0;
+/** 0–1 vertical anchor within a PDF page, for scrollToPosition jumps. */
+export function annotationOffset(a: Pick<Annotation, 'kind' | 'anchor'>): number {
+  if (a.anchor.kind !== 'pdf') return 0;
+  if (a.kind === 'sticky') return a.anchor.y;
+  return a.anchor.rects.length ? Math.min(...a.anchor.rects.map((r) => r.y)) : 0;
 }
 
-/** Reading order: page, then vertical position within the page. */
-export function sortAnnotations(list: PdfAnnotation[]): PdfAnnotation[] {
-  return [...list].sort((a, b) => a.page - b.page || annotationOffset(a) - annotationOffset(b));
+/** Where an annotation sits in reading order: page for PDFs, block for text. */
+export function annotationSeq(a: Pick<Annotation, 'anchor'>): number {
+  return a.anchor.kind === 'pdf' ? a.anchor.page : a.anchor.blockIndex;
+}
+
+/** Reading order: page/block, then vertical position within it. */
+export function sortAnnotations(list: Annotation[]): Annotation[] {
+  return [...list].sort(
+    (a, b) => annotationSeq(a) - annotationSeq(b) || annotationOffset(a) - annotationOffset(b),
+  );
 }

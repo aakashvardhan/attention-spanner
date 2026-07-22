@@ -5,6 +5,7 @@ import { MEETING_NOTES_DEFAULTS, type MeetingNotesState } from './meetingNotes';
 import type { NotionPush, NotionStatus } from './notion';
 import { DASH_CARD_IDS } from './types';
 import type {
+  Annotation,
   AnyProgress,
   AssistantAutomation,
   AssistantFact,
@@ -18,10 +19,9 @@ import type {
   FlashNote,
   FocusSession,
   Gamification,
-  LifetimeCounters,
   GymState,
+  LifetimeCounters,
   Paper,
-  PdfAnnotation,
   Settings,
   SrsDayStats,
   Streaks,
@@ -53,8 +53,9 @@ export interface LocalSchema {
   flashCards: FlashCard[];
   /** Research papers, grouped into decks (shared with flashcards) */
   papers: Paper[];
-  /** PDF reader highlights & sticky notes, keyed by docKey. Local-only (v1); shaped for future per-record sync. */
-  pdfAnnotations: PdfAnnotation[];
+  /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey.
+   *  Local-only; shaped for future per-record sync. */
+  annotations: Annotation[];
   /** Keyed by local date 'YYYY-MM-DD', pruned to SRS_DAILY_RETENTION_DAYS */
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
@@ -202,7 +203,7 @@ export const DEFAULTS: LocalSchema = {
   flashNotes: [],
   flashCards: [],
   papers: [],
-  pdfAnnotations: [],
+  annotations: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
   sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
@@ -304,11 +305,14 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * (tasks, notes, decks, flashCards, bookmarks, bookmarkGroups) from createdAt,
  * so last-write-wins merge has a stable timestamp. FlashNote/Paper already
  * carry updatedAt; deletedAt stays unset (== null) until a real delete.
- * v6 → v7 (one reward currency): the XP economy, level curve and weekly quest
- * are gone, so drop `gamification.xp` / `lastQuestCelebratedWeek` and the four
- * quest* settings. `counters.chestsOpened` becomes `freezesEarned` (chests now
- * drop streak freezes), `Task.chest.bonusXp` becomes a bare `rolled` marker,
- * and the merged 'progress' card leaves dashCardOrder.
+ * v6 → v7 (one reward currency + one reader): the XP economy, level curve and
+ * weekly quest are gone, so drop `gamification.xp` / `lastQuestCelebratedWeek`
+ * and the four quest* settings. `counters.chestsOpened` becomes
+ * `freezesEarned` (chests now drop streak freezes), `Task.chest.bonusXp`
+ * becomes a bare `rolled` marker, and the merged 'progress' card leaves
+ * dashCardOrder. The reader also gained a second document kind, so
+ * `pdfAnnotations` becomes `annotations` with its page/rect fields wrapped in
+ * a discriminated `anchor` (see types.AnnotationAnchor).
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -431,6 +435,19 @@ export function v7Patch(stored: Record<string, unknown>): Record<string, unknown
     patch.settings = settings;
   }
 
+  // Annotations grew an anchor union when the reader learned to read articles;
+  // every existing record is a PDF one.
+  const legacy = stored.pdfAnnotations as
+    | ({ page: number; rects: unknown[]; x: number; y: number; pdfUrl: string } & Record<string, unknown>)[]
+    | undefined;
+  if (legacy?.length) {
+    patch.annotations = legacy.map(({ page, rects, x, y, pdfUrl, ...rest }) => ({
+      ...rest,
+      docUrl: pdfUrl,
+      anchor: { kind: 'pdf' as const, page, rects, x, y },
+    }));
+  }
+
   // chest marked "already rolled" by carrying a bonusXp; only presence matters now
   const tasks = stored.tasks as ({ chest?: { bonusXp?: number; rolled?: true } }[]) | undefined;
   if (tasks?.some((t) => t.chest !== undefined && t.chest.rolled === undefined)) {
@@ -443,7 +460,13 @@ export function v7Patch(stored: Record<string, unknown>): Record<string, unknown
 }
 
 async function migrateToV7(): Promise<void> {
-  const stored = await chrome.storage.local.get(['gamification', 'settings', 'tasks']);
+  const stored = await chrome.storage.local.get([
+    'gamification',
+    'settings',
+    'tasks',
+    'pdfAnnotations',
+  ]);
   const patch = v7Patch(stored);
   if (Object.keys(patch).length) await chrome.storage.local.set(patch);
+  if (stored.pdfAnnotations !== undefined) await chrome.storage.local.remove('pdfAnnotations');
 }

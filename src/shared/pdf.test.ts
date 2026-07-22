@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  articleReaderPath,
   computePdfPercent,
   isPdfUrl,
   positionFromScroll,
   readerPagePath,
   shouldInterceptPdf,
+  shouldOpenInReader,
 } from './pdf';
 
 describe('isPdfUrl', () => {
@@ -77,5 +79,35 @@ describe('computePdfPercent', () => {
   it('clamps and survives a zero page count', () => {
     expect(computePdfPercent(11, 10, 1)).toBe(100);
     expect(computePdfPercent(1, 0, 0)).toBe(0);
+  });
+});
+
+describe('shouldOpenInReader', () => {
+  it('accepts ordinary web articles', () => {
+    expect(shouldOpenInReader('https://example.com/posts/attention')).toBe(true);
+    expect(shouldOpenInReader('http://blog.example.org/a')).toBe(true);
+  });
+
+  it('rejects PDFs — those take the PDF reader path instead', () => {
+    expect(shouldOpenInReader('https://arxiv.org/pdf/2006.11239')).toBe(false);
+  });
+
+  it('rejects video pages, which are watched rather than read', () => {
+    expect(shouldOpenInReader('https://www.youtube.com/watch?v=abc12345678')).toBe(false);
+    expect(shouldOpenInReader('https://youtu.be/abc12345678')).toBe(false);
+    expect(shouldOpenInReader('https://vimeo.com/12345')).toBe(false);
+  });
+
+  it('rejects non-http schemes and junk', () => {
+    expect(shouldOpenInReader('mailto:someone@example.com')).toBe(false);
+    expect(shouldOpenInReader('not a url')).toBe(false);
+  });
+});
+
+describe('articleReaderPath', () => {
+  it('encodes the target url into the ?article= param', () => {
+    expect(articleReaderPath('https://example.com/a b?x=1')).toBe(
+      'src/pages/reader/index.html?article=https%3A%2F%2Fexample.com%2Fa%20b%3Fx%3D1',
+    );
   });
 });

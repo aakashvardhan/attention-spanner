@@ -70,6 +70,54 @@ describe('v7Patch', () => {
     expect(patch.tasks).toBeUndefined();
   });
 
+  it('wraps pdf annotations into the anchor union', () => {
+    const patch = v7Patch({
+      pdfAnnotations: [
+        {
+          id: 'a',
+          docKey: 'k',
+          pdfUrl: 'https://arxiv.org/pdf/1',
+          paperId: 'p1',
+          kind: 'highlight',
+          page: 4,
+          rects: [{ x: 0.1, y: 0.2, w: 0.3, h: 0.04 }],
+          x: 0,
+          y: 0,
+          text: 'quoted',
+          color: 'yellow',
+          note: '',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+    });
+    expect(patch.annotations).toEqual([
+      {
+        id: 'a',
+        docKey: 'k',
+        docUrl: 'https://arxiv.org/pdf/1',
+        paperId: 'p1',
+        kind: 'highlight',
+        anchor: {
+          kind: 'pdf',
+          page: 4,
+          rects: [{ x: 0.1, y: 0.2, w: 0.3, h: 0.04 }],
+          x: 0,
+          y: 0,
+        },
+        text: 'quoted',
+        color: 'yellow',
+        note: '',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]);
+  });
+
+  it('leaves annotations alone when there were none', () => {
+    expect(v7Patch({ pdfAnnotations: [] }).annotations).toBeUndefined();
+  });
+
   it('returns nothing for a profile with none of the dead keys', () => {
     expect(v7Patch({})).toEqual({});
   });

@@ -5,6 +5,8 @@ import type { PageContent } from './ai/pageContent';
 import type { SyncLocalState } from './storage';
 import type {
   AgentProposal,
+  Annotation,
+  AnnotationDraft,
   AssistantAutomation,
   AssistantFact,
   AssistantSkill,
@@ -18,8 +20,6 @@ import type {
   FlashNoteType,
   Paper,
   PaperDraft,
-  PdfAnnotation,
-  PdfAnnotationDraft,
   Rating,
   Task,
 } from './types';
@@ -115,13 +115,10 @@ export type Message =
       leftOff: string;
     }
   | { type: 'READER_OPEN_NATIVE'; url: string }
-  // PDF reader annotations (highlights / sticky notes)
-  | { type: 'ANNOT_ADD'; draft: PdfAnnotationDraft }
-  | {
-      type: 'ANNOT_UPDATE';
-      id: string;
-      patch: Partial<Pick<PdfAnnotation, 'note' | 'color' | 'x' | 'y'>>;
-    }
+  // Reader annotations (highlights / sticky notes), PDFs and articles alike
+  | { type: 'ANNOT_ADD'; draft: AnnotationDraft }
+  | { type: 'ANNOT_UPDATE'; id: string; patch: Partial<Pick<Annotation, 'note' | 'color'>> }
+  | { type: 'ANNOT_MOVE'; id: string; x: number; y: number }
   | { type: 'ANNOT_DELETE'; id: string }
   | { type: 'CAL_SIGN_IN' }
   | { type: 'CAL_SIGN_OUT' }
@@ -180,6 +177,12 @@ export type Message =
       activeSecondsDelta: number;
       /** True when this is the flush fired as the page went hidden */
       hidden: boolean;
+      /**
+       * The document being read, when that isn't the sender's own URL — the
+       * in-extension reader renders an article whose tab URL is the reader
+       * page. Content scripts omit it and are keyed by their tab as before.
+       */
+      doc?: { url: string; title: string };
     };
 
 export interface MessageResponses {
@@ -240,8 +243,9 @@ export interface MessageResponses {
   PAPER_DELETE: { ok: boolean; error?: string };
   PAPER_READER_PROGRESS: { ok: boolean; error?: string };
   READER_OPEN_NATIVE: { ok: boolean };
-  ANNOT_ADD: { ok: boolean; annotation?: PdfAnnotation; error?: string };
+  ANNOT_ADD: { ok: boolean; annotation?: Annotation; error?: string };
   ANNOT_UPDATE: { ok: boolean; error?: string };
+  ANNOT_MOVE: { ok: boolean; error?: string };
   ANNOT_DELETE: { ok: boolean; error?: string };
   CAL_SIGN_IN: { ok: boolean; email?: string; error?: string };
   CAL_SIGN_OUT: { ok: boolean };

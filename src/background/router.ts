@@ -31,7 +31,12 @@ import {
   resetCard,
   updateNote,
 } from './flashcards';
-import { addAnnotation, deleteAnnotation, updateAnnotation } from './annotations';
+import {
+  addAnnotation,
+  deleteAnnotation,
+  moveAnnotation,
+  updateAnnotation,
+} from './annotations';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
 import { openNativePdf } from './pdfIntercept';
 import { getSyncStatus } from './sync';
@@ -195,6 +200,8 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return addAnnotation(msg.draft);
     case 'ANNOT_UPDATE':
       return updateAnnotation(msg.id, msg.patch);
+    case 'ANNOT_MOVE':
+      return moveAnnotation(msg.id, msg.x, msg.y);
     case 'ANNOT_DELETE':
       return deleteAnnotation(msg.id);
     case 'READER_OPEN_NATIVE': {

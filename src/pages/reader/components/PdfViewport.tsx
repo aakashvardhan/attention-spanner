@@ -12,7 +12,7 @@ import { TextLayer, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
 import { ANNOTATION_TEXT_MAX_CHARS } from '../../../shared/constants';
 import { mergeLineRects, normalizeRects } from '../../../shared/annotations';
 import { positionFromScroll, type PdfPosition } from '../../../shared/pdf';
-import type { AnnotationColor, AnnotationRect, PdfAnnotation } from '../../../shared/types';
+import type { AnnotationColor, AnnotationRect, PdfAnchoredAnnotation } from '../../../shared/types';
 import type { PdfPageSize } from '../usePdfDocument';
 import { citationHref, resolveCitation, type Reference, type ReferenceIndex } from '../references';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -159,6 +159,7 @@ export function PdfViewport({
   onActivate,
   noteMode,
   onCreateHighlight,
+  onMakeCard,
   onPlaceSticky,
   onUpdateNote,
   onUpdateColor,
@@ -176,11 +177,12 @@ export function PdfViewport({
   onPosition: (pos: PdfPosition) => void;
   handleRef: Ref<PdfViewportHandle>;
   /** All annotations for the current document */
-  annotations: PdfAnnotation[];
+  annotations: PdfAnchoredAnnotation[];
   activeId: string | null;
   onActivate: (id: string | null) => void;
   noteMode: boolean;
   onCreateHighlight: (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor) => void;
+  onMakeCard: (text: string) => void;
   onPlaceSticky: (page: number, x: number, y: number) => void;
   onUpdateNote: (id: string, note: string) => void;
   onUpdateColor: (id: string, color: AnnotationColor) => void;
@@ -454,11 +456,11 @@ export function PdfViewport({
   }, [onActivate]);
 
   const annotationsByPage = useMemo(() => {
-    const map = new Map<number, PdfAnnotation[]>();
+    const map = new Map<number, PdfAnchoredAnnotation[]>();
     for (const a of annotations) {
-      const list = map.get(a.page) ?? [];
+      const list = map.get(a.anchor.page) ?? [];
       list.push(a);
-      map.set(a.page, list);
+      map.set(a.anchor.page, list);
     }
     return map;
   }, [annotations]);
@@ -513,7 +515,16 @@ export function PdfViewport({
         </div>
       </div>
       {pendingSelection && (
-        <SelectionMenu x={pendingSelection.menuX} y={pendingSelection.menuY} onPick={handlePickColor} />
+        <SelectionMenu
+          x={pendingSelection.menuX}
+          y={pendingSelection.menuY}
+          onPick={handlePickColor}
+          onMakeCard={() => {
+            onMakeCard(pendingSelection.text);
+            setPendingSelection(null);
+            window.getSelection()?.removeAllRanges();
+          }}
+        />
       )}
       {citationHover && (
         <CitationTooltip

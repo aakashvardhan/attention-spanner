@@ -46,6 +46,32 @@ export function readerPageUrl(pdfUrl: string): string {
   return chrome.runtime.getURL(readerPagePath(pdfUrl));
 }
 
+/** Extension-relative reader URL for a web article (the ?article= kind). */
+export function articleReaderPath(url: string): string {
+  return `${READER_PAGE_PATH}?article=${encodeURIComponent(url)}`;
+}
+
+export function articleReaderUrl(url: string): string {
+  return chrome.runtime.getURL(articleReaderPath(url));
+}
+
+/**
+ * Should this feed link open in the reader? Only plain http(s) pages: a PDF
+ * link goes down the PDF path instead, and anything else (mailto:, a video
+ * host) belongs in a normal tab.
+ */
+export function shouldOpenInReader(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (isPdfUrl(url)) return false;
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    // Video pages are watched, not read — the video tracker handles them
+    return !/^(youtube\.com|youtu\.be|vimeo\.com)$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Where "open this paper" should go: the reader (resuming the saved position)
  * once the paper has been read there, otherwise the paper's own URL.

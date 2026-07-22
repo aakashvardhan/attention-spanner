@@ -6,7 +6,7 @@ import {
   normalizeRects,
   sortAnnotations,
 } from './annotations';
-import type { AnnotationRect, PdfAnnotation } from './types';
+import type { Annotation, AnnotationAnchor, AnnotationRect } from './types';
 
 const page = { left: 100, top: 200, width: 800, height: 1000 };
 
@@ -86,16 +86,16 @@ describe('mergeLineRects', () => {
 });
 
 describe('annotationOffset / sortAnnotations', () => {
-  const base = (over: Partial<PdfAnnotation>): PdfAnnotation => ({
-    id: over.id ?? 'a',
+  const pdfAnchor = (over: Partial<Extract<AnnotationAnchor, { kind: 'pdf' }>> = {}) =>
+    ({ kind: 'pdf' as const, page: 1, rects: [], x: 0, y: 0, ...over });
+
+  const base = (over: Partial<Annotation> = {}): Annotation => ({
+    id: 'a',
     docKey: 'k',
-    pdfUrl: 'u',
+    docUrl: 'u',
     paperId: null,
     kind: 'highlight',
-    page: 1,
-    rects: [],
-    x: 0,
-    y: 0,
+    anchor: pdfAnchor(),
     text: '',
     color: 'yellow',
     note: '',
@@ -109,16 +109,39 @@ describe('annotationOffset / sortAnnotations', () => {
       { x: 0.1, y: 0.6, w: 0.2, h: 0.02 },
       { x: 0.1, y: 0.3, w: 0.2, h: 0.02 },
     ];
-    expect(annotationOffset(base({ rects }))).toBe(0.3);
-    expect(annotationOffset(base({ kind: 'sticky', y: 0.8 }))).toBe(0.8);
+    expect(annotationOffset(base({ anchor: pdfAnchor({ rects }) }))).toBe(0.3);
+    expect(
+      annotationOffset(base({ kind: 'sticky', anchor: pdfAnchor({ y: 0.8 }) })),
+    ).toBe(0.8);
+  });
+
+  it('gives text-anchored annotations no vertical offset', () => {
+    const anchor: AnnotationAnchor = {
+      kind: 'text',
+      blockIndex: 3,
+      quote: 'q',
+      prefix: '',
+      suffix: '',
+    };
+    expect(annotationOffset(base({ anchor }))).toBe(0);
   });
 
   it('sorts by page then vertical position', () => {
     const list = [
-      base({ id: 'p2', page: 2 }),
-      base({ id: 'low', page: 1, rects: [{ x: 0, y: 0.9, w: 0.1, h: 0.02 }] }),
-      base({ id: 'high', page: 1, rects: [{ x: 0, y: 0.1, w: 0.1, h: 0.02 }] }),
+      base({ id: 'p2', anchor: pdfAnchor({ page: 2 }) }),
+      base({ id: 'low', anchor: pdfAnchor({ rects: [{ x: 0, y: 0.9, w: 0.1, h: 0.02 }] }) }),
+      base({ id: 'high', anchor: pdfAnchor({ rects: [{ x: 0, y: 0.1, w: 0.1, h: 0.02 }] }) }),
     ];
     expect(sortAnnotations(list).map((a) => a.id)).toEqual(['high', 'low', 'p2']);
+  });
+
+  it('sorts text annotations by block index', () => {
+    const at = (id: string, blockIndex: number) =>
+      base({ id, anchor: { kind: 'text', blockIndex, quote: 'q', prefix: '', suffix: '' } });
+    expect(sortAnnotations([at('c', 5), at('a', 0), at('b', 2)]).map((a) => a.id)).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
   });
 });

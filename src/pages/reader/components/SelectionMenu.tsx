@@ -3,16 +3,24 @@ import type { AnnotationColor } from '../../../shared/types';
 
 const COLORS = Object.keys(ANNOTATION_SWATCH_COLORS) as AnnotationColor[];
 
-/** Floating pill shown above an active text selection: pick a highlight color. */
+/**
+ * Floating pill shown above an active text selection: pick a highlight colour,
+ * or turn the selection straight into a flashcard. The card action closes the
+ * loop between reading and retention — highlights, decks and the SRS scheduler
+ * all existed already, with nothing connecting them.
+ */
 export function SelectionMenu({
   x,
   y,
   onPick,
+  onMakeCard,
 }: {
   /** Fixed-position anchor, viewport px (already clamped by the caller) */
   x: number;
   y: number;
   onPick: (color: AnnotationColor) => void;
+  /** Omitted where no deck target makes sense */
+  onMakeCard?: () => void;
 }) {
   return (
     <div
@@ -30,6 +38,11 @@ export function SelectionMenu({
           onClick={() => onPick(color)}
         />
       ))}
+      {onMakeCard && (
+        <button className="annot-make-card" title="Make a flashcard from this" onClick={onMakeCard}>
+          Card
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ANNOTATION_COLORS, ANNOTATION_SWATCH_COLORS } from '../../../shared/annotations';
-import type { AnnotationColor, PdfAnnotation } from '../../../shared/types';
+import type { AnnotationColor, PdfAnchoredAnnotation } from '../../../shared/types';
 
 const COLORS = Object.keys(ANNOTATION_SWATCH_COLORS) as AnnotationColor[];
 
@@ -20,7 +20,7 @@ export function AnnotationLayer({
   onUpdateColor,
   onDelete,
 }: {
-  annotations: PdfAnnotation[];
+  annotations: PdfAnchoredAnnotation[];
   activeId: string | null;
   onActivate: (id: string | null) => void;
   noteMode: boolean;
@@ -42,12 +42,12 @@ export function AnnotationLayer({
     >
       {annotations.map((a) =>
         a.kind === 'highlight'
-          ? a.rects.map((r, i) => (
+          ? a.anchor.rects.map((r, i) => (
               <div
                 key={`${a.id}-${i}`}
                 // The note affordance dot sits on the last rect only, so a
                 // multi-line highlight shows one dot, not one per line.
-                className={a.note && i === a.rects.length - 1 ? 'annot-highlight annot-has-note' : 'annot-highlight'}
+                className={a.note && i === a.anchor.rects.length - 1 ? 'annot-highlight annot-has-note' : 'annot-highlight'}
                 style={{
                   left: `${r.x * 100}%`,
                   top: `${r.y * 100}%`,
@@ -66,8 +66,8 @@ export function AnnotationLayer({
                 key={a.id}
                 className="annot-pin"
                 style={{
-                  left: `${a.x * 100}%`,
-                  top: `${a.y * 100}%`,
+                  left: `${a.anchor.x * 100}%`,
+                  top: `${a.anchor.y * 100}%`,
                   background: ANNOTATION_SWATCH_COLORS[a.color],
                 }}
                 onClick={(e) => {
@@ -100,7 +100,7 @@ function NotePopover({
   onDelete,
   onClose,
 }: {
-  annotation: PdfAnnotation;
+  annotation: PdfAnchoredAnnotation;
   onUpdateNote: (note: string) => void;
   onUpdateColor: (color: AnnotationColor) => void;
   onDelete: () => void;
@@ -145,10 +145,11 @@ function NotePopover({
 
   // Anchor just below the annotation: the top-left rect for a highlight, the
   // pin position for a sticky note.
+  const { rects, x, y } = annotation.anchor;
   const anchor =
-    annotation.kind === 'highlight' && annotation.rects.length
-      ? { left: annotation.rects[0].x, top: annotation.rects[0].y + annotation.rects[0].h }
-      : { left: annotation.x, top: annotation.y };
+    annotation.kind === 'highlight' && rects.length
+      ? { left: rects[0].x, top: rects[0].y + rects[0].h }
+      : { left: x, top: y };
 
   return (
     <div

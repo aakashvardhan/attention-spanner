@@ -121,12 +121,18 @@ export async function handleProgressUpdate(
     pageHeight: number;
     activeSecondsDelta: number;
     hidden: boolean;
+    doc?: { url: string; title: string };
   },
 ): Promise<void> {
   const tab = sender.tab;
   if (!tab?.id) return;
-  const key = await keyForTab(tab.id, tab.url);
+
+  // The reader page reads a document that isn't its own URL, so it names the
+  // document explicitly; content scripts are still keyed by their tab.
+  const key = update.doc ? normalizeUrl(update.doc.url) : await keyForTab(tab.id, tab.url);
   if (!key) return;
+  const docUrl = update.doc?.url ?? tab.url ?? '';
+  const docTitle = update.doc?.title ?? tab.title ?? '';
 
   const { readingProgress, cachedItems } = await getLocal('readingProgress', 'cachedItems');
   const now = Date.now();
@@ -137,9 +143,9 @@ export async function handleProgressUpdate(
   if (!progress) {
     const feedItem = cachedItems.find((item) => item.normalizedLink === key);
     progress = {
-      url: tab.url ?? feedItem?.link ?? '',
+      url: docUrl || feedItem?.link || '',
       feedItemId: feedItem?.id ?? null,
-      title: tab.title ?? feedItem?.title ?? '',
+      title: docTitle || feedItem?.title || '',
       source: feedItem?.source ?? '',
       maxPercent: 0,
       scrollY: 0,

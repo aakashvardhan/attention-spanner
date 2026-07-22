@@ -58,7 +58,7 @@ export const MAX_PAPERS = 500;
 export const PAPERS_PAGE_PATH = 'src/pages/papers/index.html';
 /** The in-extension PDF reader; opened as <path>?src=<encoded pdf url> */
 export const READER_PAGE_PATH = 'src/pages/reader/index.html';
-export const MAX_PDF_ANNOTATIONS = 2000;
+export const MAX_ANNOTATIONS = 2000;
 export const ANNOTATION_TEXT_MAX_CHARS = 500;
 /* Semantic Scholar Graph API — free, unauthenticated (rate-limited). Accepts
    arXiv:<id>, DOI:<doi>, or URL:<url> as the paper reference. */

@@ -332,14 +332,22 @@ export interface Paper extends SyncMeta {
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
 export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
 
-/* PDF reader annotations: text highlights and free-floating sticky notes made
-   in src/pages/reader/. Keyed by docKey (not paperId) so they work on
-   untracked PDFs and survive arXiv abs/pdf URL variants. Local-only for now,
-   but id-addressable + SyncMeta so per-record sync can be added later. */
+/* Reader annotations: text highlights and free-floating sticky notes made in
+   src/pages/reader/. Keyed by docKey (not paperId) so they work on untracked
+   documents and survive arXiv abs/pdf URL variants.
+
+   The anchor is a discriminated union because the reader handles two document
+   kinds with incompatible coordinate systems. A PDF page is a fixed box, so a
+   highlight is a set of 0-1 rects on a page. An article reflows, so the same
+   rects would be meaningless the moment the window resizes — text anchors are
+   a W3C TextQuoteSelector (quote plus surrounding context) resolved against
+   the extracted blocks at load time.
+
+   Local-only, but id-addressable + SyncMeta so per-record sync can be added. */
 
 export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
 
-/** One box on a page; all fields 0–1 fractions of the page size (y-down). */
+/** One box on a page; all fields 0-1 fractions of the page size (y-down). */
 export interface AnnotationRect {
   x: number;
   y: number;
@@ -347,22 +355,38 @@ export interface AnnotationRect {
   h: number;
 }
 
-export interface PdfAnnotation extends SyncMeta {
+export type AnnotationAnchor =
+  | {
+      kind: 'pdf';
+      /** 1-based */
+      page: number;
+      /** highlight: merged per-line boxes; sticky: [] */
+      rects: AnnotationRect[];
+      /** Sticky pin anchor, 0-1 of the page box; 0 for highlights */
+      x: number;
+      y: number;
+    }
+  | {
+      kind: 'text';
+      /** Index of the extracted block the quote starts in — the search hint */
+      blockIndex: number;
+      /** The exact selected text */
+      quote: string;
+      /** Up to TEXT_ANCHOR_CONTEXT_CHARS either side, to disambiguate repeats */
+      prefix: string;
+      suffix: string;
+    };
+
+export interface Annotation extends SyncMeta {
   id: string;
-  /** Stable doc identity: paperMatchKey(pdfUrl) ?? pdfUrl */
+  /** Stable doc identity: paperMatchKey(url) ?? normalized url */
   docKey: string;
-  /** The exact PDF URL the annotation was made on */
-  pdfUrl: string;
-  /** Tracked paper at creation time; null for untracked PDFs */
+  /** The exact document URL the annotation was made on */
+  docUrl: string;
+  /** Tracked paper at creation time; null for untracked documents */
   paperId: string | null;
   kind: 'highlight' | 'sticky';
-  /** 1-based */
-  page: number;
-  /** highlight: merged per-line boxes; sticky: [] */
-  rects: AnnotationRect[];
-  /** Sticky pin anchor, 0–1 of the page box; 0 for highlights */
-  x: number;
-  y: number;
+  anchor: AnnotationAnchor;
   /** Selected text snippet (highlights, capped) or '' */
   text: string;
   color: AnnotationColor;
@@ -373,7 +397,25 @@ export interface PdfAnnotation extends SyncMeta {
 }
 
 /** Draft from the reader; the service worker fills id/timestamps. */
-export type PdfAnnotationDraft = Omit<PdfAnnotation, 'id' | 'createdAt' | 'updatedAt'>;
+export type AnnotationDraft = Omit<Annotation, 'id' | 'createdAt' | 'updatedAt'>;
+
+/** An annotation the PDF viewport can position — narrowed for those components. */
+export type PdfAnchoredAnnotation = Annotation & {
+  anchor: Extract<AnnotationAnchor, { kind: 'pdf' }>;
+};
+
+export function isPdfAnchored(a: Annotation): a is PdfAnchoredAnnotation {
+  return a.anchor.kind === 'pdf';
+}
+
+/** An annotation anchored in reflowing text. */
+export type TextAnchoredAnnotation = Annotation & {
+  anchor: Extract<AnnotationAnchor, { kind: 'text' }>;
+};
+
+export function isTextAnchored(a: Annotation): a is TextAnchoredAnnotation {
+  return a.anchor.kind === 'text';
+}
 
 export interface BookmarkGroup extends SyncMeta {
   id: string;

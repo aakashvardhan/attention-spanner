@@ -1,30 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { nanoProvider } from '../../../shared/ai/nanoProvider';
 import { answerAboutPdf, type QaTurn } from '../../../shared/ai/pdfQa';
 import { DEFAULT_SETTINGS } from '../../../shared/storage';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
-import { getPdfText } from '../references';
 import '../../../shared/components/assistant.css';
 
-const SUGGESTIONS = [
-  '“Summarize this paper”',
-  '“What problem does it solve?”',
-  '“Explain the method in plain terms”',
-];
+const SUGGESTIONS: Record<'paper' | 'article', string[]> = {
+  paper: [
+    '“Summarize this paper”',
+    '“What problem does it solve?”',
+    '“Explain the method in plain terms”',
+  ],
+  article: [
+    '“Summarize this in three points”',
+    '“What is the main claim?”',
+    '“What should I remember from this?”',
+  ],
+};
 
 const NO_KEY_NOTE =
-  '\n\n(Answered from the section you’re on — the paper is too big for the on-device model. Add a Gemini API key in Settings → Assistant for whole-paper answers.)';
+  '\n\n(Answered from the section you’re on — the document is too big for the on-device model. Add a Gemini API key in Settings → Assistant for whole-document answers.)';
 
-/** Pull the document's text (getPdfText caches it, so re-opening the panel or
- * sharing with the bibliography indexer never re-walks the pages). */
-function usePdfText(doc: PDFDocumentProxy): { text: string; loading: boolean } {
+/**
+ * Pull the document's text through the caller's provider. PDFs hand over
+ * getPdfText (cached, shared with the bibliography indexer); articles hand
+ * over their already-extracted blocks.
+ */
+function useDocText(getText: () => Promise<string>): { text: string; loading: boolean } {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    void getPdfText(doc)
+    void getText()
       .then((t) => {
         if (alive) setText(t);
       })
@@ -34,25 +42,29 @@ function usePdfText(doc: PDFDocumentProxy): { text: string; loading: boolean } {
     return () => {
       alive = false;
     };
-  }, [doc]);
+  }, [getText]);
   return { text, loading };
 }
 
 export function AskPanel({
-  doc,
+  getText,
   title,
-  currentPage,
-  pageCount,
+  position,
+  total,
+  noun,
 }: {
-  doc: PDFDocumentProxy;
+  /** Stable across renders — the caller memoizes it */
+  getText: () => Promise<string>;
   title: string;
-  currentPage: number;
-  pageCount: number;
+  /** 1-based position in the document; the answer window is built around it */
+  position: number;
+  total: number;
+  noun: 'paper' | 'article';
 }) {
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
 
-  const { text: fullText, loading } = usePdfText(doc);
+  const { text: fullText, loading } = useDocText(getText);
   const [turns, setTurns] = useState<QaTurn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,8 +99,8 @@ export function AskPanel({
       const answer = await answerAboutPdf({
         title,
         fullText,
-        currentPage,
-        pageCount,
+        currentPage: position,
+        pageCount: total,
         question,
         history,
         nanoOk,
@@ -100,7 +112,7 @@ export function AskPanel({
     } catch {
       setTurns((prev) => [
         ...prev,
-        { role: 'assistant', text: 'Something went wrong reading the paper. Try again?' },
+        { role: 'assistant', text: `Something went wrong reading the ${noun}. Try again?` },
       ]);
     } finally {
       setPartial(null);
@@ -122,8 +134,8 @@ export function AskPanel({
         <div className="as-log" ref={logRef}>
           {turns.length === 0 && partial === null && (
             <div className="as-empty">
-              <p className="as-hint">Ask about this paper:</p>
-              {SUGGESTIONS.map((s) => (
+              <p className="as-hint">Ask about this {noun}:</p>
+              {SUGGESTIONS[noun].map((s) => (
                 <p key={s} className="as-suggestion">
                   {s}
                 </p>

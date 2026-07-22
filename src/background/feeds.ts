@@ -1,4 +1,5 @@
 import { ACCENT_COLOR, MAX_READ_ITEMS } from '../shared/constants';
+import { articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
 import { getLocal, setLocal } from '../shared/storage';
 import { fetchFeed } from './rssParser';
 import { registerOpenedTab } from './tracking';
@@ -70,6 +71,13 @@ export async function markAllRead(): Promise<{ ok: boolean; count: number }> {
   return { ok: true, count: readItems.length };
 }
 
+/**
+ * Open a feed item. Readable pages go to the in-extension reader, which gives
+ * them the same highlights, outline, Ask panel and resume that PDFs have had;
+ * the reader reports progress through the same PROGRESS_UPDATE path, so
+ * streaks and nudges are unaffected. Anything else opens as a normal tab with
+ * the tracking content script, exactly as before.
+ */
 export async function openArticle(
   url: string,
   feedItemId: string | null,
@@ -78,6 +86,16 @@ export async function openArticle(
   if (feedItemId) {
     await markItemRead(feedItemId);
   }
+
+  if (isPdfUrl(url)) {
+    await chrome.tabs.create({ url: readerPageUrl(url) });
+    return { ok: true };
+  }
+  if (shouldOpenInReader(url)) {
+    await chrome.tabs.create({ url: articleReaderUrl(url) });
+    return { ok: true };
+  }
+
   const tab = await chrome.tabs.create({ url });
   if (tab.id !== undefined) {
     await registerOpenedTab(tab.id, url, resume);
