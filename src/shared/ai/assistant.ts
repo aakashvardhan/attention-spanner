@@ -13,6 +13,7 @@ import {
   normalizeUtterance,
 } from './cache';
 import { gatherDataContext } from './context';
+import { searchLibraryText } from './connectors/library';
 import { heuristicRoute } from './heuristics';
 import { buildSkillBlock, loadSkills, selectSkills } from './skills';
 import { verifyPlan } from './verifier';
@@ -73,6 +74,11 @@ export interface AssistantDeps {
   cache?: boolean;
   /** Injectable for tests; defaults to the stored assistantSkills */
   skills?: AssistantSkill[];
+  /**
+   * Library keyword search for corpus-shaped questions. Defaults to the real
+   * one; false disables it (tests with scripted providers).
+   */
+  searchLibrary?: ((query: string) => Promise<string>) | false;
 }
 
 export const PERSONA =
@@ -168,6 +174,17 @@ export function buildRouterSchema(tools: readonly Tool[]): object {
       tool: { type: 'string', enum: [...tools.map((t) => t.name), 'none'] },
     },
   };
+}
+
+/**
+ * Does this question want the user's own reading, rather than their counts?
+ * The data snapshot holds titles and totals; only the library holds what they
+ * actually highlighted or wrote. False positives cost one keyword search.
+ */
+export function looksLikeLibraryQuestion(input: string): boolean {
+  return /\b(highlight(ed|s)?|note(s|d)?|wrote|written|read(ing)?|saved|marked|annotat\w*|quote[sd]?)\b/i.test(
+    input,
+  );
 }
 
 /**
@@ -559,11 +576,22 @@ export async function runAssistantTurn(
     const context = deps.getContext
       ? await deps.getContext()
       : await cachedDataContext(useCache);
+    // A snapshot of counts can't answer "what did I highlight about X" — pull
+    // the matching passages out of the library and hand those over too.
+    let library = '';
+    if (deps.searchLibrary !== false && looksLikeLibraryQuestion(trimmed)) {
+      try {
+        library = await (deps.searchLibrary ?? searchLibraryText)(trimmed);
+      } catch {
+        // Search is an enhancement; a failure just means answering without it
+      }
+    }
     system =
       PERSONA +
       skillBlock +
       '\n\nAnswer using ONLY this snapshot of the user\'s data (say so if it lacks the answer):\n' +
-      context;
+      context +
+      (library ? `\n\nMatching passages from their library:\n${library}` : '');
     if (useCache) {
       const historyText = history.map((t) => t.text).join('\n');
       // skillBlock in the key: editing a skill must miss, not serve stale

@@ -6,6 +6,7 @@ import { feedsConnector } from './connectors/feeds';
 import { flashcardsConnector } from './connectors/flashcards';
 import { focusConnector } from './connectors/focus';
 import { gymConnector } from './connectors/gym';
+import { libraryConnector } from './connectors/library';
 import { memoryConnector } from './connectors/memory';
 import { pagesConnector } from './connectors/pages';
 import { tasksConnector } from './connectors/tasks';
@@ -23,6 +24,7 @@ export const CONNECTORS: readonly Connector[] = [
   memoryConnector,
   bookmarksConnector,
   flashcardsConnector,
+  libraryConnector,
   calendarConnector,
   feedsConnector,
   pagesConnector,

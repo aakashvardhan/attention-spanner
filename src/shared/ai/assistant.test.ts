@@ -5,6 +5,7 @@ import {
   buildRouterSchema,
   buildRouterSystem,
   executePlan,
+  looksLikeLibraryQuestion,
   looksMultiStep,
   parseIntentResult,
   parseJsonObject,
@@ -520,5 +521,20 @@ describe('router prompt builders', () => {
       properties: { tool: { enum: string[] } };
     };
     expect(schema.properties.tool.enum).toEqual(['add_task', 'start_focus', 'none']);
+  });
+});
+
+describe('looksLikeLibraryQuestion', () => {
+  it('fires on questions about the user’s own reading and notes', () => {
+    expect(looksLikeLibraryQuestion('what did I highlight about attention?')).toBe(true);
+    expect(looksLikeLibraryQuestion('find my note on streaks')).toBe(true);
+    expect(looksLikeLibraryQuestion('what have I read on ADHD')).toBe(true);
+    expect(looksLikeLibraryQuestion('anything I annotated last week?')).toBe(true);
+  });
+
+  it('stays out of the way for ordinary status questions', () => {
+    expect(looksLikeLibraryQuestion('how is my streak doing?')).toBe(false);
+    expect(looksLikeLibraryQuestion('how many tasks are open')).toBe(false);
+    expect(looksLikeLibraryQuestion('start a 25 minute focus session')).toBe(false);
   });
 });
