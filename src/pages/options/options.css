@@ -214,7 +214,7 @@ button:hover {
 }
 
 .hint-inline {
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-weight: 400;
   font-size: var(--text-sm);
 }

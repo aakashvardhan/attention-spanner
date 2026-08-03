@@ -303,49 +303,6 @@
   position: relative;
 }
 
-.bd-links {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: 5;
-  margin-top: 2px;
-  list-style: none;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-}
-
-.bd-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  /* Comfortably past the 24px minimum target. */
-  min-height: 34px;
-  padding: 6px 10px;
-  border: 0;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-}
-
-.bd-link:hover,
-.bd-link:focus-visible {
-  background: var(--bg-hover);
-}
-
-.bd-link-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* The same shape language the graph uses, so a suggestion reads as the thing
    it will link to. Duplicated rather than imported: graph.css belongs to the
    graph page, and this component is mounted on the dashboard and side panel. */
@@ -354,35 +311,4 @@
   height: 9px;
   flex-shrink: 0;
   background: var(--text-muted);
-}
-
-.bd-link .gr-glyph[data-kind='article'],
-.bd-link .gr-glyph[data-kind='video'] {
-  border-radius: 50%;
-}
-
-.bd-link .gr-glyph[data-kind='paper'] {
-  border-radius: 2px;
-}
-
-.bd-link .gr-glyph[data-kind='bookmark'] {
-  transform: rotate(45deg);
-}
-
-.bd-link .gr-glyph[data-kind='recording'] {
-  border-radius: 50%;
-  background: transparent;
-  border: 2px solid var(--text-muted);
-}
-
-.bd-link .gr-glyph[data-kind='note'] {
-  width: 7px;
-  height: 11px;
-  border-radius: 2px;
-}
-
-.bd-link .gr-glyph[data-kind='highlight'] {
-  width: 12px;
-  height: 5px;
-  border-radius: 2px;
 }

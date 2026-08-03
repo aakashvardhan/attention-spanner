@@ -25,6 +25,8 @@ import type {
   Paper,
   Task,
 } from '../../shared/types';
+import { FREEZE_TOKEN_CAP } from '../../shared/streakInsurance';
+import { ActivityCalendar } from './ActivityCalendar';
 import { AssistantDock } from './AssistantDock';
 import { BookmarksPanel } from './BookmarksPanel';
 
@@ -56,6 +58,7 @@ export function Dashboard() {
 function AttentionRelay() {
   const [activeIntent] = useStorageValue('activeIntent');
   const [readingProgress] = useStorageValue('readingProgress');
+  const [streaks] = useStorageValue('streaks');
   const [papers] = useStorageValue('papers');
   const [calendar] = useStorageValue('calendar');
   const [gmail] = useStorageValue('gmail');
@@ -249,9 +252,27 @@ function AttentionRelay() {
             <p className="relay-eyebrow"><span aria-hidden="true" /> Focus workspace</p>
             <h1>What’s next?</h1>
           </div>
-          <button className="relay-command" onClick={() => void openSidePanel()}>
-            Open workspace
-          </button>
+          <div className="relay-header-right">
+            {/* The only place the streak is visible. It is the reason to come
+                back tomorrow, so it sits in the header rather than behind a
+                disclosure — but as one quiet line, not a scoreboard. */}
+            {streaks.currentStreak > 0 && (
+              <p className="relay-streak">
+                <strong>{streaks.currentStreak}</strong>{' '}
+                <span>day{streaks.currentStreak === 1 ? '' : 's'}</span>
+                {(streaks.freezeTokens ?? 0) > 0 && (
+                  <span className="relay-freezes">
+                    {' · '}
+                    {streaks.freezeTokens}/{FREEZE_TOKEN_CAP} freeze
+                    {streaks.freezeTokens === 1 ? '' : 's'}
+                  </span>
+                )}
+              </p>
+            )}
+            <button className="relay-command" onClick={() => void openSidePanel()}>
+              Open workspace
+            </button>
+          </div>
         </header>
         {acknowledgment && <p className="relay-ack" role="status">{acknowledgment}</p>}
 
@@ -362,6 +383,14 @@ function AttentionRelay() {
       )}
 
         <BookmarksPanel />
+
+        {/* A 53-week grid is heavy against a one-decision screen, so it opens
+            on demand. The header streak is the at-a-glance version. */}
+        <details className="relay-history">
+          <summary>Activity</summary>
+          <ActivityCalendar />
+        </details>
+
         <Library enabledPacks={enabledPacks} notes={notes} />
       </main>
       <AssistantDock />
