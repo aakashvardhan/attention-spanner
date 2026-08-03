@@ -13,14 +13,11 @@ export function SelectionMenu({
   x,
   y,
   onPick,
-  onMakeCard,
 }: {
   /** Fixed-position anchor, viewport px (already clamped by the caller) */
   x: number;
   y: number;
   onPick: (color: AnnotationColor) => void;
-  /** Omitted where no deck target makes sense */
-  onMakeCard?: () => void;
 }) {
   return (
     <div
@@ -38,11 +35,6 @@ export function SelectionMenu({
           onClick={() => onPick(color)}
         />
       ))}
-      {onMakeCard && (
-        <button className="annot-make-card" title="Make a flashcard from this" onClick={onMakeCard}>
-          Card
-        </button>
-      )}
     </div>
   );
 }

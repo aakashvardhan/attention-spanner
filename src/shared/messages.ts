@@ -18,12 +18,9 @@ import type {
   DayPlan,
   Deck,
   DeckKind,
-  FlashNote,
-  FlashNoteType,
   JournalEntry,
   Paper,
   PaperDraft,
-  Rating,
   Task,
   XBookmark,
 } from './types';
@@ -108,18 +105,6 @@ export type Message =
   | { type: 'FLASH_ADD_DECK'; name: string; kind: DeckKind }
   | { type: 'FLASH_RENAME_DECK'; id: string; name: string }
   | { type: 'FLASH_DELETE_DECK'; id: string }
-  | {
-      type: 'FLASH_ADD_NOTE';
-      deckId: string;
-      noteType: FlashNoteType;
-      front: string;
-      back: string;
-      reversed: boolean;
-    }
-  | { type: 'FLASH_UPDATE_NOTE'; id: string; front: string; back: string; reversed: boolean }
-  | { type: 'FLASH_DELETE_NOTE'; id: string }
-  | { type: 'FLASH_ANSWER_CARD'; cardId: string; rating: Rating }
-  | { type: 'FLASH_RESET_CARD'; cardId: string }
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
   | { type: 'PAPER_DELETE'; id: string }
@@ -157,7 +142,7 @@ export type Message =
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
   | { type: 'SYNC_SIGN_OUT' }
-  // Offscreen wake-word listener ↔ service worker
+  // Offscreen document ↔ service worker
   | {
       type: 'PROXY_STORAGE';
       area: 'local' | 'session';
@@ -166,13 +151,8 @@ export type Message =
       items?: Record<string, unknown>;
     }
   | { type: 'ASSISTANT_APPEND_TURN'; turn: AssistantTurn }
-| { type: 'ASSISTANT_BEGIN_TURN'; turn: AssistantTurn }
+  | { type: 'ASSISTANT_BEGIN_TURN'; turn: AssistantTurn }
   | { type: 'ASSISTANT_PATCH_TURN'; id: string; patch: Partial<AssistantTurn> }
-  // Extension pages → offscreen doc (push-to-talk holds the mic; router no-ops it)
-  // Service worker → offscreen doc: start/stop the listener without closing the
-  // document, which the recorder may also be holding (router no-ops it)
-  // Offscreen doc → service worker: speak. The offscreen document cannot do it
-  // itself — see src/background/speech.ts. Replies once the audio has stopped.
   // Recording control. Tab and mixed capture must start from the side panel:
   // getMediaStreamId needs the extension to have been invoked on that tab.
   | {
@@ -355,11 +335,6 @@ export interface MessageResponses {
   FLASH_ADD_DECK: { ok: boolean; deck?: Deck; error?: string };
   FLASH_RENAME_DECK: { ok: boolean; error?: string };
   FLASH_DELETE_DECK: { ok: boolean; error?: string };
-  FLASH_ADD_NOTE: { ok: boolean; note?: FlashNote; error?: string };
-  FLASH_UPDATE_NOTE: { ok: boolean; error?: string };
-  FLASH_DELETE_NOTE: { ok: boolean; error?: string };
-  FLASH_ANSWER_CARD: { ok: boolean; error?: string };
-  FLASH_RESET_CARD: { ok: boolean; error?: string };
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };
   PAPER_DELETE: { ok: boolean; error?: string };

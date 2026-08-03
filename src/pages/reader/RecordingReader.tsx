@@ -16,7 +16,6 @@ import { AskPanel } from './components/AskPanel';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { recordingBlocks } from './recordingBlocks';
-import { useMakeCard } from './useMakeCard';
 
 /**
  * A transcript in the same shell as articles and PDFs. The recording is read
@@ -48,7 +47,6 @@ export function RecordingReader({ id }: { id: string }) {
   const askOpen = panel === 'ask';
   const [blockIndex, setBlockIndex] = useState(0);
   const viewportRef = useRef<ArticleViewportHandle>(null);
-  const makeCard = useMakeCard();
 
   const blocks = useMemo(() => (recording ? recordingBlocks(recording) : []), [recording]);
   const outline = useMemo(
@@ -158,7 +156,6 @@ export function RecordingReader({ id }: { id: string }) {
               activeId={activeId}
               onActivate={setActiveId}
               onCreateHighlight={createHighlight}
-              onMakeCard={(text) => void makeCard(text, title)}
               onTimestampClick={
                 originalUrl
                   ? (timestamp) => {

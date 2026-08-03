@@ -29,8 +29,6 @@ function emptyData(): AssistantContextData {
         freezesEarned: 0,
       },
     },
-    flashCards: [],
-    srsDaily: {},
     papers: [],
     siteTime: { date: '', hosts: {} },
     readingProgress: {},
@@ -49,7 +47,6 @@ describe('buildDataContext', () => {
     expect(out).toContain('July 11');
     expect(out).toContain('Open tasks: none');
     expect(out).toContain('Reading streak: 0 days');
-    expect(out).toContain('Flashcards due now: 0');
   });
 
   it('names the prime-time windows once the hourly ledger has a sample', () => {

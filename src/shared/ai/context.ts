@@ -2,19 +2,16 @@ import { calendarContextLines, type CalendarState } from '../calendar';
 import { localDate } from '../format';
 import { buildPrimeTime } from '../primeTime';
 import { isInProgress } from '../progress';
-import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, type LocalSchema } from '../storage';
 import type {
   AnyProgress,
   AssistantFact,
   FeedItem,
-  FlashCard,
   Gamification,
   GymState,
   JournalDay,
   Paper,
   Settings,
-  SrsDayStats,
   Streaks,
   Task,
 } from '../types';
@@ -35,8 +32,6 @@ export interface AssistantContextData {
   streaks: Streaks;
   gym: GymState;
   gamification: Gamification;
-  flashCards: FlashCard[];
-  srsDaily: Record<string, SrsDayStats>;
   papers: Paper[];
   siteTime: LocalSchema['siteTime'];
   readingProgress: Record<string, AnyProgress>;
@@ -122,9 +117,6 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
       `${c.focusBlocks ?? 0} focus blocks, ${c.tasksCompleted} tasks, ${c.workouts} workouts.`,
   );
 
-  const due = totalDue(dueCounts(data.flashCards, now.getTime(), newIntroducedToday(data.srsDaily, today)));
-  lines.push(`Flashcards due now: ${due}.`);
-
   const reading = data.papers.filter((p) => p.status === 'reading');
   const toRead = data.papers.filter((p) => p.status === 'to-read').length;
   if (reading.length > 0 || toRead > 0) {
@@ -183,9 +175,7 @@ export async function gatherDataContext(now = new Date()): Promise<string> {
     'streaks',
     'gym',
     'gamification',
-    'flashCards',
-    'srsDaily',
-    'papers',
+      'papers',
     'siteTime',
     'readingProgress',
     'calendar',

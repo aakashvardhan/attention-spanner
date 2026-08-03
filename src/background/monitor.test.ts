@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '../shared/calendar';
-import { MONITOR_CARDS_DUE_MIN } from '../shared/constants';
-import type { FlashCard } from '../shared/types';
 import { inQuietHours } from '../shared/week';
 import { buildEveningNudge, pickEventToNotify, type EveningNudgeData } from './monitor';
 
@@ -10,25 +8,6 @@ const NOW = new Date(2026, 6, 11, 19, 0, 0); // Sat Jul 11 2026, 19:00 local
 function data(): EveningNudgeData {
   return {
     streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
-    flashCards: [],
-    srsDaily: {},
-  };
-}
-
-function dueCard(id: string): FlashCard {
-  return {
-    id: `${id}#0`,
-    noteId: id,
-    deckId: 'd1',
-    variant: 0,
-    phase: 'review',
-    stepIndex: 0,
-    ease: 2.5,
-    intervalDays: 3,
-    dueAt: NOW.getTime() - 1000,
-    lapses: 0,
-    reps: 4,
-    createdAt: 0,
   };
 }
 
@@ -84,23 +63,6 @@ describe('buildEveningNudge', () => {
     expect(buildEveningNudge(d, NOW)).toBeNull();
   });
 
-  it('flags cards only at or above the threshold', () => {
-    const d = data();
-    d.flashCards = Array.from({ length: MONITOR_CARDS_DUE_MIN - 1 }, (_, i) => dueCard(`n${i}`));
-    expect(buildEveningNudge(d, NOW)).toBeNull();
-
-    d.flashCards = Array.from({ length: MONITOR_CARDS_DUE_MIN }, (_, i) => dueCard(`n${i}`));
-    expect(buildEveningNudge(d, NOW)!.message).toContain(`${MONITOR_CARDS_DUE_MIN} flashcards are due`);
-  });
-
-  it('combines both conditions into one message', () => {
-    const d = data();
-    d.streaks.currentStreak = 3;
-    d.flashCards = Array.from({ length: 12 }, (_, i) => dueCard(`n${i}`));
-    const nudge = buildEveningNudge(d, NOW)!;
-    expect(nudge.message).toContain('streak');
-    expect(nudge.message).toContain('12 flashcards');
-  });
 });
 
 describe('pickEventToNotify', () => {

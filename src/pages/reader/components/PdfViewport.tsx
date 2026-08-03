@@ -170,7 +170,6 @@ export function PdfViewport({
   onActivate,
   noteMode,
   onCreateHighlight,
-  onMakeCard,
   onPlaceSticky,
   onUpdateNote,
   onUpdateColor,
@@ -194,7 +193,6 @@ export function PdfViewport({
   onActivate: (id: string | null) => void;
   noteMode: boolean;
   onCreateHighlight: (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor) => void;
-  onMakeCard: (text: string) => void;
   onPlaceSticky: (page: number, x: number, y: number) => void;
   onUpdateNote: (id: string, note: string) => void;
   onUpdateColor: (id: string, color: AnnotationColor) => void;
@@ -544,11 +542,6 @@ export function PdfViewport({
           x={pendingSelection.menuX}
           y={pendingSelection.menuY}
           onPick={handlePickColor}
-          onMakeCard={() => {
-            onMakeCard(pendingSelection.text);
-            setPendingSelection(null);
-            window.getSelection()?.removeAllRanges();
-          }}
         />
       )}
       {citationHover && (

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { START_EASE } from '../srs';
-import { newFlashNoteWithCards, newPaper, newTask } from './recordShapes';
+import { newPaper, newTask } from './recordShapes';
 
 /**
  * These shapes are the contract between the extension's writers and the
@@ -19,55 +18,6 @@ describe('newTask', () => {
       source: 'capture',
       updatedAt: 1000,
     });
-  });
-});
-
-describe('newFlashNoteWithCards', () => {
-  it('derives the cards alongside the note (a note alone is invisible)', () => {
-    const { note, cards } = newFlashNoteWithCards({
-      id: 'n1',
-      deckId: 'd1',
-      front: 'Q',
-      back: 'A',
-      now: 1000,
-    });
-    expect(note).toEqual({
-      id: 'n1',
-      deckId: 'd1',
-      type: 'basic',
-      front: 'Q',
-      back: 'A',
-      reversed: false,
-      createdAt: 1000,
-      updatedAt: 1000,
-    });
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({
-      id: 'n1#0',
-      noteId: 'n1',
-      deckId: 'd1',
-      variant: 0,
-      phase: 'new',
-      stepIndex: 0,
-      ease: START_EASE,
-      intervalDays: 0,
-      dueAt: 1000,
-      lapses: 0,
-      reps: 0,
-      createdAt: 1000,
-    });
-  });
-
-  it('reversed basic notes get both card variants', () => {
-    const { cards } = newFlashNoteWithCards({
-      id: 'n2',
-      deckId: 'd1',
-      front: 'Q',
-      back: 'A',
-      reversed: true,
-      now: 1000,
-    });
-    expect(cards.map((c) => c.id)).toEqual(['n2#0', 'n2#1']);
   });
 });
 

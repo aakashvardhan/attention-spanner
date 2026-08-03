@@ -7,7 +7,6 @@ import {
 import { currentEvent, formatCountdown, nextUpcoming } from '../../shared/calendar';
 import { DailyBrainDumpGate } from '../../shared/components/DailyBrainDumpGate';
 import {
-  FLASHCARDS_PAGE_PATH,
   PAPERS_PAGE_PATH,
 } from '../../shared/constants';
 import { isDailyBrainDumpComplete } from '../../shared/dailyBrainDump';
@@ -513,7 +512,6 @@ function Library({
           {enabledPacks.includes('research') && (
             <div className="relay-tool-links">
               <button onClick={() => void openPage(PAPERS_PAGE_PATH)}>Papers</button>
-              <button onClick={() => void openPage(FLASHCARDS_PAGE_PATH)}>Flashcards</button>
             </div>
           )}
           {enabledPacks.includes('work') && <p>Calendar timing and actionable mail are enabled.</p>}

@@ -1,16 +1,14 @@
 import { appendTurn, newTurn } from '../shared/ai/assistantTypes';
 import { nextUpcoming, type CalendarEvent } from '../shared/calendar';
 import {
-  MONITOR_CARDS_DUE_MIN,
   MONITOR_EVENT_WINDOW_MIN,
   NOTIFICATION_IDS,
   QUIET_HOURS_END,
   QUIET_HOURS_START,
 } from '../shared/constants';
 import { localDate } from '../shared/format';
-import { dueCounts, newIntroducedToday, totalDue } from '../shared/srs';
 import { getLocal, getSession, getSettings, setSession } from '../shared/storage';
-import type { FlashCard, Settings, SrsDayStats, Streaks } from '../shared/types';
+import type { Settings, Streaks } from '../shared/types';
 import { inQuietHours } from '../shared/week';
 import { recordEntrySafe } from './journal';
 
@@ -25,8 +23,6 @@ import { recordEntrySafe } from './journal';
 
 export interface EveningNudgeData {
   streaks: Streaks;
-  flashCards: FlashCard[];
-  srsDaily: Record<string, SrsDayStats>;
 }
 
 /** Pure: what (if anything) the evening check should say */
@@ -42,13 +38,6 @@ export function buildEveningNudge(
     parts.push(
       `Your ${data.streaks.currentStreak}-day reading streak ends tonight without a sprint — 5 minutes keeps it.`,
     );
-  }
-
-  const due = totalDue(
-    dueCounts(data.flashCards, now.getTime(), newIntroducedToday(data.srsDaily, localDate(now))),
-  );
-  if (due >= MONITOR_CARDS_DUE_MIN) {
-    parts.push(`${due} flashcards are due — a quick review stops the pile growing.`);
   }
 
   if (parts.length === 0) return null;
@@ -89,7 +78,7 @@ export async function fireEveningCheck(now = new Date()): Promise<void> {
   const settings = await getSettings();
   if (!monitorGatesOpen(settings, now)) return;
 
-  const data = await getLocal('streaks', 'flashCards', 'srsDaily');
+  const data = await getLocal('streaks');
   const nudge = buildEveningNudge(data, now);
   if (!nudge) return;
 

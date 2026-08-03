@@ -72,7 +72,6 @@ export const MAX_DECKS = 50;
 export const MAX_FLASH_NOTES = 1000;
 export const MAX_FLASHCARDS = 2000;
 export const SRS_DAILY_RETENTION_DAYS = 365;
-export const FLASHCARDS_PAGE_PATH = 'src/pages/flashcards/index.html';
 /** The new-tab dashboard — the "main" extension page the sub-pages link back to */
 export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
 

@@ -39,8 +39,6 @@ function emptyData(): EvidenceData {
       longestWeekStreak: 0,
       lastQualifiedWeek: '',
     },
-    flashCards: [],
-    srsDaily: {},
     calendar: structuredClone(CALENDAR_DEFAULTS),
     assistantMemory: [],
     assistantProfile: { text: '', updatedAt: 0 },

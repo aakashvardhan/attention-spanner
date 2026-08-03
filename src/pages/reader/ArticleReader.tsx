@@ -12,7 +12,6 @@ import { ArticleViewport, type ArticleViewportHandle } from './components/Articl
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { useArticleDocument } from './useArticleDocument';
-import { useMakeCard } from './useMakeCard';
 
 /** One progress write at most every 5s, matching the PDF reader. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -40,7 +39,6 @@ export function ArticleReader({ url }: { url: string }) {
   const askOpen = panel === 'ask';
   const [blockIndex, setBlockIndex] = useState(0);
   const viewportRef = useRef<ArticleViewportHandle>(null);
-  const makeCard = useMakeCard();
 
   const ready = state.status === 'ready';
   const blocks = ready ? state.blocks : [];
@@ -183,7 +181,6 @@ export function ArticleReader({ url }: { url: string }) {
             activeId={activeId}
             onActivate={setActiveId}
             onCreateHighlight={createHighlight}
-            onMakeCard={(text) => void makeCard(text, title)}
             onProgress={onProgress}
             handleRef={viewportRef}
           />

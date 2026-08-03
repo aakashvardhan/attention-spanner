@@ -29,16 +29,7 @@ import {
   deleteBookmarkGroup,
   moveBookmark,
 } from './bookmarks';
-import {
-  addDeck,
-  addNote,
-  answerCard,
-  deleteDeck,
-  deleteNote as deleteFlashNote,
-  renameDeck,
-  resetCard,
-  updateNote,
-} from './flashcards';
+import { addDeck, deleteDeck, renameDeck } from './flashcards';
 import {
   addAnnotation,
   deleteAnnotation,
@@ -244,16 +235,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return renameDeck(msg.id, msg.name);
     case 'FLASH_DELETE_DECK':
       return deleteDeck(msg.id);
-    case 'FLASH_ADD_NOTE':
-      return addNote(msg.deckId, msg.noteType, msg.front, msg.back, msg.reversed);
-    case 'FLASH_UPDATE_NOTE':
-      return updateNote(msg.id, { front: msg.front, back: msg.back, reversed: msg.reversed });
-    case 'FLASH_DELETE_NOTE':
-      return deleteFlashNote(msg.id);
-    case 'FLASH_ANSWER_CARD':
-      return answerCard(msg.cardId, msg.rating);
-    case 'FLASH_RESET_CARD':
-      return resetCard(msg.cardId);
     case 'PAPER_ADD':
       return addPaper(msg.draft);
     case 'PAPER_UPDATE':

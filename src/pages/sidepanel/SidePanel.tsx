@@ -3,7 +3,6 @@ import { AssistantChat } from '../../shared/components/AssistantChat';
 import { BrainDump } from '../../shared/components/BrainDump';
 import { LiveCopilot } from '../../shared/components/LiveCopilot';
 import { NotesHistory } from '../../shared/components/NotesHistory';
-import { localDate } from '../../shared/format';
 import { useActiveTab } from '../../shared/hooks/useActiveTab';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 import { useSessionValue } from '../../shared/hooks/useSessionValue';
@@ -12,15 +11,13 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isLiveActive } from '../../shared/live';
-import { dueCounts, newIntroducedToday, totalDue } from '../../shared/srs';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
 import { BookmarkPicker } from './components/BookmarkPicker';
-import { CardsPane } from './components/CardsPane';
 import { RecordBar } from './components/RecordBar';
 import { TaskPane } from './components/TaskPane';
 
 type PrimaryTab = 'ask' | 'tasks' | 'notes';
-type View = PrimaryTab | 'cards' | 'live';
+type View = PrimaryTab | 'live';
 
 function pageContext(tab: chrome.tabs.Tab | null): { title: string; detail: string } {
   if (!tab) return { title: 'Current page', detail: 'Waiting for the active tab' };
@@ -52,11 +49,6 @@ export function SidePanel() {
   const sprint = useSprint();
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-  const [flashCards] = useStorageValue('flashCards');
-  const [srsDaily] = useStorageValue('srsDaily');
-  const cardsDue = totalDue(
-    dueCounts(flashCards, Date.now(), newIntroducedToday(srsDaily, localDate())),
-  );
   const liveOn = isLiveActive(live);
 
   const primaryTabs: { id: PrimaryTab; label: string; badge: number }[] = [
@@ -160,15 +152,6 @@ export function SidePanel() {
               <button
                 type="button"
                 onClick={() => {
-                  setView('cards');
-                  closeActions();
-                }}
-              >
-                Review cards{cardsDue > 0 ? ` · ${cardsDue} due` : ''}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setShowRecordingTools((current) => !current);
                   setPickingBookmark(false);
                 }}
@@ -253,20 +236,6 @@ export function SidePanel() {
           <BrainDump source="popup" compact />
           <NotesHistory limit={5} />
         </main>
-      )}
-      {view === 'cards' && (
-        <>
-          <div className="secondary-pane-head" id="tab-cards">
-            <button type="button" onClick={() => setView('ask')}>
-              ‹ Back
-            </button>
-            <div>
-              <h2>Review cards</h2>
-              {cardsDue > 0 && <p>{cardsDue} due</p>}
-            </div>
-          </div>
-          <CardsPane id="panel-cards" labelledBy="tab-cards" />
-        </>
       )}
       {view === 'live' && (
         <>

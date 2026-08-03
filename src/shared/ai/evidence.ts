@@ -1,6 +1,5 @@
 import { calendarContextLines, todayEvents } from '../calendar';
 import { localDate } from '../format';
-import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings } from '../storage';
 import type { LocalSchema } from '../storage';
 import type { AssistantFact, Settings } from '../types';
@@ -46,8 +45,6 @@ export interface EvidenceData {
   tasks: LocalSchema['tasks'];
   streaks: LocalSchema['streaks'];
   gym: LocalSchema['gym'];
-  flashCards: LocalSchema['flashCards'];
-  srsDaily: LocalSchema['srsDaily'];
   calendar: LocalSchema['calendar'];
   assistantMemory: LocalSchema['assistantMemory'];
   assistantProfile: LocalSchema['assistantProfile'];
@@ -198,19 +195,6 @@ export function buildEvidenceBundle(
       `Gym: ${sessions}/${data.settings.gymWeeklyTarget} sessions this week; ` +
       `week streak ${data.gym.currentWeekStreak}; longest ${data.gym.longestWeekStreak}.`;
     push({ kind: 'metric', title: 'Gym activity', url: '', snippet: text }, text);
-  }
-
-  if (domains.includes('flashcards')) {
-    const today = localDate(now);
-    const due = totalDue(
-      dueCounts(
-        data.flashCards,
-        now.getTime(),
-        newIntroducedToday(data.srsDaily, today),
-      ),
-    );
-    const text = `Flashcards due now: ${due}.`;
-    push({ kind: 'metric', title: 'Flashcard queue', url: '', snippet: text }, text);
   }
 
   if (domains.includes('calendar')) {
@@ -376,9 +360,7 @@ export async function gatherEvidence(query: string, now = new Date()): Promise<E
       'tasks',
       'streaks',
       'gym',
-      'flashCards',
-      'srsDaily',
-      'calendar',
+            'calendar',
       'assistantMemory',
       'assistantProfile',
       'papers',

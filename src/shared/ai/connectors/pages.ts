@@ -1,5 +1,4 @@
 import {
-  FLASHCARDS_PAGE_PATH,
   GRAPH_PAGE_PATH,
   NEWTAB_PAGE_PATH,
   PAPERS_PAGE_PATH,
@@ -17,7 +16,7 @@ export const pagesConnector: Connector = {
       // page could aim, so the loop never fires it unattended.
       loop: 'stage',
       description:
-        'Open one of the extension pages: dashboard, flashcards, papers, graph (a map of everything read, watched and saved), or settings.',
+        'Open one of the extension pages: dashboard, papers, graph (a map of everything read, watched and saved), or settings.',
       params: {
         type: 'object',
         required: ['page'],
@@ -26,13 +25,13 @@ export const pagesConnector: Connector = {
           page: {
             type: 'string',
             description: 'Which page to open',
-            enum: ['dashboard', 'flashcards', 'papers', 'graph', 'settings'],
+            enum: ['dashboard', 'papers', 'graph', 'settings'],
           },
         },
       },
       palette: {
         label: 'Open page…',
-        keywords: ['open', 'go', 'flashcards', 'papers', 'graph', 'settings'],
+        keywords: ['open', 'go', 'papers', 'graph', 'settings'],
       },
       summary: (p) => `Open the ${p.page as string} page`,
       run: async (p) => {
@@ -41,13 +40,11 @@ export const pagesConnector: Connector = {
           await chrome.runtime.openOptionsPage();
         } else {
           const path =
-            page === 'flashcards'
-              ? FLASHCARDS_PAGE_PATH
-              : page === 'papers'
-                ? PAPERS_PAGE_PATH
-                : page === 'graph'
-                  ? GRAPH_PAGE_PATH
-                  : NEWTAB_PAGE_PATH;
+            page === 'papers'
+              ? PAPERS_PAGE_PATH
+              : page === 'graph'
+                ? GRAPH_PAGE_PATH
+                : NEWTAB_PAGE_PATH;
           await chrome.tabs.create({ url: chrome.runtime.getURL(path) });
         }
         return `Opened ${page}.`;

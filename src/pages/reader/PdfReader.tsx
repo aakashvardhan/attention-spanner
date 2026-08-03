@@ -5,7 +5,6 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { paperMatchKey } from '../../shared/papers';
 import { type PdfPosition } from '../../shared/pdf';
 import { isPdfAnchored } from '../../shared/types';
-import { useMakeCard } from './useMakeCard';
 import { headingForPage } from '../../shared/pdfOutline';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { usePdfDocument } from './usePdfDocument';
@@ -57,7 +56,6 @@ export function PdfReader({ src }: { src: string }) {
   // pdf-anchored ones. A text anchor here would mean a stored article
   // annotation collided on docKey — skip it rather than crash on the anchor.
   const pageAnnotations = useMemo(() => docAnnotations.filter(isPdfAnchored), [docAnnotations]);
-  const makeCard = useMakeCard();
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [panel, setPanel] = useState<'none' | 'notes' | 'ask' | 'related' | 'find'>('none');
@@ -367,7 +365,6 @@ export function PdfReader({ src }: { src: string }) {
             onActivate={setActiveAnnotationId}
             noteMode={noteMode}
             onCreateHighlight={createHighlight}
-            onMakeCard={(text: string) => void makeCard(text, title, paper?.deckId)}
             onPlaceSticky={(page, x, y) => void placeSticky(page, x, y)}
             onUpdateNote={updateAnnotationNote}
             onUpdateColor={updateAnnotationColor}

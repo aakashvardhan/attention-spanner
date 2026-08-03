@@ -38,8 +38,6 @@ function data(): AssistantContextData {
         freezesEarned: 0,
       },
     },
-    flashCards: [],
-    srsDaily: {},
     papers: [],
     siteTime: { date: '', hosts: {} },
     readingProgress: {},

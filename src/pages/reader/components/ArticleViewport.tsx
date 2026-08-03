@@ -62,7 +62,6 @@ export function ArticleViewport({
   activeId,
   onActivate,
   onCreateHighlight,
-  onMakeCard,
   onProgress,
   handleRef,
   onTimestampClick,
@@ -72,7 +71,6 @@ export function ArticleViewport({
   activeId: string | null;
   onActivate: (id: string | null) => void;
   onCreateHighlight: (anchor: TextAnchor, text: string, color: AnnotationColor) => void;
-  onMakeCard: (text: string) => void;
   /** Reading percent 0-100 and the block currently at the top */
   onProgress: (percent: number, blockIndex: number) => void;
   handleRef?: React.RefObject<ArticleViewportHandle | null>;
@@ -200,12 +198,6 @@ export function ArticleViewport({
     clearSelection();
   };
 
-  const makeCard = () => {
-    if (!pending) return;
-    onMakeCard(pending.text);
-    clearSelection();
-  };
-
   return (
     <div
       className="article-scroller"
@@ -218,7 +210,6 @@ export function ArticleViewport({
           x={pending.menuX}
           y={pending.menuY}
           onPick={highlight}
-          onMakeCard={makeCard}
         />
       )}
       <article className="article-body">
