@@ -1,5 +1,6 @@
 import {
   FLASHCARDS_PAGE_PATH,
+  GRAPH_PAGE_PATH,
   NEWTAB_PAGE_PATH,
   PAPERS_PAGE_PATH,
 } from '../../constants';
@@ -12,7 +13,11 @@ export const pagesConnector: Connector = {
   tools: [
     {
       name: 'open_page',
-      description: 'Open one of the extension pages: dashboard, flashcards, papers, or settings.',
+      // Navigation: spawns a tab. The one non-confirm capability an injected
+      // page could aim, so the loop never fires it unattended.
+      loop: 'stage',
+      description:
+        'Open one of the extension pages: dashboard, flashcards, papers, graph (a map of everything read, watched and saved), or settings.',
       params: {
         type: 'object',
         required: ['page'],
@@ -21,11 +26,14 @@ export const pagesConnector: Connector = {
           page: {
             type: 'string',
             description: 'Which page to open',
-            enum: ['dashboard', 'flashcards', 'papers', 'settings'],
+            enum: ['dashboard', 'flashcards', 'papers', 'graph', 'settings'],
           },
         },
       },
-      palette: { label: 'Open page…', keywords: ['open', 'go', 'flashcards', 'papers', 'settings'] },
+      palette: {
+        label: 'Open page…',
+        keywords: ['open', 'go', 'flashcards', 'papers', 'graph', 'settings'],
+      },
       summary: (p) => `Open the ${p.page as string} page`,
       run: async (p) => {
         const page = p.page as string;
@@ -37,7 +45,9 @@ export const pagesConnector: Connector = {
               ? FLASHCARDS_PAGE_PATH
               : page === 'papers'
                 ? PAPERS_PAGE_PATH
-                : NEWTAB_PAGE_PATH;
+                : page === 'graph'
+                  ? GRAPH_PAGE_PATH
+                  : NEWTAB_PAGE_PATH;
           await chrome.tabs.create({ url: chrome.runtime.getURL(path) });
         }
         return `Opened ${page}.`;

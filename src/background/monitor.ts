@@ -12,6 +12,7 @@ import { dueCounts, newIntroducedToday, totalDue } from '../shared/srs';
 import { getLocal, getSession, getSettings, setSession } from '../shared/storage';
 import type { FlashCard, Settings, SrsDayStats, Streaks } from '../shared/types';
 import { inQuietHours } from '../shared/week';
+import { recordEntrySafe } from './journal';
 
 /**
  * Proactive Jarvis monitor — wall-clock/data-driven nudges, unlike the
@@ -81,6 +82,7 @@ async function appendMonitorTurn(text: string): Promise<void> {
   await setSession({
     assistantThread: appendTurn(assistantThread, newTurn('assistant', text, { source: 'local' })),
   });
+  recordEntrySafe('note', text);
 }
 
 export async function fireEveningCheck(now = new Date()): Promise<void> {

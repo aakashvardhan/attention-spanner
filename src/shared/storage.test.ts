@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { v7Patch } from './storage';
+import {
+  v12ReadingProgress,
+  v14GraphNodes,
+  v15Skin,
+  v16DashboardMode,
+  v17DailyBrainDumpGate,
+  v18EnabledPacks,
+  v7Patch,
+} from './storage';
 
 /**
  * v6 → v7 collapses the reward layer onto one currency. These cover the
@@ -120,5 +128,253 @@ describe('v7Patch', () => {
 
   it('returns nothing for a profile with none of the dead keys', () => {
     expect(v7Patch({})).toEqual({});
+  });
+});
+
+describe('v16DashboardMode', () => {
+  it('replaces arbitrary layout state with the focused preset', () => {
+    expect(
+      v16DashboardMode({
+        theme: 'dark',
+        dashColumns: 4,
+        dashCardOrder: ['feeds', 'tasks'],
+        dashHiddenCards: ['agenda'],
+        dashFullWidthCards: ['feeds'],
+      }),
+    ).toEqual({ theme: 'dark', dashboardMode: 'focused' });
+  });
+
+  it('does not create settings when none were stored', () => {
+    expect(v16DashboardMode(undefined)).toBeNull();
+  });
+});
+
+/**
+ * v11 → v12 repairs Continue rows the reader corrupted: entries stamped with
+ * the reader page's own title ("Reader") and chrome-extension:// URL.
+ */
+describe('v12ReadingProgress', () => {
+  const entry = (over: Record<string, unknown>) =>
+    ({ title: 'A post', url: 'https://example.com/a', maxPercent: 20, ...over }) as never;
+
+  it('restores the article URL from the reader link and drops the "Reader" name', () => {
+    const repaired = v12ReadingProgress({
+      'example.com/a': entry({
+        title: 'Reader',
+        url: 'chrome-extension://abc/src/pages/reader/index.html?article=https%3A%2F%2Fexample.com%2Fa%3Fx%3D1',
+      }),
+    });
+    expect(repaired?.['example.com/a']).toMatchObject({
+      title: '',
+      url: 'https://example.com/a?x=1',
+      maxPercent: 20,
+    });
+  });
+
+  it('handles the PDF reader link too, keeping a real title', () => {
+    const repaired = v12ReadingProgress({
+      'example.com/p': entry({
+        title: 'A paper',
+        url: 'chrome-extension://abc/src/pages/reader/index.html?src=https%3A%2F%2Fexample.com%2Fp.pdf',
+      }),
+    });
+    expect(repaired?.['example.com/p']).toMatchObject({
+      title: 'A paper',
+      url: 'https://example.com/p.pdf',
+    });
+  });
+
+  it('returns null when nothing is corrupted, so a clean profile is not rewritten', () => {
+    expect(v12ReadingProgress({ 'example.com/a': entry({}) })).toBeNull();
+    expect(v12ReadingProgress({})).toBeNull();
+  });
+
+  it('leaves videos alone', () => {
+    expect(
+      v12ReadingProgress({
+        'yt:abc': entry({ kind: 'video', url: 'https://www.youtube.com/watch?v=abc' }),
+      }),
+    ).toBeNull();
+  });
+});
+
+/**
+ * v13 → v14 seeds the knowledge graph from whatever reading history survived
+ * tracking.prune. Only articles and videos — papers, bookmarks and recordings
+ * are reconciled on the first graph open instead.
+ */
+describe('v14GraphNodes', () => {
+  const NOW = 1_700_000_000_000;
+  const base = {
+    source: 'A Feed',
+    activeSeconds: 120,
+    firstOpenedAt: NOW - 5000,
+    updatedAt: NOW,
+    completedAt: null,
+    nudge: { count: 0, lastAt: 0, dismissed: false },
+  };
+
+  it('seeds an article node keyed by its normalized url', () => {
+    const [node] = v14GraphNodes(
+      {
+        'example.com/a': {
+          ...base,
+          url: 'https://example.com/a',
+          title: 'A Post',
+          maxPercent: 40,
+          feedItemId: null,
+          scrollY: 0,
+          pageHeight: 0,
+        } as never,
+      },
+      NOW,
+    );
+
+    expect(node).toMatchObject({
+      id: 'example.com/a',
+      kind: 'article',
+      title: 'A Post',
+      completion: 0.4,
+      tagSource: 'auto',
+    });
+  });
+
+  it('seeds a video node carrying its videoId', () => {
+    const [node] = v14GraphNodes(
+      {
+        'yt:abc': {
+          ...base,
+          kind: 'video',
+          url: 'https://www.youtube.com/watch?v=abc',
+          title: 'A Talk',
+          maxPercent: 100,
+          videoId: 'abc',
+          durationSeconds: 600,
+          positionSeconds: 600,
+        } as never,
+      },
+      NOW,
+    );
+
+    expect(node).toMatchObject({ id: 'yt:abc', kind: 'video', videoId: 'abc', completion: 1 });
+  });
+
+  it('yields nothing for a profile with no surviving history', () => {
+    expect(v14GraphNodes({}, NOW)).toEqual([]);
+  });
+});
+
+/*
+ * v14 → v15 flips the default skin to Brave. patchSettings writes the whole
+ * settings object, so a profile that ever changed any setting has a stored
+ * 'auto' that would shadow the new default forever.
+ */
+describe('v15Skin', () => {
+  it('rewrites a stored auto to the new default', () => {
+    expect(v15Skin({ skin: 'auto', dailyGoalMinutes: 20 })).toEqual({
+      skin: 'brave',
+      dailyGoalMinutes: 20,
+    });
+  });
+
+  it('leaves an explicit skin alone — that is a real choice', () => {
+    expect(v15Skin({ skin: 'chrome' })).toBeNull();
+    expect(v15Skin({ skin: 'default' })).toBeNull();
+    expect(v15Skin({ skin: 'brave' })).toBeNull();
+  });
+
+  it('touches nothing when no settings are stored', () => {
+    expect(v15Skin(undefined)).toBeNull();
+    expect(v15Skin({})).toBeNull();
+  });
+});
+
+describe('v17DailyBrainDumpGate', () => {
+  it('grandfathers a meaningful note already saved on the migration date', () => {
+    const createdAt = new Date(2026, 6, 29, 9).getTime();
+    expect(
+      v17DailyBrainDumpGate(
+        [
+          {
+            id: 'today',
+            rawText: 'Enough detail to count as a real dump',
+            status: 'raw',
+            bullets: [],
+            proposedTasks: [],
+            createdAt,
+            structuredAt: null,
+          },
+        ],
+        undefined,
+        '2026-07-29',
+      ),
+    ).toEqual({ date: '2026-07-29', completedAt: createdAt, noteId: 'today' });
+  });
+
+  it('starts locked when the only retained note is from yesterday', () => {
+    expect(
+      v17DailyBrainDumpGate(
+        [
+          {
+            id: 'old',
+            rawText: 'A meaningful but stale dump from the prior day',
+            status: 'raw',
+            bullets: [],
+            proposedTasks: [],
+            createdAt: new Date(2026, 6, 28, 9).getTime(),
+            structuredAt: null,
+          },
+        ],
+        undefined,
+        '2026-07-29',
+      ),
+    ).toEqual({ date: '2026-07-29', completedAt: null, noteId: null });
+  });
+});
+
+describe('v18EnabledPacks', () => {
+  it('starts a new empty profile with the attention core only', () => {
+    expect(v18EnabledPacks({})).toEqual([]);
+  });
+
+  it('enables research for surviving research data', () => {
+    expect(v18EnabledPacks({ papers: [{}] })).toEqual(['research']);
+    expect(v18EnabledPacks({ recordings: [{}] })).toEqual(['research']);
+  });
+
+  it('enables work for a connected calendar or Gmail account', () => {
+    expect(v18EnabledPacks({ calendar: { connected: true } })).toEqual(['work']);
+    expect(
+      v18EnabledPacks({
+        gmail: {
+          clientId: '',
+          clientSecret: '',
+          triaged: [],
+          triagedAt: 0,
+          lastError: '',
+          accounts: [
+            {
+              id: 'mail',
+              email: 'reader@example.com',
+              accessToken: '',
+              refreshToken: '',
+              expiresAt: 0,
+              connected: true,
+              lastError: '',
+            },
+          ],
+        },
+      }),
+    ).toEqual(['work']);
+  });
+
+  it('preserves explicit packs and detects the legacy assistant setting', () => {
+    expect(
+      v18EnabledPacks({
+        enabledPacks: ['work'],
+        settings: { assistantEnabled: true },
+        papers: [{}],
+      }),
+    ).toEqual(['research', 'work', 'assistant']);
   });
 });

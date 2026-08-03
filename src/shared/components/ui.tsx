@@ -7,7 +7,7 @@ import './ui.css';
  * exist, not by anticipating a page that might want it.
  */
 
-type Variant = 'primary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'tinted' | 'ghost' | 'danger';
 
 export function Button({
   variant = 'primary',

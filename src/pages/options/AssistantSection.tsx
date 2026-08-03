@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
+import { testAnthropicKey } from '../../shared/ai/anthropicProvider';
 import { testGeminiKey } from '../../shared/ai/geminiProvider';
-import { listVoices } from '../../shared/ai/tts';
+import { listVoices, speak } from '../../shared/ai/tts';
+import { detectCapabilities } from '../../shared/capabilities';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../shared/messages';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
+import { PROFILE_MAX_CHARS } from '../../shared/constants';
+import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
 import type { AssistantAutomation, AssistantSkill, AutomationSchedule } from '../../shared/types';
+import { BrowserSupport } from './BrowserSupport';
 
 type Test = { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'error'; message: string };
 
 type Mic = { state: 'unknown' } | { state: 'granted' } | { state: 'denied' };
+
+const VOICE_SAMPLE = "Good morning. You have three tasks left today, and your focus block starts in ten minutes.";
 
 export function AssistantSection() {
   const [stored] = useStorageValue('settings');
@@ -16,12 +22,17 @@ export function AssistantSection() {
   const [skills] = useStorageValue('assistantSkills');
   const [automations] = useStorageValue('assistantAutomations');
   const settings = { ...DEFAULT_SETTINGS, ...stored };
-  const hasKey = settings.geminiApiKey.length > 0;
+  const provider = settings.cloudProvider;
+  const providerLabel = provider === 'anthropic' ? 'Claude' : 'Gemini';
+  const currentKey = provider === 'anthropic' ? settings.anthropicApiKey : settings.geminiApiKey;
+  const hasKey = currentKey.length > 0;
   const [keyInput, setKeyInput] = useState('');
   const [saved, setSaved] = useState(false);
   const [test, setTest] = useState<Test>({ state: 'idle' });
   const [mic, setMic] = useState<Mic>({ state: 'unknown' });
   const [voices, setVoices] = useState<{ name: string; lang: string }[]>([]);
+  // Sync and constant for the life of the page — no state needed
+  const caps = detectCapabilities();
 
   useEffect(() => {
     void navigator.permissions
@@ -54,18 +65,26 @@ export function AssistantSection() {
     await patchSettings({ assistantWakeWordEnabled: on });
   };
 
-  const keyToTest = keyInput.trim() || settings.geminiApiKey;
+  const keyToTest = keyInput.trim() || currentKey;
+
+  const chooseProvider = async (next: 'gemini' | 'anthropic') => {
+    await patchSettings({ cloudProvider: next });
+    setKeyInput('');
+    setSaved(false);
+    setTest({ state: 'idle' });
+  };
 
   const save = async () => {
     if (!keyInput.trim()) return;
-    await patchSettings({ geminiApiKey: keyInput.trim() });
+    const key = keyInput.trim();
+    await patchSettings(provider === 'anthropic' ? { anthropicApiKey: key } : { geminiApiKey: key });
     setKeyInput('');
     setSaved(true);
     setTest({ state: 'idle' });
   };
 
   const removeKey = async () => {
-    await patchSettings({ geminiApiKey: '' });
+    await patchSettings(provider === 'anthropic' ? { anthropicApiKey: '' } : { geminiApiKey: '' });
     setSaved(false);
     setTest({ state: 'idle' });
   };
@@ -73,7 +92,8 @@ export function AssistantSection() {
   const runTest = async () => {
     if (!keyToTest) return;
     setTest({ state: 'testing' });
-    const res = await testGeminiKey(keyToTest);
+    const res =
+      provider === 'anthropic' ? await testAnthropicKey(keyToTest) : await testGeminiKey(keyToTest);
     setTest(res.ok ? { state: 'ok' } : { state: 'error', message: res.error ?? 'Key test failed.' });
   };
 
@@ -82,8 +102,9 @@ export function AssistantSection() {
       <h2>Assistant</h2>
       <p className="hint">
         The assistant answers questions about your data and runs actions (add tasks, start focus
-        sessions…) from the dashboard. It runs on Chrome's built-in on-device Gemini Nano —
-        nothing leaves your machine.
+        sessions…) from the dashboard. Where the browser provides an on-device model, short
+        questions run on it and stay on your machine. With a cloud API key below, harder questions, recorded
+        audio, captured frames, and screenshots you ask about are sent to that provider.
       </p>
       <div className="setting-row">
         <label htmlFor="assistant-enabled">Enable assistant</label>
@@ -95,10 +116,25 @@ export function AssistantSection() {
         />
       </div>
 
+      <div className="setting-row">
+        <label htmlFor="cloud-provider">Preferred cloud model</label>
+        <select
+          id="cloud-provider"
+          value={provider}
+          onChange={(e) => void chooseProvider(e.target.value as 'gemini' | 'anthropic')}
+        >
+          <option value="gemini">Gemini 3.5 Flash</option>
+          <option value="anthropic">Claude Haiku 4.5</option>
+        </select>
+      </div>
       <p className="hint">
-        Optional: a Gemini API key (free tier at aistudio.google.com) lets the assistant handle
-        long pages and harder questions in the cloud when the on-device model can't. The key is
-        stored locally in this browser only and is never synced.
+        Optional: an API key lets the assistant handle long pages and harder questions in the
+        cloud when the on-device model can't. Configure both and each is used where it is
+        stronger — Claude for planning and double-checking, Gemini for images and search.{' '}
+        {provider === 'anthropic'
+          ? 'Get a Claude key at console.anthropic.com.'
+          : 'Gemini has a free tier at aistudio.google.com.'}{' '}
+        The key is stored locally in this browser only and is never synced.
       </p>
       <form
         className="add-feed-form"
@@ -115,7 +151,7 @@ export function AssistantSection() {
             setSaved(false);
             setTest({ state: 'idle' });
           }}
-          placeholder={hasKey ? 'Key saved — paste to replace' : 'Paste your Gemini API key'}
+          placeholder={hasKey ? 'Key saved — paste to replace' : `Paste your ${providerLabel} API key`}
         />
         <button type="submit" disabled={!keyInput.trim()}>
           Save key
@@ -145,9 +181,11 @@ export function AssistantSection() {
       {test.state === 'ok' && <p className="feedback success">Key works — cloud fallback is on.</p>}
       {test.state === 'error' && <p className="feedback error">{test.message}</p>}
 
+      <BrowserSupport />
+
       <p className="hint" style={{ marginTop: 16 }}>
-        Voice: hold the mic button in the assistant to talk instead of typing (uses Chrome's speech
-        recognition, which sends audio to Google), and have replies read aloud.
+        Voice: hold the mic button in the assistant to talk instead of typing, and have replies
+        read aloud. Availability depends on your browser — see above.
       </p>
       <div className="setting-row">
         <label>Microphone for voice input</label>
@@ -163,8 +201,8 @@ export function AssistantSection() {
       </div>
       {mic.state === 'denied' && (
         <p className="feedback error">
-          Chrome blocked the microphone for this extension. Click the mic icon in the address bar
-          (or Site settings) to allow it, then retry.
+          Your browser blocked the microphone for this extension. Click the mic icon in the address
+          bar (or Site settings) to allow it, then retry.
         </p>
       )}
       <div className="setting-row">
@@ -187,28 +225,95 @@ export function AssistantSection() {
       </div>
       {settings.assistantWakeWordEnabled && (
         <p className="hint">
-          Jarvis listens for “hey Jarvis” whenever Chrome is running: the microphone stays open
-          and audio streams to Google's speech service while this is on. Say the wake word, then
-          your request — the reply is spoken aloud and lands in the assistant chat.
+          Jarvis listens for “hey Jarvis” whenever the browser is running. Detection runs
+          on-device, so nothing is sent anywhere until the wake word actually fires — then your
+          request is transcribed{caps.webSpeech ? " by the browser's recognizer" : ' by Gemini'},
+          the reply is spoken aloud, and it lands in the assistant chat.
         </p>
       )}
+      <div className="setting-row">
+        <label htmlFor="assistant-react">Look things up before answering</label>
+        <input
+          id="assistant-react"
+          type="checkbox"
+          checked={settings.assistantReactEnabled}
+          onChange={(e) => void patchSettings({ assistantReactEnabled: e.target.checked })}
+        />
+      </div>
+      <p className="hint">
+        Let Jarvis search your library, read your plan, and check your calendar mid-answer, then
+        decide what to do next — instead of guessing in one shot. Slower and uses more of your
+        cloud quota. Anything that changes your data still waits for your approval. Needs a cloud
+        API key; on-device Nano can't do this.
+      </p>
+      <div className="setting-row">
+        <label htmlFor="assistant-vision">Screen understanding</label>
+        <input
+          id="assistant-vision"
+          type="checkbox"
+          checked={settings.assistantVisionEnabled}
+          onChange={(e) => void patchSettings({ assistantVisionEnabled: e.target.checked })}
+        />
+      </div>
+      <p className="hint">
+        Describe slides and shared screens into the notes while a tab is being recorded, and let
+        the assistant see the current tab when you ask about it. Captured frames go to Gemini,
+        the same as recorded audio.
+      </p>
+      <div className="setting-row">
+        <label htmlFor="assistant-live">Live transcription</label>
+        <input
+          id="assistant-live"
+          type="checkbox"
+          checked={settings.assistantLiveEnabled}
+          onChange={(e) => void patchSettings({ assistantLiveEnabled: e.target.checked })}
+        />
+      </div>
+      <p className="hint">
+        Transcribe a recording as it happens — text arrives within seconds instead of after the
+        recording stops, so you can ask about a meeting while you're still in it. This makes many
+        more Gemini calls than the usual five-minute batches; stretches of silence are skipped
+        rather than sent.
+      </p>
       {settings.assistantVoiceEnabled && voices.length > 0 && (
-        <div className="setting-row">
-          <label htmlFor="assistant-tts-voice">Voice</label>
-          <select
-            id="assistant-tts-voice"
-            value={settings.assistantTtsVoice}
-            onChange={(e) => void patchSettings({ assistantTtsVoice: e.target.value })}
-          >
-            <option value="">System default</option>
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name} ({v.lang})
-              </option>
-            ))}
-          </select>
-        </div>
+        <>
+          <div className="setting-row">
+            <label htmlFor="assistant-tts-voice">Voice</label>
+            <span className="voice-picker">
+              <select
+                id="assistant-tts-voice"
+                value={settings.assistantTtsVoice}
+                onChange={(e) => {
+                  void patchSettings({ assistantTtsVoice: e.target.value });
+                  speak(VOICE_SAMPLE, e.target.value);
+                }}
+              >
+                <option value="">System default</option>
+                {voices.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => speak(VOICE_SAMPLE, settings.assistantTtsVoice)}
+              >
+                Preview
+              </button>
+            </span>
+          </div>
+          <p className="hint">
+            Chrome only offers what your OS has installed. macOS ships a handful of low-fidelity
+            en-GB voices by default; the natural-sounding British ones (Serena, Kate, Stephanie)
+            are downloads — System Settings → Accessibility → Spoken Content → System Voice →
+            Manage Voices, pick the Premium quality, then reopen this page.
+          </p>
+        </>
       )}
+
+      <ProfileEditor />
 
       <h3 style={{ marginTop: 20 }}>Memory</h3>
       <p className="hint">
@@ -258,6 +363,62 @@ export function AssistantSection() {
 
       <AutomationsEditor automations={automations ?? []} />
     </section>
+  );
+}
+
+/**
+ * "About me": the one block of context loaded into every assistant prompt,
+ * ahead of the char cap so it can never be truncated away. Deliberately not
+ * writable by a tool — remembered facts accumulate and age out, but this is
+ * the user's own description of themselves and only they should edit it.
+ */
+function ProfileEditor() {
+  const [profile] = useStorageValue('assistantProfile');
+  const stored = profile?.text ?? '';
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const text = draft ?? stored;
+  const dirty = draft !== null && draft !== stored;
+
+  const save = async () => {
+    await setLocal({
+      assistantProfile: { text: text.trim().slice(0, PROFILE_MAX_CHARS), updatedAt: Date.now() },
+    });
+    setDraft(null);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <>
+      <h3 style={{ marginTop: 20 }}>About me</h3>
+      <p className="hint">
+        Who you are, what you’re working on, how you like to work. Loaded into every assistant
+        answer, briefing and day plan — unlike memory facts, this is never dropped or aged out.
+        Stays on this device.
+      </p>
+      <textarea
+        value={text}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={6}
+        maxLength={PROFILE_MAX_CHARS}
+        placeholder={
+          'CS masters student at SJSU, thesis on graph neural nets.\n' +
+          'Mornings are for deep work; afternoons are meetings and email.\n' +
+          'I lose the thread when a task has no obvious first step.'
+        }
+        style={{ width: '100%', resize: 'vertical' }}
+      />
+      <div className="hint" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button type="button" className="secondary-btn" disabled={!dirty} onClick={() => void save()}>
+          Save
+        </button>
+        <span>
+          {text.length}/{PROFILE_MAX_CHARS}
+        </span>
+        {saved && <span>Saved.</span>}
+      </div>
+    </>
   );
 }
 

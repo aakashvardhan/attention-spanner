@@ -1,4 +1,5 @@
 import { READER_PAGE_PATH } from './constants';
+import { parsePaperRef } from './papers';
 import type { Paper } from './types';
 
 /* Pure helpers for the in-extension PDF reader: deciding which navigations to
@@ -36,6 +37,18 @@ export function shouldInterceptPdf(url: string, bypass: string[]): boolean {
   return isPdfUrl(url) && !bypass.includes(url);
 }
 
+/**
+ * Is this response a PDF the browser is about to render in the tab? Covers the
+ * PDFs `isPdfUrl` can't see — served from an extensionless URL (allenai.org/
+ * papers/…) — by reading the response headers instead of guessing from the path.
+ * An `attachment` disposition is a download, not a page: the tab stays where it
+ * is, so redirecting it would hijack an unrelated page.
+ */
+export function isPdfResponse(contentType: string | null, disposition: string | null): boolean {
+  if (!contentType || !/^application\/pdf\s*(;|$)/i.test(contentType.trim())) return false;
+  return !/(^|;|\s)attachment(\s*;|\s*$)/i.test(disposition ?? '');
+}
+
 /** Extension-relative reader URL (path + query); pure so it can be tested. */
 export function readerPagePath(pdfUrl: string): string {
   return `${READER_PAGE_PATH}?src=${encodeURIComponent(pdfUrl)}`;
@@ -53,6 +66,15 @@ export function articleReaderPath(url: string): string {
 
 export function articleReaderUrl(url: string): string {
   return chrome.runtime.getURL(articleReaderPath(url));
+}
+
+/** The reader showing a transcript — the third document kind, alongside ?src= and ?article=. */
+export function recordingReaderPath(id: string): string {
+  return `${READER_PAGE_PATH}?recording=${encodeURIComponent(id)}`;
+}
+
+export function recordingReaderUrl(id: string): string {
+  return chrome.runtime.getURL(recordingReaderPath(id));
 }
 
 /**
@@ -73,11 +95,38 @@ export function shouldOpenInReader(url: string): boolean {
 }
 
 /**
+ * The PDF the reader should load for a paper, or null when we can't name one.
+ * Prefers the saved position's URL, then the paper's own link when it's already
+ * a PDF, then the arXiv PDF derived from an abs/versioned link — without that
+ * last step a paper saved from its abs page could only reach the reader after
+ * it had already been read there. Pure, so it's testable without chrome.*.
+ */
+export function paperPdfSource(paper: Pick<Paper, 'url' | 'pdf'>): string | null {
+  if (paper.pdf?.url) return paper.pdf.url;
+  if (!paper.url) return null;
+  if (isPdfUrl(paper.url)) return paper.url;
+  return arxivPdfUrl(paper.url);
+}
+
+/**
  * Where "open this paper" should go: the reader (resuming the saved position)
- * once the paper has been read there, otherwise the paper's own URL.
+ * whenever we can point it at a PDF, otherwise the paper's own URL.
  */
 export function paperOpenUrl(paper: Pick<Paper, 'url' | 'pdf'>): string {
-  return paper.pdf?.url ? readerPageUrl(paper.pdf.url) : paper.url;
+  const pdf = paperPdfSource(paper);
+  return pdf ? readerPageUrl(pdf) : paper.url;
+}
+
+/**
+ * The arXiv PDF URL for a bare id ('2406.09246', 'hep-th/9901001'), or null when
+ * the id isn't a recognizable arXiv id. Lets a discovered paper (whose `url` is
+ * often an abs page) open straight in the in-extension reader — `isPdfUrl` already
+ * recognizes arxiv.org/pdf/ paths, so this feeds `readerPageUrl`.
+ */
+export function arxivPdfUrl(id: string): string | null {
+  const ref = parsePaperRef(id);
+  if (!ref?.startsWith('arXiv:')) return null;
+  return `https://arxiv.org/pdf/${ref.slice('arXiv:'.length)}`;
 }
 
 /** 1-based page + 0–1 offset within it, from the viewport-midpoint y. */

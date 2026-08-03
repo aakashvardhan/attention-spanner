@@ -1,5 +1,42 @@
-import { describe, expect, it } from 'vitest';
-import { parseStructuredResult } from './brainDump';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getAvailability, parseStructuredResult, pickDumpEngine } from './brainDump';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('getAvailability', () => {
+  it('declares English input and output for the LanguageModel probe', async () => {
+    const availability = vi.fn().mockResolvedValue('available');
+    vi.stubGlobal('LanguageModel', { availability });
+
+    await expect(getAvailability()).resolves.toBe('available');
+    expect(availability).toHaveBeenCalledWith({
+      expectedInputs: [{ type: 'text', languages: ['en'] }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+    });
+  });
+});
+
+describe('pickDumpEngine', () => {
+  it('prefers Nano whenever the device can run it, key or not', () => {
+    expect(pickDumpEngine({ nano: 'available', cloud: false })).toBe('nano');
+    expect(pickDumpEngine({ nano: 'available', cloud: true })).toBe('nano');
+    // 'downloadable' counts — the first create() starts the one-time download
+    expect(pickDumpEngine({ nano: 'downloadable', cloud: true })).toBe('nano');
+  });
+
+  it('falls back to the cloud where there is no Nano (Brave, older Chrome)', () => {
+    expect(pickDumpEngine({ nano: 'unavailable', cloud: true })).toBe('cloud');
+  });
+
+  it('uses the cloud rather than waiting out an in-flight model download', () => {
+    expect(pickDumpEngine({ nano: 'downloading', cloud: true })).toBe('cloud');
+  });
+
+  it('has nothing to offer without Nano or a key', () => {
+    expect(pickDumpEngine({ nano: 'unavailable', cloud: false })).toBe('none');
+    expect(pickDumpEngine({ nano: 'downloading', cloud: false })).toBe('none');
+  });
+});
 
 describe('parseStructuredResult', () => {
   it('parses plain valid JSON', () => {
@@ -58,7 +95,7 @@ describe('parseStructuredResult', () => {
     const bullets = JSON.stringify(Array.from({ length: 20 }, (_, i) => `b${i}`));
     const tasks = JSON.stringify(Array.from({ length: 20 }, (_, i) => `t${i}`));
     const result = parseStructuredResult(`{"bullets": ${bullets}, "tasks": ${tasks}}`);
-    expect(result.bullets).toHaveLength(8);
-    expect(result.tasks).toHaveLength(6);
+    expect(result.bullets).toHaveLength(3);
+    expect(result.tasks).toHaveLength(1);
   });
 });

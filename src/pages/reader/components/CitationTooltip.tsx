@@ -1,4 +1,10 @@
+import { knownTargetFor, type KnownTarget } from '../citationLinks';
 import { citationHref, type Reference } from '../references';
+
+/** Where "Open" should go for a citation you already have. */
+function localHref(target: KnownTarget): string {
+  return target.path ? chrome.runtime.getURL(target.path) : target.externalUrl;
+}
 
 /** A short label for a link, e.g. "arXiv", "DOI", "Search", or the hostname. */
 function linkLabel(ref: Reference): string {
@@ -20,6 +26,7 @@ function linkLabel(ref: Reference): string {
  */
 export function CitationTooltip({
   refs,
+  known,
   x,
   y,
   flip,
@@ -27,6 +34,8 @@ export function CitationTooltip({
   onLeave,
 }: {
   refs: Reference[];
+  /** Citations resolving to something in the library, by match key */
+  known: Map<string, KnownTarget>;
   x: number;
   y: number;
   /** Anchor below the marker (transform from the top) instead of above it. */
@@ -41,17 +50,38 @@ export function CitationTooltip({
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >
-      {refs.map((ref, i) => (
-        <div key={i} className="cite-tooltip-entry">
-          <div className="cite-tooltip-text">
-            {ref.label !== null && <span className="cite-tooltip-label">[{ref.label}]</span>}
-            {ref.text}
+      {refs.map((ref, i) => {
+        const mine = knownTargetFor(ref, known);
+        return (
+          <div key={i} className="cite-tooltip-entry">
+            <div className="cite-tooltip-text">
+              {ref.label !== null && <span className="cite-tooltip-label">[{ref.label}]</span>}
+              {ref.text}
+            </div>
+            {/* A citation you already have opens your copy, with your
+                highlights on it — not the publisher's page. */}
+            {mine ? (
+              <div className="cite-tooltip-mine">
+                <span className="cite-tooltip-have">
+                  {mine.kind === 'paper' ? 'In your papers' : "You've read this"}
+                </span>
+                <a className="cite-tooltip-link" href={localHref(mine)}>
+                  Open
+                </a>
+              </div>
+            ) : (
+              <a
+                className="cite-tooltip-link"
+                href={citationHref(ref)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {linkLabel(ref)} ↗
+              </a>
+            )}
           </div>
-          <a className="cite-tooltip-link" href={citationHref(ref)} target="_blank" rel="noreferrer">
-            {linkLabel(ref)} ↗
-          </a>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -142,7 +142,7 @@ export function WarmupPanel() {
             <p className="gym-logged">Warmed up today — {todayResult.score} correct</p>
           )}
           <p className="sprint-hint">Tap the ink color, not the word — 60 seconds.</p>
-          <Button block onClick={start}>
+          <Button variant={todayResult ? 'tinted' : 'primary'} block onClick={start}>
             {todayResult ? 'Play again' : 'Start 60-second sprint'}
           </Button>
         </>
@@ -194,7 +194,7 @@ export function WarmupPanel() {
                 : 'Already counted today — nice reps anyway.'}
             </p>
           </div>
-          <Button block onClick={start}>
+          <Button variant="tinted" block onClick={start}>
             Play again
           </Button>
           <button className="sprint-cancel" onClick={() => setPhase('idle')}>

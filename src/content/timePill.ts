@@ -1,4 +1,4 @@
-import { sendMessage } from '../shared/messages';
+import { extensionAlive, sendMessage } from '../shared/messages';
 
 /**
  * Visible time pill — a small floating "23m" badge on user-chosen sites,
@@ -13,7 +13,13 @@ import { sendMessage } from '../shared/messages';
 
 declare global {
   interface Window {
-    __readerTimePillLoaded?: boolean;
+    /**
+     * Present while an instance is running. Calling it runs inside *that*
+     * instance's closure, so it reports whether that instance's extension
+     * context is still valid — something a replacement cannot see otherwise.
+     */
+    __readerTimePillAlive?: () => boolean;
+    __readerTimePillStop?: () => void;
   }
 }
 
@@ -21,8 +27,10 @@ const FLUSH_INTERVAL_MS = 15_000;
 const WARM_MINUTES = 10;
 const HOT_MINUTES = 25;
 
-if (!window.__readerTimePillLoaded) {
-  window.__readerTimePillLoaded = true;
+// A live instance short-circuits repeat injections. An orphaned one is evicted,
+// which also removes its stale pill so the replacement doesn't stack a second.
+if (window.__readerTimePillAlive?.() !== true) {
+  window.__readerTimePillStop?.();
   initPill();
 }
 
@@ -81,6 +89,8 @@ function initPill() {
   })();
 
   const tickTimer = window.setInterval(() => {
+    // Self-evict rather than keep counting time nothing will ever record
+    if (!extensionAlive()) return teardown();
     if (document.visibilityState === 'visible') {
       totalSeconds += 1;
       pendingSeconds += 1;
@@ -118,5 +128,15 @@ function initPill() {
     window.removeEventListener('pagehide', onPageHide);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     mount.remove();
+    // Only disown the globals if they are still ours — a replacement that
+    // evicted us has already installed its own.
+    if (window.__readerTimePillAlive === alive) {
+      delete window.__readerTimePillAlive;
+      delete window.__readerTimePillStop;
+    }
   }
+
+  const alive = () => extensionAlive();
+  window.__readerTimePillAlive = alive;
+  window.__readerTimePillStop = teardown;
 }

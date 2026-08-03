@@ -22,9 +22,11 @@ const ACTION_RULES: Array<{ re: RegExp; tool: string }> = [
   { re: /^refresh\s+(?:my\s+)?feeds?\b/, tool: 'refresh_feeds' },
 ];
 
-/** question openers that always mean "answer from my data" */
-const QUESTION_RE =
-  /^(?:how\s+many|how\s+much|how\s+long|what's\s+my|what\s+is\s+my|whats\s+my|what\s+are\s+my|what\s+do\s+i|when\s+is|when's|do\s+i\s+have|did\s+i|have\s+i|am\s+i)\b/;
+/** question openers that always mean "answer from my data".
+ *  Exported for liveTriggers, which reuses these openers rather than
+ *  maintaining a second list that would drift out of step with this one. */
+export const QUESTION_RE =
+  /^(?:how\s+many|how\s+much|how\s+long|how(?:'s|\s+is)\s+my|what's\s+my|what\s+is\s+my|whats\s+my|what\s+are\s+my|what\s+(?:do|did)\s+i|when\s+is|when's|do\s+i\s+have|did\s+i|have\s+i|am\s+i|show\s+(?:me\s+)?my|list\s+my|tell\s+me\s+about\s+my)\b/;
 
 /** Chained commands need the multi-step planner's routing, not a single tool */
 const CONNECTIVE_RE = /\b(?:and\s+then|then|and\s+also)\b|,\s*(?:and|then)\b/;

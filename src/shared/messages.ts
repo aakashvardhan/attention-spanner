@@ -1,7 +1,9 @@
 import type { CalendarEvent } from './calendar';
-import type { NotionDbSummary } from './notion';
 import type { AssistantTurn } from './ai/assistantTypes';
 import type { PageContent } from './ai/pageContent';
+import type { TagAssignment } from './ai/topics';
+import type { DocCitations } from './docCitations';
+import type { LiveMode, LivePace } from './live';
 import type { SyncLocalState } from './storage';
 import type {
   AgentProposal,
@@ -14,14 +16,17 @@ import type {
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
+  DayPlan,
   Deck,
   DeckKind,
   FlashNote,
   FlashNoteType,
+  JournalEntry,
   Paper,
   PaperDraft,
   Rating,
   Task,
+  XBookmark,
 } from './types';
 
 export interface ResumeTarget {
@@ -31,7 +36,14 @@ export interface ResumeTarget {
 
 export type Message =
   | { type: 'REFRESH_FEEDS' }
-  | { type: 'OPEN_ARTICLE'; url: string; feedItemId: string | null; resume?: boolean }
+  | {
+      type: 'OPEN_ARTICLE';
+      url: string;
+      feedItemId: string | null;
+      resume?: boolean;
+      /** false opens the page as itself instead of in the reader — saved links */
+      readerView?: boolean;
+    }
   | { type: 'ADD_TASK'; text: string; source: Task['source'] }
   | { type: 'TOGGLE_TASK'; id: string }
   | { type: 'DELETE_TASK'; id: string }
@@ -60,6 +72,8 @@ export type Message =
   | { type: 'MOVE_BOOKMARK'; id: string; groupId: string | null }
   | { type: 'ADD_BOOKMARK_GROUP'; name: string }
   | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
+  | { type: 'X_BOOKMARKS_OPEN' }
+  | { type: 'X_BOOKMARKS_SYNC'; items: XBookmark[] }
   | { type: 'MEMORY_ADD'; text: string }
   | { type: 'MEMORY_DELETE'; id: string }
   | { type: 'SKILL_ADD'; name: string; keywords: string[]; body: string }
@@ -69,6 +83,15 @@ export type Message =
       patch: Partial<Pick<AssistantSkill, 'name' | 'keywords' | 'body' | 'enabled'>>;
     }
   | { type: 'SKILL_DELETE'; id: string }
+  | { type: 'GMAIL_CONNECT' }
+  | { type: 'GMAIL_DISCONNECT'; accountId: string }
+  | { type: 'GMAIL_TRIAGE'; force?: boolean }
+  | { type: 'GMAIL_ARCHIVE'; accountId: string; messageId: string }
+  | { type: 'GMAIL_LABEL'; accountId: string; messageId: string; labelId: string }
+  | { type: 'GMAIL_LIST_LABELS'; accountId: string }
+  | { type: 'JOURNAL_APPEND'; kind: JournalEntry['kind']; text: string }
+  | { type: 'JOURNAL_SAVE_PLAN'; plan: DayPlan }
+  | { type: 'JOURNAL_PATCH_PLAN'; date: string; patch: Partial<DayPlan> }
   | { type: 'AGENT_APPLY_PROPOSALS'; proposals: AgentProposal[] }
   | { type: 'AUTOMATION_ADD'; name: string; prompt: string; schedule: AutomationSchedule }
   | {
@@ -78,14 +101,14 @@ export type Message =
     }
   | { type: 'AUTOMATION_DELETE'; id: string }
   | { type: 'AUTOMATION_RUN_NOW'; id: string }
-  | { type: 'SAVE_NOTE'; rawText: string; willStructure: boolean }
+  | { type: 'SAVE_NOTE'; rawText: string }
+  | { type: 'DAILY_GATE_STATUS' }
   | { type: 'STRUCTURE_NOTE_RESULT'; id: string; bullets: string[]; tasks: string[] }
   | { type: 'NOTE_FAILED'; id: string }
   | { type: 'DELETE_NOTE'; id: string }
-  | { type: 'CONFIRM_NOTE_TASKS'; id: string; taskIndexes: number[] }
-  | { type: 'NOTION_LIST_DBS' }
-  | { type: 'NOTION_TEST' }
-  | { type: 'NOTION_FLUSH_NOW' }
+  /* The worker cannot read an encrypted note's proposed tasks, so the caller —
+     which holds the plaintext either way — supplies the text to add. */
+  | { type: 'CONFIRM_NOTE_TASKS'; id: string; tasks: { index: number; text: string }[] }
   | { type: 'FLASH_ADD_DECK'; name: string; kind: DeckKind }
   | { type: 'FLASH_RENAME_DECK'; id: string; name: string }
   | { type: 'FLASH_DELETE_DECK'; id: string }
@@ -125,7 +148,15 @@ export type Message =
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   | { type: 'CAL_LIST_EVENTS'; startMs: number; endMs: number }
-  | { type: 'MEETING_NOTES_REFRESH' }
+  // alphaXiv (MCP). Narrow per-feature messages, not a generic tool passthrough,
+  // so the destructive library tools stay unreachable from page code.
+  | { type: 'AX_CONNECT' }
+  | { type: 'AX_DISCONNECT' }
+  | { type: 'AX_LIBRARY' }
+  | { type: 'AX_DISCOVER'; topic: string; recent?: boolean }
+  | { type: 'AX_PAPER_CONTENT'; paper: string; fullText?: boolean }
+  | { type: 'AX_ASK_PDF'; paper: string; queries: string[] }
+  | { type: 'AX_SAVE_PAPER'; paper: string }
   | { type: 'SYNC_STATUS' }
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
@@ -146,6 +177,70 @@ export type Message =
   | { type: 'WAKE_EVENT'; event: 'replied' | 'needs-ui' | 'handoff' | 'mic-denied'; text?: string }
   // Extension pages → offscreen doc (push-to-talk holds the mic; router no-ops it)
   | { type: 'WAKE_MIC_BUSY'; busy: boolean }
+  // Service worker → offscreen doc: start/stop the listener without closing the
+  // document, which the recorder may also be holding (router no-ops it)
+  | { type: 'WAKE_LISTENER_SET'; enabled: boolean }
+  // Offscreen doc → service worker: speak. The offscreen document cannot do it
+  // itself — see src/background/speech.ts. Replies once the audio has stopped.
+  | { type: 'TTS_SPEAK'; text: string; voiceName: string; enqueue: boolean }
+  | { type: 'TTS_STOP' }
+  // Recording control. Tab and mixed capture must start from the side panel:
+  // getMediaStreamId needs the extension to have been invoked on that tab.
+  | {
+      type: 'REC_START';
+      mode: 'mic' | 'tab' | 'mixed';
+      /** Required for tab/mixed; the tab whose audio is captured */
+      tabId?: number;
+      title?: string;
+      /** What this recording is for — tailors the summary. 'video' never starts
+       *  a capture (YouTube goes through REC_YOUTUBE_IMPORT instead). */
+      purpose?: 'meeting' | 'lecture';
+    }
+  | { type: 'REC_STOP' }
+  | { type: 'REC_DELETE'; id: string }
+  | { type: 'REC_RENAME'; id: string; title: string }
+  | { type: 'REC_YOUTUBE_IMPORT'; url: string }
+  // Page → service worker: re-run the summary of a finished transcript
+  | { type: 'REC_SUMMARIZE'; id: string }
+  // Popup → service worker: capture the current frame of a tab/mixed recording
+  | { type: 'REC_CAPTURE_NOW' }
+  // Service worker → offscreen doc: begin capture with an acquired stream id
+  | {
+      type: 'REC_BEGIN';
+      id: string;
+      mode: 'mic' | 'tab' | 'mixed';
+      /** chrome.tabCapture stream id, for tab/mixed */
+      streamId?: string;
+      /** Sample the tab's video for slide/screen descriptions (tab/mixed only) */
+      visualCapture?: boolean;
+      /** Vocabulary context for the transcriber — biases technical terms */
+      title?: string;
+      purpose?: 'meeting' | 'lecture' | 'video';
+    }
+  // Service worker → offscreen doc: grab a frame right now (router no-ops it)
+  | { type: 'REC_GRAB_FRAME' }
+  // Offscreen doc → service worker: one segment transcribed, a frame described,
+  // or capture ended
+  | { type: 'REC_SEGMENT_READY'; id: string; startSec: number; endSec: number; text: string }
+  | {
+      type: 'REC_VISUAL_READY';
+      id: string;
+      atSec: number;
+      kind: 'auto' | 'manual';
+      description: string;
+    }
+  | { type: 'REC_CAPTURE_ENDED'; id: string; durationSeconds: number; error?: string }
+  /* Live mode — suggested answers during a recording. The session itself is read
+     straight from chrome.storage.session by the UI; these only mutate it. */
+  | { type: 'LIVE_SET_MODE'; mode: LiveMode }
+  | { type: 'LIVE_SET_PACE'; pace: LivePace }
+  | { type: 'LIVE_PIN_SKILL'; skillId: string }
+  /** The Suggest button: answer now, bypassing the pace cooldown */
+  | { type: 'LIVE_SUGGEST' }
+  /** A follow-up chip, or anything typed at the live panel */
+  | { type: 'LIVE_ASK'; question: string }
+  /** "What did I miss" — backs the catch_me_up tool */
+  | { type: 'LIVE_CATCH_UP'; minutes: number }
   // Content script → service worker
   | { type: 'TRACKER_READY' }
   | { type: 'TIME_PILL_READY'; host: string }
@@ -183,10 +278,42 @@ export type Message =
        * page. Content scripts omit it and are keyed by their tab as before.
        */
       doc?: { url: string; title: string };
-    };
+    }
+  /** Rebuild the graph nodes that mirror papers, bookmarks and recordings. */
+  | { type: 'GRAPH_SYNC' }
+  /**
+   * Write topic labels onto graph nodes. Batched — one message per model call —
+   * and routed through the worker rather than written from the page: three
+   * other writers touch `graphNodes`, and a page-side read-modify-write of the
+   * whole collection would silently drop concurrent tracker writes.
+   */
+  | { type: 'GRAPH_SET_TAGS'; assignments: TagAssignment[] }
+  /** Replace a node's topics with labels the user explicitly chose. */
+  | { type: 'GRAPH_SET_MANUAL_TAGS'; id: string; tags: string[] }
+  /**
+   * Record which works a document cites, so "what links here" can be answered
+   * from documents the user has actually opened. Sent once per PDF open, after
+   * its bibliography is parsed.
+   */
+  | { type: 'DOC_CITATIONS_INDEX'; entry: DocCitations }
+  /** Fetch what a tracked paper cites and what cites it. User-initiated only. */
+  | { type: 'GRAPH_EXPAND_CITATIONS'; paperId: string; force?: boolean }
+  /** Promote a borrowed paper from the citation graph into the library. */
+  | { type: 'GRAPH_ADD_EXTERNAL'; nodeId: string }
+  /**
+   * Write subject labels onto cited papers the sources gave none for. Keyed by
+   * the source's own id, the same way GRAPH_SET_TAGS is keyed by node id.
+   */
+  | { type: 'GRAPH_SET_CITED_TAGS'; assignments: { id: string; tags: string[] }[] }
+  /**
+   * Wrap a title the note already names in `[[…]]`, turning a mention into a
+   * link. The caller supplies the text because a sealed note's plaintext exists
+   * only in the page that decrypted it — the worker cannot read it.
+   */
+  | { type: 'NOTE_ADD_LINK'; id: string; rawText: string };
 
 export interface MessageResponses {
-  REFRESH_FEEDS: { ok: boolean; itemCount: number };
+  REFRESH_FEEDS: { ok: boolean; itemCount: number; newCount: number; failedCount: number };
   OPEN_ARTICLE: { ok: boolean };
   ADD_TASK: { ok: boolean; task: Task };
   TOGGLE_TASK: { ok: boolean };
@@ -208,11 +335,22 @@ export interface MessageResponses {
   MOVE_BOOKMARK: { ok: boolean };
   ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
   DELETE_BOOKMARK_GROUP: { ok: boolean };
+  X_BOOKMARKS_OPEN: { ok: boolean };
+  X_BOOKMARKS_SYNC: { ok: boolean; count: number };
   MEMORY_ADD: { ok: boolean; fact?: AssistantFact; error?: string };
   MEMORY_DELETE: { ok: boolean };
   SKILL_ADD: { ok: boolean; skill?: AssistantSkill; error?: string };
   SKILL_UPDATE: { ok: boolean; error?: string };
   SKILL_DELETE: { ok: boolean };
+  GMAIL_CONNECT: { ok: boolean; email?: string; error?: string };
+  GMAIL_DISCONNECT: { ok: boolean };
+  GMAIL_TRIAGE: { ok: boolean; text: string };
+  GMAIL_ARCHIVE: { ok: boolean; error?: string };
+  GMAIL_LABEL: { ok: boolean; error?: string };
+  GMAIL_LIST_LABELS: { ok: boolean; labels: { id: string; name: string }[]; error?: string };
+  JOURNAL_APPEND: { ok: boolean };
+  JOURNAL_SAVE_PLAN: { ok: boolean };
+  JOURNAL_PATCH_PLAN: { ok: boolean };
   AGENT_APPLY_PROPOSALS: {
     ok: boolean;
     outcomes: { status: 'done' | 'failed' | 'skipped'; detail: string }[];
@@ -222,14 +360,12 @@ export interface MessageResponses {
   AUTOMATION_UPDATE: { ok: boolean; error?: string };
   AUTOMATION_DELETE: { ok: boolean };
   AUTOMATION_RUN_NOW: { ok: boolean; error?: string };
-  SAVE_NOTE: { ok: boolean; note: BrainDumpNote };
+  SAVE_NOTE: { ok: boolean; note: BrainDumpNote; dailyGateCompleted: boolean };
+  DAILY_GATE_STATUS: { ok: boolean; complete: boolean };
   STRUCTURE_NOTE_RESULT: { ok: boolean };
   NOTE_FAILED: { ok: boolean };
   DELETE_NOTE: { ok: boolean };
   CONFIRM_NOTE_TASKS: { ok: boolean; addedCount: number };
-  NOTION_LIST_DBS: { ok: boolean; databases: NotionDbSummary[]; error: string | null };
-  NOTION_TEST: { ok: boolean; name: string | null; error: string | null };
-  NOTION_FLUSH_NOW: { ok: boolean };
   FLASH_ADD_DECK: { ok: boolean; deck?: Deck; error?: string };
   FLASH_RENAME_DECK: { ok: boolean; error?: string };
   FLASH_DELETE_DECK: { ok: boolean; error?: string };
@@ -252,7 +388,13 @@ export interface MessageResponses {
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   CAL_LIST_EVENTS: { ok: boolean; events?: CalendarEvent[]; error?: string };
-  MEETING_NOTES_REFRESH: { ok: boolean; error?: string };
+  AX_CONNECT: { ok: boolean; email?: string; error?: string };
+  AX_DISCONNECT: { ok: boolean };
+  AX_LIBRARY: { ok: boolean; text?: string; error?: string };
+  AX_DISCOVER: { ok: boolean; text?: string; error?: string };
+  AX_PAPER_CONTENT: { ok: boolean; text?: string; error?: string };
+  AX_ASK_PDF: { ok: boolean; text?: string; error?: string };
+  AX_SAVE_PAPER: { ok: boolean; text?: string; error?: string };
   SYNC_STATUS: SyncLocalState;
   SYNC_SIGN_IN: { ok: boolean; error?: string };
   SYNC_SIGN_UP: { ok: boolean; error?: string };
@@ -265,6 +407,27 @@ ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
   WAKE_GET_PAGE: { page: PageContent | null };
   WAKE_EVENT: { ok: boolean };
   WAKE_MIC_BUSY: { ok: boolean };
+  WAKE_LISTENER_SET: { ok: boolean };
+  TTS_SPEAK: { ok: boolean };
+  TTS_STOP: { ok: boolean };
+  REC_START: { ok: boolean; id?: string; error?: string };
+  REC_STOP: { ok: boolean };
+  REC_DELETE: { ok: boolean };
+  REC_RENAME: { ok: boolean };
+  REC_YOUTUBE_IMPORT: { ok: boolean; id?: string; error?: string };
+  REC_SUMMARIZE: { ok: boolean; error?: string };
+  REC_CAPTURE_NOW: { ok: boolean; error?: string };
+  REC_BEGIN: { ok: boolean };
+  REC_GRAB_FRAME: { ok: boolean };
+  REC_SEGMENT_READY: { ok: boolean };
+  REC_VISUAL_READY: { ok: boolean };
+  REC_CAPTURE_ENDED: { ok: boolean };
+  LIVE_SET_MODE: { ok: boolean };
+  LIVE_SET_PACE: { ok: boolean };
+  LIVE_PIN_SKILL: { ok: boolean };
+  LIVE_SUGGEST: { ok: boolean };
+  LIVE_ASK: { ok: boolean };
+  LIVE_CATCH_UP: { text: string };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   TIME_PILL_READY: { ok: boolean; todaySeconds: number };
   TIME_PILL_TICK: { ok: boolean };
@@ -275,6 +438,14 @@ ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
     resume: { positionSeconds: number } | null;
   };
   VIDEO_PROGRESS: { ok: boolean };
+  GRAPH_SYNC: { ok: boolean };
+  GRAPH_SET_TAGS: { ok: boolean; updated: number };
+  GRAPH_SET_MANUAL_TAGS: { ok: boolean; updated: number };
+  DOC_CITATIONS_INDEX: { ok: boolean };
+  GRAPH_EXPAND_CITATIONS: { ok: boolean; added?: number; note?: string; error?: string };
+  GRAPH_ADD_EXTERNAL: { ok: boolean; paperId?: string; error?: string };
+  GRAPH_SET_CITED_TAGS: { ok: boolean; updated: number };
+  NOTE_ADD_LINK: { ok: boolean };
 }
 
 /**
@@ -290,9 +461,43 @@ export function setLocalDispatcher(fn: (msg: Message) => Promise<unknown>): void
   localDispatcher = fn;
 }
 
+/**
+ * False once the extension has been reloaded or updated. Content scripts keep
+ * running in the page after that, but their chrome.runtime handle is dead and
+ * every sendMessage throws — silently, since the callers swallow it. Each
+ * content script exposes this over a window global so that a freshly injected
+ * replacement can tell a live instance from an orphan it needs to evict.
+ */
+export function extensionAlive(): boolean {
+  try {
+    return chrome.runtime?.id !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 export function sendMessage<T extends Message['type']>(
   msg: Extract<Message, { type: T }>,
 ): Promise<MessageResponses[T]> {
   if (localDispatcher) return localDispatcher(msg) as Promise<MessageResponses[T]>;
   return chrome.runtime.sendMessage(msg);
+}
+
+/**
+ * Send to OTHER contexts, bypassing the in-process dispatcher above.
+ *
+ * The service worker must use this for anything addressed to the offscreen
+ * document. Plain sendMessage would resolve against the router instead, which
+ * answers with the no-op case that exists for page broadcasts — so the call
+ * looks like it succeeded while the document never heard a thing.
+ *
+ * Nothing replies to these (the offscreen listener deliberately never calls
+ * sendResponse), so Chrome closes the port and rejects; that rejection is the
+ * expected outcome, not a failure.
+ */
+export function broadcastMessage(msg: Message): Promise<void> {
+  return chrome.runtime.sendMessage(msg).then(
+    () => undefined,
+    () => undefined,
+  );
 }

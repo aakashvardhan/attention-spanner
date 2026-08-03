@@ -1,3 +1,4 @@
+import type { DiscoveredPaper } from '../../alphaxiv';
 import { sendMessage } from '../../messages';
 import { getLocal } from '../../storage';
 import type { Settings, Task } from '../../types';
@@ -7,8 +8,8 @@ import type { Settings, Task } from '../../types';
  * (src/shared/messages.ts → background router), so the assistant is just
  * another UI caller — no new background capabilities. A Connector groups the
  * tools of one integration/feature so surfaces can advertise only what is
- * actually available (and future integrations — WhatsApp, Notion — register
- * here instead of growing a monolith).
+ * actually available (and future integrations — WhatsApp — register here
+ * instead of growing a monolith).
  */
 
 export interface ToolParamSpec {
@@ -29,6 +30,56 @@ export interface ToolParamsSchema {
   properties: Record<string, ToolParamSpec>;
 }
 
+/**
+ * A result the chat can render as more than a line of text. `text` is what
+ * every other surface uses (palette footer, plan transcript, spoken reply, the
+ * model's own history), so it has to stand alone — the extras are a bonus for
+ * the one surface that can draw them, never the only place the answer lives.
+ */
+export interface ToolOutput {
+  text: string;
+  papers?: DiscoveredPaper[];
+  /** Citable provenance for what `text` reports. Tools fill this in so the
+   *  assistant cites things it actually looked at — see SourceRef. */
+  sources?: SourceRef[];
+}
+
+/**
+ * Something the assistant can cite. Minted from a real return value — a library
+ * hit, a paper record, a grounding chunk — and never parsed out of model prose,
+ * which is what makes a fabricated citation impossible rather than merely
+ * discouraged: the model can reference an id, but it cannot create one.
+ *
+ * `id` is assigned per turn by the caller that collects sources, not by the
+ * tool, so ids stay stable and unique across every tool run in one turn.
+ */
+export interface SourceRef {
+  id: string;
+  kind:
+    | 'highlight'
+    | 'note'
+    | 'paper'
+    | 'recording'
+    | 'email'
+    | 'event'
+    | 'page'
+    | 'web'
+    | 'task'
+    | 'memory'
+    | 'metric'
+    | 'profile'
+    | 'journal';
+  title: string;
+  url: string;
+  /** The exact span the source actually contained — powers hover-preview, so a
+   *  citation can be checked without leaving the chat */
+  snippet?: string;
+  /** Freshness and cache identity for local evidence. Remote sources may omit
+   *  either when their connector does not expose it. */
+  updatedAt?: number;
+  version?: string;
+}
+
 export interface Tool {
   name: string;
   /** Shown to the LLM when routing/extracting — write for the model */
@@ -36,18 +87,33 @@ export interface Tool {
   params: ToolParamsSchema;
   /** Mutating tools require a confirm chip before run() */
   confirm?: boolean;
+  /**
+   * How the ReAct loop may use this tool. Defaults to 'stage' — a tool nobody
+   * has vetted is never run unattended, so adding a connector cannot silently
+   * hand the loop a new side effect.
+   *   'auto'   — run it and feed the result back (local, cheap reads only)
+   *   'costly' — run it, but at most REACT_MAX_COSTLY_CALLS per turn (network
+   *              quota, third-party model calls, long timeouts)
+   *   'stage'  — never auto-run; batch into the confirm chip
+   * `confirm: true` implies 'stage' whatever this says. Applies ONLY inside the
+   * loop: the palette and the single-tool path still run these immediately.
+   */
+  loop?: 'auto' | 'costly' | 'stage';
   /** Command-palette entry (Phase C); tools without it are chat-only */
   palette?: { label: string; keywords: string[]; argPlaceholder?: string };
   /** One-line human phrasing of the pending call, for the confirm chip */
   summary(params: Record<string, unknown>): string;
   /** Executes the action; resolves to a human-readable result line */
-  run(params: Record<string, unknown>): Promise<string>;
+  run(params: Record<string, unknown>): Promise<string | ToolOutput>;
 }
 
 /** What a connector needs to decide whether its tools should be advertised */
 export interface ConnectorEnv {
   settings: Settings;
   calendarConnected: boolean;
+  alphaxivConnected: boolean;
+  /** True once at least one mailbox is connected */
+  gmailConnected: boolean;
 }
 
 export interface Connector {
@@ -201,6 +267,21 @@ export async function resolveFlashDeckId(name?: string): Promise<string> {
   }
   if (flashDecks[0]) return flashDecks[0].id;
   const res = await sendMessage({ type: 'FLASH_ADD_DECK', name: 'Inbox', kind: 'flashcards' });
+  if (!res.ok || !res.deck) throw new Error(res.error ?? 'Could not create a deck');
+  return res.deck.id;
+}
+
+/** First matching papers deck by name, else the first papers deck, else create one */
+export async function resolvePaperDeckId(name?: string): Promise<string> {
+  const { decks } = await getLocal('decks');
+  const paperDecks = decks.filter((d) => d.kind === 'papers');
+  if (name) {
+    const q = name.trim().toLowerCase();
+    const hit = paperDecks.find((d) => d.name.toLowerCase().includes(q));
+    if (hit) return hit.id;
+  }
+  if (paperDecks[0]) return paperDecks[0].id;
+  const res = await sendMessage({ type: 'FLASH_ADD_DECK', name: 'Reading', kind: 'papers' });
   if (!res.ok || !res.deck) throw new Error(res.error ?? 'Could not create a deck');
   return res.deck.id;
 }

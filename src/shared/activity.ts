@@ -36,6 +36,24 @@ export function dayActivityScore(p: DayActivityParts): number {
   );
 }
 
+/**
+ * The same score over a bare DayStats. Gym check-ins and card reviews live in
+ * their own stores, so they contribute 0 here — callers holding only a DayStats
+ * (the hourly ledger in background/streaks.ts) get the reading/task/focus slice.
+ */
+export function dayStatsScore(day: DayStats): number {
+  return dayActivityScore({
+    minutes: day.minutes,
+    sprints: day.sprints,
+    articles: day.articlesFinished,
+    videos: day.videosFinished ?? 0,
+    focusBlocks: day.focusBlocks ?? 0,
+    gym: false,
+    cardsReviewed: 0,
+    tasks: day.tasksCompleted ?? 0,
+  });
+}
+
 export type ActivityLevel = 0 | 1 | 2 | 3 | 4;
 
 /** GitHub-style quartiles of the year's max; any nonzero score is at least 1 */
@@ -82,7 +100,7 @@ export function formatDayTooltip(date: Date, parts: DayActivityParts, score: num
 }
 
 /** Monday (0) … Sunday (6) index for a date */
-function weekdayIndex(date: Date): number {
+export function weekdayIndex(date: Date): number {
   return (date.getDay() + 6) % 7;
 }
 

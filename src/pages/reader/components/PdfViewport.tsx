@@ -15,6 +15,7 @@ import { positionFromScroll, type PdfPosition } from '../../../shared/pdf';
 import type { AnnotationColor, AnnotationRect, PdfAnchoredAnnotation } from '../../../shared/types';
 import type { PdfPageSize } from '../usePdfDocument';
 import { citationHref, resolveCitation, type Reference, type ReferenceIndex } from '../references';
+import { knownTargetFor, type KnownTarget } from '../citationLinks';
 import { AnnotationLayer } from './AnnotationLayer';
 import { SelectionMenu } from './SelectionMenu';
 import { CitationTooltip } from './CitationTooltip';
@@ -109,7 +110,11 @@ function findMarkers(text: string): { start: number; end: number; data: MarkerDa
  * in place — the characters are unchanged, so native selection/copy still work
  * (the same guarantee the transparent-glyph overlay already relies on).
  */
-function wrapCitations(container: HTMLElement, index: ReferenceIndex): void {
+function wrapCitations(
+  container: HTMLElement,
+  index: ReferenceIndex,
+  known: Map<string, KnownTarget>,
+): void {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
   for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n as Text);
@@ -119,8 +124,11 @@ function wrapCitations(container: HTMLElement, index: ReferenceIndex): void {
     if (textNode.parentElement?.classList.contains('cite-marker')) continue;
     const text = textNode.nodeValue ?? '';
     if (text.length < 3) continue;
-    const markers = findMarkers(text).filter((m) => resolveCitation(index, m.data).length > 0);
-    if (!markers.length) continue;
+    const resolved = findMarkers(text)
+      .map((m) => ({ ...m, refs: resolveCitation(index, m.data) }))
+      .filter((m) => m.refs.length > 0);
+    if (!resolved.length) continue;
+    const markers = resolved;
 
     const frag = document.createDocumentFragment();
     let pos = 0;
@@ -131,6 +139,9 @@ function wrapCitations(container: HTMLElement, index: ReferenceIndex): void {
       if (marker.data.labels) span.dataset.labels = marker.data.labels.join(',');
       if (marker.data.author) span.dataset.author = marker.data.author;
       if (marker.data.year !== undefined) span.dataset.year = String(marker.data.year);
+      // A citation you already have reads differently from one you don't —
+      // Wikipedia's blue link. One attribute; the styling is in reader.css.
+      if (marker.refs.some((r) => knownTargetFor(r, known))) span.dataset.known = 'true';
       span.textContent = text.slice(marker.start, marker.end);
       frag.appendChild(span);
       pos = marker.end;
@@ -165,6 +176,7 @@ export function PdfViewport({
   onUpdateColor,
   onDeleteAnnotation,
   references,
+  known,
 }: {
   doc: PDFDocumentProxy;
   pageSizes: PdfPageSize[];
@@ -189,6 +201,8 @@ export function PdfViewport({
   onDeleteAnnotation: (id: string) => void;
   /** Bibliography index for citation hover previews; null until extracted. */
   references: ReferenceIndex | null;
+  /** Citations that resolve to something the reader already has, by match key. */
+  known: Map<string, KnownTarget>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -470,6 +484,9 @@ export function PdfViewport({
       <div
         className="reader-viewport"
         ref={containerRef}
+        role="region"
+        aria-label="PDF document"
+        tabIndex={0}
         onScroll={handleScroll}
         onPointerUp={handlePointerUp}
         onMouseOver={handleCitationOver}
@@ -486,6 +503,8 @@ export function PdfViewport({
                   ref={registerPage(page)}
                   data-page={page}
                   className="reader-page"
+                  role="group"
+                  aria-label={`Page ${page} of ${pageSizes.length}`}
                   style={{
                     top: tops[i],
                     width: size.width * scale,
@@ -496,7 +515,13 @@ export function PdfViewport({
                   {visiblePages.has(page) && (
                     <>
                       <PageCanvas doc={doc} pageNumber={page} scale={scale} />
-                      <PageTextLayer doc={doc} pageNumber={page} scale={scale} references={references} />
+                      <PageTextLayer
+                        doc={doc}
+                        pageNumber={page}
+                        scale={scale}
+                        references={references}
+                        known={known}
+                      />
                       <AnnotationLayer
                         annotations={annotationsByPage.get(page) ?? []}
                         activeId={activeId}
@@ -529,6 +554,7 @@ export function PdfViewport({
       {citationHover && (
         <CitationTooltip
           refs={citationHover.refs}
+          known={known}
           x={citationHover.x}
           y={citationHover.y}
           flip={citationHover.flip}
@@ -587,11 +613,13 @@ function PageTextLayer({
   pageNumber,
   scale,
   references,
+  known,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
   references: ReferenceIndex | null;
+  known: Map<string, KnownTarget>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Bumps once the text layer has finished rendering, so the citation-wrapping
@@ -628,8 +656,8 @@ function PageTextLayer({
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !references || references.isEmpty || renderGen === 0) return;
-    wrapCitations(container, references);
-  }, [references, renderGen]);
+    wrapCitations(container, references, known);
+  }, [references, renderGen, known]);
 
   return <div ref={containerRef} className="textLayer" />;
 }

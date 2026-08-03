@@ -71,6 +71,7 @@ export const calendarConnector: Connector = {
     },
     {
       name: 'list_events',
+      loop: 'auto',
       description:
         "List the events on the user's Google Calendar for a day (\"what's on my calendar tomorrow?\"). Use this for any day other than today, or when the user asks for their agenda/schedule.",
       params: {
@@ -93,7 +94,20 @@ export const calendarConnector: Connector = {
         }
         const res = await sendMessage({ type: 'CAL_LIST_EVENTS', startMs: range.startMs, endMs: range.endMs });
         if (!res.ok || !res.events) throw new Error(res.error ?? 'Could not fetch your calendar.');
-        return formatEventList(res.events, range.label);
+        return {
+          text: formatEventList(res.events, range.label),
+          // htmlLink is Google's own link to the event, so a cited meeting
+          // opens the real thing rather than a reconstructed guess.
+          sources: res.events
+            .filter((e) => e.htmlLink)
+            .map((e) => ({
+              id: '',
+              kind: 'event' as const,
+              title: e.title,
+              url: e.htmlLink,
+              snippet: e.location || undefined,
+            })),
+        };
       },
     },
   ],

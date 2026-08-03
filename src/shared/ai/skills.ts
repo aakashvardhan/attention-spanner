@@ -46,8 +46,10 @@ export function selectSkills(
   return picked;
 }
 
-/** Render selected skills as a system-prompt block */
-export function buildSkillBlock(skills: AssistantSkill[]): string {
+/** Render selected skills as a system-prompt block. Takes the two fields it
+ *  actually reads, so live mode's built-in presets can use it without
+ *  pretending to be stored AssistantSkills. */
+export function buildSkillBlock(skills: { name: string; body: string }[]): string {
   if (skills.length === 0) return '';
   const body = skills.map((s) => `### ${s.name}\n${s.body.trim()}`).join('\n\n');
   return `\n\nUser-written instructions (follow these):\n${body}`;

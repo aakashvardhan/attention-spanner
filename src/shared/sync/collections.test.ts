@@ -33,6 +33,13 @@ describe('RECORD_COLLECTIONS', () => {
     expect(RECORD_COLLECTIONS).toContain('tasks');
     expect(RECORD_COLLECTIONS).toContain('flashCards');
   });
+
+  // The graph indexes recordings by title, and LWW would let a device that
+  // pruned its reading history delete another device's. Both reasons are
+  // argued in collections.ts; this keeps the exclusion deliberate.
+  it('excludes graphNodes', () => {
+    expect(RECORD_COLLECTIONS).not.toContain('graphNodes');
+  });
 });
 
 describe('mergeRecordCollection', () => {

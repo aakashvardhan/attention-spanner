@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getYouTubeVideoId, isYouTubeWatchUrl, keyMatchesUrl, videoKey } from './youtube';
+import type { ReadingProgress, VideoProgress } from './types';
+import {
+  getYouTubeVideoId,
+  isWatchingNow,
+  isYouTubeWatchUrl,
+  keyMatchesUrl,
+  livePositionSeconds,
+  videoKey,
+} from './youtube';
 
 describe('getYouTubeVideoId', () => {
   it('extracts from standard watch URLs', () => {
@@ -52,6 +60,86 @@ describe('isYouTubeWatchUrl / videoKey', () => {
     expect(isYouTubeWatchUrl('https://youtu.be/dQw4w9WgXcQ')).toBe(true);
     expect(isYouTubeWatchUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe(false);
     expect(videoKey('dQw4w9WgXcQ')).toBe('yt:dQw4w9WgXcQ');
+  });
+});
+
+const NOW = 1_700_000_000_000;
+
+function videoProgress(over: Partial<VideoProgress> = {}): VideoProgress {
+  return {
+    kind: 'video',
+    videoId: 'dQw4w9WgXcQ',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    title: 'A talk',
+    source: 'A channel',
+    maxPercent: 40,
+    durationSeconds: 600,
+    positionSeconds: 240,
+    activeSeconds: 240,
+    firstOpenedAt: NOW - 600_000,
+    updatedAt: NOW,
+    completedAt: null,
+    playing: true,
+    nudge: { count: 0, lastAt: 0, dismissed: false },
+    ...over,
+  };
+}
+
+describe('isWatchingNow', () => {
+  it('is true while heartbeats keep arriving', () => {
+    expect(isWatchingNow(videoProgress(), NOW)).toBe(true);
+    expect(isWatchingNow(videoProgress({ updatedAt: NOW - 6000 }), NOW)).toBe(true);
+  });
+
+  it('is false once the last report says stopped', () => {
+    expect(isWatchingNow(videoProgress({ playing: false }), NOW)).toBe(false);
+  });
+
+  it('expires when the heartbeat dies without a stop flush', () => {
+    expect(isWatchingNow(videoProgress({ updatedAt: NOW - 20_000 }), NOW)).toBe(false);
+  });
+
+  it('is false for entries written before the playing flag existed', () => {
+    expect(isWatchingNow(videoProgress({ playing: undefined }), NOW)).toBe(false);
+  });
+
+  it('is false for articles, which have no playhead', () => {
+    const article: ReadingProgress = {
+      kind: 'article',
+      url: 'https://blog.com/post',
+      title: 'Post',
+      source: 'Blog',
+      maxPercent: 30,
+      activeSeconds: 60,
+      feedItemId: null,
+      scrollY: 100,
+      pageHeight: 4000,
+      firstOpenedAt: NOW - 60_000,
+      updatedAt: NOW,
+      completedAt: null,
+      nudge: { count: 0, lastAt: 0, dismissed: false },
+    };
+    expect(isWatchingNow(article, NOW)).toBe(false);
+  });
+});
+
+describe('livePositionSeconds', () => {
+  it('extrapolates from the last heartbeat while playing', () => {
+    expect(livePositionSeconds(videoProgress({ updatedAt: NOW - 3000 }), NOW)).toBe(243);
+  });
+
+  it('holds the stored position when paused', () => {
+    expect(livePositionSeconds(videoProgress({ playing: false }), NOW)).toBe(240);
+  });
+
+  it('holds the stored position once the heartbeat is stale', () => {
+    const stale = videoProgress({ updatedAt: NOW - 60_000 });
+    expect(livePositionSeconds(stale, NOW)).toBe(240);
+  });
+
+  it('never runs past the end of the video', () => {
+    const nearEnd = videoProgress({ positionSeconds: 598, updatedAt: NOW - 14_000 });
+    expect(livePositionSeconds(nearEnd, NOW)).toBe(600);
   });
 });
 

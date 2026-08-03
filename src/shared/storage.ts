@@ -1,32 +1,49 @@
 import type { AssistantTurn } from './ai/assistantTypes';
+import type { AiOutlineItem } from './ai/pdfOutline';
+import { ALPHAXIV_DEFAULTS, type AlphaxivState } from './alphaxiv';
 import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
-import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
-import { MEETING_NOTES_DEFAULTS, type MeetingNotesState } from './meetingNotes';
-import type { NotionPush, NotionStatus } from './notion';
-import { DASH_CARD_IDS } from './types';
+import { DEFAULT_FOCUS_BLOCKLIST, OLLAMA_DEFAULT_MODEL } from './constants';
+import { connectedAccounts, GMAIL_DEFAULTS, type GmailState } from './gmail';
+import { EMPTY_VIEW, EMPTY_VISIBLE, type GraphView, type VisibleGraph } from './graphView';
+import type { CitationExpansion } from './citations';
+import type { DocCitations } from './docCitations';
+import { nodeFromProgress } from './graphNodes';
+import { gateStateForDate } from './dailyBrainDump';
+import { idleLiveSession, type LiveSession } from './live';
+import type { NotesVault } from './notesVault';
+import { hoursFromTimestamps } from './primeTime';
+import type { Recording, RecordingSource } from './recordings';
 import type {
   Annotation,
+  ActiveIntent,
   AnyProgress,
   AssistantAutomation,
   AssistantFact,
   AssistantSkill,
   BookmarkGroup,
   BookmarkLink,
+  XBookmark,
   BrainDumpNote,
+  DailyBrainDumpGateState,
   Deck,
   FeedItem,
   FlashCard,
   FlashNote,
   FocusSession,
   Gamification,
+  GraphNode,
   GymState,
+  JournalDay,
   LifetimeCounters,
   Paper,
+  ParkingLotItem,
   Settings,
   SrsDayStats,
   Streaks,
   Task,
   WarmupState,
+  WeekReview,
+  EnabledPack,
 } from './types';
 
 export interface LocalSchema {
@@ -38,6 +55,10 @@ export interface LocalSchema {
   settings: Settings;
   tasks: Task[];
   notes: BrainDumpNote[];
+  dailyBrainDumpGate: DailyBrainDumpGateState;
+  enabledPacks: EnabledPack[];
+  activeIntent: ActiveIntent | null;
+  parkingLot: ParkingLotItem[];
   readingProgress: Record<string, AnyProgress>;
   streaks: Streaks;
   gym: GymState;
@@ -46,8 +67,9 @@ export interface LocalSchema {
   focusSession: FocusSession | null;
   bookmarks: BookmarkLink[];
   bookmarkGroups: BookmarkGroup[];
-  notionQueue: NotionPush[];
-  notionStatus: NotionStatus;
+  /** Cached from the user's signed-in X bookmarks page; never cloud-synced. */
+  xBookmarks: XBookmark[];
+  xBookmarksLastSyncedAt: number;
   decks: Deck[];
   flashNotes: FlashNote[];
   flashCards: FlashCard[];
@@ -56,6 +78,13 @@ export interface LocalSchema {
   /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey.
    *  Local-only; shaped for future per-record sync. */
   annotations: Annotation[];
+  /**
+   * Transcribed lectures, meetings and videos. Device-local by design and
+   * deliberately absent from RECORD_COLLECTIONS: a transcript of a meeting is
+   * the most sensitive thing this extension holds, so it stays on the machine
+   * that captured it rather than reaching Firestore or the iOS app.
+   */
+  recordings: Recording[];
   /** Keyed by local date 'YYYY-MM-DD', pruned to SRS_DAILY_RETENTION_DAYS */
   srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
@@ -76,10 +105,71 @@ export interface LocalSchema {
   assistantSkills: AssistantSkill[];
   /** Scheduled agent runs (discovery/triage on alarms). Device-local. */
   assistantAutomations: AssistantAutomation[];
+  /**
+   * What happened, day by day — plans, digests, applied actions, close-outs.
+   * The assistant's episodic memory: `assistantThread` is session-scoped and
+   * evaporates with the browser, so without this nothing survives a restart
+   * except the 50 remembered facts. Device-local, like the rest of the
+   * assistant's state. Pruned to JOURNAL_MAX_DAYS.
+   */
+  assistantJournal: Record<string, JournalDay>;
+  /**
+   * The user's own "about me" — goals, working style, constraints. Hand-written
+   * in Settings and never model-writable: an assistant that can overwrite your
+   * identity doc is a bad trade. Prepended ahead of the context char cap so it
+   * can never be truncated away.
+   */
+  assistantProfile: { text: string; updatedAt: number };
+  /** Weekly reckonings keyed by weekKey(). Device-local. */
+  weekReviews: Record<string, WeekReview>;
   /** Google Calendar connection + cached agenda window. Device-local — never synced. */
   calendar: CalendarState;
-  /** Meeting notes pulled from Notion. Device-local cache — never synced. */
-  meetingNotes: MeetingNotesState;
+  /**
+   * Gmail connections (one per mailbox) plus the last triage run. Device-local
+   * and deliberately absent from RECORD_COLLECTIONS — these are OAuth tokens
+   * for the user's mail, which must never reach Firestore or the iOS app.
+   */
+  gmail: GmailState;
+  /** alphaXiv connection: OAuth tokens + the deck→folder map. Device-local —
+   *  never synced (the tokens are this browser's, and so is the client id). */
+  alphaxiv: AlphaxivState;
+  /**
+   * Brain-dump encryption keys; null = encryption off. Deliberately absent from
+   * RECORD_COLLECTIONS and DOC_UNITS so it can never reach Firestore: notes sync
+   * as ciphertext, and the key that opens them stays on this device.
+   */
+  notesVault: NotesVault | null;
+  /**
+   * Knowledge-graph vertices: everything consumed, durably. Deliberately absent
+   * from RECORD_COLLECTIONS — a recording node carries a recording's title, and
+   * transcripts stay on the device that captured them. Last-write-wins would
+   * also be the wrong merge: two devices prune `readingProgress` on different
+   * schedules, so their node sets are both correct and different.
+   */
+  graphNodes: GraphNode[];
+  /**
+   * Reverse citation index, keyed by document. Built from bibliographies the
+   * reader already parses, so it needs no network and works offline. Out of
+   * RECORD_COLLECTIONS for the same reason `graphNodes` is: it is a per-device
+   * projection of what that device has opened, and two machines holding
+   * different sets are both correct.
+   */
+  docCitations: Record<string, DocCitations>;
+  /**
+   * Citation expansions, keyed by the library paper they hang off. Out of
+   * RECORD_COLLECTIONS like the rest of the graph state: this is a per-device
+   * cache of what a remote index said, cheap to rebuild and wrong to merge.
+   */
+  graphCitations: Record<string, CitationExpansion>;
+  /**
+   * Content-addressed AI outlines for PDFs. Device-local: the source passages
+   * can be rebuilt from the PDF and should neither consume sync quota nor
+   * trigger another model request when the same paper is reopened.
+   */
+  pdfOutlineCache: Record<
+    string,
+    { items: AiOutlineItem[]; createdAt: number; lastAccessedAt: number }
+  >;
 }
 
 /** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
@@ -116,58 +206,95 @@ export interface SessionSchema {
   pendingAutomationRuns: string[];
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
+  /**
+   * The capture in flight, if any. Session-scoped because a recording cannot
+   * outlive the browser anyway — what survives a restart is the transcript in
+   * `recordings`, which startup reconciliation settles (see reconcileOrphans).
+   */
+  activeRecording: {
+    id: string;
+    startedAt: number;
+    source: RecordingSource;
+    /** Rotation counter — the next segment's index, hence its wall-clock offset */
+    segmentIndex: number;
+  } | null;
+  /**
+   * Which features currently need the single offscreen document alive. Held
+   * here rather than in a module variable because the service worker is torn
+   * down after ~30s idle while the document keeps running — a module-level set
+   * would come back empty and close a document mid-recording.
+   */
+  offscreenHolders: string[];
+  /**
+   * Live mode: suggested answers for the recording in flight. Session-scoped
+   * for the same reason activeRecording is, and additionally because these are
+   * coaching for a moment rather than an artifact — the durable half of a live
+   * recording is its transcript, which lands in `recordings` as usual.
+   */
+  liveSession: LiveSession;
+  /**
+   * The unwrapped notes-vault private key as PKCS8 hex; '' = locked. Session
+   * storage because that is exactly the unlock lifetime (cleared when the
+   * browser closes) and because both extension pages and the service worker can
+   * read it. A CryptoKey is not structured-cloneable, hence the hex.
+   */
+  notesPrivateKey: string;
+  /**
+   * What the graph page is showing. Session-scoped because a view filter is not
+   * a preference — it belongs to this sitting, and starting tomorrow with
+   * yesterday's topic still applied would be its own small bug.
+   *
+   * The page is a subscriber here rather than the owner: the toolbar chips and
+   * the assistant's focus_graph tool write through the same key, so there is
+   * one source of truth instead of tool state merged over React state.
+   */
+  graphView: GraphView;
+  /** What the graph is currently drawing — published by the page, read by the
+   *  assistant. See shared/ai/graphDigest.ts for why it flows that way. */
+  graphVisible: VisibleGraph;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
+  /* Not 'auto': auto means "match the host browser", which in Chrome is the
+     blue skin. The Brave orange is the wanted look regardless of host. */
+  skin: 'brave',
   refreshInterval: 30,
   notificationsEnabled: true,
-  nudgesEnabled: true,
-  taskReminderIntervalMinutes: 120,
+  nudgesEnabled: false,
+  taskReminderIntervalMinutes: 0,
   sprintMinutes: 5,
   dailyGoalMinutes: 5,
   gymWeeklyTarget: 3,
-  gymReminderTime: '18:00',
+  gymReminderTime: '',
   hyperfocusEnabled: true,
   timePillHosts: [],
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
   focusBreakMinutes: 10,
   focusMusicEnabled: false,
-  dashColumns: 3,
-  dashCardOrder: [...DASH_CARD_IDS],
-  dashHiddenCards: [],
-  dashFullWidthCards: [],
-  notionToken: '',
-  notionLinksDbId: '',
-  notionBrainDumpDbId: '',
-  notionTasksDbId: '',
-  notionReadingLogDbId: '',
-  notionTasksDoneProp: '',
-  notionLinksUrlProp: 'URL',
-  notionLinksTagsProp: 'Tags',
-  notionReadingUrlProp: 'URL',
-  notionReadingTypeProp: 'Type',
-  notionReadingDateProp: 'Finished',
-  notionPushLinks: false,
-  notionPushBrainDumps: false,
-  notionPushTasks: false,
-  notionPushReading: false,
-  notionMeetingNotesDbId: '',
-  notionMeetingNotesDateProp: '',
+  dashboardMode: 'focused',
   semanticScholarApiKey: '',
-  assistantEnabled: true,
+  assistantEnabled: false,
   geminiApiKey: '',
+  anthropicApiKey: '',
+  cloudProvider: 'gemini',
+  ollamaBaseUrl: '',
+  ollamaModel: OLLAMA_DEFAULT_MODEL,
+  assistantReactEnabled: true,
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',
   assistantWakeWordEnabled: false,
+  assistantVisionEnabled: true,
+  assistantLiveEnabled: false,
   focusCalendarBlockEnabled: false,
-  assistantMonitorEnabled: true,
+  assistantMonitorEnabled: false,
   monitorEveningTime: '19:00',
+  gmailTriageTime: '08:30',
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 1,
+  schemaVersion: 19,
   feeds: [],
   readItems: [],
   cachedItems: [],
@@ -175,6 +302,10 @@ export const DEFAULTS: LocalSchema = {
   settings: DEFAULT_SETTINGS,
   tasks: [],
   notes: [],
+  dailyBrainDumpGate: { date: '', completedAt: null, noteId: null },
+  enabledPacks: [],
+  activeIntent: null,
+  parkingLot: [],
   readingProgress: {},
   streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
   gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
@@ -197,13 +328,14 @@ export const DEFAULTS: LocalSchema = {
   focusSession: null,
   bookmarks: [],
   bookmarkGroups: [],
-  notionQueue: [],
-  notionStatus: { lastSuccessAt: 0, lastError: '', lastErrorAt: 0, authError: false },
+  xBookmarks: [],
+  xBookmarksLastSyncedAt: 0,
   decks: [],
   flashNotes: [],
   flashCards: [],
   papers: [],
   annotations: [],
+  recordings: [],
   srsDaily: {},
   siteTime: { date: '', hosts: {} },
   sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
@@ -212,8 +344,17 @@ export const DEFAULTS: LocalSchema = {
   assistantMemory: [],
   assistantSkills: [],
   assistantAutomations: [],
+  assistantJournal: {},
+  assistantProfile: { text: '', updatedAt: 0 },
+  weekReviews: {},
   calendar: CALENDAR_DEFAULTS,
-  meetingNotes: MEETING_NOTES_DEFAULTS,
+  gmail: GMAIL_DEFAULTS,
+  alphaxiv: ALPHAXIV_DEFAULTS,
+  notesVault: null,
+  graphNodes: [],
+  docCitations: {},
+  graphCitations: {},
+  pdfOutlineCache: {},
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -228,6 +369,12 @@ export const SESSION_DEFAULTS: SessionSchema = {
   assistantCache: {},
   pendingAutomationRuns: [],
   pdfNativeBypass: [],
+  activeRecording: null,
+  offscreenHolders: [],
+  liveSession: idleLiveSession(),
+  notesPrivateKey: '',
+  graphView: EMPTY_VIEW,
+  graphVisible: EMPTY_VISIBLE,
 };
 
 /* Offscreen documents get chrome.runtime but not chrome.storage — route their
@@ -313,6 +460,45 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * dashCardOrder. The reader also gained a second document kind, so
  * `pdfAnnotations` becomes `annotations` with its page/rect fields wrapped in
  * a discriminated `anchor` (see types.AnnotationAnchor).
+ * v7 → v8 (prime time): seed `DayStats.hours` from the timestamps already kept
+ * on tasks, notes, bookmarks, annotations, flash notes, papers and reading
+ * progress, so the punchcard opens with real history. `hours` itself stays
+ * optional — days with neither evidence nor live credit simply lack it.
+ * v8 → v9 (encrypted notes): the passcode became a real key rather than a
+ * render gate, so `settings.notesPasscodeHash` goes away — the vault in
+ * `notesVault` authenticates by unwrapping, and nothing derived from the
+ * passcode is stored. Existing notes stay plain text until the user turns
+ * encryption on in Options, which seals them in place.
+ * v9 → v10 (bring-your-own calendar client): Google Calendar stopped using
+ * chrome.identity.getAuthToken, so the old connection is a token Chrome holds
+ * and this extension can no longer ask for. Reset the slice — the user pastes
+ * their own OAuth client in Settings and reconnects.
+ * v11 → v12 (reader progress): repair reading entries that took the reader
+ * page's own title and URL, which left Continue rows called "Reader" linking to
+ * the extension instead of the article. See v12ReadingProgress.
+ * v12 → v13 (Notion removed): the one-way push and the meeting-notes pull are
+ * gone, so drop the notion* settings (one of which held an integration token),
+ * the push queue/status, and the meeting-notes cache.
+ * v13 → v14 (knowledge graph): seed `graphNodes` from the reading history that
+ * still exists. Only articles and videos — papers, bookmarks and recordings
+ * are reconciled on the first graph open, which also covers a device that
+ * pulls them via sync after this migration has already run.
+ * v14 → v15 (Brave accent by default): the default skin moved from 'auto' to
+ * 'brave', but patchSettings persists the whole settings object, so anyone who
+ * ever changed any setting has a stored 'auto' shadowing the new default.
+ * Rewrite that one value. An explicit 'chrome'/'default' is a real choice and
+ * is left alone — only 'auto' means "never picked".
+ * v15 → v16 (dashboard presets): replace arbitrary columns/order/hide/width
+ * settings with one predictable, accessible layout mode. Existing users begin
+ * in Focused; their content is untouched.
+ * v16 → v17 (daily brain-dump gate): add device-local completion state. A
+ * qualifying note already saved today is grandfathered so an upgrade never
+ * asks for the same dump twice.
+ * v17 → v18 (Attention Relay): add the device-local active intention and
+ * parking lot. Research data and connected Google services opt existing users
+ * into their matching secondary packs; no retired data is deleted.
+ * v18 → v19: add the device-local cache populated from the user's X bookmarks
+ * page. It deliberately stays outside cloud-sync collections.
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -322,7 +508,9 @@ export async function migrate(): Promise<void> {
     'gamification',
   ]);
   const version = (stored.schemaVersion as number | undefined) ?? 0;
-  if (version >= 7) return;
+  // Must match the version written at the end: this guard was left at 10 when
+  // v11 landed, which stranded anyone already on 10 — they never ran v11.
+  if (version >= 19) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -388,8 +576,207 @@ export async function migrate(): Promise<void> {
   }
 
   if (version < 7) await migrateToV7();
+  if (version < 8) await migrateToV8();
+  if (version < 9) await migrateToV9();
+  if (version < 10) await chrome.storage.local.set({ calendar: CALENDAR_DEFAULTS });
+  // v10 → v11: feed item ids were truncated to 24 bytes of input, so every
+  // article on a site shared one — the stored read state marked whole sites
+  // read. The ids are unmappable to the new scheme, and the old values are
+  // worse than none, so start over. Everything shows unread once.
+  if (version < 11) await chrome.storage.local.set({ readItems: [] });
+  if (version < 12) await migrateToV12();
+  if (version < 13) await migrateToV13();
+  if (version < 14) await migrateToV14();
+  if (version < 15) await migrateToV15();
+  if (version < 16) await migrateToV16();
+  if (version < 17) {
+    const storedGate = await chrome.storage.local.get(['notes', 'dailyBrainDumpGate']);
+    await chrome.storage.local.set({
+      dailyBrainDumpGate: v17DailyBrainDumpGate(
+        (storedGate.notes as BrainDumpNote[] | undefined) ?? [],
+        storedGate.dailyBrainDumpGate as DailyBrainDumpGateState | undefined,
+      ),
+    });
+  }
+  if (version < 18) await migrateToV18();
 
-  await chrome.storage.local.set({ schemaVersion: 7 });
+  if (version < 19) {
+    await chrome.storage.local.set({ xBookmarks: [], xBookmarksLastSyncedAt: 0 });
+  }
+
+  await chrome.storage.local.set({ schemaVersion: 19 });
+}
+
+export function v18EnabledPacks(input: {
+  papers?: readonly unknown[];
+  flashNotes?: readonly unknown[];
+  flashCards?: readonly unknown[];
+  recordings?: readonly unknown[];
+  annotations?: readonly unknown[];
+  calendar?: { connected?: boolean };
+  gmail?: GmailState;
+  settings?: Partial<Settings>;
+  enabledPacks?: readonly EnabledPack[];
+}): EnabledPack[] {
+  const packs = new Set<EnabledPack>(input.enabledPacks ?? []);
+  if (
+    input.papers?.length ||
+    input.flashNotes?.length ||
+    input.flashCards?.length ||
+    input.recordings?.length ||
+    input.annotations?.length
+  ) {
+    packs.add('research');
+  }
+  if (input.calendar?.connected || (input.gmail && connectedAccounts(input.gmail).length > 0)) {
+    packs.add('work');
+  }
+  if (input.settings?.assistantEnabled) packs.add('assistant');
+  return ['research', 'work', 'assistant'].filter((pack) => packs.has(pack as EnabledPack)) as EnabledPack[];
+}
+
+async function migrateToV18(): Promise<void> {
+  const stored = await chrome.storage.local.get([
+    'papers',
+    'flashNotes',
+    'flashCards',
+    'recordings',
+    'annotations',
+    'calendar',
+    'gmail',
+    'settings',
+    'enabledPacks',
+  ]);
+  await chrome.storage.local.set({
+    enabledPacks: v18EnabledPacks(stored as Parameters<typeof v18EnabledPacks>[0]),
+    activeIntent: null,
+    parkingLot: [],
+  });
+}
+
+export function v17DailyBrainDumpGate(
+  notes: readonly BrainDumpNote[],
+  state: DailyBrainDumpGateState | undefined,
+  date?: string,
+): DailyBrainDumpGateState {
+  return gateStateForDate(
+    state ?? { date: '', completedAt: null, noteId: null },
+    notes,
+    date,
+  );
+}
+
+/** Pure core of v16: retire layout-builder state without carrying its arbitrary
+ * visual order into the new semantic presets. */
+export function v16DashboardMode(
+  settings: (Partial<Settings> & Record<string, unknown>) | undefined,
+): (Partial<Settings> & Record<string, unknown>) | null {
+  if (!settings) return null;
+  const next = { ...settings };
+  delete next.dashColumns;
+  delete next.dashCardOrder;
+  delete next.dashHiddenCards;
+  delete next.dashFullWidthCards;
+  next.dashboardMode = 'focused';
+  return next;
+}
+
+async function migrateToV16(): Promise<void> {
+  const { settings } = await chrome.storage.local.get('settings');
+  const patched = v16DashboardMode(
+    settings as (Partial<Settings> & Record<string, unknown>) | undefined,
+  );
+  if (patched) await chrome.storage.local.set({ settings: patched });
+}
+
+/** Pure core of v14, so the seeding rule is testable without chrome.storage. */
+export function v14GraphNodes(progress: Record<string, AnyProgress>, now: number): GraphNode[] {
+  return Object.entries(progress).map(([key, p]) => nodeFromProgress(key, p, undefined, now));
+}
+
+/** Pure core of v15. Null means "nothing stored to rewrite" — an absent
+ *  settings object already picks up the new default, and an explicit skin is
+ *  the user's choice. */
+export function v15Skin(settings: Partial<Settings> | undefined): Partial<Settings> | null {
+  if (settings?.skin !== 'auto') return null;
+  return { ...settings, skin: DEFAULT_SETTINGS.skin };
+}
+
+async function migrateToV15(): Promise<void> {
+  const { settings } = await chrome.storage.local.get('settings');
+  const patched = v15Skin(settings as Partial<Settings> | undefined);
+  if (patched) await chrome.storage.local.set({ settings: patched });
+}
+
+async function migrateToV14(): Promise<void> {
+  const { readingProgress } = await chrome.storage.local.get('readingProgress');
+  const progress = (readingProgress as Record<string, AnyProgress> | undefined) ?? {};
+  const graphNodes = v14GraphNodes(progress, Date.now());
+  if (graphNodes.length) await chrome.storage.local.set({ graphNodes });
+}
+
+/** The document a reader-page URL was showing, or null if this isn't one. */
+function readerDocUrl(url: string): string | null {
+  if (!url.startsWith('chrome-extension://')) return null;
+  try {
+    const params = new URL(url).searchParams;
+    return params.get('article') ?? params.get('src');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pure core of v11 → v12. Progress reported from the reader used to be stamped
+ * with the reader tab's own title and URL, so a Continue row could read
+ * "Reader" and open the extension page instead of the article. The real URL
+ * survives inside the reader link's ?article=/?src= param; the title doesn't,
+ * so it's cleared and refills the next time the article is opened. Returns null
+ * when nothing was corrupted, so an untouched profile isn't rewritten.
+ */
+export function v12ReadingProgress(
+  progress: Record<string, AnyProgress>,
+): Record<string, AnyProgress> | null {
+  const repaired: Record<string, AnyProgress> = {};
+  let changed = false;
+  for (const [key, entry] of Object.entries(progress)) {
+    const docUrl = entry.kind === 'video' ? null : readerDocUrl(entry.url);
+    if (!docUrl) {
+      repaired[key] = entry;
+      continue;
+    }
+    repaired[key] = { ...entry, url: docUrl, title: entry.title === 'Reader' ? '' : entry.title };
+    changed = true;
+  }
+  return changed ? repaired : null;
+}
+
+async function migrateToV12(): Promise<void> {
+  const { readingProgress } = await chrome.storage.local.get('readingProgress');
+  if (!readingProgress) return;
+  const repaired = v12ReadingProgress(readingProgress as Record<string, AnyProgress>);
+  if (repaired) await chrome.storage.local.set({ readingProgress: repaired });
+}
+
+/** v12 → v13: retire every Notion key, settings and local alike. */
+async function migrateToV13(): Promise<void> {
+  await chrome.storage.local.remove(['notionQueue', 'notionStatus', 'meetingNotes']);
+  const { settings } = await chrome.storage.local.get('settings');
+  if (!settings) return;
+  const record = settings as Record<string, unknown>;
+  const stale = Object.keys(record).filter((key) => key.startsWith('notion'));
+  if (stale.length === 0) return;
+  for (const key of stale) delete record[key];
+  await chrome.storage.local.set({ settings: record });
+}
+
+/** v8 → v9: retire the old render-gate passcode hash. */
+async function migrateToV9(): Promise<void> {
+  const { settings } = await chrome.storage.local.get('settings');
+  if (settings && 'notesPasscodeHash' in (settings as object)) {
+    delete (settings as Record<string, unknown>).notesPasscodeHash;
+    await chrome.storage.local.set({ settings });
+  }
 }
 
 /**
@@ -457,6 +844,59 @@ export function v7Patch(stored: Record<string, unknown>): Record<string, unknown
   }
 
   return patch;
+}
+
+/**
+ * Every retained timestamp that marks a deliberate user action, for seeding the
+ * prime-time ledger. Gym check-ins are excluded on purpose — when you lift is
+ * not when you can think, and letting it in skews the peak window.
+ */
+export function seedTimestamps(stored: Record<string, unknown>): number[] {
+  const at: number[] = [];
+  const push = (...values: (number | null | undefined)[]) => {
+    for (const v of values) if (typeof v === 'number' && v > 0) at.push(v);
+  };
+  for (const t of (stored.tasks as Task[] | undefined) ?? []) push(t.createdAt, t.completedAt);
+  for (const n of (stored.notes as BrainDumpNote[] | undefined) ?? []) push(n.createdAt, n.structuredAt);
+  for (const b of (stored.bookmarks as BookmarkLink[] | undefined) ?? []) push(b.createdAt);
+  for (const a of (stored.annotations as Annotation[] | undefined) ?? []) push(a.createdAt);
+  for (const n of (stored.flashNotes as FlashNote[] | undefined) ?? []) push(n.createdAt);
+  for (const p of (stored.papers as Paper[] | undefined) ?? []) push(p.addedAt, p.lastReadAt);
+  for (const p of Object.values((stored.readingProgress as Record<string, AnyProgress>) ?? {})) {
+    push(p.firstOpenedAt, p.completedAt);
+  }
+  return at;
+}
+
+/**
+ * v7 → v8 (prime time): backfill `DayStats.hours` from the timestamps above, so
+ * the punchcard opens with the user's real rhythm instead of a blank grid it
+ * would take a week to fill. Only days with no ledger yet are seeded, so this
+ * can never double-count against live credit from background/streaks.ts.
+ */
+async function migrateToV8(): Promise<void> {
+  const stored = await chrome.storage.local.get([
+    'streaks',
+    'tasks',
+    'notes',
+    'bookmarks',
+    'annotations',
+    'flashNotes',
+    'papers',
+    'readingProgress',
+  ]);
+  const seeded = hoursFromTimestamps(seedTimestamps(stored));
+  if (!Object.keys(seeded).length) return;
+
+  const streaks = (stored.streaks as Streaks | undefined) ?? structuredClone(DEFAULTS.streaks);
+  for (const [date, hours] of Object.entries(seeded)) {
+    const day = streaks.daily[date];
+    if (day && Object.keys(day.hours ?? {}).length > 0) continue; // live credit wins
+    // A day with only evidence and no stats still scores 0 on the calendar —
+    // the entry exists so the punchcard can see it
+    streaks.daily[date] = { ...(day ?? { minutes: 0, sprints: 0, articlesFinished: 0 }), hours };
+  }
+  await chrome.storage.local.set({ streaks });
 }
 
 async function migrateToV7(): Promise<void> {

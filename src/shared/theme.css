@@ -63,6 +63,12 @@
   --transition-fast: 0.15s;
   --transition-base: 0.2s;
 
+  /* Decelerating curves: motion arrives fast and settles, rather than easing
+     symmetrically in and out. --ease-spring overshoots slightly and is only
+     for things that appear (disclosures), never for things that move away. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
   --bg-page: #f2f2f2;
   --bg-surface: #ffffff;
   --bg-subtle: #f9f9f9;
@@ -94,17 +100,71 @@
   --warning: #b45309;
   --warning-bg: #fef3c7;
 
+  /* A recording naming a paper. Deliberately not --accent: selection already
+     owns that colour on the graph, and an edge that reads as "selected" when
+     nothing is selected is worse than an edge with no colour of its own. */
+  --gr-mention: #7c6bc4;
+
+  /* How recently and how thoroughly a node was read (see graphModel.heatLevel).
+     The graph cannot reuse --heat-*: that ramp is derived from --accent for the
+     dashboard, and on a node-link map --accent already means "selected" — a
+     paper finished last week came out the same colour as the node the user had
+     just clicked. Amber is the far side of the wheel from every skin's accent,
+     and warmth is what the ramp already meant. Step 0 stays neutral: never
+     opened is an absence, not a cold temperature.
+     Defined here and left alone by the skin blocks below, exactly like
+     --gr-mention — the point is a hue no accent can collide with. */
+  --gr-heat-0: #eceff2;
+  --gr-heat-1: #fde9c8;
+  --gr-heat-2: #fbcf8a;
+  --gr-heat-3: #f0a63c;
+  --gr-heat-4: #c76a06;
+
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.18);
   --shadow-accent: 0 2px 10px rgba(14, 165, 233, 0.15);
 
-  /* Activity-calendar heat scale (GitHub greens); inset border keeps the
-     faint steps legible against the panel surface */
-  --heat-0: #ebedf0;
-  --heat-1: #9be9a8;
-  --heat-2: #40c463;
-  --heat-3: #30a14e;
-  --heat-4: #216e39;
+  /* Dashboard card surface. Four layers: a specular rim on the top inside edge
+     (what actually sells glass — it reads as light catching a bevel), a
+     hairline ring, a contact shadow, and an ambient one. The ring is a shadow
+     rather than a border because a border would add 2px to every card inside a
+     fixed grid-row rhythm, and because a ring animates in the same property as
+     the rest of the hover lift. */
+  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(0, 0, 0, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
+    0 0 0 1px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05),
+    0 12px 28px rgba(0, 0, 0, 0.1);
+
+  /* Liquid glass. --glass-surface stays at .92 rather than the .65-.7 an iOS
+     sheet uses: this typeface and palette were chosen for low-vision
+     legibility, and body copy on a see-through panel gives up the contrast
+     that pass bought. The glass therefore lives in the chrome — rim, edge,
+     header plate, buttons — while text keeps a near-opaque surface under it.
+     The backdrop wash (body::before) is what the blur has to work with; on a
+     flat page a backdrop-filter is a no-op. */
+  --glass-surface: rgba(255, 255, 255, 0.92);
+  --glass-bar: rgba(255, 255, 255, 0.55);
+  --glass-accent: rgba(224, 242, 254, 0.72);
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-rim: rgba(255, 255, 255, 0.9);
+  --glass-rim-strong: rgba(255, 255, 255, 1);
+
+  /* Two heavily feathered blobs behind everything. Accent-family hues only —
+     an unrelated third colour would read as decoration rather than as the page
+     the cards are floating over. */
+  --glass-tint: rgba(14, 165, 233, 0.1);
+  --glass-tint-2: rgba(129, 140, 248, 0.09);
+
+  /* Activity-calendar heat scale. Derived from --accent rather than GitHub's
+     greens so the dashboard reads as one colour system: accent means activity
+     and action everywhere on the page. Inset border keeps the faint steps
+     legible against the panel surface. */
+  --heat-0: #eaeef2;
+  --heat-1: #bae6fd;
+  --heat-2: #7dd3fc;
+  --heat-3: #38bdf8;
+  --heat-4: #0284c7;
   --heat-cell-border: rgba(27, 31, 35, 0.06);
 
   /* Stroop warm-up ink colors — per-theme hues so every ink stays legible
@@ -164,6 +224,13 @@
   --success-border: #34503c;
   --danger: #f28b82;
   --danger-bg: #332222;
+  --gr-mention: #a89ae0;
+  /* Dark→bright, matching how --heat-* runs in this theme. */
+  --gr-heat-0: #2a2a2a;
+  --gr-heat-1: #46320f;
+  --gr-heat-2: #7a5312;
+  --gr-heat-3: #c98d29;
+  --gr-heat-4: #f5c26b;
   --warning: #fbbf24;
   --warning-bg: #332c1a;
 
@@ -171,15 +238,184 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-accent: 0 2px 10px rgba(0, 0, 0, 0.5);
 
+  /* The hairline flips to a light edge — a dark ring is invisible on a dark
+     page, and the card needs an edge to read as a separate surface. */
+  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
+    0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.55);
+
+  /* Glass in the dark: the surface lifts slightly off --bg-surface (#212121) so
+     it still reads as a lit pane, and every overlay is white-on-dark at low
+     alpha rather than a grey fill — a grey would go muddy over the wash. */
+  --glass-surface: rgba(40, 40, 40, 0.9);
+  --glass-bar: rgba(255, 255, 255, 0.05);
+  --glass-accent: rgba(56, 189, 248, 0.14);
+  --glass-blur: blur(24px) saturate(160%);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-rim-strong: rgba(255, 255, 255, 0.22);
+
+  --glass-tint: rgba(56, 189, 248, 0.11);
+  --glass-tint-2: rgba(129, 140, 248, 0.11);
+
   --heat-0: #272727;
-  --heat-1: #0e4429;
-  --heat-2: #006d32;
-  --heat-3: #26a641;
-  --heat-4: #39d353;
+  --heat-1: #0c3b52;
+  --heat-2: #0369a1;
+  --heat-3: #0ea5e9;
+  --heat-4: #7dd3fc;
   --heat-cell-border: rgba(255, 255, 255, 0.05);
 
   --stroop-red: #f28b82;
   --stroop-blue: #4fc3f7;
   --stroop-green: #81c995;
   --stroop-purple: #ce93d8;
+}
+
+/* One focus ring, everywhere, in the current skin's accent.
+   :focus-visible rather than :focus, so it appears for keyboard and assistive
+   navigation and never on a mouse click. The offset is what makes it legible
+   on a filled control — an inset ring on an accent button disappears into it.
+   A handful of inputs override this with a border-colour affordance instead
+   (options.css); those are more specific and still keep a visible state. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Browser skins. <html data-skin="default|chrome|brave">, resolved in theme.ts.
+   A skin retints the accent family and the glass; it never touches structure,
+   type, or the --focus-* palette (immersive review is deliberately its own
+   world — see the note above it).
+
+   Why the :not() rather than plain [data-skin='x'] for the light half: a skin's
+   light block and :root[data-theme='dark'] have EQUAL specificity, so whichever
+   came last would win, and a dark skin block that forgot one token would let a
+   light-mode orange leak onto a dark page. Making the two halves mutually
+   exclusive means order stops mattering and a missing token falls back to the
+   base theme rather than to the wrong theme.
+
+   --on-accent is set per skin and per mode on purpose. A light accent needs
+   dark text on it; the base dark theme keeps --on-accent white on #38bdf8,
+   which is 2.14:1. The skins do not repeat that.
+   --------------------------------------------------------------------------- */
+
+/* Chrome — GM3 Google Blue. */
+:root[data-skin='chrome']:not([data-theme='dark']) {
+  --accent: #0b57d0;
+  --accent-hover: #0842a0;
+  --accent-soft: #f4f8ff;
+  --accent-wash: #d3e3fd;
+  --accent-border: #a8c7fa;
+  --accent-track: #c2d7fc;
+  --accent-text: #0842a0;
+  --on-accent: #ffffff;
+
+  --shadow-accent: 0 2px 10px rgba(11, 87, 208, 0.15);
+  --glass-accent: rgba(211, 227, 253, 0.72);
+  --glass-tint: rgba(11, 87, 208, 0.1);
+  --glass-tint-2: rgba(102, 157, 246, 0.09);
+
+  --heat-1: #d3e3fd;
+  --heat-2: #a8c7fa;
+  --heat-3: #4285f4;
+  --heat-4: #0b57d0;
+
+  --stroop-blue: #0b57d0;
+}
+
+:root[data-skin='chrome'][data-theme='dark'] {
+  --accent: #a8c7fa;
+  --accent-hover: #d3e3fd;
+  --accent-soft: #16203a;
+  --accent-wash: #1b2b4b;
+  --accent-border: #2c4a7c;
+  --accent-track: #22375e;
+  --accent-text: #d3e3fd;
+  /* 7.50:1 — a near-white accent cannot carry white label text */
+  --on-accent: #062e6f;
+
+  --glass-accent: rgba(168, 199, 250, 0.14);
+  --glass-tint: rgba(168, 199, 250, 0.11);
+  --glass-tint-2: rgba(102, 157, 246, 0.09);
+
+  --heat-1: #10254a;
+  --heat-2: #0842a0;
+  --heat-3: #1a73e8;
+  --heat-4: #a8c7fa;
+
+  --stroop-blue: #a8c7fa;
+}
+
+/* Brave — the brand orange from Brave's own Leo tokens (brands/rorange-1).
+   #ff5601 carries white at 3.19:1, which clears AA for large/UI text but not
+   body; --accent-hover is the deeper #d93900 (4.63:1) so the pressed state of a
+   primary button is the accessible one. Both beat the stock sky accent, which
+   sits at 2.77:1. */
+:root[data-skin='brave']:not([data-theme='dark']) {
+  --accent: #ff5601;
+  --accent-hover: #d93900;
+  --accent-soft: #fff5f0;
+  --accent-wash: #ffe8dc;
+  --accent-border: #ffc4a3;
+  --accent-track: #ffd9c4;
+  --accent-text: #9a2600;
+  --on-accent: #ffffff;
+
+  --shadow-accent: 0 2px 10px rgba(255, 86, 1, 0.18);
+  --glass-accent: rgba(255, 232, 220, 0.72);
+  --glass-tint: rgba(255, 86, 1, 0.1);
+  /* Second wash blob stays in the warm family — the stock indigo would read as
+     an unrelated third colour against orange rather than as the same page. */
+  --glass-tint-2: rgba(255, 167, 122, 0.09);
+
+  --heat-1: #ffd9c4;
+  --heat-2: #ffa77a;
+  --heat-3: #ff7a3c;
+  --heat-4: #d93900;
+
+  --stroop-red: #c73200;
+}
+
+:root[data-skin='brave'][data-theme='dark'] {
+  --accent: #ff8a5c;
+  --accent-hover: #ffa77a;
+  --accent-soft: #2a1710;
+  --accent-wash: #3a2016;
+  --accent-border: #63301c;
+  --accent-track: #4d2617;
+  --accent-text: #ffc4a3;
+  /* 6.56:1 */
+  --on-accent: #4a1200;
+
+  --glass-accent: rgba(255, 138, 92, 0.14);
+  --glass-tint: rgba(255, 138, 92, 0.11);
+  --glass-tint-2: rgba(255, 196, 163, 0.09);
+
+  --heat-1: #4d2617;
+  --heat-2: #a33d0d;
+  --heat-3: #ff5601;
+  --heat-4: #ffa77a;
+
+  --stroop-red: #ff8a5c;
+}
+
+/* prefers-reduced-transparency is a real accessibility setting and a separate
+   one from reduced motion — someone can want the glass gone and the hover lift
+   kept. Neutralising the tokens is the whole fallback: every glass rule reads
+   them, so no rule downstream needs one of its own. The rims stay; a specular
+   edge is a highlight, not something you see through.
+
+   [data-skin][data-theme] matches the skin blocks' specificity and comes after
+   them, so a skin's --glass-accent cannot survive the neutralisation. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root[data-theme='dark'],
+  :root[data-skin][data-theme] {
+    --glass-surface: var(--bg-surface);
+    --glass-bar: var(--bg-subtle);
+    --glass-accent: var(--accent-wash);
+    --glass-blur: none;
+  }
 }

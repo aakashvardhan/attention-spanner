@@ -34,7 +34,15 @@ export async function persistOutcome(
   say: (phrase: string) => void,
 ): Promise<void> {
   if (outcome.kind === 'reply') {
-    await persistTurn(newTurn('assistant', outcome.text, { source: outcome.source }));
+    await persistTurn(
+      newTurn('assistant', outcome.text, {
+        source: outcome.source,
+        trace: outcome.trace,
+        sources: outcome.sources,
+        grounding: outcome.grounding,
+        diagnostics: outcome.diagnostics,
+      }),
+    );
     say(outcome.text);
     return;
   }
@@ -42,6 +50,7 @@ export async function persistOutcome(
     await persistTurn(
       newTurn('assistant', outcome.summary, {
         source: 'nano',
+        trace: outcome.trace,
         toolCall: { name: outcome.toolName, params: outcome.params, status: 'pending-confirm' },
       }),
     );
@@ -52,6 +61,7 @@ export async function persistOutcome(
     await persistTurn(
       newTurn('assistant', `That's ${outcome.steps.length} steps:`, {
         source: 'cloud',
+        trace: outcome.trace,
         plan: {
           steps: outcome.steps.map((s) => ({ ...s, status: 'pending' as const })),
           status: 'pending-confirm',
@@ -62,7 +72,14 @@ export async function persistOutcome(
     return;
   }
   if (outcome.kind === 'done') {
-    await persistTurn(newTurn('assistant', outcome.text, { kind: 'action-result', source: 'nano' }));
+    await persistTurn(
+      newTurn('assistant', outcome.text, {
+        kind: 'action-result',
+        source: 'nano',
+        trace: outcome.trace,
+        papers: outcome.papers,
+      }),
+    );
     say(outcome.text);
     return;
   }

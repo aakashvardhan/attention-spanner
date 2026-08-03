@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   articleReaderPath,
+  arxivPdfUrl,
   computePdfPercent,
+  isPdfResponse,
   isPdfUrl,
+  paperPdfSource,
   positionFromScroll,
   readerPagePath,
   shouldInterceptPdf,
@@ -27,6 +30,39 @@ describe('isPdfUrl', () => {
     expect(isPdfUrl('file:///Users/me/paper.pdf')).toBe(false);
     expect(isPdfUrl('https://example.com/view?file=paper.pdf')).toBe(false);
     expect(isPdfUrl('not a url')).toBe(false);
+  });
+});
+
+describe('arxivPdfUrl', () => {
+  it('builds the PDF URL for new- and old-style arXiv ids', () => {
+    expect(arxivPdfUrl('2406.09246')).toBe('https://arxiv.org/pdf/2406.09246');
+    expect(arxivPdfUrl('hep-th/9901001')).toBe('https://arxiv.org/pdf/hep-th/9901001');
+  });
+
+  it('returns null for a DOI, a plain URL, or junk', () => {
+    expect(arxivPdfUrl('10.1145/3292500.3330701')).toBeNull();
+    expect(arxivPdfUrl('https://example.com/paper')).toBeNull();
+    expect(arxivPdfUrl('')).toBeNull();
+  });
+});
+
+describe('isPdfResponse', () => {
+  it('catches a PDF the URL gives no hint about', () => {
+    // allenai.org/papers/molmoact2 — application/pdf, no .pdf in the path
+    expect(isPdfResponse('application/pdf', null)).toBe(true);
+    expect(isPdfResponse('application/pdf; charset=binary', null)).toBe(true);
+    expect(isPdfResponse('APPLICATION/PDF', null)).toBe(true);
+  });
+
+  it('ignores anything the browser will not render as a PDF page', () => {
+    expect(isPdfResponse('text/html', null)).toBe(false);
+    expect(isPdfResponse('application/pdfx', null)).toBe(false);
+    expect(isPdfResponse(null, null)).toBe(false);
+  });
+
+  it('leaves downloads alone — the tab stays on the page that started them', () => {
+    expect(isPdfResponse('application/pdf', 'attachment; filename="paper.pdf"')).toBe(false);
+    expect(isPdfResponse('application/pdf', 'inline; filename="paper.pdf"')).toBe(true);
   });
 });
 
@@ -101,6 +137,39 @@ describe('shouldOpenInReader', () => {
   it('rejects non-http schemes and junk', () => {
     expect(shouldOpenInReader('mailto:someone@example.com')).toBe(false);
     expect(shouldOpenInReader('not a url')).toBe(false);
+  });
+});
+
+describe('paperPdfSource', () => {
+  const paper = (url: string, pdf?: { url: string }) =>
+    ({ url, pdf: pdf ? { ...pdf, page: 1, pageCount: 10, offset: 0 } : undefined }) as Parameters<
+      typeof paperPdfSource
+    >[0];
+
+  it('prefers the saved reading position', () => {
+    expect(paperPdfSource(paper('https://arxiv.org/abs/2006.11239', { url: 'https://x.com/a.pdf' }))).toBe(
+      'https://x.com/a.pdf',
+    );
+  });
+
+  it('derives the arXiv PDF from an abs link, so a fresh paper opens in the reader', () => {
+    expect(paperPdfSource(paper('https://arxiv.org/abs/2006.11239'))).toBe(
+      'https://arxiv.org/pdf/2006.11239',
+    );
+    expect(paperPdfSource(paper('https://arxiv.org/abs/2006.11239v2'))).toBe(
+      'https://arxiv.org/pdf/2006.11239',
+    );
+  });
+
+  it('passes a link that is already a PDF straight through', () => {
+    expect(paperPdfSource(paper('https://example.com/paper.pdf'))).toBe(
+      'https://example.com/paper.pdf',
+    );
+  });
+
+  it('has nothing to offer for a publisher page or a paper with no link', () => {
+    expect(paperPdfSource(paper('https://dl.acm.org/doi/10.1145/3292500.3330701'))).toBeNull();
+    expect(paperPdfSource(paper(''))).toBeNull();
   });
 });
 

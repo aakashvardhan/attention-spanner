@@ -1,27 +1,5 @@
-import { useMemo, useState } from 'react';
-import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MeasuringStrategy,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  rectSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useStorageValue } from '../../shared/hooks/useStorageValue';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
-import type { DashCardId, Settings } from '../../shared/types';
+import type { ReactNode } from 'react';
+import type { DashboardMode, DashCardId } from '../../shared/types';
 
 export interface DashCard {
   id: DashCardId;
@@ -29,204 +7,125 @@ export interface DashCard {
   Component: () => React.JSX.Element;
 }
 
-type CardListKey = 'dashHiddenCards' | 'dashFullWidthCards';
+const PRIMARY_BY_MODE: Record<DashboardMode, readonly DashCardId[]> = {
+  focused: ['dayplan', 'agenda', 'tasks', 'continue', 'streak'],
+  balanced: ['dayplan', 'agenda', 'tasks', 'inbox', 'continue', 'streak'],
+  research: ['continue', 'feeds', 'papers', 'recordings', 'flashcards', 'tasks'],
+};
 
-function toggleInList(settings: Settings, key: CardListKey, id: DashCardId) {
-  const current = settings[key];
-  const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-  void patchSettings({ [key]: next });
+const PRIMARY_COLUMNS: Record<DashboardMode, readonly (readonly DashCardId[])[]> = {
+  focused: [
+    ['dayplan', 'tasks'],
+    ['agenda', 'continue', 'streak'],
+  ],
+  balanced: [
+    ['dayplan', 'tasks', 'streak'],
+    ['agenda', 'inbox', 'continue'],
+  ],
+  research: [
+    ['continue', 'feeds', 'tasks'],
+    ['papers', 'recordings', 'flashcards'],
+  ],
+};
+
+export function cardsForDashboardMode(
+  mode: DashboardMode,
+  cards: readonly DashCard[],
+  unavailable: ReadonlySet<DashCardId>,
+): { primary: DashCard[]; library: DashCard[] } {
+  const visible = cards.filter((card) => !unavailable.has(card.id));
+  const byId = new Map(visible.map((card) => [card.id, card]));
+  const primary = PRIMARY_BY_MODE[mode]
+    .map((id) => byId.get(id))
+    .filter((card): card is DashCard => card !== undefined);
+  const primaryIds = new Set(primary.map((card) => card.id));
+  const library = visible.filter((card) => !primaryIds.has(card.id));
+  return { primary, library };
 }
 
-export function DashboardGrid({ cards }: { cards: readonly DashCard[] }) {
-  const [storedSettings] = useStorageValue('settings');
-  const settings: Settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-  const [editing, setEditing] = useState(false);
-  const [activeId, setActiveId] = useState<DashCardId | null>(null);
-
-  const reducedMotion = useMemo(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    [],
-  );
-
-  // Reconcile stored order with the registry: drop unknown ids, append new ones
-  const knownIds = cards.map((c) => c.id);
-  const order = [
-    ...settings.dashCardOrder.filter((id) => knownIds.includes(id)),
-    ...knownIds.filter((id) => !settings.dashCardOrder.includes(id)),
-  ];
-  const hidden = new Set(settings.dashHiddenCards);
-  const visibleOrder = order.filter((id) => !hidden.has(id));
-  const hiddenOrder = order.filter((id) => hidden.has(id));
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const onDragStart = (e: DragStartEvent) => setActiveId(e.active.id as DashCardId);
-
-  const onDragEnd = ({ active, over }: DragEndEvent) => {
-    setActiveId(null);
-    if (!over || active.id === over.id) return;
-    const from = order.indexOf(active.id as DashCardId);
-    const to = order.indexOf(over.id as DashCardId);
-    if (from < 0 || to < 0) return;
-    void patchSettings({ dashCardOrder: arrayMove(order, from, to) });
-  };
-
-  const activeCard = activeId ? cards.find((c) => c.id === activeId) : null;
-
-  return (
-    <>
-      <div className="dash-toolbar">
-        <button
-          className={editing ? 'ghost-btn editing' : 'ghost-btn'}
-          onClick={() => setEditing((e) => !e)}
-        >
-          {editing ? 'Done' : 'Customize'}
-        </button>
-      </div>
-      {editing && (
-        <div className="dash-customize-bar">
-          <span className="row-label">Columns</span>
-          <div className="dash-col-picker">
-            {([1, 2, 3, 4] as const).map((n) => (
-              <button
-                key={n}
-                className={settings.dashColumns === n ? 'col-btn active' : 'col-btn'}
-                onClick={() => void patchSettings({ dashColumns: n })}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          {hiddenOrder.length > 0 && (
-            <div className="dash-hidden-tray">
-              <span className="row-label">Hidden</span>
-              {hiddenOrder.map((id) => {
-                const card = cards.find((c) => c.id === id);
-                if (!card) return null;
-                return (
-                  <button
-                    key={id}
-                    className="hidden-chip"
-                    onClick={() => toggleInList(settings, 'dashHiddenCards', id)}
-                  >
-                    {card.title} +
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        <SortableContext items={visibleOrder} strategy={rectSortingStrategy}>
-          <div
-            className={editing ? 'dash-grid editing' : 'dash-grid'}
-            style={{ '--dash-cols': settings.dashColumns } as React.CSSProperties}
-          >
-            {visibleOrder.map((id) => {
-              const card = cards.find((c) => c.id === id);
-              if (!card) return null;
-              return (
-                <SortableCard
-                  key={id}
-                  card={card}
-                  editing={editing}
-                  fullWidth={settings.dashFullWidthCards.includes(id)}
-                  reducedMotion={reducedMotion}
-                  settings={settings}
-                />
-              );
-            })}
-          </div>
-        </SortableContext>
-        {visibleOrder.length === 0 && (
-          <p className="dash-all-hidden">
-            All cards hidden — use the tray above to bring them back.
-          </p>
-        )}
-        <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
-          {activeCard && <div className="dash-card-ghost">{activeCard.title}</div>}
-        </DragOverlay>
-      </DndContext>
-    </>
-  );
+export function cardsIntoColumns(cards: readonly DashCard[], count: number): DashCard[][] {
+  const columns = Array.from({ length: Math.max(1, count) }, () => [] as DashCard[]);
+  cards.forEach((card, index) => columns[index % columns.length].push(card));
+  return columns.filter((column) => column.length > 0);
 }
 
-function SortableCard({
-  card,
-  editing,
-  fullWidth,
-  reducedMotion,
-  settings,
-}: {
-  card: DashCard;
-  editing: boolean;
-  fullWidth: boolean;
-  reducedMotion: boolean;
-  settings: Settings;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: card.id, disabled: !editing });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition: reducedMotion ? undefined : transition,
-  };
-
-  const className = ['dash-card', fullWidth && 'full-width', isDragging && 'dragging']
-    .filter(Boolean)
-    .join(' ');
-
+function CardSlot({ card }: { card: DashCard }) {
   return (
-    <div ref={setNodeRef} style={style} className={className}>
-      {editing && (
-        <div className="dash-card-controls">
-          <button
-            ref={setActivatorNodeRef}
-            className="dash-handle"
-            {...attributes}
-            {...listeners}
-            aria-label={`Move ${card.title}`}
-            title="Drag to move"
-          >
-            ⠿
-          </button>
-          <div className="dash-card-actions">
-            <button
-              className="ghost-btn"
-              title={fullWidth ? 'Half width' : 'Full width'}
-              onClick={() => toggleInList(settings, 'dashFullWidthCards', card.id)}
-            >
-              {fullWidth ? '▭' : '⬌'}
-            </button>
-            <button
-              className="ghost-btn"
-              title="Hide card"
-              onClick={() => toggleInList(settings, 'dashHiddenCards', card.id)}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+    <div className={`dash-slot dash-slot--${card.id}`}>
       <card.Component />
+    </div>
+  );
+}
+
+export function DashboardGrid({
+  cards,
+  mode,
+  unavailable,
+  tray,
+  insights,
+}: {
+  cards: readonly DashCard[];
+  mode: DashboardMode;
+  unavailable: ReadonlySet<DashCardId>;
+  tray: ReactNode;
+  insights: ReactNode;
+}) {
+  const { primary, library } = cardsForDashboardMode(mode, cards, unavailable);
+  const primaryById = new Map(primary.map((card) => [card.id, card]));
+  const primaryColumns = PRIMARY_COLUMNS[mode]
+    .map((ids) =>
+      ids
+        .map((id) => primaryById.get(id))
+        .filter((card): card is DashCard => card !== undefined),
+    )
+    .filter((column) => column.length > 0);
+  const libraryColumns = cardsIntoColumns(library, 3);
+
+  return (
+    <div className={`dash-layout dash-layout--${mode}`}>
+      <section className="dash-primary" aria-label={`${mode} dashboard`}>
+        <div className="dash-primary-columns">
+          {primaryColumns.map((column, index) => (
+            <div className="dash-column" key={index}>
+              {column.map((card) => (
+                <CardSlot key={card.id} card={card} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <details className="dash-insights">
+        <summary>
+          <span>
+            <strong>Insights</strong>
+            <small>Your activity and working rhythm</small>
+          </span>
+          <span className="dash-disclosure" aria-hidden="true">
+            ›
+          </span>
+        </summary>
+        <div className="dash-insights-body">{insights}</div>
+      </details>
+
+      <section className="dash-library" aria-labelledby="dash-library-title">
+        <header className="dash-section-head">
+          <div>
+            <h2 id="dash-library-title">Library and tools</h2>
+            <p>Everything useful, without competing with today.</p>
+          </div>
+        </header>
+        <div className="dash-library-grid">
+          {libraryColumns.map((column, index) => (
+            <div className="dash-column" key={index}>
+              {column.map((card) => (
+                <CardSlot key={card.id} card={card} />
+              ))}
+            </div>
+          ))}
+        </div>
+        {tray}
+      </section>
     </div>
   );
 }

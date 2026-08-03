@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLAN_STEPS } from '../constants';
+import { MAX_PLAN_STEPS, NANO_INPUT_BUDGET_CHARS } from '../constants';
 import {
+  ASSISTANT_OVERLOADED_MESSAGE,
   buildPlanSchema,
   buildRouterSchema,
   buildRouterSystem,
   executePlan,
+  extractivePageFallback,
+  isTransientOverload,
   looksLikeLibraryQuestion,
   looksMultiStep,
   parseIntentResult,
@@ -12,7 +15,7 @@ import {
   parsePlan,
   runAssistantTurn,
 } from './assistant';
-import type { AssistantProvider, GenerateRequest } from './assistantTypes';
+import type { AssistantProvider, GenerateRequest, ProviderReply } from './assistantTypes';
 import { appendTurn, MAX_THREAD_TURNS, newTurn } from './assistantTypes';
 import { cacheResetMemory } from './cache';
 import { TOOLS, type Tool } from './tools';
@@ -51,6 +54,22 @@ describe('parseIntentResult', () => {
   });
 });
 
+describe('isTransientOverload', () => {
+  it('recognizes the provider overload message and a bare HTTP 503', () => {
+    expect(
+      isTransientOverload('Gemini is temporarily overloaded (HTTP 503) — try again in a moment.'),
+    ).toBe(true);
+    expect(isTransientOverload('upstream returned HTTP 503')).toBe(true);
+    expect(isTransientOverload('TEMPORARILY OVERLOADED')).toBe(true);
+  });
+
+  it('does not flag unrelated failures a fallback cannot fix', () => {
+    expect(isTransientOverload('The Gemini API key looks invalid — check Settings.')).toBe(false);
+    expect(isTransientOverload('Gemini rate limit hit — wait a minute and try again.')).toBe(false);
+    expect(isTransientOverload('')).toBe(false);
+  });
+});
+
 describe('appendTurn', () => {
   it('appends and caps the thread', () => {
     let thread = Array.from({ length: MAX_THREAD_TURNS }, (_, i) => newTurn('user', `t${i}`));
@@ -58,6 +77,15 @@ describe('appendTurn', () => {
     expect(thread).toHaveLength(MAX_THREAD_TURNS);
     expect(thread[thread.length - 1].text).toBe('newest');
     expect(thread[0].text).toBe('t1');
+  });
+
+  it('drops tool turns — a loop scratchpad never reaches the session thread', () => {
+    const thread = appendTurn(
+      [newTurn('user', 'hi')],
+      newTurn('tool', '4 highlights', { toolResult: { id: 'a', name: 'search_library', ok: true } }),
+    );
+    expect(thread).toHaveLength(1);
+    expect(thread[0].text).toBe('hi');
   });
 });
 
@@ -277,6 +305,231 @@ describe('cloud escalation and page-aware help', () => {
     });
     expect(out).toEqual({ kind: 'reply', text: 'It is about frogs.', source: 'cloud' });
     expect(seenSystem).toContain('Frogs are amphibians.');
+  });
+
+  it('falls back to Nano when a long page cloud summary fails', async () => {
+    let nanoSystem = '';
+    const nano: AssistantProvider = {
+      id: 'nano',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"page","tool":"none"}' };
+        nanoSystem = req.system;
+        return { text: 'Local summary.' };
+      },
+    };
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async () => {
+        throw new Error('Gemini is temporarily overloaded');
+      },
+    };
+    const pageText = 'DeepMind robotics. '.repeat(800);
+    const out = await runAssistantTurn('summarize this page', [], {
+      nano,
+      cloud,
+      tools: [fakeTool()],
+      getPage: async () => ({ title: 'Robotics', url: 'https://x.test', text: pageText }),
+    });
+    expect(out).toEqual({ kind: 'reply', text: 'Local summary.', source: 'nano' });
+    expect(nanoSystem).toContain(pageText.slice(0, 1000));
+    expect(nanoSystem).not.toContain(pageText);
+    expect(nanoSystem.length + 'summarize this page'.length).toBeLessThanOrEqual(
+      NANO_INPUT_BUDGET_CHARS,
+    );
+  });
+
+  it('returns an extractive local summary when every page-summary provider fails', async () => {
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"page","tool":"none"}' };
+        throw new Error('The Gemini API key looks invalid — check Settings.');
+      },
+    };
+    const out = await runAssistantTurn('summarize this page', [], {
+      nano: deadNano,
+      cloud,
+      tools: [fakeTool()],
+      getPage: async () => ({ title: 'Frogs', url: 'https://x.test', text: 'Frogs are amphibians.' }),
+    });
+    expect(out).toEqual({
+      kind: 'reply',
+      source: 'local',
+      text: '## Quick local summary\n\nFrogs are amphibians.',
+    });
+  });
+
+  it('builds a short model-free fallback from substantial article sentences', () => {
+    const text =
+      'Gemini Robotics 2 introduces new capabilities for embodied reasoning. ' +
+      'The system can understand complex instructions and adapt its behavior across different robots. ' +
+      'DeepMind says the model combines perception, planning, and physical action in a single system. ' +
+      'Cookie settings are available here.';
+    const summary = extractivePageFallback({
+      title: 'Gemini Robotics 2',
+      url: 'https://deepmind.google/article',
+      text,
+    });
+    expect(summary).toContain('## Quick local summary');
+    expect(summary).toContain('Gemini Robotics 2 introduces');
+    expect(summary).toContain('The system can understand complex instructions');
+    expect(summary).not.toContain('Cookie settings');
+  });
+
+  it('deduplicates repeated excerpts in the model-free fallback', () => {
+    const repeated =
+      'The robot follows natural-language instructions while adapting to changes in its environment.';
+    const summary = extractivePageFallback({
+      title: 'Robotics',
+      url: 'https://x.test',
+      text: `${repeated} ${repeated} A second substantial sentence explains how the model transfers skills between different robot bodies.`,
+    });
+    expect(summary.match(/The robot follows/g)).toHaveLength(1);
+    expect(summary).toContain('transfers skills');
+  });
+
+  it('bounds the raw excerpt when prose has no sentence boundaries', () => {
+    const text = 'robotics '.repeat(100);
+    const summary = extractivePageFallback({ title: 'Robotics', url: 'https://x.test', text });
+    expect(summary).toContain('## Quick local summary');
+    expect(summary.endsWith('…')).toBe(true);
+    expect(summary.length).toBeLessThan(650);
+  });
+
+  it('uses the local extractive fallback for an empty successful model response', async () => {
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) =>
+        req.responseSchema ? { text: '{"intent":"page","tool":"none"}' } : { text: '   ' },
+    };
+    const out = await runAssistantTurn('summarize this page', [], {
+      nano: deadNano,
+      cloud,
+      tools: [fakeTool()],
+      getPage: async () => ({
+        title: 'Robotics',
+        url: 'https://x.test',
+        text: 'This substantial article sentence explains how a robot reasons before taking a physical action.',
+      }),
+    });
+    expect(out).toMatchObject({
+      kind: 'reply',
+      source: 'local',
+      text: expect.stringContaining('robot reasons'),
+    });
+  });
+
+  it('maps a screenshot-only overload to the friendly retry message', async () => {
+    let imageCalls = 0;
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"page","tool":"none"}' };
+        if (req.images?.length) imageCalls++;
+        // The real provider throws friendlyHttpError(503) once its own retries
+        // are exhausted — a screenshot-only turn has no text provider to fall
+        // back to, so this is the message that reaches the user.
+        throw new Error('Gemini is temporarily overloaded (HTTP 503) — try again in a moment.');
+      },
+    };
+    const out = await runAssistantTurn('summarize this page', [], {
+      nano: deadNano,
+      cloud,
+      tools: [fakeTool()],
+      getPage: async () => null,
+      getScreenshot: async () => ({ mimeType: 'image/jpeg', dataBase64: 'abc' }),
+    });
+    expect(out).toEqual({ kind: 'error', text: ASSISTANT_OVERLOADED_MESSAGE });
+    expect(imageCalls).toBe(1);
+  });
+
+  it('still names a non-overload provider failure on a screenshot-only turn', async () => {
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"page","tool":"none"}' };
+        throw new Error('The Gemini API key looks invalid — check Settings.');
+      },
+    };
+    const out = await runAssistantTurn('what is on this slide?', [], {
+      nano: deadNano,
+      cloud,
+      tools: [fakeTool()],
+      getPage: async () => null,
+      getScreenshot: async () => ({ mimeType: 'image/jpeg', dataBase64: 'abc' }),
+    });
+    expect(out).toEqual({
+      kind: 'error',
+      text: 'Reading the page failed: The Gemini API key looks invalid — check Settings.',
+    });
+  });
+
+  it('answers a screenshot-only turn with Claude when Gemini is unavailable', async () => {
+    let sawImage = false;
+    const claude: AssistantProvider = {
+      id: 'anthropic',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"page","tool":"none"}' };
+        if (req.images?.length) sawImage = true;
+        return { text: 'The slide shows a robotics demo.' };
+      },
+    };
+    const out = await runAssistantTurn('what is on this slide?', [], {
+      nano: deadNano,
+      cloud: claude,
+      // Only the Claude key is configured, so Gemini is unavailable for vision.
+      availability: { nano: false, cloud: true, anthropic: true, gemini: false },
+      tools: [fakeTool()],
+      getPage: async () => null,
+      getScreenshot: async () => ({ mimeType: 'image/jpeg', dataBase64: 'abc' }),
+    });
+    expect(out).toEqual({
+      kind: 'reply',
+      text: 'The slide shows a robotics demo.',
+      source: 'cloud',
+    });
+    expect(sawImage).toBe(true);
+  });
+
+  it('maps a plain-chat overload to the same friendly retry message', async () => {
+    const cloud: AssistantProvider = {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => {
+        if (req.responseSchema) return { text: '{"intent":"chat","tool":"none"}' };
+        throw new Error('Gemini is temporarily overloaded (HTTP 503) — try again in a moment.');
+      },
+    };
+    const out = await runAssistantTurn('tell me a fun fact', [], {
+      nano: deadNano,
+      cloud,
+      tools: [fakeTool()],
+    });
+    expect(out).toEqual({ kind: 'error', text: ASSISTANT_OVERLOADED_MESSAGE });
+  });
+
+  it('contains a rejected page extractor and returns the unreadable-tab guidance', async () => {
+    const out = await runAssistantTurn('summarize this page', [], {
+      nano: deadNano,
+      cloud: cloudProvider(['{"intent":"page","tool":"none"}']),
+      tools: [fakeTool()],
+      getPage: async () => {
+        throw new Error('tab navigated during extraction');
+      },
+      getScreenshot: false,
+    });
+    expect(out).toMatchObject({
+      kind: 'reply',
+      source: 'local',
+      text: expect.stringContaining("can't read this tab"),
+    });
   });
 
   it('turns a page into a save_flashcards confirm', async () => {
@@ -536,5 +789,121 @@ describe('looksLikeLibraryQuestion', () => {
     expect(looksLikeLibraryQuestion('how is my streak doing?')).toBe(false);
     expect(looksLikeLibraryQuestion('how many tasks are open')).toBe(false);
     expect(looksLikeLibraryQuestion('start a 25 minute focus session')).toBe(false);
+  });
+});
+
+/* The ReAct branch: how a finished loop maps onto the outcome kinds the
+   surfaces already render. Providers here answer by inspecting the request,
+   not by call order, so the loop is free to change how many calls it makes. */
+
+describe('runAssistantTurn with react enabled', () => {
+  const isLoop = (req: GenerateRequest) => !!req.tools?.length;
+
+  function loopCloud(respond: (req: GenerateRequest) => ProviderReply): AssistantProvider {
+    return {
+      id: 'gemini',
+      available: async () => true,
+      generate: async (req) => respond(req),
+    };
+  }
+
+  const reactDeps = (cloud: AssistantProvider, tools: Tool[]) => ({
+    nano: scriptedProvider(['{"intent":"action","tool":"add_task"}']),
+    cloud,
+    tools,
+    react: true,
+    skills: [],
+    getContext: async () => 'Open tasks: none.',
+  });
+
+  it('one staged mutation becomes a single confirm chip carrying the prose', async () => {
+    const cloud = loopCloud((req) =>
+      isLoop(req)
+        ? req.turns.some((t) => t.role === 'tool')
+          ? { text: 'Queued it.' }
+          : {
+              text: '',
+              toolCalls: [{ id: 'a', name: 'add_task', params: { text: 'read the paper' } }],
+            }
+        : { text: '' },
+    );
+    const outcome = await runAssistantTurn('add a task to read the paper', [], reactDeps(cloud, [fakeTool()]));
+
+    expect(outcome.kind).toBe('confirm');
+    if (outcome.kind !== 'confirm') throw new Error('unreachable');
+    expect(outcome.toolName).toBe('add_task');
+    expect(outcome.params).toEqual({ text: 'read the paper' });
+    expect(outcome.summary).toContain('Queued it.');
+    expect(outcome.summary).toContain('Add task "read the paper"');
+  });
+
+  it('several staged mutations become one numbered confirm-plan', async () => {
+    const second = fakeTool({ name: 'start_focus', params: { type: 'object', required: [], additionalProperties: false, properties: {} }, summary: () => 'Start a focus block' });
+    const cloud = loopCloud((req) =>
+      isLoop(req)
+        ? req.turns.some((t) => t.role === 'tool')
+          ? { text: 'Both queued.' }
+          : {
+              text: '',
+              toolCalls: [
+                { id: 'a', name: 'add_task', params: { text: 'ship it' } },
+                { id: 'b', name: 'start_focus', params: {} },
+              ],
+            }
+        : { text: '' },
+    );
+    const outcome = await runAssistantTurn('add a task and start a focus block', [], reactDeps(cloud, [fakeTool(), second]));
+
+    expect(outcome.kind).toBe('confirm-plan');
+    if (outcome.kind !== 'confirm-plan') throw new Error('unreachable');
+    expect(outcome.steps.map((s) => s.name)).toEqual(['add_task', 'start_focus']);
+    expect(outcome.summary).toContain('1. Add task "ship it"');
+    expect(outcome.summary).toContain('2. Start a focus block');
+  });
+
+  it('a lookup with nothing staged is a plain reply', async () => {
+    const readOnly = fakeTool({
+      name: 'search_library',
+      confirm: false,
+      loop: 'auto',
+      params: { type: 'object', required: [], additionalProperties: false, properties: {} },
+      summary: () => 'Search the library',
+      run: async () => 'four highlights about attention',
+    });
+    const cloud = loopCloud((req) =>
+      isLoop(req)
+        ? req.turns.some((t) => t.role === 'tool')
+          ? { text: 'You highlighted four things about attention.' }
+          : { text: '', toolCalls: [{ id: 'a', name: 'search_library', params: {} }] }
+        : { text: '' },
+    );
+    const outcome = await runAssistantTurn('what did I highlight about attention', [], reactDeps(cloud, [readOnly]));
+
+    expect(outcome).toMatchObject({
+      kind: 'reply',
+      text: 'You highlighted four things about attention.',
+      source: 'cloud',
+    });
+    // The work reaches the surface, so the user can see what was consulted
+    expect(outcome.kind === 'reply' && outcome.trace).toEqual([
+      { n: 1, label: 'Search the library', status: 'done', detail: 'done', ms: expect.any(Number) },
+    ]);
+  });
+
+  it('falls back to the legacy path when no cloud can drive a loop', async () => {
+    // Nano-only: the loop declines, and the two-step JSON path handles it.
+    const outcome = await runAssistantTurn('add a task to read the paper', [], {
+      nano: scriptedProvider([
+        '{"intent":"action","tool":"add_task"}',
+        '{"text":"read the paper"}',
+      ]),
+      tools: [fakeTool()],
+      react: true,
+      skills: [],
+      getContext: async () => 'Open tasks: none.',
+    });
+    expect(outcome.kind).toBe('confirm');
+    if (outcome.kind !== 'confirm') throw new Error('unreachable');
+    expect(outcome.params).toEqual({ text: 'read the paper' });
   });
 });

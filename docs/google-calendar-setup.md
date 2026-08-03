@@ -1,29 +1,29 @@
 # Google Calendar setup
 
 The calendar integration (📅 Today card, assistant "block 2–3pm" commands,
-briefing mentions, focus time-blocking) authenticates with
-`chrome.identity.getAuthToken`, which needs a Google Cloud OAuth client tied to
-this extension's id. One-time setup, ~10 minutes.
+briefing mentions, focus time-blocking) runs on an OAuth client **you** create
+in **your own** Google Cloud project. Nothing is baked into the build: no client
+id in the manifest, no shared project, no dependency on anyone else's Google
+account staying healthy. One-time setup, ~10 minutes.
 
-## 1. Pin the extension id
+Everything you paste stays in this browser profile's extension storage and is
+never synced.
 
-Chrome derives an unpacked extension's id from its path unless the manifest has
-a `key`. The OAuth client registration needs a stable id, so generate one:
+## 1. Copy your redirect URI
 
-```bash
-openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out gcal-key.pem
-openssl rsa -in gcal-key.pem -pubout -outform DER | base64 | tr -d '\n'
+Open the extension's **Settings → Google Calendar**. It shows a line like:
+
+```
+https://<your-extension-id>.chromiumapp.org/
 ```
 
-Paste the base64 output (one long line) into `.env.local` as
-`VITE_CRX_PUBLIC_KEY=...`. Keep `gcal-key.pem` out of git (it isn't needed
-again unless you want to re-derive the same id).
+That's this install's OAuth redirect URI, derived from the extension id — so
+it's yours and it's already correct. Copy it; step 4 needs it verbatim.
 
-Then `npm run build`, load/reload the unpacked extension from `dist/`, and copy
-the now-stable **extension ID** from `chrome://extensions`.
-
-> Alternative: if the extension is published on the Chrome Web Store, skip the
-> key and use the store id directly.
+> The extension id changes if you load the extension from a different folder.
+> Set `VITE_CRX_PUBLIC_KEY` in `.env.local` (base64 DER public key) to pin it
+> and the redirect URI stays stable. Optional — if you skip it and the id does
+> move, re-copy the new URI into the client.
 
 ## 2. Google Cloud project
 
@@ -33,43 +33,65 @@ the now-stable **extension ID** from `chrome://extensions`.
 
 ## 3. OAuth consent screen
 
-**APIs & Services → OAuth consent screen**:
+**APIs & Services → OAuth consent screen** (newer consoles: **Google Auth
+Platform → Branding / Audience**):
 
-- User type **External**, publishing status **Testing** (fine for personal use;
-  no verification needed).
-- Add your own Google account under **Test users**.
-- Scopes: add `https://www.googleapis.com/auth/calendar.events`
-  (read/write events — the extension never requests broader calendar access).
+- Audience **External**. Internal is offered only under a Google Workspace org
+  and restricts sign-in to that org's accounts.
+- Add your own Google account under **Test users**. Sign-in fails with
+  `access_denied` if you skip this.
+- Scopes: add `https://www.googleapis.com/auth/calendar.events` (read/write
+  events — the extension never asks for broader calendar access).
 
-## 4. OAuth client id
+Then, once sign-in works end to end, go back to **Audience** and **Publish
+app**. An External app in "Testing" is issued refresh tokens that expire after
+**7 days**, so leaving it there means reconnecting the calendar every week. In
+production, sign-in shows a "Google hasn't verified this app" interstitial once
+(Advanced → "Go to …") and the connection then stays put. Verification only
+matters for removing that warning and for going past 100 users — neither applies
+to a personal install.
+
+## 4. OAuth client
 
 **APIs & Services → Credentials → Create credentials → OAuth client ID**:
 
-- Application type: **Chrome Extension**
-- Item ID: the extension id from step 1.
+- Application type: **Web application**.
+- Under **Authorized redirect URIs**, add the URI from step 1 exactly as shown,
+  trailing slash included.
 
-Copy the generated client id (ends in `.apps.googleusercontent.com`) into
-`.env.local` as `VITE_GCAL_CLIENT_ID=...`.
+Copy the **client ID** and the **client secret**.
 
-## 5. Build and connect
+> Not "Chrome Extension": that type pins the client to a single extension id,
+> which is what breaks whenever the id moves and what forces every clone of this
+> repo to depend on one person's Cloud project. Google issues a secret for the
+> Web application type and wants it at the token endpoint even alongside PKCE.
+> It's your own, it stays on this device, and it guards nothing but your
+> project's quota.
 
-```bash
-npm run build
-```
+## 5. Connect
 
-Reload the extension, open **Settings → Google Calendar → Connect** — Chrome
-shows the Google consent screen once, then the 📅 Today card fills in.
+Back in **Settings → Google Calendar**: paste the client id and secret, click
+**Save credentials**, then **Connect Google Calendar**. A Google sign-in window
+opens; approve the calendar scope and the 📅 Today card fills in.
+
+Google can take a few minutes to propagate a newly created client. If the first
+attempt fails, wait and retry before changing anything.
 
 ## Troubleshooting
 
-- **"bad client id" / "invalid OAuth2 Client ID"** — the extension id Chrome is
-  running doesn't match the id registered on the OAuth client. Rebuild after
-  setting `VITE_CRX_PUBLIC_KEY`, reload, re-check the id in
-  `chrome://extensions` against the client registration.
-- **`getAuthToken` errors immediately** — the Chrome *profile* must be signed
-  in to Google (Chrome settings → sync/sign-in). Chromium builds without
-  Google API keys can't use `chrome.identity.getAuthToken` at all.
-- **Consent screen loops / "access blocked"** — your account isn't listed as a
-  test user while the consent screen is in Testing mode.
-- **Feature invisible** — either env var blank at build time removes `oauth2`
-  from the manifest; the UI then shows setup hints instead of a Connect button.
+- **"Access blocked: … request is invalid" (Error 400: `invalid_request`)** —
+  the redirect URI registered on the client doesn't match this install's.
+  Re-copy it from Settings; it has to match character for character.
+- **`access_denied`** — your account isn't in the consent screen's Test users
+  (step 3), or you dismissed the consent window.
+- **"Google rejected the token request … `invalid_client`"** — the id and secret
+  aren't from the same client, or one picked up a stray space. Clear the
+  credentials in Settings and paste them again.
+- **"Reconnect Google Calendar in Settings."** — the refresh token is gone (you
+  removed the app from your Google account, or the project was disabled). Click
+  Connect again.
+- **A flagged or suspended project** — Google restricts OAuth on projects
+  carrying an enforcement notice, and sign-in then fails at the consent screen
+  even though the client is configured correctly. Check the banner in the Cloud
+  console. Because the client is yours, this can only ever affect your own
+  install.

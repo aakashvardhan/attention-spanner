@@ -8,18 +8,19 @@ import {
   setupAutomationAlarms,
   setupCalendarRefreshAlarm,
   setupGymReminderAlarm,
-  setupMeetingNotesAlarm,
+  setupGmailTriageAlarm,
   setupMonitorAlarms,
-  setupNotionFlushAlarm,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
 } from './alarms';
 import { refreshCalendar } from './calendar';
-import { refreshMeetingNotes } from './meetingNotes';
-import { flushQueue, handleTokenChanged } from './notion';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
+import {
+  ensureDailyGateDateForNavigation,
+  reconcileDailyBrainDump,
+} from './dailyBrainDump';
 import { gymCheckin, recomputeGymStreak } from './gym';
 import { recomputeWarmupStreak } from './warmup';
 import {
@@ -31,11 +32,14 @@ import { isMonitorNotification } from './monitor';
 import { recomputeStreak } from './streaks';
 import { pruneCompletedTasks, snoozeOpenTasks } from './tasks';
 import { maybeInjectTimePill } from './timePill';
+import { toggleCopilotOverlay } from './copilotOverlay';
 import { markPaperReadingByUrl } from './papers';
-import { maybeInterceptPdf } from './pdfIntercept';
+import { maybeInterceptPdf, maybeInterceptPdfResponse } from './pdfIntercept';
 import { openDashboard, syncWakeWordListener } from './offscreen';
+import { reconcileRecordings, refreshTimedtextTees, registerTimedtextTee } from './recordings';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
+import { maybeInjectXBookmarks } from './xBookmarks';
 import { initSync, onLocalChanged } from './sync';
 // Side-effect import: registers the Firestore transport + auth listener on every
 // service-worker instantiation (guarded by whether firebaseConfig is filled in).
@@ -75,17 +79,43 @@ async function openCaptureWindow(): Promise<void> {
   });
 }
 
+/**
+ * Re-inject the content scripts into tabs that are already open. A reload or
+ * update orphans every running instance, and a tab the user is simply sitting
+ * on never fires onUpdated again — so without this, tracking stays dead until
+ * they happen to navigate. The injectors self-filter by URL, and the in-page
+ * guards evict only orphans, so a live script is left running untouched.
+ */
+async function reinjectIntoOpenTabs(): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  await Promise.all([
+    ...tabs.flatMap((tab) =>
+      tab.id !== undefined && tab.url
+        ? [
+            maybeInjectTracker(tab.id, tab.url),
+            maybeInjectVideoTracker(tab.id, tab.url),
+            maybeInjectTimePill(tab.id, tab.url),
+            maybeInjectXBookmarks(tab.id, tab.url),
+          ]
+        : [],
+    ),
+    // The MAIN-world tee cannot self-evict (no chrome.runtime there), so its
+    // orphans have to be unwound from this side.
+    refreshTimedtextTees(),
+  ]);
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   void (async () => {
     await migrate();
     await setupRefreshAlarm();
     await setupTaskReminderAlarm();
     await setupGymReminderAlarm();
-    await setupNotionFlushAlarm();
     await setupCalendarRefreshAlarm();
-    await setupMeetingNotesAlarm();
     await setupMonitorAlarms();
+    await setupGmailTriageAlarm();
     await setupAutomationAlarms();
+    await reconcileDailyBrainDump({ redirectTabs: true, restoreCompletedRedirects: true });
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -100,9 +130,12 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ['page', 'link'],
     });
     await refreshFeeds();
+    // This reload just orphaned every content script already running
+    await reinjectIntoOpenTabs();
     // Resume cloud sync if signed in (inert until a transport is registered)
     await initSync();
     await syncWakeWordListener();
+    await registerTimedtextTee();
   })();
 });
 
@@ -118,15 +151,25 @@ chrome.runtime.onStartup.addListener(() => {
   void recomputeStreak();
   void recomputeGymStreak();
   void recomputeWarmupStreak();
+  // MV3 alarms normally survive a restart, but nothing else re-creates this
+  // one if it is ever lost — and losing it silently stops all feed refreshes.
+  void setupRefreshAlarm();
   // Re-anchor the daily reminders to the wall clock (bounds DST drift)
   void setupGymReminderAlarm();
   void setupMonitorAlarms();
+  void setupGmailTriageAlarm();
   void setupAutomationAlarms();
-  void reconcileFocusOnStartup();
-  // Drain Notion pushes left queued when the previous SW instance died
-  void flushQueue();
+  void (async () => {
+    await reconcileDailyBrainDump({ redirectTabs: true, restoreCompletedRedirects: true });
+    await reconcileFocusOnStartup();
+  })();
+  // A recording in flight died with the browser; settle whatever it transcribed
+  void reconcileRecordings();
+  // Caption capture depends on the tee being present before the player boots
+  void registerTimedtextTee();
+  // Restored session tabs come back without their content scripts
+  void reinjectIntoOpenTabs();
   void refreshCalendar();
-  void refreshMeetingNotes();
   // Resume cloud sync if signed in (inert until a transport is registered)
   void initSync();
   void syncWakeWordListener();
@@ -143,9 +186,28 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) =>
 // (agent runs, automations). Pages/offscreen keep the runtime path.
 setLocalDispatcher((msg) => dispatch(msg, {} as chrome.runtime.MessageSender));
 
-chrome.commands.onCommand.addListener((command) => {
+// Clicking the toolbar icon opens the side panel. This is a stored preference
+// rather than a manifest field, so it has to be re-asserted from the worker;
+// top-level (not onInstalled) so a profile that predates the change picks it up
+// on the next wake too.
+void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
+  console.error('[sidePanel] could not open on action click', error);
+});
+
+chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'quick-capture-task') {
     void openCaptureWindow();
+  } else if (command === 'toggle-copilot') {
+    // sidePanel.open needs a user gesture and a commands handler counts as one,
+    // but only while the call stays on this synchronous path — awaiting a tab
+    // lookup first would spend the gesture and throw.
+    if (tab?.id !== undefined) {
+      void chrome.sidePanel.open({ tabId: tab.id }).catch((error) => {
+        console.error('[commands] could not open the side panel', error);
+      });
+    }
+  } else if (command === 'toggle-overlay') {
+    if (tab?.id !== undefined) void toggleCopilotOverlay(tab.id, tab.url ?? '');
   }
 });
 
@@ -201,16 +263,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (oldSettings.monitorEveningTime !== newSettings.monitorEveningTime) {
       void setupMonitorAlarms(newSettings.monitorEveningTime);
     }
-    // A re-pasted token lifts the 401 pause and drains the queue immediately
-    if (oldSettings.notionToken !== newSettings.notionToken && newSettings.notionToken) {
-      void handleTokenChanged();
-    }
-    // Picking a meeting-notes database populates the card immediately
-    if (
-      oldSettings.notionMeetingNotesDbId !== newSettings.notionMeetingNotesDbId &&
-      newSettings.notionMeetingNotesDbId
-    ) {
-      void refreshMeetingNotes(true);
+    if (oldSettings.gmailTriageTime !== newSettings.gmailTriageTime) {
+      void setupGmailTriageAlarm(newSettings.gmailTriageTime);
     }
     // Arrays need a structural compare, unlike the scalar settings above
     if (
@@ -232,11 +286,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // PDF navigations bounce into the in-extension reader (unless bypassed).
   // Checked first so the trackers below never run against a soon-gone page.
   if (changeInfo.url) {
+    if (changeInfo.url.startsWith('http://') || changeInfo.url.startsWith('https://')) {
+      void ensureDailyGateDateForNavigation();
+    }
     void maybeInterceptPdf(tabId, changeInfo.url);
   }
   if (changeInfo.status === 'complete' && tab.url) {
     void maybeInjectTracker(tabId, tab.url);
     void maybeInjectTimePill(tabId, tab.url);
+    void maybeInjectXBookmarks(tabId, tab.url);
     // URL-only match — works even in PDF viewers our content scripts can't enter
     void markPaperReadingByUrl(tab.url);
   }
@@ -245,8 +303,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const navUrl = changeInfo.url ?? (changeInfo.status === 'complete' ? tab.url : undefined);
   if (navUrl) {
     void maybeInjectVideoTracker(tabId, navUrl);
+    // X is an SPA; navigating to Bookmarks may not produce a completed load.
+    void maybeInjectXBookmarks(tabId, navUrl);
   }
 });
+
+// Every service-worker instance reasserts the persistent redirect and the
+// session unlock. onStartup does not fire for ordinary MV3 worker restarts.
+void reconcileDailyBrainDump();
+
+// PDFs served from an extensionless URL (allenai.org/papers/…) look like an
+// ordinary page until the response headers arrive; this is the only way to see
+// them before Chrome's own viewer takes the tab. Observation only — no blocking.
+chrome.webRequest.onHeadersReceived.addListener(
+  (details) => {
+    void maybeInterceptPdfResponse(details);
+  },
+  { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] },
+  ['responseHeaders'],
+);
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   void handleTabRemoved(tabId);
@@ -258,7 +333,10 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
     if (buttonIndex === 0) {
       void snoozeOpenTasks(60 * 60 * 1000);
     } else {
-      void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/popup/index.html') });
+      // The side panel would be the closer match, but sidePanel.open needs a
+      // user gesture that a notification callback does not supply — the
+      // dashboard's task card is the surface that opens reliably from here.
+      void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
     }
     return;
   }
@@ -287,7 +365,7 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (notificationId === NOTIFICATION_IDS.taskDigest) {
     chrome.notifications.clear(notificationId);
-    void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/popup/index.html') });
+    void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
     return;
   }
   if (isNudgeNotification(notificationId)) {

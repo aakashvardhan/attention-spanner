@@ -50,9 +50,31 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
-/** Same ID scheme as the legacy extension so readItems history carries over */
+function fnv1a(input: string, basis: number): number {
+  let hash = basis;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * The legacy scheme was `btoa(encodeURIComponent(link + title)).slice(0, 32)`.
+ * Those 32 base64 characters encode 24 bytes, and `https%3A%2F%2F` plus ten
+ * characters of hostname used all of them — so every article on a site shared
+ * one id, and opening one marked the whole site read. Two FNV-1a passes over
+ * the fields in opposite orders give 64 bits with no truncation, and unlike
+ * btoa they don't throw on titles outside Latin-1.
+ */
 export function generateItemId(link: string, title: string): string {
-  return btoa(encodeURIComponent(link + title)).slice(0, 32);
+  const hex = (n: number) => n.toString(16).padStart(8, '0');
+  // NUL separator: a title can hold any character, so a delimiter that could
+  // appear in either field would let ("ab", "c") and ("a", "bc") collide.
+  return (
+    hex(fnv1a(`${link}\u0000${title}`, 0x811c9dc5)) +
+    hex(fnv1a(`${title}\u0000${link}`, 0x9dc5811c))
+  );
 }
 
 function toIsoDate(raw: string): string {
@@ -150,13 +172,22 @@ async function fetchFeedDirect(feedUrl: string): Promise<FeedItem[]> {
   return parseFeedXml(await response.text(), feedUrl);
 }
 
-/** One failing feed must not sink a whole refresh — log it and yield nothing. */
-export async function fetchFeed(feedUrl: string): Promise<FeedItem[]> {
+export type FetchFeedResult =
+  | { ok: true; items: FeedItem[] }
+  | { ok: false; error: string };
+
+/**
+ * One failing feed must not sink a whole refresh. The result is a discriminated
+ * union rather than a bare array because "fetch failed" and "feed is empty" have
+ * to stay distinguishable: a refresh where every feed failed must not overwrite
+ * the cache, and must not report success.
+ */
+export async function fetchFeed(feedUrl: string): Promise<FetchFeedResult> {
   try {
-    return await fetchFeedDirect(feedUrl);
+    return { ok: true, items: await fetchFeedDirect(feedUrl) };
   } catch (error) {
     console.warn(`[feeds] Fetch failed for ${feedUrl}:`, error);
-    return [];
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 

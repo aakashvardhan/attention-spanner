@@ -101,8 +101,8 @@ event up on its normal 15-minute refresh, no extension changes involved. It
 needs a server-side OAuth refresh token for **the same Google account** the
 extension's calendar uses:
 
-1. Reuse the OAuth client from docs/google-calendar-setup.md or create a
-   **Web application** OAuth client in Google Cloud console; add
+1. Reuse the Web application OAuth client from docs/google-calendar-setup.md or
+   create another one in Google Cloud console; either way add
    `https://developers.google.com/oauthplayground` as a redirect URI.
 2. [OAuth playground](https://developers.google.com/oauthplayground) → gear
    icon → "Use your own OAuth credentials" → paste client id/secret →

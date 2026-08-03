@@ -1,21 +1,17 @@
-import {
-  ALARMS,
-  CALENDAR_REFRESH_MINUTES,
-  MEETING_NOTES_REFRESH_MINUTES,
-} from '../shared/constants';
+import { ALARMS, CALENDAR_REFRESH_MINUTES } from '../shared/constants';
 import { getLocal, getSettings } from '../shared/storage';
 import { nextDailyOccurrence } from '../shared/week';
 import { runAutomation } from './automations';
 import { refreshCalendar } from './calendar';
-import { refreshMeetingNotes } from './meetingNotes';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
+import { fireScheduledTriage } from './gmailTriage';
 import { fireGymReminder } from './gym';
 import { fireCalendarCheck, fireEveningCheck } from './monitor';
-import { flushQueue, sweepUnpushedNotes } from './notion';
 import { fireNudge, isNudgeAlarm } from './nudges';
 import { finishSprint } from './streaks';
 import { showTaskDigest } from './tasks';
+import { handleDailyBrainDumpMidnight } from './dailyBrainDump';
 
 export async function setupRefreshAlarm(intervalMinutes?: number): Promise<void> {
   await chrome.alarms.clear(ALARMS.refreshFeeds);
@@ -41,13 +37,6 @@ export async function setupGymReminderAlarm(time?: string): Promise<void> {
   });
 }
 
-export async function setupNotionFlushAlarm(): Promise<void> {
-  await chrome.alarms.clear(ALARMS.notionFlush);
-  // Created unconditionally — the handler no-ops in microseconds when
-  // the queue is empty or Notion is unconfigured
-  chrome.alarms.create(ALARMS.notionFlush, { periodInMinutes: 10 });
-}
-
 export async function setupMonitorAlarms(eveningTime?: string): Promise<void> {
   await chrome.alarms.clear(ALARMS.monitorEvening);
   await chrome.alarms.clear(ALARMS.monitorCalendar);
@@ -60,6 +49,17 @@ export async function setupMonitorAlarms(eveningTime?: string): Promise<void> {
   }
   // Created unconditionally — the handler no-ops when calendar is disconnected
   chrome.alarms.create(ALARMS.monitorCalendar, { periodInMinutes: 5 });
+}
+
+export async function setupGmailTriageAlarm(time?: string): Promise<void> {
+  await chrome.alarms.clear(ALARMS.gmailTriage);
+  const hhmm = time ?? (await getSettings()).gmailTriageTime;
+  if (hhmm === '') return;
+  // Created even with no mailbox connected — the handler no-ops in that case
+  chrome.alarms.create(ALARMS.gmailTriage, {
+    when: nextDailyOccurrence(hhmm),
+    periodInMinutes: 24 * 60,
+  });
 }
 
 /** One alarm per enabled automation, named `automation|<id>` (nudge pattern) */
@@ -98,14 +98,6 @@ export async function setupCalendarRefreshAlarm(): Promise<void> {
   chrome.alarms.create(ALARMS.calendarRefresh, { periodInMinutes: CALENDAR_REFRESH_MINUTES });
 }
 
-export async function setupMeetingNotesAlarm(): Promise<void> {
-  await chrome.alarms.clear(ALARMS.meetingNotesRefresh);
-  // Created unconditionally — refreshMeetingNotes no-ops when unconfigured
-  chrome.alarms.create(ALARMS.meetingNotesRefresh, {
-    periodInMinutes: MEETING_NOTES_REFRESH_MINUTES,
-  });
-}
-
 export function handleAlarm(alarm: chrome.alarms.Alarm): void {
   if (isNudgeAlarm(alarm.name)) {
     void fireNudge(alarm.name);
@@ -135,21 +127,20 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
     case ALARMS.focusBadgeTick:
       void updateBadge();
       break;
-    case ALARMS.notionFlush:
-      void flushQueue();
-      void sweepUnpushedNotes();
+    case ALARMS.dailyBrainDumpMidnight:
+      void handleDailyBrainDumpMidnight();
       break;
     case ALARMS.calendarRefresh:
       void refreshCalendar();
-      break;
-    case ALARMS.meetingNotesRefresh:
-      void refreshMeetingNotes();
       break;
     case ALARMS.monitorEvening:
       void fireEveningCheck();
       break;
     case ALARMS.monitorCalendar:
       void fireCalendarCheck();
+      break;
+    case ALARMS.gmailTriage:
+      void fireScheduledTriage();
       break;
   }
 }

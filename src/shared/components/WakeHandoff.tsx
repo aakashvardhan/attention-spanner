@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { runAssistantTurn } from '../ai/assistant';
 import { newTurn } from '../ai/assistantTypes';
+import { getActiveTools } from '../ai/connector';
 import { geminiProvider } from '../ai/geminiProvider';
 import { nanoProvider } from '../ai/nanoProvider';
 import { speak } from '../ai/tts';
@@ -39,6 +40,7 @@ export function WakeHandoff() {
         const outcome = await runAssistantTurn(input, thread, {
           nano: nanoProvider,
           cloud: geminiProvider,
+          tools: await getActiveTools(), // only connected integrations
           cache: true,
         });
         await persistOutcome(outcome, say);

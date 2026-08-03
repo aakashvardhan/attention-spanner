@@ -1,99 +1,79 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createSttEngine, sttAvailability, type SttEngine } from '../ai/stt';
 import { sendMessage } from '../messages';
 
 /**
- * Push-to-talk speech input over webkitSpeechRecognition (Chrome's built-in,
- * server-backed STT — needs network and a one-time mic grant for the
- * extension origin, done from the options page). Hold the mic button:
- * pointerdown starts, pointerup stops and fires onFinal.
+ * Push-to-talk speech input. Hold the mic button: pointerdown starts,
+ * pointerup stops and fires onFinal.
+ *
+ * The engine underneath is chosen per browser (see ai/stt.ts) — Chrome's
+ * built-in recognizer where it exists, recorded-then-transcribed where it does
+ * not. This hook used to construct webkitSpeechRecognition directly, which
+ * meant the button silently failed to render in any browser without it.
+ *
+ * `cloud` is surfaced rather than hidden: with the fallback engine the audio
+ * leaves the machine, and a mic button that quietly starts uploading is not a
+ * thing to spring on someone.
  */
-
-/* SpeechRecognition isn't in TS's dom lib yet — minimal local typing */
-interface SpeechRecognitionLike {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((e: SpeechResultEventLike) => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-  abort(): void;
-}
-
-interface SpeechResultEventLike {
-  resultIndex: number;
-  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
-}
-
-function recognitionCtor(): (new () => SpeechRecognitionLike) | null {
-  const w = window as unknown as {
-    SpeechRecognition?: new () => SpeechRecognitionLike;
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
 
 export function useSpeechInput(handlers: {
   /** Final transcript when the user releases the button (non-empty) */
   onFinal: (text: string) => void;
-  /** Live interim transcript while holding */
+  /** Live interim transcript while holding. Cloud engine never calls it. */
   onInterim?: (text: string) => void;
+  /** Whether a Gemini key is set — the fallback engine cannot run without one */
+  hasGeminiKey?: boolean;
 }) {
-  const supported = recognitionCtor() !== null;
+  const { usable, cloud, reason } = useMemo(
+    () => sttAvailability(handlers.hasGeminiKey ?? false),
+    [handlers.hasGeminiKey],
+  );
   const [listening, setListening] = useState(false);
   const [denied, setDenied] = useState(false);
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
-  const finalRef = useRef('');
+  /** Set while the cloud engine is uploading — there is nothing to hear yet */
+  const [transcribing, setTranscribing] = useState(false);
+  const engineRef = useRef<SttEngine | null>(null);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
-  useEffect(() => () => recRef.current?.abort(), []);
+  useEffect(() => {
+    return () => {
+      engineRef.current?.abort();
+      engineRef.current = null;
+    };
+  }, []);
 
   const start = useCallback(() => {
-    const Ctor = recognitionCtor();
-    if (!Ctor || recRef.current) return;
-    const rec = new Ctor();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = navigator.language || 'en-US';
-    finalRef.current = '';
-
-    rec.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const result = e.results[i];
-        if (result.isFinal) finalRef.current += result[0].transcript;
-        else interim += result[0].transcript;
-      }
-      handlersRef.current.onInterim?.((finalRef.current + interim).trim());
-    };
-    rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setDenied(true);
-    };
-    rec.onend = () => {
-      recRef.current = null;
-      setListening(false);
-      // Fires on stop, abort, and unmount alike — release the wake-word mic
-      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: false }).catch(() => undefined);
-      const text = finalRef.current.trim();
-      if (text) handlersRef.current.onFinal(text);
-    };
-
-    try {
-      rec.start();
-      recRef.current = rec;
-      setListening(true);
-      // Pause the always-on "hey Jarvis" listener — two sessions conflict
-      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: true }).catch(() => undefined);
-    } catch {
-      // start() throws if a session is already active — ignore
-    }
-  }, []);
+    if (!usable || engineRef.current) return;
+    const engine = createSttEngine();
+    engineRef.current = engine;
+    setListening(true);
+    engine.start({
+      onInterim: (text) => handlersRef.current.onInterim?.(text),
+      onFinal: (text) => handlersRef.current.onFinal(text),
+      onError: (kind) => {
+        if (kind === 'denied') setDenied(true);
+      },
+      onEnd: () => {
+        engineRef.current = null;
+        setListening(false);
+        setTranscribing(false);
+        // Fires on stop, abort, and unmount alike — release the wake-word mic
+        void sendMessage({ type: 'WAKE_MIC_BUSY', busy: false }).catch(() => undefined);
+      },
+    });
+    // Pause the always-on "hey Jarvis" listener — two sessions conflict
+    void sendMessage({ type: 'WAKE_MIC_BUSY', busy: true }).catch(() => undefined);
+  }, [usable]);
 
   const stop = useCallback(() => {
-    recRef.current?.stop();
-  }, []);
+    if (!engineRef.current) return;
+    // The cloud engine's work starts when the button is released, not while it
+    // is held; without this the UI looks idle through the whole upload.
+    if (cloud) setTranscribing(true);
+    setListening(false);
+    engineRef.current.stop();
+  }, [cloud]);
 
-  return { supported, listening, denied, start, stop };
+  return { supported: usable, cloud, reason, listening, transcribing, denied, start, stop };
 }

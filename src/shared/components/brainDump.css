@@ -191,7 +191,39 @@
   cursor: pointer;
 }
 
+/* Passcode gate */
+
+.bd-lock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bd-lock-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-family: inherit;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.bd-lock-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Notes history */
+
+.bd-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
 .bd-history {
   display: flex;
@@ -260,4 +292,97 @@
   color: var(--success);
   border-color: var(--success-border);
   cursor: default;
+}
+
+/* ---------- [[ link ]] autocomplete ----------
+   Typing `[[` offers what is already in the graph. This is what makes linking
+   usable: nobody recalls a paper title exactly, and a misspelled link silently
+   resolves to nothing at all. */
+
+.bd-field {
+  position: relative;
+}
+
+.bd-links {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  margin-top: 2px;
+  list-style: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.bd-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  /* Comfortably past the 24px minimum target. */
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bd-link:hover,
+.bd-link:focus-visible {
+  background: var(--bg-hover);
+}
+
+.bd-link-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The same shape language the graph uses, so a suggestion reads as the thing
+   it will link to. Duplicated rather than imported: graph.css belongs to the
+   graph page, and this component is mounted on the dashboard and side panel. */
+.bd-link .gr-glyph {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.bd-link .gr-glyph[data-kind='article'],
+.bd-link .gr-glyph[data-kind='video'] {
+  border-radius: 50%;
+}
+
+.bd-link .gr-glyph[data-kind='paper'] {
+  border-radius: 2px;
+}
+
+.bd-link .gr-glyph[data-kind='bookmark'] {
+  transform: rotate(45deg);
+}
+
+.bd-link .gr-glyph[data-kind='recording'] {
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--text-muted);
+}
+
+.bd-link .gr-glyph[data-kind='note'] {
+  width: 7px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.bd-link .gr-glyph[data-kind='highlight'] {
+  width: 12px;
+  height: 5px;
+  border-radius: 2px;
 }

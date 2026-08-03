@@ -1,0 +1,347 @@
+/* Everything GraphCanvas draws: the canvas it strokes edges onto, the nodes
+   layered over it, their labels, and the view controls.
+
+   Owned by the component rather than the graph page, so any surface that mounts
+   GraphCanvas gets a styled map. These rules used to live in graph.css and were
+   inherited only by accident of being on that page; anywhere else the component
+   rendered as a default 300x150 canvas with a bullet list of plain buttons
+   spilling out below the box. The graph page is currently the only caller. */
+
+.gr-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.gr-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gr-nodes {
+  position: absolute;
+  inset: 0;
+  list-style: none;
+  /* Empty background is the pan surface. */
+  cursor: grab;
+}
+
+.gr-nodes:active {
+  cursor: grabbing;
+}
+
+/* The <li> is what the paint loop transforms — explicitly positioned rather
+   than relying on `transform` happening to establish a containing block. */
+.gr-nodes > li {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* A hovered or selected node has to rise above its *siblings*, and each node
+   is its own positioned <li>, so the z-index belongs there. */
+.gr-nodes > li:has(.gr-node:hover),
+.gr-nodes > li:has(.gr-node:focus-visible),
+.gr-nodes > li:has(.gr-node[data-selected='true']) {
+  z-index: 3;
+}
+
+/* ---------- View controls ----------
+   Bottom-right, inset past whatever chrome the page floats over that corner
+   (--gr-chrome-right is the inspector's width while one is open). Quiet: the
+   map is the content, and these exist only so a zoomed or dragged view is
+   never a dead end. */
+
+.gr-view-controls {
+  position: absolute;
+  right: calc(var(--gr-chrome-right, 0px) + var(--space-4));
+  bottom: var(--space-4);
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-sm);
+}
+
+.gr-view-btn {
+  min-width: 30px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gr-view-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ---------- Nodes ----------
+   Kind is encoded by SHAPE, never by hue: a node-link graph puts any two kinds
+   next to each other, and five distinguishable hues is more than colour can
+   carry accessibly. How recently and thoroughly a node was read rides the
+   --gr-heat-* ramp via data-level; that ramp is amber rather than the
+   dashboard's accent-derived --heat-*, because on a map --accent already means
+   "selected" and a paper finished last week came out the same colour as the
+   node the user had just clicked.
+   --accent is spent on selection and focus alone, so it is never ambiguous.
+
+   The button is the HIT TARGET and the ::before is the DISC. Keeping them
+   separate is what lets a 7px borrowed paper stay 7px while still clearing the
+   24px minimum: growing the button used to mean growing what was drawn, since
+   a border paints on the border box — a padded 14px ghost rendered at 34px,
+   larger than most real nodes, and 10px off the point every edge aimed at.
+
+   Shape lives on the disc too, so `scale` and `rotate` are the disc's alone and
+   hover can compose with them rather than overwrite them. */
+
+.gr-node {
+  /* The drawn size: the layout radius scaled by the view (see GraphCanvas's
+     View). Scaling the distances but not the discs is what turned a large
+     library into a pile — the fit shrank the gaps and left the nodes alone. */
+  --gr-d: calc(var(--gr-r) * 2 * var(--gr-zoom, 1));
+  --gr-hit: max(24px, var(--gr-d));
+  position: relative;
+  display: block;
+  width: var(--gr-hit);
+  height: var(--gr-hit);
+  /* Centres the hit target on the point its <li> was transformed to */
+  margin: calc(var(--gr-hit) * -0.5) 0 0 calc(var(--gr-hit) * -0.5);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+
+/* What is actually drawn. Centred in the hit target rather than filling it. */
+.gr-node::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--gr-d);
+  height: var(--gr-d);
+  /* Stronger than --heat-cell-border: a calendar cell sits on a white panel,
+     a node sits on the page wash, where --gr-heat-0 would otherwise vanish. */
+  border: 1px solid var(--border);
+  background: var(--gr-heat-1);
+  box-shadow: var(--shadow-card);
+  /* Per-kind shape, composed with the hover bump below. Defaults are identity,
+     so a kind that says nothing gets a plain disc at rest size. */
+  scale: calc(var(--gr-sx, 1) * var(--gr-k, 1)) calc(var(--gr-sy, 1) * var(--gr-k, 1));
+  rotate: var(--gr-rot, 0deg);
+  transition:
+    box-shadow var(--transition-fast) var(--ease-out),
+    scale var(--transition-fast) var(--ease-out);
+}
+
+.gr-node[data-level='0']::before { background: var(--gr-heat-0); }
+.gr-node[data-level='1']::before { background: var(--gr-heat-1); }
+.gr-node[data-level='2']::before { background: var(--gr-heat-2); }
+.gr-node[data-level='3']::before { background: var(--gr-heat-3); }
+.gr-node[data-level='4']::before { background: var(--gr-heat-4); }
+
+.gr-node[data-kind='article']::before,
+.gr-node[data-kind='video']::before {
+  border-radius: 50%;
+}
+
+.gr-node[data-kind='paper']::before {
+  border-radius: var(--radius-sm);
+}
+
+/* The diamond turns, the label does not — which is the whole reason this is a
+   custom property on the disc rather than a `rotate` on the button. Rotating
+   the button swung the absolutely-positioned label 45° around the node centre
+   with it, so bookmark titles landed on a diagonal ~20px off the box
+   `placeLabels` had reserved directly below. */
+.gr-node[data-kind='bookmark'] {
+  --gr-rot: 45deg;
+}
+
+.gr-node[data-kind='recording']::before {
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border-width: 3px;
+  border-color: var(--gr-heat-3);
+}
+
+.gr-node[data-kind='note'] {
+  /* Taller than wide: it reads as a page rather than another dot. */
+  --gr-sx: 0.78;
+  --gr-sy: 1.15;
+}
+
+.gr-node[data-kind='note']::before {
+  border-radius: 4px;
+}
+
+.gr-node[data-kind='highlight'] {
+  /* A marker stroke — wide and low. */
+  --gr-sx: 1.3;
+  --gr-sy: 0.5;
+}
+
+.gr-node[data-kind='highlight']::before {
+  border-radius: 3px;
+}
+
+/* A paper you do not have. Dashed and quiet — these are context around your
+   library, and they must never compete with the things you actually read. The
+   disc stays at GRAPH_EXTERNAL_RADIUS; the button around it is what carries the
+   click target. */
+.gr-node[data-kind='external']::before {
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px dashed var(--border);
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+.gr-node[data-kind='external']:hover::before,
+.gr-node[data-kind='external']:focus-visible::before,
+.gr-node[data-kind='external'][data-selected='true']::before {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+/* Several of your own papers converge on this one, so it has stopped being
+   context and become a recommendation. Still hollow — it is still not yours —
+   but solid-edged and full strength, because a suggestion whispered at 55%
+   opacity is one nobody takes. */
+.gr-node[data-kind='external'][data-promoted='true']::before {
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--accent-border);
+  opacity: 1;
+}
+
+/* A play notch, so a video reads as a video without a second colour. Sits over
+   the disc because ::after paints after ::before. */
+.gr-node[data-kind='video']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--bg-surface);
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  translate: 1px 0;
+}
+
+/* Multiplies whatever shape the kind asked for instead of replacing it —
+   hovering a note or a highlight used to flatten it back to a plain square,
+   at exactly the moment the user was pointing at it to identify it. */
+.gr-node:hover {
+  --gr-k: 1.12;
+}
+
+.gr-node:hover::before {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* On the button, so the ring is axis-aligned and clears the disc at every
+   size — a rotated diamond used to get a rotated outline. */
+.gr-node[data-selected='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-radius: var(--radius-sm);
+}
+
+.gr-node[data-selected='true']::before {
+  box-shadow: var(--shadow-accent);
+}
+
+.gr-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+/* Selecting a node dims everything that is not its neighbour, so a cluster
+   reads at a glance rather than needing to be traced. The dim flag lands on
+   the <li> because that is what the paint loop already walks. */
+.gr-nodes > li[data-dim='true'] .gr-node,
+.gr-node[data-faded='true'] {
+  opacity: 0.25;
+}
+
+/* Anchored to the DISC, not the button: the hit target is at least 24px even
+   when the disc is 14px, and `placeLabels` reserves its collision box at
+   `node.y * k + node.r * k + 4` — so the label has to sit there rather than
+   under whatever the button happens to measure. Font size deliberately does
+   *not* scale with the view: a title at 30% is unreadable, and the answer to a
+   crowded map is to zoom in, not to shrink the words. */
+.gr-node-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% calc(var(--gr-d) / 2 + 4px);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  /* 28ch, not 18: a truncated title is only marginally better than none, and
+     "diffusion models pa…" identifies nothing. The collision pass decides
+     whether a label fits, so a wider one costs visibility, not legibility. */
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Visibility is decided in JS (see placeLabels), which sets the flag to
+   'false' only for labels that won their space. Everything else — not a
+   candidate, not yet placed, or culled for colliding — simply never gets the
+   flag and stays hidden. One rule, so there is no specificity fight. */
+.gr-node[data-label-hidden='false'] .gr-node-label {
+  opacity: 1;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+
+/* Pointing at something always beats the culling — this is the one label the
+   user actually asked for, so it may sit over its neighbours. Same
+   specificity as the rule above and later in source order, so it wins. */
+.gr-node:hover .gr-node-label,
+.gr-node:focus-visible .gr-node-label,
+.gr-node[data-selected='true'] .gr-node-label {
+  opacity: 1;
+  /* Legible even when it lands on top of a node or another label */
+  background: var(--bg-page);
+  box-shadow: 0 0 0 3px var(--bg-page);
+  border-radius: 2px;
+}
+
+/* The simulation already jumps to its settled positions under this setting
+   (see useGraphLayout); this is only the incidental UI motion. Lives with the
+   component so the reader's small map honours it too. */
+@media (prefers-reduced-motion: reduce) {
+  .gr-node,
+  .gr-node::before,
+  .gr-node-label,
+  .gr-node[data-label-hidden='false'] .gr-node-label {
+    transition: none;
+  }
+
+  .gr-node:hover {
+    --gr-k: 1;
+  }
+}

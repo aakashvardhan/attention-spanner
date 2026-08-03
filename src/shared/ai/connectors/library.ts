@@ -1,7 +1,10 @@
-import { articleReaderUrl } from '../../pdf';
-import { getLocal } from '../../storage';
-import { formatHit, searchLibrary, type LibraryDoc } from '../library';
-import type { Connector } from './base';
+import { notesLocked } from '../../notesLock';
+import { importPrivateKey, open } from '../../notesVault';
+import { articleReaderUrl, recordingReaderUrl } from '../../pdf';
+import { transcriptText } from '../../recordings';
+import { getLocal, getSession } from '../../storage';
+import { formatHit, searchLibrary, type LibraryDoc, type LibraryHit } from '../library';
+import type { Connector, SourceRef } from './base';
 
 /** How many hits a search returns, and how much of each is quoted back. */
 const MAX_HITS = 5;
@@ -14,11 +17,12 @@ const HIT_CHARS = 240;
  * a few milliseconds of work.
  */
 export async function gatherLibrary(): Promise<LibraryDoc[]> {
-  const { annotations, notes, papers, meetingNotes } = await getLocal(
+  const { annotations, notes, papers, recordings, notesVault } = await getLocal(
     'annotations',
     'notes',
     'papers',
-    'meetingNotes',
+    'recordings',
+    'notesVault',
   );
   const docs: LibraryDoc[] = [];
 
@@ -35,8 +39,31 @@ export async function gatherLibrary(): Promise<LibraryDoc[]> {
     });
   }
 
-  for (const n of notes) {
-    const text = [n.rawText, ...n.bullets].join(' ');
+  // A locked brain dump stays out of the assistant's reach too — otherwise the
+  // passcode only hides notes from the eye, not from "what did I write about X".
+  // While locked there is nothing to hide anyway: these are ciphertext.
+  const { notesPrivateKey } = await getSession('notesPrivateKey');
+  const hideNotes = notesLocked(notesVault !== null, notesPrivateKey !== '');
+  const noteKey = hideNotes || !notesPrivateKey ? null : await importPrivateKey(notesPrivateKey);
+
+  for (const n of hideNotes ? [] : notes) {
+    let text: string;
+    if (n.encRaw === undefined) {
+      text = [n.rawText, ...n.bullets].join(' ');
+    } else if (noteKey) {
+      try {
+        text = [
+          await open(n.encRaw, noteKey, n.id),
+          n.encBullets ? (JSON.parse(await open(n.encBullets, noteKey, n.id)) as string[]) : [],
+        ]
+          .flat()
+          .join(' ');
+      } catch {
+        continue; // sealed by a vault that no longer exists
+      }
+    } else {
+      continue;
+    }
     if (!text.trim()) continue;
     docs.push({
       id: n.id,
@@ -59,14 +86,19 @@ export async function gatherLibrary(): Promise<LibraryDoc[]> {
     });
   }
 
-  for (const m of meetingNotes.notes) {
+  // What was said, alongside what was written. The summary leads because it is
+  // the part phrased for retrieval; the transcript behind it is what actually
+  // answers "did the professor mention X".
+  for (const r of recordings) {
+    const text = [r.summary, ...r.actionItems, transcriptText(r)].filter(Boolean).join(' ');
+    if (!text.trim()) continue;
     docs.push({
-      id: m.id,
-      kind: 'meeting',
-      title: m.title,
-      text: m.blocks.map((b) => ('text' in b ? b.text : '')).join(' '),
-      url: m.url,
-      at: m.dateMs,
+      id: r.id,
+      kind: 'recording',
+      title: r.title,
+      text,
+      url: recordingReaderUrl(r.id),
+      at: r.startedAt,
     });
   }
 
@@ -79,6 +111,22 @@ export async function searchLibraryText(query: string, limit = MAX_HITS): Promis
   return hits.map((h) => formatHit(h, HIT_CHARS)).join('\n');
 }
 
+/**
+ * A hit as a citable source. The library already carries everything a citation
+ * needs — id, kind, title, url — so this is handing over what the search found
+ * rather than reconstructing it from the formatted text, which is exactly what
+ * keeps a cited source traceable to something real.
+ */
+export function hitToSource(hit: LibraryHit): SourceRef {
+  return {
+    id: '',
+    kind: hit.kind,
+    title: hit.title,
+    url: hit.url,
+    snippet: hit.text.replace(/\s+/g, ' ').trim().slice(0, HIT_CHARS),
+  };
+}
+
 export const libraryConnector: Connector = {
   id: 'library',
   label: 'Library',
@@ -86,8 +134,9 @@ export const libraryConnector: Connector = {
   tools: [
     {
       name: 'search_library',
+      loop: 'auto',
       description:
-        'Search what the user has read and written — highlights and notes from articles and papers, brain dumps, and meeting notes. Use for "what did I highlight about X", "what have I read on X", "find my note about X".',
+        'Search what the user has read, written, and recorded — highlights and notes from articles and papers, brain dumps, and transcripts of recorded lectures and meetings. Use for "what did I highlight about X", "what have I read on X", "find my note about X", "what was said about X in my lectures".',
       params: {
         type: 'object',
         required: ['query'],
@@ -107,8 +156,13 @@ export const libraryConnector: Connector = {
       },
       summary: (p) => `Search the library for “${p.query as string}”`,
       run: async (p) => {
-        const found = await searchLibraryText(p.query as string);
-        return found || `Nothing in your library matches “${p.query as string}”.`;
+        const query = p.query as string;
+        const hits = searchLibrary(await gatherLibrary(), query, MAX_HITS);
+        if (hits.length === 0) return `Nothing in your library matches “${query}”.`;
+        return {
+          text: hits.map((h) => formatHit(h, HIT_CHARS)).join('\n'),
+          sources: hits.map(hitToSource),
+        };
       },
     },
   ],

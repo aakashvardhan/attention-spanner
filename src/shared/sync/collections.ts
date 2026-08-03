@@ -23,9 +23,41 @@ import {
  *   feeds (doc: meta/feeds)      ← feed url list, set-union
  *   gamification (doc: meta/gamification) ← merged in merge.ts::mergeGamification
  *
- * Not synced (v1): settings (no timestamp yet + holds secrets), notion queue/
- * status, cachedItems/cacheTimestamp (refetchable), readItems, the `sync`
- * control state, and all of SessionSchema.
+ * Not synced (v1): settings (no timestamp yet + holds secrets),
+ * cachedItems/cacheTimestamp (refetchable), readItems, the `sync`
+ * control state, `notesVault`, `recordings`, `graphNodes`, `gmail`, the four
+ * assistant keys (`assistantMemory`, `assistantSkills`, `assistantAutomations`,
+ * `assistantJournal`, `assistantProfile`, `weekReviews`), and all of
+ * SessionSchema.
+ *
+ * `gmail` is excluded for the hardest reason on this list: it holds live OAuth
+ * refresh tokens for the user's mail. Syncing it would put standing access to
+ * an inbox in Firestore, where a single leaked document is a mailbox. The
+ * triage output rides along in the same key and is metadata about that mail,
+ * so it stays put too — reconnecting a mailbox on a second device is a
+ * thirty-second cost and the right one.
+ *
+ * `graphNodes` follows `recordings` out the door, and for a sharper reason: a
+ * recording's node carries its title, so syncing the index would quietly undo
+ * the decision below. LWW is also simply the wrong merge here — two devices
+ * prune `readingProgress` on different schedules, so their node sets are both
+ * correct and different, and last-write-wins would let the machine you used
+ * yesterday delete the graph built on the one you use for work. The cost,
+ * accepted: article and video history is per-device. Papers and bookmarks
+ * already sync, and their nodes are rebuilt by the reconcile on any device.
+ *
+ * `recordings` is excluded for the same reason `notesVault` is — not because it
+ * is hard, but because it should not leave the device. A transcript is a verbatim
+ * record of a lecture or a meeting, often of people who did not choose to be
+ * stored in anyone's Firestore. Transcribing sends audio to Gemini once and
+ * keeps the text locally; syncing would turn that into a permanent second copy.
+ *
+ * `notesVault` is excluded deliberately, not incidentally. Once brain-dump
+ * encryption is on, `notes` records carry AES-256-GCM ciphertext in their
+ * enc* fields and sync as opaque blobs — which is the point, since the cloud
+ * copy is then unreadable. Keeping the key device-local means a Firestore
+ * breach yields nothing to attack offline. The cost is that a second device,
+ * and the iOS port, will see the rows but cannot open them.
  */
 
 /** Id-addressable, user-authored collections merged with LWW + tombstones. */

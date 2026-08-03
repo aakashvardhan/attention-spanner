@@ -2,46 +2,29 @@ import {
   CALENDAR_API_BASE,
   CALENDAR_REFRESH_THROTTLE_MS,
 } from '../shared/constants';
-import {
-  CALENDAR_DEFAULTS,
-  mapApiEvent,
-  mapApiEvents,
-  type CalendarEvent,
-} from '../shared/calendar';
+import { mapApiEvent, mapApiEvents, type CalendarEvent } from '../shared/calendar';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
+import {
+  AUTH_ERROR_HINT,
+  NOT_CONNECTED_HINT,
+  connect,
+  disconnect,
+  getAccessToken,
+  markDisconnected,
+  refreshAccessToken,
+} from './calendarAuth';
 
 /**
- * Google Calendar IO — auth via chrome.identity.getAuthToken (Chrome mints and
- * silently refreshes tokens for the signed-in profile; no refresh-token
- * plumbing). Primary calendar only. State lives in LocalSchema.calendar;
+ * Google Calendar IO — primary calendar only. Auth (the user's own OAuth client,
+ * PKCE, token refresh) lives in calendarAuth.ts; state in LocalSchema.calendar;
  * pure mapping/agenda logic in src/shared/calendar.ts.
  */
 
-const AUTH_ERROR_HINT = 'Reconnect Google Calendar in Settings.';
-
-function isConfigured(): boolean {
-  return Boolean(chrome.runtime.getManifest().oauth2?.client_id);
-}
-
-async function getToken(interactive: boolean): Promise<string> {
-  const result = await chrome.identity.getAuthToken({ interactive });
-  const token = typeof result === 'string' ? result : result?.token;
-  if (!token) throw new Error('Google sign-in did not return a token');
-  return token;
-}
-
-async function markDisconnected(error: string): Promise<void> {
-  const { calendar } = await getLocal('calendar');
-  await setLocal({ calendar: { ...calendar, connected: false, lastError: error } });
-}
-
 /**
- * Authed fetch with the standard expiry policy: on 401/403 drop the cached
- * token, silently re-acquire, retry once; a second failure means access was
- * revoked → mark disconnected. A failed non-interactive token grab ("OAuth2
- * not granted or revoked") means the same thing — surface the reconnect hint,
- * never Chrome's raw error.
+ * Authed fetch with the standard expiry policy: on 401/403 force a refresh and
+ * retry once; a second failure means access was revoked → mark disconnected and
+ * surface the reconnect hint rather than Google's raw error.
  */
 async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> {
   const attempt = async (token: string) =>
@@ -50,21 +33,9 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> 
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
 
-  const silentToken = async (): Promise<string> => {
-    try {
-      return await getToken(false);
-    } catch {
-      await markDisconnected(AUTH_ERROR_HINT);
-      throw new Error(AUTH_ERROR_HINT);
-    }
-  };
-
-  let token = await silentToken();
-  let res = await attempt(token);
+  let res = await attempt(await getAccessToken());
   if (res.status === 401 || res.status === 403) {
-    await chrome.identity.removeCachedAuthToken({ token });
-    token = await silentToken();
-    res = await attempt(token);
+    res = await attempt(await refreshAccessToken());
   }
   if (res.status === 401 || res.status === 403) {
     await markDisconnected(AUTH_ERROR_HINT);
@@ -75,51 +46,21 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> 
 }
 
 export async function calSignIn(): Promise<{ ok: boolean; email?: string; error?: string }> {
-  if (!isConfigured()) {
-    return { ok: false, error: 'Calendar OAuth is not configured — see docs/google-calendar-setup.md.' };
-  }
-  try {
-    await getToken(true); // interactive consent
-    let email = '';
-    try {
-      const info = await chrome.identity.getProfileUserInfo({
-        accountStatus: 'ANY' as chrome.identity.AccountStatus,
-      });
-      email = info.email;
-    } catch {
-      // display-only; fine without it
-    }
-    const { calendar } = await getLocal('calendar');
-    await setLocal({ calendar: { ...calendar, connected: true, email, lastError: '' } });
-    await refreshCalendar(true);
-    return { ok: true, email };
-  } catch (error) {
-    return { ok: false, error: (error as Error).message ?? 'Google sign-in failed.' };
-  }
+  const result = await connect();
+  if (result.ok) await refreshCalendar(true);
+  return result;
 }
 
 export async function calSignOut(): Promise<{ ok: boolean }> {
-  try {
-    const token = await getToken(false);
-    // Best-effort: revoke the grant so re-connecting shows consent again
-    await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${encodeURIComponent(token)}`).catch(
-      () => undefined,
-    );
-    await chrome.identity.removeCachedAuthToken({ token });
-  } catch {
-    // No cached token — nothing to revoke
-  }
-  await setLocal({ calendar: { ...CALENDAR_DEFAULTS } });
-  return { ok: true };
+  return disconnect();
 }
 
 /**
  * Pull the [local today 00:00, +48h) window from the primary calendar.
- * No-ops when unconfigured/disconnected, and throttles unforced calls so a
- * newtab-open refresh can't hammer the API.
+ * No-ops while disconnected, and throttles unforced calls so a newtab-open
+ * refresh can't hammer the API.
  */
 export async function refreshCalendar(force = false): Promise<{ ok: boolean; error?: string }> {
-  if (!isConfigured()) return { ok: true };
   const { calendar } = await getLocal('calendar');
   if (!calendar.connected) return { ok: true };
   if (!force && Date.now() - calendar.fetchedAt < CALENDAR_REFRESH_THROTTLE_MS) {
@@ -167,7 +108,7 @@ export async function createFocusBlock(session: FocusSession): Promise<void> {
   try {
     const settings = await getSettings();
     const { calendar } = await getLocal('calendar');
-    if (!settings.focusCalendarBlockEnabled || !isConfigured() || !calendar.connected) return;
+    if (!settings.focusCalendarBlockEnabled || !calendar.connected) return;
 
     const json = await apiFetch('/calendars/primary/events', {
       method: 'POST',
@@ -237,9 +178,7 @@ export async function listEvents(
   endMs: number,
 ): Promise<{ ok: boolean; events?: CalendarEvent[]; error?: string }> {
   const { calendar } = await getLocal('calendar');
-  if (!isConfigured() || !calendar.connected) {
-    return { ok: false, error: 'Google Calendar is not connected — connect it in Settings.' };
-  }
+  if (!calendar.connected) return { ok: false, error: NOT_CONNECTED_HINT };
   await refreshCalendar();
 
   const { calendar: fresh } = await getLocal('calendar');
@@ -276,9 +215,7 @@ export async function createCalendarEvent(
   endMs: number,
 ): Promise<{ ok: boolean; event?: CalendarEvent; error?: string }> {
   const { calendar } = await getLocal('calendar');
-  if (!isConfigured() || !calendar.connected) {
-    return { ok: false, error: 'Google Calendar is not connected — connect it in Settings.' };
-  }
+  if (!calendar.connected) return { ok: false, error: NOT_CONNECTED_HINT };
   try {
     const json = await apiFetch('/calendars/primary/events', {
       method: 'POST',

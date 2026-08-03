@@ -5,6 +5,15 @@ import { findTextAnchor, makeTextAnchor, type TextAnchor } from '../../../shared
 import type { Annotation, AnnotationColor } from '../../../shared/types';
 import { isTextAnchored } from '../../../shared/types';
 import { SelectionMenu } from './SelectionMenu';
+import { Markdown } from '../../../shared/components/Markdown';
+
+/** Rich source text is common in generated meeting summaries and imported
+ * transcripts. Render it through the same safe Markdown + KaTeX pipeline as
+ * the reader's Ask panel, but keep ordinary prose as native text so precise
+ * text anchors and highlights remain unchanged. */
+function hasRichSyntax(text: string): boolean {
+  return /\$\$[\s\S]+?\$\$|\$(?!\s)[^\n$]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(text);
+}
 
 /**
  * The article half of the reader. Peer to PdfViewport, and much smaller: no
@@ -56,6 +65,7 @@ export function ArticleViewport({
   onMakeCard,
   onProgress,
   handleRef,
+  onTimestampClick,
 }: {
   blocks: ArticleBlock[];
   annotations: Annotation[];
@@ -66,6 +76,8 @@ export function ArticleViewport({
   /** Reading percent 0-100 and the block currently at the top */
   onProgress: (percent: number, blockIndex: number) => void;
   handleRef?: React.RefObject<ArticleViewportHandle | null>;
+  /** Recording readers can make their timestamp headings reopen the source. */
+  onTimestampClick?: (timestamp: string) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const blockRefs = useRef<(HTMLElement | null)[]>([]);
@@ -223,7 +235,17 @@ export function ArticleViewport({
               blockRefs.current[i] = node;
             }}
           >
-            {segmentBlock(block.text, hitsByBlock.get(i) ?? []).map((segment, s) =>
+            {onTimestampClick && block.kind === 'heading' && /^\d{1,2}:\d{2}(?::\d{2})?$/.test(block.text) ? (
+              <button
+                className="article-timestamp"
+                title={`Open source at ${block.text}`}
+                onClick={() => onTimestampClick(block.text)}
+              >
+                {block.text}
+              </button>
+            ) : hasRichSyntax(block.text) && (hitsByBlock.get(i) ?? []).length === 0 ? (
+              <div className="article-rich-text"><Markdown text={block.text} /></div>
+            ) : segmentBlock(block.text, hitsByBlock.get(i) ?? []).map((segment, s) =>
               segment.annotation ? (
                 <mark
                   key={s}

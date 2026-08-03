@@ -1,17 +1,45 @@
 import { useState } from 'react';
+import { hasCalendarCredentials } from '../../shared/calendar';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { formatRelativeDate } from '../../shared/format';
 import { sendMessage } from '../../shared/messages';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
+import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
 
+/**
+ * Google Calendar connection. The OAuth client is the user's own (nothing is
+ * baked into the build), so this section carries the setup too: the redirect
+ * URL to register, and the id/secret to paste back. See
+ * docs/google-calendar-setup.md.
+ */
 export function CalendarSection() {
   const [calendar] = useStorageValue('calendar');
   const [stored] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...stored };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientIdInput, setClientIdInput] = useState('');
+  const [clientSecretInput, setClientSecretInput] = useState('');
 
-  const configured = Boolean(chrome.runtime.getManifest().oauth2?.client_id);
+  const configured = hasCalendarCredentials(calendar);
+  // Whatever this install's id happens to be — that's the whole point of not
+  // pinning it to an OAuth client any more.
+  const redirectUri = chrome.identity.getRedirectURL();
+
+  const saveCredentials = async () => {
+    const clientId = clientIdInput.trim();
+    const clientSecret = clientSecretInput.trim();
+    if (!clientId || !clientSecret) return;
+    await setLocal({ calendar: { ...calendar, clientId, clientSecret, lastError: '' } });
+    setClientIdInput('');
+    setClientSecretInput('');
+    setError(null);
+  };
+
+  const clearCredentials = async () => {
+    await sendMessage({ type: 'CAL_SIGN_OUT' });
+    await setLocal({ calendar: { ...calendar, clientId: '', clientSecret: '', lastError: '' } });
+    setError(null);
+  };
 
   const connect = async () => {
     setBusy(true);
@@ -40,21 +68,58 @@ export function CalendarSection() {
       <h2>Google Calendar</h2>
 
       {!configured ? (
-        <p className="hint">
-          Not configured for this build. Follow <code>docs/google-calendar-setup.md</code> to
-          create a Google OAuth client and set <code>VITE_CRX_PUBLIC_KEY</code> /{' '}
-          <code>VITE_GCAL_CLIENT_ID</code> in <code>.env.local</code>, then rebuild.
-        </p>
-      ) : !calendar.connected ? (
         <>
           <p className="hint">
             Connect your primary Google Calendar to see today's agenda on the dashboard, let the
-            assistant answer "when am I free?" and create events, and optionally block focus time
-            on your calendar. Access stays on this device.
+            assistant answer "when am I free?" and create events, and optionally block focus time on
+            your calendar. It runs on an OAuth client you create in your own Google Cloud project —
+            follow <code>docs/google-calendar-setup.md</code>, which takes about ten minutes. Tokens
+            and credentials stay on this device.
           </p>
-          <button type="button" className="secondary-btn" disabled={busy} onClick={() => void connect()}>
-            {busy ? 'Connecting…' : 'Connect Google Calendar'}
-          </button>
+          <div className="setting-row">
+            <label>Authorized redirect URI</label>
+            <code>{redirectUri}</code>
+          </div>
+          <p className="hint">Register that exact URL on the client, then paste its id and secret:</p>
+          <form
+            className="add-feed-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveCredentials();
+            }}
+          >
+            <input
+              value={clientIdInput}
+              autoComplete="off"
+              placeholder="Client ID (…apps.googleusercontent.com)"
+              onChange={(e) => setClientIdInput(e.target.value)}
+            />
+            <input
+              type="password"
+              value={clientSecretInput}
+              autoComplete="off"
+              placeholder="Client secret"
+              onChange={(e) => setClientSecretInput(e.target.value)}
+            />
+            <button type="submit" disabled={!clientIdInput.trim() || !clientSecretInput.trim()}>
+              Save credentials
+            </button>
+          </form>
+        </>
+      ) : !calendar.connected ? (
+        <>
+          <p className="hint">
+            OAuth client saved. Sign in to Google to connect your primary calendar — the tokens stay
+            on this device.
+          </p>
+          <div className="button-group">
+            <button type="button" className="secondary-btn" disabled={busy} onClick={() => void connect()}>
+              {busy ? 'Connecting…' : 'Connect Google Calendar'}
+            </button>
+            <button type="button" className="secondary-btn" disabled={busy} onClick={() => void clearCredentials()}>
+              Clear credentials
+            </button>
+          </div>
         </>
       ) : (
         <>

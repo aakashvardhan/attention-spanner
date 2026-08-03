@@ -1,3 +1,4 @@
+import { dayStatsScore } from '../shared/activity';
 import { ALARMS, NOTIFICATION_IDS } from '../shared/constants';
 import { daysAgo, localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal, setSession } from '../shared/storage';
@@ -33,7 +34,18 @@ async function bumpToday(mutate: (day: DayStats) => void): Promise<void> {
   const yesterday = localDate(daysAgo(1));
 
   const day = streaks.daily[today] ?? emptyDay();
+  // Hourly ledger for the prime-time punchcard: whatever the mutation added to
+  // the day's activity score is credited to the hour it landed in. Derived from
+  // the one scorer the calendar already uses, so the two can never disagree.
+  // Minutes are floored at 15 (see dayActivityScore), so a long session credits
+  // the hour that crossed each boundary and idle hours earn nothing.
+  const scoreBefore = dayStatsScore(day);
   mutate(day);
+  const gained = dayStatsScore(day) - scoreBefore;
+  if (gained > 0) {
+    const hour = String(new Date().getHours());
+    day.hours = { ...(day.hours ?? {}), [hour]: (day.hours?.[hour] ?? 0) + gained };
+  }
   streaks.daily[today] = day;
 
   const qualifies = day.minutes >= settings.dailyGoalMinutes || day.sprints >= 1;

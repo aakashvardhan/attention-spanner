@@ -1,5 +1,7 @@
 import { calendarContextLines, type CalendarState } from '../calendar';
 import { localDate } from '../format';
+import { buildPrimeTime } from '../primeTime';
+import { isInProgress } from '../progress';
 import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, type LocalSchema } from '../storage';
 import type {
@@ -9,6 +11,7 @@ import type {
   FlashCard,
   Gamification,
   GymState,
+  JournalDay,
   Paper,
   Settings,
   SrsDayStats,
@@ -16,6 +19,7 @@ import type {
   Task,
 } from '../types';
 import { countInWeek, weekKey } from '../week';
+import { journalContextLines } from './journal';
 
 /**
  * Compact plain-text snapshot of the user's data for question-answering.
@@ -39,6 +43,8 @@ export interface AssistantContextData {
   settings: Settings;
   calendar: CalendarState;
   assistantMemory: AssistantFact[];
+  assistantProfile: { text: string; updatedAt: number };
+  assistantJournal: Record<string, JournalDay>;
   feedUnread: { count: number; topTitles: string[] };
 }
 
@@ -64,9 +70,16 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
   const today = localDate(now);
   const lines: string[] = [];
 
+  // First, so the char cap below can never cut it: this is who the user is,
+  // and every answer is wrong without it.
+  const profile = data.assistantProfile.text.trim();
+  if (profile) lines.push('About the user (their own words):', profile, '');
+
   lines.push(
     `Today is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.`,
   );
+
+  lines.push(...journalContextLines(data.assistantJournal, now));
 
   const open = data.tasks.filter((t) => t.completedAt === null);
   if (open.length === 0) {
@@ -86,6 +99,15 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
       `Today: ${Math.round(todayStats?.minutes ?? 0)} min read, ${todayStats?.sprints ?? 0} sprints, ` +
       `${todayStats?.tasksCompleted ?? 0} tasks completed. Freeze tokens: ${data.streaks.freezeTokens ?? 0}.`,
   );
+
+  // Omitted while the hourly ledger is still learning — a guessed peak window
+  // is worse than none, since briefings schedule against this
+  const prime = buildPrimeTime(data.streaks.daily, now);
+  if (prime.peak && prime.dead) {
+    lines.push(
+      `Prime time: their best window is ${prime.peak.label}; dead zone ${prime.dead.label}.`,
+    );
+  }
 
   const week = weekKey(now);
   lines.push(
@@ -114,7 +136,7 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
   }
 
   const inProgress = Object.values(data.readingProgress)
-    .filter((p) => p.completedAt === null && p.maxPercent >= 5)
+    .filter(isInProgress)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 3);
   if (inProgress.length > 0) {
@@ -168,6 +190,8 @@ export async function gatherDataContext(now = new Date()): Promise<string> {
     'readingProgress',
     'calendar',
     'assistantMemory',
+    'assistantProfile',
+    'assistantJournal',
     'cachedItems',
     'readItems',
   );

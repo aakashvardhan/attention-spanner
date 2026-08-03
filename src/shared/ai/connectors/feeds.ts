@@ -20,13 +20,17 @@ export const feedsConnector: Connector = {
     },
     {
       name: 'refresh_feeds',
+      // No confirm chip, but it refetches every feed and rewrites the item store.
+      loop: 'stage',
       description: 'Refresh the RSS feeds now.',
       params: NO_PARAMS,
       palette: { label: 'Refresh feeds', keywords: ['rss', 'refresh', 'reload'] },
       summary: () => 'Refresh the feeds',
       run: async () => {
         const res = await sendMessage({ type: 'REFRESH_FEEDS' });
-        return res.ok ? `Feeds refreshed — ${res.itemCount} items.` : 'Feed refresh failed.';
+        if (!res.ok) return 'Feed refresh failed — every feed was unreachable.';
+        const partial = res.failedCount > 0 ? ` (${res.failedCount} feed(s) failed)` : '';
+        return `Feeds refreshed — ${res.newCount} new, ${res.itemCount} total${partial}.`;
       },
     },
   ],

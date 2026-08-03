@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MAX_DUMP_CHARS, structureBrainDump, type StructuredDump } from '../ai/brainDump';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { sendMessage } from '../messages';
+import { useLinkAutocomplete } from './useLinkAutocomplete';
 import type { Task } from '../types';
 import './brainDump.css';
 
@@ -22,7 +23,22 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
   const [text, setText] = useState('');
   const [stage, setStage] = useState<Stage>({ name: 'idle' });
   const [error, setError] = useState<string | null>(null);
+  const [caret, setCaret] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const ai = useBrainDumpAI();
+  const links = useLinkAutocomplete(text, caret);
+
+  /** Accept a suggestion and put the caret after the completed link. */
+  const pickLink = (title: string) => {
+    const next = links.complete(title);
+    setText(next);
+    const at = next.indexOf(`[[${title}]] `) + `[[${title}]] `.length;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(at, at);
+      setCaret(at);
+    });
+  };
 
   const reset = () => {
     setStage({ name: 'idle' });
@@ -32,7 +48,7 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
   const saveRawOnly = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    await sendMessage({ type: 'SAVE_NOTE', rawText: trimmed, willStructure: false });
+    await sendMessage({ type: 'SAVE_NOTE', rawText: trimmed });
     setText('');
     setStage({ name: 'savedRaw' });
     setTimeout(() => {
@@ -47,7 +63,7 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
     setError(null);
 
     // Raw dump is persisted first — a closed window mid-inference loses nothing
-    const { note } = await sendMessage({ type: 'SAVE_NOTE', rawText: trimmed, willStructure: true });
+    const { note } = await sendMessage({ type: 'SAVE_NOTE', rawText: trimmed });
     setText('');
     setStage({ name: 'working', downloadProgress: null });
 
@@ -79,10 +95,13 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
 
   const confirm = async () => {
     if (stage.name !== 'review') return;
-    const taskIndexes = stage.checked.flatMap((on, i) => (on ? [i] : []));
+    // The page holds the plaintext; an encrypted note's stored copy is sealed
+    const tasks = stage.checked.flatMap((on, i) =>
+      on ? [{ index: i, text: stage.result.tasks[i] }] : [],
+    );
     const res =
-      taskIndexes.length > 0
-        ? await sendMessage({ type: 'CONFIRM_NOTE_TASKS', id: stage.noteId, taskIndexes })
+      tasks.length > 0
+        ? await sendMessage({ type: 'CONFIRM_NOTE_TASKS', id: stage.noteId, tasks })
         : { ok: true, addedCount: 0 };
     setStage({ name: 'confirmed', addedCount: res.addedCount });
     setTimeout(() => {
@@ -176,29 +195,67 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
     );
   }
 
-  const aiUsable = ai.availability === 'available' || ai.availability === 'downloadable';
+  const aiUsable = ai.engine !== 'none';
 
   return (
     <div className="bd">
-      <textarea
-        className={compact ? 'bd-input compact' : 'bd-input'}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && aiUsable) void structure();
-        }}
-        placeholder="Brain dump — type everything on your mind, unfiltered…"
-        maxLength={MAX_DUMP_CHARS}
-        rows={compact ? 4 : 6}
-      />
+      <div className="bd-field">
+        <textarea
+          ref={inputRef}
+          className={compact ? 'bd-input compact' : 'bd-input'}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setCaret(e.target.selectionStart);
+          }}
+          onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)}
+          onClick={(e) => setCaret(e.currentTarget.selectionStart)}
+          onKeyDown={(e) => {
+            // Enter accepts the top suggestion while the list is open, so a
+            // link can be finished without leaving the keyboard.
+            if (links.suggestions.length > 0) {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                links.dismiss();
+                return;
+              }
+              if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                pickLink(links.suggestions[0].title);
+                return;
+              }
+            }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && aiUsable) void structure();
+          }}
+          placeholder="Brain dump — type everything on your mind, unfiltered…"
+          maxLength={MAX_DUMP_CHARS}
+          rows={compact ? 4 : 6}
+        />
+        {links.suggestions.length > 0 && (
+          <ul className="bd-links" role="listbox" aria-label="Link to something">
+            {links.suggestions.map((s) => (
+              <li key={s.title}>
+                <button className="bd-link" onClick={() => pickLink(s.title)}>
+                  <span className="gr-glyph" data-kind={s.kind} aria-hidden="true" />
+                  <span className="bd-link-title">{s.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {error && <p className="bd-error">{error}</p>}
-      {ai.checked && ai.availability === 'unavailable' && (
+      {ai.checked && ai.engine === 'none' && (
         <p className="bd-hint">
-          On-device AI isn't available on this device — dumps are saved as plain notes.
+          {ai.availability === 'downloading'
+            ? "AI model is downloading — structuring unlocks when it's done."
+            : "On-device AI isn't available in this browser — add a cloud API key in Settings → Assistant, or keep saving plain notes."}
         </p>
       )}
-      {ai.availability === 'downloading' && (
-        <p className="bd-hint">AI model is downloading — structuring unlocks when it's done.</p>
+      {ai.engine === 'cloud' && (
+        <p className="bd-hint">
+          No on-device model here — structuring runs through your cloud API key.
+        </p>
       )}
       <div className="bd-actions">
         {aiUsable && (

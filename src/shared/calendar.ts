@@ -2,8 +2,8 @@ import { localDate } from './format';
 
 /**
  * Google Calendar — pure types and logic (API-JSON mapping, agenda math,
- * event-time parsing). All IO lives in src/background/calendar.ts, mirroring
- * the notion.ts split. Every function takes `now` so it's unit-testable.
+ * event-time parsing). All IO lives in src/background/calendar.ts. Every
+ * function takes `now` so it's unit-testable.
  */
 
 export interface CalendarEvent {
@@ -21,8 +21,15 @@ export interface CalendarEvent {
 
 /** → LocalSchema.calendar. Device-local; never synced to Firestore. */
 export interface CalendarState {
+  /** OAuth client from the user's own Cloud project (docs/google-calendar-setup.md) */
+  clientId: string;
+  clientSecret: string;
   connected: boolean;
   email: string;
+  accessToken: string;
+  refreshToken: string;
+  /** Access-token expiry (ms epoch); 0 = unknown, treat as expired */
+  expiresAt: number;
   /** Sorted by startMs; window [local today 00:00, +48h) */
   events: CalendarEvent[];
   fetchedAt: number;
@@ -31,12 +38,22 @@ export interface CalendarState {
 }
 
 export const CALENDAR_DEFAULTS: CalendarState = {
+  clientId: '',
+  clientSecret: '',
   connected: false,
   email: '',
+  accessToken: '',
+  refreshToken: '',
+  expiresAt: 0,
   events: [],
   fetchedAt: 0,
   lastError: '',
 };
+
+/** Whether this install has an OAuth client to sign in with at all. */
+export function hasCalendarCredentials(state: CalendarState): boolean {
+  return Boolean(state.clientId && state.clientSecret);
+}
 
 interface ApiEventTime {
   dateTime?: string;

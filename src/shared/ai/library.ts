@@ -1,6 +1,6 @@
 /**
  * Keyword search over the user's own library: highlights and notes, brain
- * dumps, papers, meeting notes.
+ * dumps, papers, recordings.
  *
  * gatherDataContext hands the model a counts-and-titles snapshot, so the
  * assistant could tell you how many papers you have but not what you
@@ -11,7 +11,7 @@
  * cannot outrank a pointed highlight. Pure and dependency-free.
  */
 
-export type LibraryKind = 'highlight' | 'note' | 'paper' | 'meeting';
+export type LibraryKind = 'highlight' | 'note' | 'paper' | 'recording';
 
 export interface LibraryDoc {
   id: string;

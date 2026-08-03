@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { executeTool, runAssistantTurn } from '../../shared/ai/assistant';
+import { getActiveTools } from '../../shared/ai/connector';
 import { scoreCommand } from '../../shared/ai/fuzzy';
 import { geminiProvider } from '../../shared/ai/geminiProvider';
 import { nanoProvider } from '../../shared/ai/nanoProvider';
 import { TOOLS, type Tool } from '../../shared/ai/tools';
-import { FLASHCARDS_PAGE_PATH, PAPERS_PAGE_PATH } from '../../shared/constants';
+import { FLASHCARDS_PAGE_PATH, GRAPH_PAGE_PATH, PAPERS_PAGE_PATH } from '../../shared/constants';
+import { useSessionValue } from '../../shared/hooks/useSessionValue';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
 
 /**
@@ -41,7 +44,8 @@ function buildCommands(): PaletteCommand[] {
       label: tool.palette.label,
       keywords: tool.palette.keywords,
       argPlaceholder: argKey ? tool.palette.argPlaceholder : undefined,
-      run: (arg) => executeTool(tool.name, argKey && arg ? { [argKey]: arg } : {}),
+      run: async (arg) =>
+        (await executeTool(tool.name, argKey && arg ? { [argKey]: arg } : {})).text,
     });
   }
   const nav = (id: string, label: string, keywords: string[], open: () => Promise<unknown>) =>
@@ -60,10 +64,49 @@ function buildCommands(): PaletteCommand[] {
   nav('nav-papers', 'Open papers', ['research', 'reading'], () =>
     chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) }),
   );
+  nav('nav-graph', 'Open graph', ['map', 'connections', 'links', 'knowledge'], () =>
+    chrome.tabs.create({ url: chrome.runtime.getURL(GRAPH_PAGE_PATH) }),
+  );
   nav('nav-settings', 'Open settings', ['options', 'preferences'], () =>
     chrome.runtime.openOptionsPage(),
   );
   return commands;
+}
+
+/**
+ * Recording commands, built separately because the set depends on live state:
+ * "Stop recording" only exists while something records. The dashboard can only
+ * reach the microphone — tab capture needs the side panel — and the reply says so
+ * rather than leaving a meeting half-captured in silence.
+ */
+function recordingCommands(recordingActive: boolean): PaletteCommand[] {
+  if (recordingActive) {
+    return [
+      {
+        id: 'rec-stop',
+        label: 'Stop recording',
+        keywords: ['record', 'transcribe', 'end'],
+        run: async () => {
+          await sendMessage({ type: 'REC_STOP' });
+          return 'Stopped — transcription finishes in the background.';
+        },
+      },
+    ];
+  }
+  const start = (purpose: 'meeting' | 'lecture', label: string, keywords: string[]) => ({
+    id: `rec-${purpose}`,
+    label,
+    keywords,
+    run: async () => {
+      const res = await sendMessage({ type: 'REC_START', mode: 'mic' as const, purpose });
+      if (!res.ok) return res.error ?? 'Could not start recording.';
+      return 'Recording your microphone. For tab audio, start from the side panel instead.';
+    },
+  });
+  return [
+    start('meeting', 'Record a meeting (microphone)', ['record', 'meeting', 'transcribe']),
+    start('lecture', 'Record a lecture (microphone)', ['record', 'lecture', 'class', 'transcribe']),
+  ];
 }
 
 type Footer =
@@ -81,7 +124,11 @@ export function CommandPalette() {
   const [argFor, setArgFor] = useState<PaletteCommand | null>(null);
   const [footer, setFooter] = useState<Footer>({ state: 'idle' });
   const inputRef = useRef<HTMLInputElement>(null);
-  const commands = useMemo(buildCommands, []);
+  const [activeRecording] = useSessionValue('activeRecording');
+  const commands = useMemo(
+    () => [...buildCommands(), ...recordingCommands(activeRecording !== null)],
+    [activeRecording],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -152,8 +199,12 @@ export function CommandPalette() {
       const outcome = await runAssistantTurn(q, [], {
         nano: nanoProvider,
         cloud: geminiProvider,
+        tools: await getActiveTools(), // only connected integrations
         multiStep: false, // the palette is for single quick commands
         cache: true,
+        // Deliberately NOT the ReAct loop: the palette is a command line, not a
+        // conversation, and a multi-second lookup behind a keystroke is worse
+        // than a one-shot answer. Ask in the chat for anything that needs one.
       });
       if (outcome.kind === 'confirm') {
         setFooter({
@@ -186,7 +237,7 @@ export function CommandPalette() {
     const { toolName, params } = footer;
     setFooter({ state: 'busy' });
     try {
-      setFooter({ state: 'result', text: await executeTool(toolName, params) });
+      setFooter({ state: 'result', text: (await executeTool(toolName, params)).text });
     } catch (err) {
       setFooter({
         state: 'result',

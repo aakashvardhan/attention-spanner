@@ -6,13 +6,14 @@ personally-registered credentials and therefore are not part of the public
 
 | Integration | Credential it needs | Where it's configured |
 |---|---|---|
-| Google Calendar | Your own Google Cloud OAuth client (personal-use approval) | `.env.local` + `gcal-key.pem` |
-| Notion push | Your own Notion internal-integration token | Options page (stored in `chrome.storage`) |
+| Google Calendar | Your own Google Cloud OAuth client (personal-use approval) | Options page (stored in `chrome.storage`) |
+| Gmail | The same Google Cloud OAuth client, with the Gmail API enabled | Options page (stored in `chrome.storage`) |
 | Cloud sync + iOS app | Your own Firebase project | `.env.local` (+ `GoogleService-Info.plist` for iOS) |
 
 Nothing here is committed: `.env.local` and `gcal-key.pem` are gitignored, and
-the Notion token lives only in extension storage. A build made with a blank
-`.env.local` has all three features disabled/hidden.
+the Google credentials live only in extension storage. A build made with a
+blank `.env.local` has cloud sync disabled; the Calendar and Gmail clients are
+configured at runtime and stay dormant until you fill them in.
 
 ---
 
@@ -21,37 +22,30 @@ the Notion token lives only in extension storage. A build made with a blank
 Full walkthrough: **[docs/google-calendar-setup.md](docs/google-calendar-setup.md)**.
 Summary:
 
-1. Generate/keep `gcal-key.pem` in the repo root (gitignored). It pins the
-   extension id so the OAuth client registration stays valid across builds.
-2. In Google Cloud Console, create a **Chrome Extension** OAuth client for that
-   extension id and enable the Google Calendar API.
-3. Copy the template and fill in both values:
-
-   ```bash
-   cp .env.example .env.local
-   # VITE_CRX_PUBLIC_KEY=<base64 DER public key from gcal-key.pem>
-   # VITE_GCAL_CLIENT_ID=<...>.apps.googleusercontent.com
-   npm run build
-   ```
-
-4. Reload the extension, open the dashboard's 📅 Today card, and click
+1. In Google Cloud Console, enable the Google Calendar API and create a **Web
+   application** OAuth client whose authorized redirect URI is the one shown in
+   **Settings → Google Calendar**.
+2. Paste the client id and secret into that same Settings section and click
    **Connect Google Calendar**.
 
-Leaving either env var blank omits the manifest `oauth2`/`key` entries and the
-feature stays dormant. The OAuth client is registered for personal use — don't
-distribute builds that embed it.
+No build step and no env vars: the client is entered at runtime, so a clone of
+this repo sets up its own rather than inheriting mine. `gcal-key.pem` /
+`VITE_CRX_PUBLIC_KEY` are now optional — they only pin the extension id, which
+keeps the redirect URI stable if the unpacked folder ever moves.
 
-## 2. Notion sync (one-way)
+## 2. Gmail
 
-1. Create an internal integration at <https://www.notion.so/my-integrations>
-   and copy its secret token.
-2. Share the target databases (links / brain dumps / tasks / reading log) with
-   the integration.
-3. In **Options → Notion**, paste the token, click **Test connection**, pick a
-   database per push type, and enable the pushes you want.
+Full walkthrough: **[docs/gmail-setup.md](docs/gmail-setup.md)**. Summary:
 
-Pushes queue offline and flush every 10 minutes; a revoked token pauses the
-queue until you paste a fresh one.
+1. In the *same* Cloud project, enable the **Gmail API** and add the
+   `gmail.readonly` + `gmail.modify` scopes to the consent screen.
+2. Paste the same client id and secret into **Settings → Gmail**, then
+   **Connect Gmail** once per mailbox.
+
+Two things that bite here and not on Calendar: the Gmail scopes are
+*restricted*, so an app left in "Testing" expires refresh tokens after 7 days
+(publish it), and a Workspace tenant can refuse the app outright with
+`admin_policy_enforced` — which takes down that one mailbox, not the other.
 
 ## 3. Firebase cloud sync (extension ↔ iOS)
 

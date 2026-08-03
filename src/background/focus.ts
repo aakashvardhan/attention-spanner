@@ -2,12 +2,12 @@ import {
   ALARMS,
   BLOCKED_PAGE_PATH,
   FLOWTUNES_URL,
-  FOCUS_DNR_ID_BASE,
   NOTIFICATION_IDS,
 } from '../shared/constants';
-import { buildFocusRules, isBlockedHost } from '../shared/focusRules';
+import { isBlockedHost } from '../shared/focusRules';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
+import { dailyGateCompleteNow, syncSessionAccessRules } from './accessRules';
 import { createFocusBlock, extendFocusBlock, finishFocusBlock } from './calendar';
 import { updateBadge } from './feeds';
 import { recordEvent } from './gamification';
@@ -15,39 +15,19 @@ import { recordFocusBlock } from './streaks';
 
 /**
  * Focus-mode session engine. Blocking is enforced by declarativeNetRequest
- * dynamic rules, which the browser applies independently of this worker's
- * lifetime and across restarts — so state (storage.local focusSession) is
- * the source of truth and rules are reconciled to it on every startup.
+ * session rules, which the browser applies independently of this worker's
+ * lifetime. State (storage.local focusSession) remains the source of truth and
+ * rules are reconciled on startup alongside the daily brain-dump gate.
  */
 
 function blockedPageUrl(): string {
   return chrome.runtime.getURL(BLOCKED_PAGE_PATH);
 }
 
-async function ownedRuleIds(): Promise<number[]> {
-  const rules = await chrome.declarativeNetRequest.getDynamicRules();
-  return rules.map((r) => r.id).filter((id) => id >= FOCUS_DNR_ID_BASE);
-}
-
-async function installBlockRules(domains: string[]): Promise<void> {
-  // Never block the focus-music site — a blocklisted flowtunes.app would
-  // silently kill the user's own music tab mid-session
-  const effective = domains.filter((d) => d !== 'flowtunes.app');
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: await ownedRuleIds(),
-    addRules: buildFocusRules(effective, blockedPageUrl()),
-  });
-}
-
-async function clearBlockRules(): Promise<void> {
-  const ids = await ownedRuleIds();
-  if (ids.length > 0) {
-    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: ids });
-  }
-}
-
 /** An already-open Netflix tab would defeat the whole point */
 async function redirectOpenBlockedTabs(domains: string[]): Promise<void> {
+  // The morning gate owns every web tab until its dump is complete.
+  if (!(await dailyGateCompleteNow())) return;
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
   for (const tab of tabs) {
     if (tab.id === undefined || !tab.url) continue;
@@ -111,7 +91,7 @@ export async function startFocus(config: {
   await setLocal({ focusSession: session });
 
   const settings = await getSettings();
-  await installBlockRules(settings.focusBlocklist);
+  await syncSessionAccessRules();
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   chrome.alarms.create(ALARMS.focusBadgeTick, { periodInMinutes: 1 });
   await redirectOpenBlockedTabs(settings.focusBlocklist);
@@ -130,8 +110,8 @@ export async function stopFocus(_early: boolean): Promise<{ ok: boolean }> {
   const { focusSession: session } = await getLocal('focusSession');
   await chrome.alarms.clear(ALARMS.focusPhaseEnd);
   await chrome.alarms.clear(ALARMS.focusBadgeTick);
-  await clearBlockRules();
   await setLocal({ focusSession: null });
+  await syncSessionAccessRules();
   if (session?.calendarEventId) {
     // Trim the calendar block to the time actually served (fire-and-forget)
     void finishFocusBlock(session.calendarEventId, session.startedAt, session.phaseEndsAt);
@@ -145,7 +125,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   const { focusSession: session } = await getLocal('focusSession');
   if (!session) {
     // Stray/duplicate alarm — rules must never outlive state
-    await clearBlockRules();
+    await syncSessionAccessRules();
     return;
   }
   const settings = await getSettings();
@@ -155,9 +135,9 @@ export async function handleFocusPhaseEnd(): Promise<void> {
     await awardFocusBlock();
 
     if (session.mode === 'oneshot') {
-      await clearBlockRules();
       await chrome.alarms.clear(ALARMS.focusBadgeTick);
       await setLocal({ focusSession: null });
+      await syncSessionAccessRules();
       await updateBadge();
       notifyPhase(
         'Focus complete',
@@ -172,7 +152,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
     session.phase = 'break';
     session.phaseEndsAt = now + session.breakMinutes * 60_000;
     await setLocal({ focusSession: session });
-    await clearBlockRules();
+    await syncSessionAccessRules();
     chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
     await updateBadge();
     notifyPhase(
@@ -191,7 +171,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
     // One event spans the whole pomodoro session, breaks included
     void extendFocusBlock(session.calendarEventId, session.phaseEndsAt);
   }
-  await installBlockRules(settings.focusBlocklist);
+  await syncSessionAccessRules();
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   await redirectOpenBlockedTabs(settings.focusBlocklist);
   await updateBadge();
@@ -203,16 +183,15 @@ export async function handleFocusPhaseEnd(): Promise<void> {
 }
 
 /**
- * onStartup/onInstalled: DNR rules persist across restarts and extension
- * reloads — state must win. Never auto-resume blocking after arbitrary
- * downtime; a focus phase that expired while closed still earns its block
- * (the time was served).
+ * onStartup/onInstalled: state must win. Never auto-resume blocking after
+ * arbitrary downtime; a focus phase that expired while closed still earns its
+ * block (the time was served).
  */
 export async function reconcileFocusOnStartup(): Promise<void> {
   const { focusSession: session } = await getLocal('focusSession');
 
   if (!session) {
-    await clearBlockRules();
+    await syncSessionAccessRules();
     await chrome.alarms.clear(ALARMS.focusBadgeTick);
     return;
   }
@@ -221,9 +200,9 @@ export async function reconcileFocusOnStartup(): Promise<void> {
     if (session.phase === 'focus') {
       await awardFocusBlock();
     }
-    await clearBlockRules();
     await chrome.alarms.clear(ALARMS.focusBadgeTick);
     await setLocal({ focusSession: null });
+    await syncSessionAccessRules();
     await updateBadge();
     return;
   }
@@ -231,12 +210,7 @@ export async function reconcileFocusOnStartup(): Promise<void> {
   // Phase still live: re-arm the alarms and sync rules to the phase
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   chrome.alarms.create(ALARMS.focusBadgeTick, { periodInMinutes: 1 });
-  if (session.phase === 'focus') {
-    const settings = await getSettings();
-    await installBlockRules(settings.focusBlocklist);
-  } else {
-    await clearBlockRules();
-  }
+  await syncSessionAccessRules();
   await updateBadge();
 }
 
@@ -244,6 +218,6 @@ export async function reconcileFocusOnStartup(): Promise<void> {
 export async function refreshFocusRules(newBlocklist: string[]): Promise<void> {
   const { focusSession: session } = await getLocal('focusSession');
   if (!session || session.phase !== 'focus') return;
-  await installBlockRules(newBlocklist);
+  await syncSessionAccessRules();
   await redirectOpenBlockedTabs(newBlocklist);
 }

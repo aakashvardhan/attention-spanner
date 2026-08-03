@@ -9,13 +9,18 @@ import { useMakeCard } from './useMakeCard';
 import { headingForPage } from '../../shared/pdfOutline';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { usePdfDocument } from './usePdfDocument';
-import { extractReferences, getPdfText, type ReferenceIndex } from './references';
+import { refKeysFrom } from '../../shared/docCitations';
+import { indexKnownRefs } from './citationLinks';
+import { extractReferences, getPdfPageTexts, getPdfText, type ReferenceIndex } from './references';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskPanel } from './components/AskPanel';
 import { OutlineSidebar } from './components/OutlineSidebar';
+import { RelatedPanel } from './components/RelatedPanel';
 import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { TrackPrompt, type PaperSeed } from './components/TrackPrompt';
+import { PdfFindPanel } from './components/PdfFindPanel';
+import { AiOutlinePanel } from './components/AiOutlinePanel';
 
 /** One progress write at most every 5s; position changes in between are dropped. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -55,8 +60,15 @@ export function PdfReader({ src }: { src: string }) {
   const makeCard = useMakeCard();
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
+  const [panel, setPanel] = useState<'none' | 'notes' | 'ask' | 'related' | 'find'>('none');
+  // Lead with the generated research outline; the PDF's native bookmarks stay
+  // one tab away and the generated result begins immediately on open.
+  const [leftMode, setLeftMode] = useState<'outline' | 'ai'>('ai');
+  const notesOpen = panel === 'notes';
+  const askOpen = panel === 'ask';
+  const relatedOpen = panel === 'related';
+  const findOpen = panel === 'find';
+  const aiOutlineOpen = outlineOpen && leftMode === 'ai';
 
   useEffect(() => {
     if (!noteMode) return;
@@ -80,6 +92,7 @@ export function PdfReader({ src }: { src: string }) {
   // light up once it resolves.
   const doc = ready ? state.doc : null;
   const [references, setReferences] = useState<ReferenceIndex | null>(null);
+  const [pageTexts, setPageTexts] = useState<string[] | null>(null);
   useEffect(() => {
     if (!doc) return;
     let alive = true;
@@ -91,6 +104,38 @@ export function PdfReader({ src }: { src: string }) {
       alive = false;
     };
   }, [doc]);
+
+  useEffect(() => {
+    if (!doc) return;
+    let alive = true;
+    setPageTexts(null);
+    void getPdfPageTexts(doc).then((texts) => alive && setPageTexts(texts)).catch(() => alive && setPageTexts([]));
+    return () => { alive = false; };
+  }, [doc]);
+
+  // Record what this document cites, so other documents can ask "who links
+  // here". One write per open, keyed by docKey — the parse above already
+  // happened, so this costs a message and nothing else.
+  const docTitle = ready ? state.title : '';
+  useEffect(() => {
+    if (!references) return;
+    void sendMessage({
+      type: 'DOC_CITATIONS_INDEX',
+      entry: {
+        docKey,
+        docUrl: src,
+        title: docTitle || src,
+        refKeys: refKeysFrom(references),
+        indexedAt: Date.now(),
+      },
+    });
+  }, [references, docKey, src, docTitle]);
+
+  // Which of this document's citations point at something already in the
+  // library. Rebuilt when either side changes, so tracking a paper lights up
+  // its citations across every open reader without a reload.
+  const [docCitations] = useStorageValue('docCitations');
+  const knownRefs = useMemo(() => indexKnownRefs(papers, docCitations), [papers, docCitations]);
 
   const leftOffFor = useCallback(
     (page: number) => headingForPage(outline, page) ?? `Page ${page} of ${pageCount}`,
@@ -229,6 +274,7 @@ export function PdfReader({ src }: { src: string }) {
 
   const title =
     paper?.title || (ready ? state.title : '') || decodeURIComponent(src.split('/').pop() ?? 'PDF');
+  const looksScanned = pageTexts !== null && pageTexts.join('').replace(/\s/g, '').length < 200;
 
   return (
     <div className="reader-root">
@@ -236,9 +282,10 @@ export function PdfReader({ src }: { src: string }) {
         title={title}
         page={position.page}
         pageCount={pageCount}
+        onPageJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
         zoom={zoom}
         onZoom={setZoom}
-        hasOutline={outline.length > 0}
+        hasOutline={ready}
         outlineOpen={outlineOpen}
         onToggleOutline={() => setOutlineOpen((v) => !v)}
         src={src}
@@ -246,22 +293,55 @@ export function PdfReader({ src }: { src: string }) {
         onToggleNoteMode={() => setNoteMode((v) => !v)}
         notesOpen={notesOpen}
         annotationCount={docAnnotations.length}
-        onToggleNotes={() => setNotesOpen((v) => !v)}
+        onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
         askOpen={askOpen}
-        onToggleAsk={() => setAskOpen((v) => !v)}
+        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
+        relatedOpen={relatedOpen}
+        onToggleRelated={() => setPanel((current) => (current === 'related' ? 'none' : 'related'))}
+        findOpen={findOpen}
+        onToggleFind={() => setPanel((current) => (current === 'find' ? 'none' : 'find'))}
+        aiOutlineOpen={aiOutlineOpen}
+        onToggleAiOutline={() => {
+          if (leftMode === 'ai' && outlineOpen) {
+            setOutlineOpen(false);
+          } else {
+            setLeftMode('ai');
+            setOutlineOpen(true);
+          }
+        }}
       />
       {ready && papersLoaded && !paper && (
         <TrackPrompt src={src} suggestedTitle={state.title} getSeed={getSeed} />
       )}
+      {ready && looksScanned && (
+        <div className="reader-scan-notice">
+          This looks like a scanned PDF. Search, highlighting, and document Q&A may be limited until it has OCR text.
+        </div>
+      )}
+      {noteMode && (
+        <div className="reader-mode-banner" role="status">
+          <span>Click anywhere on a page to place your note.</span>
+          <button type="button" onClick={() => setNoteMode(false)}>Cancel</button>
+          <kbd>Esc</kbd>
+        </div>
+      )}
       <div className="reader-body">
-        {ready && outline.length > 0 && outlineOpen && (
+        {ready && outlineOpen && (outline.length > 0 || leftMode === 'ai') && (
           <OutlineSidebar
             outline={outline}
             currentPage={position.page}
             onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
+            activeTab={leftMode}
+            onTabChange={setLeftMode}
+            aiOutline={<AiOutlinePanel embedded title={title} pageTexts={pageTexts} bookmarks={outline} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} />}
           />
         )}
-        {state.status === 'loading' && <div className="reader-fallback">Loading PDF…</div>}
+        {state.status === 'loading' && (
+          <div className="reader-fallback" role="status" aria-live="polite">
+            <span className="reader-loading-spinner" aria-hidden="true" />
+            <p>Preparing your document…</p>
+          </div>
+        )}
         {state.status === 'error' && (
           <div className="reader-fallback">
             <p>{state.message}</p>
@@ -293,6 +373,7 @@ export function PdfReader({ src }: { src: string }) {
             onUpdateColor={updateAnnotationColor}
             onDeleteAnnotation={deleteAnnotation}
             references={references}
+            known={knownRefs}
           />
         )}
         {ready && papersLoaded && notesOpen && (
@@ -304,6 +385,16 @@ export function PdfReader({ src }: { src: string }) {
             onDelete={deleteAnnotation}
           />
         )}
+        {ready && relatedOpen && (
+          <RelatedPanel
+            docKey={docKey}
+            paper={paper}
+            references={references}
+            known={knownRefs}
+            onClose={() => setPanel('none')}
+          />
+        )}
+        {ready && findOpen && <PdfFindPanel pages={pageTexts} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} onClose={() => setPanel('none')} />}
         {ready && askOpen && (
           <AskPanel
             getText={getPdfTextForAsk}
@@ -311,6 +402,7 @@ export function PdfReader({ src }: { src: string }) {
             position={position.page}
             total={pageCount}
             noun="paper"
+            src={src}
           />
         )}
       </div>

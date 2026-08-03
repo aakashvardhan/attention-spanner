@@ -11,7 +11,7 @@ export interface SyncMeta {
 }
 
 export interface FeedItem {
-  /** btoa(encodeURIComponent(link + title)).slice(0, 32) — same scheme as the legacy extension */
+  /** 16 hex chars, hashed from link + title — see generateItemId */
   id: string;
   title: string;
   link: string;
@@ -33,9 +33,7 @@ export interface Task extends SyncMeta {
   completedAt: number | null;
   /** Excluded from reminder digests until this timestamp */
   snoozedUntil: number | null;
-  source: 'capture' | 'popup' | 'newtab' | 'braindump';
-  /** Notion page created for this task; set after the create push succeeds */
-  notionPageId?: string;
+  source: 'capture' | 'popup' | 'newtab' | 'braindump' | 'recording';
   /**
    * The variable-ratio drop was rolled for this task on its first completion.
    * Present ⇒ never re-roll, so toggle-farming can't fish for a drop.
@@ -112,26 +110,162 @@ export interface AssistantSkill {
   updatedAt: number;
 }
 
+/**
+ * One priority on a day's plan. `taskId` links back to the real Task when the
+ * priority came from the task list, so ticking it here can complete it there;
+ * null means the plan invented it (a meeting to prepare for, say).
+ */
+export interface PlanPriority {
+  text: string;
+  taskId: string | null;
+  estimateMin: number;
+  done: boolean;
+}
+
+/** A block on the day's schedule. Times are local 'HH:MM'. */
+export interface PlanBlock {
+  start: string;
+  end: string;
+  label: string;
+  /** 'calendar' blocks mirror a real event; 'plan' blocks are this plan's suggestion */
+  source: 'calendar' | 'plan';
+}
+
+/**
+ * The plan for one local day: what matters, when it happens, and — once the
+ * day is closed out — how it actually went. Unlike `assistantBriefing` (a
+ * sentence that is overwritten each morning) a plan is a durable record the
+ * weekly review reads back, which is the whole point of keeping it.
+ */
+export interface DayPlan {
+  date: string;
+  priorities: PlanPriority[];
+  blocks: PlanBlock[];
+  generatedAt: number;
+  /** null until the user closes out the day */
+  reviewedAt: number | null;
+  /** One line the user wrote at close-out; '' when they skipped it */
+  reflection: string;
+}
+
+/**
+ * Something that happened on a day, recorded as it happened. The journal is
+ * what gives the assistant memory across browser restarts — `assistantThread`
+ * is session-scoped and evaporates, so without this the only durable context
+ * is the 50 remembered facts.
+ */
+export interface JournalEntry {
+  id: string;
+  at: number;
+  kind: 'briefing' | 'digest' | 'action' | 'review' | 'note';
+  text: string;
+}
+
+export interface JournalDay {
+  date: string;
+  plan: DayPlan | null;
+  entries: JournalEntry[];
+}
+
+/**
+ * A week's reckoning, keyed by weekKey(). The counts inside `summary` are
+ * computed by buildWeekSummary and only narrated by the model — a review that
+ * hallucinates its own numbers is worse than no review.
+ */
+export interface WeekReview {
+  weekKey: string;
+  summary: string;
+  /** The three things the user committed to for the following week */
+  priorities: string[];
+  createdAt: number;
+}
+
+/**
+ * A brain dump. When the notes vault is on, the three content fields are blank
+ * and their `enc*` twins hold AES-256-GCM ciphertext instead (see
+ * shared/notesVault.ts). Everything else stays plain text so streaks, badges,
+ * the prime-time ledger and the sync merge keep working without the passcode.
+ *
+ * Invariant: `encRaw` present ⇒ `rawText` is '', `bullets` is [] and every
+ * `proposedTasks[i].text` is ''.
+ */
 export interface BrainDumpNote extends SyncMeta {
   id: string;
   rawText: string;
+  /** Sealed rawText. Presence of this field is what marks a note encrypted. */
+  encRaw?: string;
   /** 'raw' = saved but not yet structured (AI unavailable or interrupted) */
   status: 'raw' | 'structured' | 'failed';
   bullets: string[];
+  /** Sealed JSON array of bullets */
+  encBullets?: string;
   /** addedTaskId links a proposed task to the real Task it became (null = not added) */
-  proposedTasks: { text: string; addedTaskId: string | null }[];
+  proposedTasks: { text: string; addedTaskId: string | null; encText?: string }[];
   createdAt: number;
   structuredAt: number | null;
-  /** Set at enqueue time of the note's one Notion push; pre-Notion notes lack it (read with == null) */
-  notionPushedAt?: number | null;
+}
+
+/** Device-local daily browsing gate; completion never syncs across profiles. */
+export interface DailyBrainDumpGateState {
+  /** Active local calendar date in YYYY-MM-DD form. */
+  date: string;
+  completedAt: number | null;
+  noteId: string | null;
+}
+
+export type EnabledPack = 'research' | 'work' | 'assistant';
+
+export interface IntentResumeContext {
+  kind: 'article' | 'pdf' | 'video' | 'web';
+  url: string;
+  title: string;
+  /** Reading position fields are optional because each medium uses a different one. */
+  scrollY?: number;
+  page?: number;
+  offset?: number;
+  positionSeconds?: number;
+  /** The user's small handoff note: what to do immediately after returning. */
+  breadcrumb: string;
+}
+
+/**
+ * The single commitment shown on Now. Device-local: it is live attention
+ * state, not a durable task or a syncable knowledge record.
+ */
+export interface ActiveIntent {
+  id: string;
+  text: string;
+  source: 'brainDump' | 'task' | 'calendar' | 'resume' | 'manual';
+  sourceId: string | null;
+  fromTodayBrainDump: boolean;
+  createdAt: number;
+  startedAt: number | null;
+  state: 'ready' | 'active' | 'paused' | 'blocked';
+  resumeContext: IntentResumeContext | null;
+}
+
+/** A thought deliberately captured without promoting it to a task. */
+export interface ParkingLotItem {
+  id: string;
+  text: string;
+  createdAt: number;
 }
 
 /** UI color theme; 'system' follows the OS prefers-color-scheme */
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
+/**
+ * Which browser's visual language the UI borrows. Purely cosmetic — it retints
+ * the accent family and glass, and never changes what a surface can do.
+ * 'auto' resolves to the browser actually running the extension.
+ */
+export type SkinSetting = 'auto' | 'default' | 'chrome' | 'brave';
+
 export const DASH_CARD_IDS = [
   'feeds',
+  'dayplan',
   'agenda',
+  'inbox',
   'links',
   'tasks',
   'continue',
@@ -140,13 +274,16 @@ export const DASH_CARD_IDS = [
   'braindump',
   'flashcards',
   'papers',
-  'meetings',
+  'recordings',
   'warmup',
 ] as const;
 export type DashCardId = (typeof DASH_CARD_IDS)[number];
+export type DashboardMode = 'focused' | 'balanced' | 'research';
 
 export interface Settings {
   theme: ThemeSetting;
+  /** Match the host browser's visual language; 'auto' follows the browser it runs in */
+  skin: SkinSetting;
   /** Feed refresh interval in minutes (15–360) */
   refreshInterval: number;
   notificationsEnabled: boolean;
@@ -170,51 +307,47 @@ export interface Settings {
   focusBreakMinutes: number;
   /** Auto-open Flowtunes in a pinned tab when a focus session starts */
   focusMusicEnabled: boolean;
-  /** Dashboard grid columns (1–4); narrow viewports still collapse responsively */
-  dashColumns: 1 | 2 | 3 | 4;
-  /** Dashboard card order, source of truth for grid flow */
-  dashCardOrder: DashCardId[];
-  dashHiddenCards: DashCardId[];
-  dashFullWidthCards: DashCardId[];
-  /** Notion internal integration token; '' = integration off */
-  notionToken: string;
-  /** Target database ids per push kind; '' = that push unconfigured */
-  notionLinksDbId: string;
-  notionBrainDumpDbId: string;
-  notionTasksDbId: string;
-  notionReadingLogDbId: string;
-  /** Checkbox property name in the tasks DB for completion sync; '' = creates only */
-  notionTasksDoneProp: string;
-  /** Property names detected by type when a DB is picked; '' = DB lacks that type */
-  notionLinksUrlProp: string;
-  notionLinksTagsProp: string;
-  notionReadingUrlProp: string;
-  notionReadingTypeProp: string;
-  notionReadingDateProp: string;
-  notionPushLinks: boolean;
-  notionPushBrainDumps: boolean;
-  notionPushTasks: boolean;
-  notionPushReading: boolean;
-  /** Meeting-notes database to pull from; '' = feature off (no separate toggle) */
-  notionMeetingNotesDbId: string;
-  /** Date property in that DB; '' = order/date by last_edited_time */
-  notionMeetingNotesDateProp: string;
+  /** Curated dashboard hierarchy; presets keep visual and keyboard order aligned. */
+  dashboardMode: DashboardMode;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
   /** The Jarvis assistant (dashboard card, popup tab, command palette) */
   assistantEnabled: boolean;
   /** Gemini API key for cloud fallback on long/hard queries; '' = on-device only */
   geminiApiKey: string;
+  /** Anthropic (Claude) API key for the cloud provider; '' = not configured */
+  anthropicApiKey: string;
+  /** Which cloud provider the assistant escalates to when on-device Nano can't cope */
+  cloudProvider: 'gemini' | 'anthropic';
+  /** Local OpenAI-compatible endpoint (Ollama, vLLM, llama.cpp); '' = off.
+   *  Empty by default so nothing probes localhost unless it was asked to. */
+  ollamaBaseUrl: string;
+  /** Model name to request from the local endpoint */
+  ollamaModel: string;
+  /** Let the assistant run a ReAct loop — call read-only tools, see what came
+   *  back, and decide what to do next — instead of the one-shot planner.
+   *  Mutating tools are still staged behind the confirm chip either way. */
+  assistantReactEnabled: boolean;
   /** Speak assistant replies aloud (TTS) */
   assistantVoiceEnabled: boolean;
   /** speechSynthesis voice name; '' = system default */
   assistantTtsVoice: string;
   /** Always-on "Hey Jarvis" wake word (offscreen mic listener) */
   assistantWakeWordEnabled: boolean;
+  /** Describe slides/screens during tab recordings and let the assistant see
+   *  the current tab when asked — frames go to Gemini, like recorded audio */
+  assistantVisionEnabled: boolean;
+  /** Live mode: transcribe on speech boundaries during a recording rather than
+   *  every five minutes, so the transcript (and suggested answers) arrive while
+   *  the meeting is still happening. Off by default — it trades a real increase
+   *  in API calls for latency, which is only worth it when you're in the room. */
+  assistantLiveEnabled: boolean;
   /** Create a "Focus" Google Calendar event when a focus session starts */
   focusCalendarBlockEnabled: boolean;
   /** Proactive Jarvis nudges: streak-at-risk / cards-due evening check + event reminders */
   assistantMonitorEnabled: boolean;
+  /** Local 'HH:MM' for the daily inbox triage; '' = off */
+  gmailTriageTime: string;
   /** Local 'HH:MM' for the daily evening check; '' = off */
   monitorEveningTime: string;
 }
@@ -432,6 +565,20 @@ export interface BookmarkLink extends SyncMeta {
   createdAt: number;
 }
 
+/** A bookmark observed on the signed-in user's X bookmarks page. Device-local. */
+export interface XBookmark {
+  /** The numeric status id, stable across x.com and twitter.com URLs. */
+  id: string;
+  url: string;
+  text: string;
+  authorName: string;
+  authorHandle: string;
+  /** Tweet publication time when X exposes it, otherwise null. */
+  postedAt: number | null;
+  /** Last time this bookmark was visible during an X sync. */
+  capturedAt: number;
+}
+
 export interface FocusSession {
   mode: 'oneshot' | 'pomodoro';
   phase: 'focus' | 'break';
@@ -531,9 +678,69 @@ export interface VideoProgress extends ProgressBase {
   videoId: string;
   durationSeconds: number;
   positionSeconds: number;
+  /**
+   * Whether the last tracker report was a heartbeat rather than a stop flush.
+   * A hint, not a fact — a tab that dies mid-playback leaves it stuck true, so
+   * always pair it with the staleness check in `isWatchingNow`.
+   * Absent on entries written before this field existed; read with `=== true`.
+   */
+  playing?: boolean;
 }
 
 export type AnyProgress = ReadingProgress | VideoProgress;
+
+export type GraphNodeKind =
+  | 'article'
+  | 'video'
+  | 'paper'
+  | 'bookmark'
+  | 'recording'
+  /** A paper the user does not have, reached from another paper's citations */
+  | 'external'
+  /** A brain dump — projected in memory only, never stored (see graphNodes.ts) */
+  | 'note'
+  /** A highlight carrying a note or a substantial quote; also never stored */
+  | 'highlight';
+
+/**
+ * One thing the user consumed, as a durable vertex in the knowledge graph.
+ *
+ * Deliberately not a mirror of the live records. For articles and videos this
+ * IS the history: `readingProgress` is a rolling cache (tracking.prune drops
+ * completed entries after 14 days) and `cachedItems` forgets a FeedItem's
+ * categories after 300 items, so the node is captured at tracking time or not
+ * at all. Paper/bookmark/recording nodes are reconciled from their own
+ * collections instead — those records are durable, and reconciling propagates
+ * deletions for free. See background/graphNodes.ts.
+ */
+export interface GraphNode {
+  /**
+   * Reuses the key helper each kind already has, so a node and its source can
+   * never desync: normalizeUrl(url) for articles, videoKey(id) ('yt:<id>') for
+   * videos, `paper:<id>`, `bm:<id>`, recordingDocUrl(id) ('recording:<id>').
+   */
+  id: string;
+  kind: GraphNodeKind;
+  title: string;
+  /** Where the node opens — http(s), or a reader URL for recordings */
+  url: string;
+  /** Provenance line: feed title, channel, venue, or group name; '' if none */
+  source: string;
+  /** Structural foreign keys — a node carries only the one its kind has */
+  deckId?: string;
+  groupId?: string | null;
+  videoId?: string;
+  /** Topic labels: deterministic first, AI-enriched later (see graphTags.ts) */
+  tags: string[];
+  /** 'manual' labels are user-owned and are never replaced by enrichment. */
+  tagSource: 'auto' | 'ai' | 'manual';
+  /** hash32 of the text the tags came from — the re-tagging idempotency key */
+  tagInputHash: string;
+  /** 0–1, how much of it was actually consumed */
+  completion: number;
+  firstSeenAt: number;
+  updatedAt: number;
+}
 
 export interface DayStats {
   minutes: number;
@@ -545,6 +752,11 @@ export interface DayStats {
   focusBlocks?: number;
   /** Added in Phase 14 (activity calendar) — read with `?? 0` */
   tasksCompleted?: number;
+  /**
+   * Added in Phase 22 (prime time) — hour '0'–'23' → activity points credited
+   * in that hour. Read with `?? {}`; days recorded before this lack it.
+   */
+  hours?: Record<string, number>;
 }
 
 export interface Streaks {

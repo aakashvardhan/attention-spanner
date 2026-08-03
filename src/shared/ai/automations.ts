@@ -6,6 +6,7 @@ import {
   QUIET_HOURS_END,
   QUIET_HOURS_START,
 } from '../constants';
+import { sendMessage } from '../messages';
 import { getLocal, getSession, getSettings, setLocal, setSession } from '../storage';
 import type { AssistantAutomation } from '../types';
 import { inQuietHours } from '../week';
@@ -123,6 +124,10 @@ async function appendDigestTurn(
         })
       : newTurn('assistant', digest, { source });
   await setSession({ assistantThread: appendTurn(assistantThread, turn) });
+  // The thread is session-scoped; the journal is what survives a restart.
+  await sendMessage({ type: 'JOURNAL_APPEND', kind: 'digest', text: digest }).catch(
+    () => undefined,
+  );
 }
 
 export async function executeAutomation(

@@ -1,5 +1,6 @@
 import { todayEvents } from '../calendar';
 import { localDate } from '../format';
+import { sendMessage } from '../messages';
 import { dueCounts, newIntroducedToday, totalDue } from '../srs';
 import { getLocal, getSettings, setLocal } from '../storage';
 import { countInWeek, weekKey } from '../week';
@@ -108,6 +109,8 @@ export async function maybeGenerateBriefing(now = new Date()): Promise<void> {
     'readingProgress',
     'calendar',
     'assistantMemory',
+    'assistantProfile',
+    'assistantJournal',
     'cachedItems',
     'readItems',
   );
@@ -131,4 +134,7 @@ export async function maybeGenerateBriefing(now = new Date()): Promise<void> {
     // template already in place
   }
   await setLocal({ assistantBriefing: { date: today, text } });
+  // The briefing is overwritten every morning; the journal is what the weekly
+  // review reads back, so the day's opening line goes there too.
+  await sendMessage({ type: 'JOURNAL_APPEND', kind: 'briefing', text }).catch(() => undefined);
 }

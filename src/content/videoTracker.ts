@@ -1,4 +1,4 @@
-import { sendMessage } from '../shared/messages';
+import { extensionAlive, sendMessage } from '../shared/messages';
 import { getYouTubeVideoId } from '../shared/youtube';
 
 /**
@@ -15,7 +15,13 @@ import { getYouTubeVideoId } from '../shared/youtube';
 
 declare global {
   interface Window {
-    __readerVideoTrackerLoaded?: boolean;
+    /**
+     * Present while an instance is running. Calling it runs inside *that*
+     * instance's closure, so it reports whether that instance's extension
+     * context is still valid — something a replacement cannot see otherwise.
+     */
+    __readerVideoTrackerAlive?: () => boolean;
+    __readerVideoTrackerStop?: () => void;
   }
 }
 
@@ -24,10 +30,15 @@ const PLAYER_RETRY_MS = 500;
 const PLAYER_RETRY_MAX_MS = 15_000;
 const RESUME_RETRY_MS = 500;
 const RESUME_MAX_MS = 4000;
+/** How close counts as "already there" when seeking; also the forward-only margin */
+const RESUME_TOLERANCE_SECONDS = 2;
 const NAV_POLL_MS = 2000;
 
-if (!window.__readerVideoTrackerLoaded) {
-  window.__readerVideoTrackerLoaded = true;
+// A live instance still short-circuits the repeat injections that SPA
+// navigation triggers. An orphaned one must be evicted instead: it can never
+// report again, and the tab it is stuck in will not navigate on its own.
+if (window.__readerVideoTrackerAlive?.() !== true) {
+  window.__readerVideoTrackerStop?.();
   initVideoTracker();
 }
 
@@ -50,8 +61,32 @@ function initVideoTracker() {
     }
   };
 
-  window.addEventListener('yt-navigate-finish', () => restartSession());
-  setInterval(() => restartSession(), NAV_POLL_MS);
+  const alive = () => extensionAlive();
+  const onNavigate = () => restartSession();
+
+  const teardown = () => {
+    clearInterval(navTimer);
+    window.removeEventListener('yt-navigate-finish', onNavigate);
+    session?.stop();
+    session = null;
+    currentVideoId = null;
+    // Only disown the globals if they are still ours — a replacement that
+    // evicted us has already installed its own.
+    if (window.__readerVideoTrackerAlive === alive) {
+      delete window.__readerVideoTrackerAlive;
+      delete window.__readerVideoTrackerStop;
+    }
+  };
+
+  const navTimer = window.setInterval(() => {
+    // Self-evict rather than spin timers forever against a dead context
+    if (!extensionAlive()) return teardown();
+    restartSession();
+  }, NAV_POLL_MS);
+
+  window.addEventListener('yt-navigate-finish', onNavigate);
+  window.__readerVideoTrackerAlive = alive;
+  window.__readerVideoTrackerStop = teardown;
   restartSession();
 }
 
@@ -168,17 +203,25 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
   video.addEventListener('ended', onEnded);
   window.addEventListener('pagehide', onPageHide);
 
+  // Only ever seek forward. This script is now re-injected into tabs that are
+  // already playing (extension reload, session restore), where the stored
+  // position predates the gap — seeking to it would yank the viewer backward
+  // by however long the tracker was orphaned.
+  if (resume && resume.positionSeconds <= video.currentTime + RESUME_TOLERANCE_SECONDS) {
+    resume = null;
+  }
+
   // Resume: seek to stored position; back off if the user seeks elsewhere
   if (resume) {
     const target = Math.min(resume.positionSeconds, video.duration - 5);
     let userSeeked = false;
     const onSeeking = () => {
-      if (Math.abs(video.currentTime - target) > 2) userSeeked = true;
+      if (Math.abs(video.currentTime - target) > RESUME_TOLERANCE_SECONDS) userSeeked = true;
     };
     video.addEventListener('seeking', onSeeking);
     const startedAt = Date.now();
     const attempt = () => {
-      if (userSeeked || Math.abs(video.currentTime - target) < 2) {
+      if (userSeeked || Math.abs(video.currentTime - target) < RESUME_TOLERANCE_SECONDS) {
         video.removeEventListener('seeking', onSeeking);
         return;
       }

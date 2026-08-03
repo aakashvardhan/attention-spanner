@@ -4,13 +4,15 @@ import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
-import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
-import type { Settings, ThemeSetting } from '../../shared/types';
+import { DEFAULT_SETTINGS, getLocal, patchSettings, setLocal } from '../../shared/storage';
+import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
 import { AccountSection } from './AccountSection';
 import { AssistantSection } from './AssistantSection';
+import { AlphaxivSection } from './AlphaxivSection';
 import { CalendarSection } from './CalendarSection';
-import { NotionSection } from './NotionSection';
+import { GmailSection } from './GmailSection';
 import { PapersSection } from './PapersSection';
+import { PrivacySection } from './PrivacySection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
@@ -57,13 +59,23 @@ export function Options() {
       flash('Could not fetch feed. Please check the URL.', 'error');
       return;
     }
-    await setLocal({ feeds: [...feeds, feedUrl] });
+    // Re-read rather than write back the list this render captured: validation
+    // above is a network round-trip, and cloud sync applies remote feeds
+    // straight to this key (background/sync.ts), so the snapshot can be stale
+    // by now.
+    const { feeds: live } = await getLocal('feeds');
+    if (live.includes(feedUrl)) {
+      flash('This feed is already added.', 'error');
+      return;
+    }
+    await setLocal({ feeds: [...live, feedUrl] });
     flash(res.title ? `Added "${res.title}"!` : 'Feed added successfully!', 'success');
     void sendMessage({ type: 'REFRESH_FEEDS' });
   };
 
   const removeFeed = async (feedUrl: string) => {
-    await setLocal({ feeds: feeds.filter((f) => f !== feedUrl) });
+    const { feeds: live } = await getLocal('feeds');
+    await setLocal({ feeds: live.filter((f) => f !== feedUrl) });
   };
 
   const markAllRead = async () => {
@@ -136,6 +148,22 @@ export function Options() {
               <option value="dark">Dark</option>
             </select>
           </div>
+          <div className="setting-row">
+            <label htmlFor="skin-select">Accent</label>
+            <select
+              id="skin-select"
+              value={settings.skin}
+              onChange={(e) => void patchSettings({ skin: e.target.value as SkinSetting })}
+            >
+              <option value="auto">Match this browser</option>
+              <option value="chrome">Chrome blue</option>
+              <option value="brave">Brave orange</option>
+              <option value="default">Reader sky</option>
+            </select>
+          </div>
+          <p className="hint">
+            Colour only — text stays Atkinson Hyperlegible at the same size on every setting.
+          </p>
         </section>
 
         <section className="section">
@@ -440,11 +468,15 @@ export function Options() {
 
         <CalendarSection />
 
+        <GmailSection />
+
         <AccountSection />
 
-        <NotionSection />
-
         <PapersSection />
+
+        <AlphaxivSection />
+
+        <PrivacySection />
 
         <section className="section">
           <h2>Data</h2>

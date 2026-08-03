@@ -124,6 +124,38 @@ button:hover {
   white-space: nowrap;
 }
 
+/* A connected mailbox: address on one line, whatever is wrong with it below.
+   Not .feed-entry-url — that is a single nowrap line built for a feed URL. */
+.gmail-account {
+  align-items: flex-start;
+}
+
+.gmail-account-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.gmail-account-email {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.gmail-account-state {
+  color: var(--text-faint);
+}
+
+.gmail-account-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
 .remove-feed-btn {
   background: transparent;
   color: var(--text-faint);
@@ -161,6 +193,17 @@ button:hover {
   font-size: var(--text-base);
   background: var(--bg-subtle);
   cursor: pointer;
+}
+
+.voice-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.voice-picker select {
+  max-width: 260px;
 }
 
 .setting-row input[type='checkbox'] {
@@ -211,4 +254,55 @@ button:hover {
 
 .sample-feed:hover {
   background: var(--accent-wash);
+}
+
+/* "This browser" support block — see BrowserSupport.tsx */
+.cap-heading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.cap-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cap-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* Never the only signal: every dot is paired with prose saying the same thing,
+   because colour alone excludes anyone who cannot separate these two hues. */
+.cap-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-1px);
+}
+
+.cap-dot.ok {
+  background: var(--success);
+}
+
+.cap-dot.off {
+  background: var(--text-muted);
+}
+
+.cap-label {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.cap-detail {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }

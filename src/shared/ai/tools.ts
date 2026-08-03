@@ -9,9 +9,11 @@ import type { Tool } from './connectors/base';
  */
 
 export type {
+  SourceRef,
   TaskResolution,
   TextResolution,
   Tool,
+  ToolOutput,
   ToolParamSpec,
   ToolParamsSchema,
 } from './connectors/base';

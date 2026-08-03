@@ -9,8 +9,9 @@ import { getSession, setSession } from '../storage';
  * is still far cheaper than an LLM round-trip). Session storage clears with
  * the browser, which is exactly the lifetime cached replies deserve.
  *
- * Entries carry a tag: 'intent' (classification, data-independent) or
- * 'data' (anything derived from the user's data — invalidated on mutation).
+ * Entries carry a tag: 'intent' (classification, data-independent), 'data'
+ * (anything derived from the user's data — invalidated on mutation), 'pdf'
+ * (reader Q&A) or 'live' (in-meeting answers, see LIVE_CACHE_TTL_MS).
  */
 
 export interface CacheEntry {
@@ -32,6 +33,13 @@ const MEM_DATA_TTL_CAP_MS = 5000;
 export const INTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export const CONTEXT_CACHE_TTL_MS = 30 * 1000;
 export const ANSWER_CACHE_TTL_MS = 5 * 60 * 1000;
+/**
+ * Live answers, chips and catch-ups. Tagged 'live' rather than 'data' on
+ * purpose: executeTool invalidates 'data' after every tool run, and adding a
+ * task mid-meeting must not evict the answers you are part-way through reading.
+ * Long enough to cover a meeting, short enough to expire with its relevance.
+ */
+export const LIVE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 /** Pure LRU with per-entry expiry (Map iteration order = recency) */
 export class LruTtlCache<V> {

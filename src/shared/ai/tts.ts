@@ -22,6 +22,21 @@ export function ttsCleanText(text: string): string {
     .trim();
 }
 
+/**
+ * getVoices() returns [] for the first few hundred ms of a page's life, and
+ * both speak() and the sentence speaker are synchronous — looking the name up
+ * that early silently drops the chosen voice and Chrome falls back to the
+ * system default. Warm a cache at import so the name resolves by the time
+ * anything is actually spoken.
+ */
+let voiceCache: SpeechSynthesisVoice[] = [];
+
+function resolveVoice(voiceName: string): SpeechSynthesisVoice | undefined {
+  if (!voiceName) return undefined;
+  const live = speechSynthesis.getVoices();
+  return (live.length > 0 ? live : voiceCache).find((v) => v.name === voiceName);
+}
+
 export function speak(text: string, voiceName = '', onEnd?: () => void): void {
   if (typeof speechSynthesis === 'undefined') {
     onEnd?.();
@@ -35,10 +50,8 @@ export function speak(text: string, voiceName = '', onEnd?: () => void): void {
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(clean);
   utterance.rate = 1.05;
-  if (voiceName) {
-    const voice = speechSynthesis.getVoices().find((v) => v.name === voiceName);
-    if (voice) utterance.voice = voice;
-  }
+  const voice = resolveVoice(voiceName);
+  if (voice) utterance.voice = voice;
   if (onEnd) {
     utterance.onend = onEnd;
     utterance.onerror = onEnd; // cancel() surfaces as an error event
@@ -71,6 +84,18 @@ export function extractSpeakableChunk(
   return { chunk: unspoken.slice(0, lastEnd), consumed: lastEnd };
 }
 
+/**
+ * How a surface actually makes sound. Extension pages use speechSynthesis
+ * directly; the offscreen document can't (Chrome's autoplay policy rejects it
+ * there) and routes through the service worker's chrome.tts instead.
+ */
+export interface SpeechBackend {
+  /** Queue one utterance; resolves once its audio stops, however it stops */
+  speak(text: string): Promise<void>;
+  /** Drop whatever is queued or playing */
+  stop(): void;
+}
+
 export interface SentenceSpeaker {
   /** Feed the accumulated streamed text; speaks completed sentences early */
   push(accumulated: string): void;
@@ -82,14 +107,14 @@ export interface SentenceSpeaker {
 }
 
 /**
- * Speaks a streamed reply sentence-by-sentence: utterances are queued on
- * speechSynthesis WITHOUT cancel(), so the native queue preserves order and
+ * Speaks a streamed reply sentence-by-sentence: utterances are queued on the
+ * backend WITHOUT stopping it first, so the native queue preserves order and
  * each sentence starts the moment the previous one ends. `onFirstUtterance`
  * fires just before the first sentence plays — the wake listener uses it to
  * cut the mic exactly when audio is about to start (self-hearing guard).
  */
 export function createSentenceSpeaker(
-  voiceName: string,
+  backend: SpeechBackend,
   onFirstUtterance?: () => void,
 ): SentenceSpeaker {
   let spokenChars = 0;
@@ -112,21 +137,13 @@ export function createSentenceSpeaker(
       started = true;
       onFirstUtterance?.();
     }
-    if (typeof speechSynthesis === 'undefined') return;
-    const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.rate = 1.05;
-    if (voiceName) {
-      const voice = speechSynthesis.getVoices().find((v) => v.name === voiceName);
-      if (voice) utterance.voice = voice;
-    }
     outstanding += 1;
-    // onerror included in the drain count — a stalled queue must never
-    // leave the wake listener stuck in 'speaking'
-    utterance.onend = utterance.onerror = () => {
+    // The backend settles on failure as well as success — a stalled queue must
+    // never leave the wake listener stuck in 'speaking'
+    void backend.speak(clean).then(() => {
       outstanding -= 1;
       maybeResolve();
-    };
-    speechSynthesis.speak(utterance);
+    });
   };
 
   return {
@@ -156,7 +173,7 @@ export function createSentenceSpeaker(
     cancel(): void {
       cancelled = true;
       finished = true;
-      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+      backend.stop();
       resolveDone?.();
     },
     spoke: () => started,
@@ -180,3 +197,9 @@ export function listVoices(): Promise<SpeechSynthesisVoice[]> {
     );
   });
 }
+
+// Guarded inside listVoices, so this is a no-op in the service worker (which
+// imports this module for stripEmoji and has no speechSynthesis).
+void listVoices().then((list) => {
+  voiceCache = list;
+});

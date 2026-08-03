@@ -3,8 +3,8 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { recordEvent } from './gamification';
+import { touchProgressNode } from './graphNodes';
 import { recordEngagement } from './hyperfocus';
-import { pushReadingFinished } from './notion';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
 import { recordWatching } from './streaks';
@@ -119,6 +119,7 @@ export async function handleVideoProgress(
   );
   progress.activeSeconds += Math.max(0, msg.watchedSecondsDelta);
   progress.updatedAt = now;
+  progress.playing = !msg.stopped;
   let finishedNow = false;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
@@ -127,11 +128,11 @@ export async function handleVideoProgress(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
+  await touchProgressNode(key, progress);
   await recordWatching(Math.max(0, msg.watchedSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
   if (finishedNow) {
     await recordEvent('video_finished');
-    void pushReadingFinished(progress);
   }
 
   if (msg.stopped) {
@@ -141,19 +142,26 @@ export async function handleVideoProgress(
   }
 }
 
+/**
+ * Focuses an already-open tab playing this video, if there is one. Reopening
+ * instead would leave two trackers reporting for one video, and the copy you
+ * were actually watching muted behind the new tab.
+ */
+export async function focusExistingVideoTab(videoId: string): Promise<boolean> {
+  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
+  const existing = tabs.find((tab) => tab.url && getYouTubeVideoId(tab.url) === videoId);
+  if (existing?.id === undefined) return false;
+
+  await chrome.tabs.update(existing.id, { active: true });
+  if (existing.windowId !== undefined) {
+    await chrome.windows.update(existing.windowId, { focused: true });
+  }
+  return true;
+}
+
 /** Nudge-resume path: focus an open tab with this video, else reopen at &t= */
 export async function resumeVideo(progress: VideoProgress): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
-  const existing = tabs.find(
-    (tab) => tab.url && getYouTubeVideoId(tab.url) === progress.videoId,
-  );
-  if (existing?.id !== undefined) {
-    await chrome.tabs.update(existing.id, { active: true });
-    if (existing.windowId !== undefined) {
-      await chrome.windows.update(existing.windowId, { focused: true });
-    }
-    return;
-  }
+  if (await focusExistingVideoTab(progress.videoId)) return;
 
   const t = Math.max(0, Math.floor(progress.positionSeconds));
   const tab = await chrome.tabs.create({

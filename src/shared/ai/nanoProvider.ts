@@ -10,8 +10,12 @@ import { createSession, getAvailability } from './brainDump';
 
 const NANO_TIMEOUT_MS = 45_000;
 
+/** Tool turns have no Nano equivalent. The ReAct loop never selects Nano, so
+ *  this filter should never fire — it is here to keep the type honest. */
 function toHistory(turns: AssistantTurn[]): LanguageModelMessage[] {
-  return turns.map((t) => ({ role: t.role, content: t.text }));
+  return turns
+    .filter((t) => t.role !== 'tool')
+    .map((t) => ({ role: t.role as 'user' | 'assistant', content: t.text }));
 }
 
 export const nanoProvider: AssistantProvider = {

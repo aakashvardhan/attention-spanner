@@ -5,7 +5,6 @@ import { getLocal, getSettings, setLocal } from '../shared/storage';
 import { newTask } from '../shared/sync/recordShapes';
 import type { Task } from '../shared/types';
 import { grantFreezeToken, recordEvent, revokeEvent } from './gamification';
-import { pushTaskCreate, pushTaskToggle } from './notion';
 import { recordTaskToggled } from './streaks';
 
 /**
@@ -18,7 +17,6 @@ export async function addTask(text: string, source: Task['source']): Promise<Tas
   const { tasks } = await getLocal('tasks');
   tasks.unshift(task);
   await setLocal({ tasks });
-  void pushTaskCreate(task);
   return task;
 }
 
@@ -48,7 +46,6 @@ export async function toggleTask(id: string): Promise<void> {
       await recordTaskToggled(-1);
     }
   }
-  void pushTaskToggle(task);
 }
 
 /**
@@ -68,10 +65,7 @@ export async function moveTask(id: string, toIndex: number): Promise<void> {
   await setLocal({ tasks: tasks.map((t) => (t.completedAt === null ? open[i++] : t)) });
 }
 
-/**
- * Rename an open task. No Notion push — only create/toggle push today, and a
- * rename shouldn't spawn a duplicate page.
- */
+/** Rename an open task. */
 export async function editTask(id: string, text: string): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;

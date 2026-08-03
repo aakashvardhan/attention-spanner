@@ -1,4 +1,5 @@
 import { PAGE_TEXT_MAX_CHARS } from '../constants';
+import { articleText, extractArticle } from '../articleExtract';
 
 /**
  * Grab readable text from the active tab for page-aware help ("summarize
@@ -42,18 +43,54 @@ function extractPageText(): { title: string; text: string } {
 export async function getActivePageContent(
   maxChars = PAGE_TEXT_MAX_CHARS,
 ): Promise<PageContent | null> {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (!tab?.id || !isReadableUrl(tab.url)) return null;
-
   try {
+    // Match useActiveTab(), which owns the side-panel header. lastFocusedWindow
+    // can point at a different Chrome window after the panel or DevTools takes
+    // focus, making the header and the assistant silently target different tabs.
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !isReadableUrl(tab.url)) return null;
+
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: extractPageText,
     });
     const extracted = result?.result;
-    if (!extracted || extracted.text.length < 80) return null;
-    return { title: extracted.title, url: tab.url, text: extracted.text.slice(0, maxChars) };
+    if (extracted && extracted.text.length >= 80) {
+      return { title: extracted.title, url: tab.url, text: extracted.text.slice(0, maxChars) };
+    }
+
+    return await fetchPageContent(tab.url, tab.title ?? '', maxChars);
   } catch {
-    return null; // page blocked injection (CSP, PDF viewer, …)
+    // Injection can fail during navigation or on a browser-protected document.
+    // Query the same tab again and try the public HTML before giving up.
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tab && isReadableUrl(tab.url)
+        ? await fetchPageContent(tab.url, tab.title ?? '', maxChars)
+        : null;
+    } catch {
+      return null;
+    }
   }
+}
+
+/**
+ * Host permissions let an extension page fetch public article HTML even when
+ * the live DOM cannot be scripted. DOMParser is absent in the service worker,
+ * where this helper simply declines and leaves the caller's screenshot path
+ * intact.
+ */
+async function fetchPageContent(
+  url: string,
+  fallbackTitle: string,
+  maxChars: number,
+): Promise<PageContent | null> {
+  if (typeof DOMParser === 'undefined') return null;
+  const response = await fetch(url, { credentials: 'omit' });
+  if (!response.ok) return null;
+  const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+  const extracted = extractArticle(doc, fallbackTitle);
+  const text = articleText(extracted.blocks);
+  if (text.length < 80) return null;
+  return { title: extracted.title || fallbackTitle, url, text: text.slice(0, maxChars) };
 }

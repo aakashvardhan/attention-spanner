@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CALENDAR_DEFAULTS } from '../calendar';
 import { DEFAULT_SETTINGS } from '../storage';
 import type { FlashCard, Task } from '../types';
 import { BRIEFING_MAX_CHARS, buildBriefingPrompt, templateBriefing } from './briefing';
@@ -35,8 +36,10 @@ function data(): AssistantContextData {
     siteTime: { date: '', hosts: {} },
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
-    calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
+    calendar: CALENDAR_DEFAULTS,
     assistantMemory: [],
+    assistantProfile: { text: '', updatedAt: 0 },
+    assistantJournal: {},
     feedUnread: { count: 0, topTitles: [] },
   };
 }

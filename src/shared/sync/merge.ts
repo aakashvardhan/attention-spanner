@@ -101,6 +101,7 @@ export function mergeDayStats(local: DayStats, remote: DayStats): DayStats {
     videosFinished: max(local.videosFinished, remote.videosFinished),
     focusBlocks: max(local.focusBlocks, remote.focusBlocks),
     tasksCompleted: max(local.tasksCompleted, remote.tasksCompleted),
+    hours: mergeNumberMap(local.hours ?? {}, remote.hours ?? {}),
   };
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getAvailability, type AiAvailability } from '../ai/brainDump';
+import { getEngines, pickDumpEngine, type AiAvailability, type DumpEngines } from '../ai/brainDump';
 
 const DOWNLOAD_POLL_MS = 3000;
 
@@ -7,13 +7,18 @@ const DOWNLOAD_POLL_MS = 3000;
  * Tracks on-device Gemini Nano availability for the degradation ladder:
  * available → normal; downloadable → "Enable AI" button; downloading →
  * disabled + polling; unavailable → raw-note-only mode.
+ *
+ * `engine` folds in the cloud fallback (see brainDump.pickDumpEngine) for the
+ * surfaces that can use it; `availability` stays Nano-only for the callers
+ * that specifically gate on the on-device model.
  */
 export function useBrainDumpAI() {
-  const [availability, setAvailability] = useState<AiAvailability>('unavailable');
+  const [engines, setEngines] = useState<DumpEngines>({ nano: 'unavailable', cloud: false });
   const [checked, setChecked] = useState(false);
+  const availability: AiAvailability = engines.nano;
 
   const refresh = useCallback(async () => {
-    setAvailability(await getAvailability());
+    setEngines(await getEngines());
     setChecked(true);
   }, []);
 
@@ -27,5 +32,5 @@ export function useBrainDumpAI() {
     return () => clearInterval(timer);
   }, [availability, refresh]);
 
-  return { availability, checked, refresh };
+  return { availability, engine: pickDumpEngine(engines), checked, refresh };
 }

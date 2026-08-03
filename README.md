@@ -9,8 +9,8 @@ your data never leaves your machine unless you opt into an integration.
 Built on Manifest V3 with React 19, Vite, and TypeScript.
 
 > **This is the `personal` branch.** It carries integrations that need
-> personally-registered credentials — Google Calendar, Notion push, and
-> Firebase cloud sync with the iOS companion app. Setup for all of them lives
+> personally-registered credentials — Google Calendar and Firebase cloud sync
+> with the iOS companion app. Setup for all of them lives
 > in **[PERSONAL.md](PERSONAL.md)**. The `main` branch is the public build
 > without them.
 
@@ -76,7 +76,7 @@ to submit the report and start a 25-minute focus"* shows one plan with both
 steps — confirm once and it runs them in order.
 
 ### 📚 Read more, abandon less
-Add your feeds in Options and read from the popup or dashboard. Reader
+Add your feeds in Options and read from the side panel or dashboard. Reader
 remembers your scroll position in every article (and your timestamp in long
 YouTube videos), surfaces a **Continue reading** list, and sends a gentle
 nudge when you leave something half-finished.
@@ -92,7 +92,7 @@ exact page and section you left off on, so reopening it lands you right back
 there. Ask the AI to summarize the page you're on, right inside the viewer.
 
 ### 🃏 Study what you read
-On any article, open the popup and ask: *"make flashcards from this page"*.
+On any article, open the side panel and ask: *"make flashcards from this page"*.
 Review the generated cards, save the keepers, and drill them later with
 Anki-style spaced repetition.
 
@@ -124,7 +124,7 @@ them any time in **Options → Assistant → Memory**.
 - **Quick capture** — press `⌘⇧Y` / `Ctrl+Shift+Y` anywhere in Chrome to open a
   capture window, type a task, hit Enter. Nothing is lost to a fleeting thought.
 - **Reading progress & resume** — scroll position is tracked per article; the
-  popup surfaces a "Continue reading" pick-up point.
+  dashboard surfaces a "Continue reading" pick-up point.
 - **Tab-switch nudges** — a gentle reminder fires when you leave an article
   half-read, gated against spam (delay, cooldown, per-article cap, dismiss).
 - **YouTube tracking** — long videos (≥15 min, configurable) are auto-tracked
@@ -202,10 +202,10 @@ them any time in **Options → Assistant → Memory**.
   continue-reading, streak heatmap, activity calendar, bookmarks, and more, laid
   out in a drag-and-drop grid you can customize and resize.
 - **Bookmarks & link groups** — a curated speed-dial, independent of Chrome's
-  own bookmarks, addable from the popup, dashboard, or a right-click context
+  own bookmarks, addable from the side panel, dashboard, or a right-click context
   menu.
 - **Dark mode** — full light / dark / system theming across every page.
-- **Assistant (Jarvis)** — a chat card, popup tab, and `⌘K` command palette that
+- **Assistant (Jarvis)** — a chat card, side panel tab, and `⌘K` command palette that
   answer questions from your own data and run actions ("add a task to…", "start
   a 25-minute focus"). On-device Gemini Nano first, optional Gemini API key
   (yours, entered in Options) for harder queries; optional push-to-talk voice
@@ -213,7 +213,23 @@ them any time in **Options → Assistant → Memory**.
   - **Multi-step commands** (with a Gemini key) — "add these three tasks and
     start a focus session" plans a tool chain behind a single confirmation.
   - **Persistent memory** — "remember I lift Mon/Wed/Fri"; facts inform answers
-    and the briefing, and are manageable in Options.
+    and the briefing, and are manageable in Options. Alongside them, an
+    **About me** profile you write once, loaded into every answer and never
+    aged out.
+  - **Day plan** — "plan my day" picks three priorities from your open tasks and
+    lays out the day around your calendar and your measured prime-time window.
+    Tick them off, then close out the day with a one-line reflection. Falls back
+    to a deterministic plan with no model available.
+  - **Weekly review** — from Friday, a reckoning of the week: priorities planned
+    versus finished, reading minutes, tasks, gym, and what's stalled, with three
+    priorities proposed for next week. Every figure is counted in code; the
+    model only phrases them.
+  - **Loose ends** — "what have I dropped?" surfaces the paper abandoned at 40%
+    three weeks ago, the article left half-read, the task that has sat for a
+    month.
+  - **Journal** — plans, digests and the actions Jarvis ran are recorded per
+    day, so it remembers across browser restarts and the weekly review has real
+    material to count.
   - **Morning briefing** — a once-a-day check-in card with a 🔊 play button.
   - **Proactive check-ins** — an evening streak-at-risk / reviews-piling-up
     notification and a "meeting starts in 10 minutes" reminder, both gated by
@@ -229,8 +245,11 @@ This branch additionally ships (setup: **[PERSONAL.md](PERSONAL.md)**):
   assistant commands like "block 2–3pm for deep work" and "what's on my
   calendar tomorrow?", meetings in the morning briefing, upcoming-event
   reminders, and optional focus-session time-blocking on your calendar.
-- **Notion sync (one-way)** — push links, brain dumps, tasks, and a reading log
-  to your own Notion databases via an integration token.
+- **Gmail** — a 📥 Inbox card that sorts unread mail from **every connected
+  mailbox** into Today / This week / Read only / Archive, with one-click archive
+  or make-a-task, plus assistant commands like "triage my inbox" and "what
+  emails need me today?". Reads sender, subject and Gmail's own snippet only —
+  never message bodies — and has no send or compose permission at all.
 - **Cloud sync + iOS app** — two-way Firestore sync sharing state with the
   native SwiftUI companion app in `ios/`. Off unless you configure Firebase.
 
@@ -326,7 +345,7 @@ for those calls. Leave it blank to stay fully on-device.
 
 - **Service worker** (`src/background/`) owns all storage writes; every
   read/write from the UI goes through a message router, so state stays
-  consistent across popup, dashboard, and content scripts.
+  consistent across side panel, dashboard, and content scripts.
 - **UI reactivity** is driven entirely by `chrome.storage.onChanged` — no
   polling.
 - **Content scripts** (`src/content/`) are bundled separately via esbuild (not
@@ -349,7 +368,7 @@ for those calls. Leave it blank to stay fully on-device.
 src/
   background/   Service worker: routing, feeds, tasks, focus, sync, …
   content/      Injected trackers (reading, video, time pill)
-  pages/        popup, newtab, options, capture, flashcards, papers, reader, blocked
+  pages/        sidepanel, newtab, options, capture, flashcards, papers, reader, blocked
   shared/       Dependency-free pure logic + storage helpers
 ios/
   ADHDReaderCore/   Shared Swift logic package (mirrors src/shared)
@@ -369,7 +388,7 @@ ios/
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `contextMenus` | Right-click "Bookmark in Reader" |
 | `identity` | Google Calendar OAuth (this branch only) |
-| `<all_urls>` (host) | Tracking reading / video progress on any site; Notion & Firestore API calls |
+| `<all_urls>` (host) | Tracking reading / video progress on any site; Firestore API calls |
 
 ---
 

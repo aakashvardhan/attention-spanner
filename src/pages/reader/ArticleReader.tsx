@@ -35,8 +35,9 @@ export function ArticleReader({ url }: { url: string }) {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
+  const [panel, setPanel] = useState<'none' | 'notes' | 'ask'>('none');
+  const notesOpen = panel === 'notes';
+  const askOpen = panel === 'ask';
   const [blockIndex, setBlockIndex] = useState(0);
   const viewportRef = useRef<ArticleViewportHandle>(null);
   const makeCard = useMakeCard();
@@ -46,7 +47,10 @@ export function ArticleReader({ url }: { url: string }) {
   const title = ready ? state.title : url;
 
   const progress = useRef({ lastSentAt: 0, percent: 0, title: '' });
-  progress.current.title = title;
+  // While loading, `title` is the URL — a fine placeholder on screen, but stored
+  // it would stick as the article's name in the Continue list. Report nothing
+  // until the document is parsed and the tracker keeps the name it already has.
+  progress.current.title = ready ? state.title : '';
 
   const send = useCallback(
     (percent: number, hidden: boolean) => {
@@ -151,9 +155,9 @@ export function ArticleReader({ url }: { url: string }) {
         onToggleNoteMode={() => void addSticky()}
         notesOpen={notesOpen}
         annotationCount={docAnnotations.length}
-        onToggleNotes={() => setNotesOpen((v) => !v)}
+        onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
         askOpen={askOpen}
-        onToggleAsk={() => setAskOpen((v) => !v)}
+        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
       />
       <div className="reader-body">
         {ready && state.outline.length > 0 && outlineOpen && (

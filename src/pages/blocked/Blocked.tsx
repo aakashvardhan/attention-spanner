@@ -17,7 +17,12 @@ export function Blocked() {
     const hash = location.hash.slice(1);
     if (!hash) return null;
     try {
-      return new URL(hash);
+      const url = new URL(hash);
+      // This page is web-accessible, so any site can navigate the user here
+      // with a fragment of its choosing. `new URL` accepts javascript: and
+      // data: as readily as https, and the href below is rendered as a link
+      // in an extension-origin page — only http(s) may become one.
+      return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
     } catch {
       return null;
     }

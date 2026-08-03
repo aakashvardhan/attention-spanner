@@ -1,55 +1,118 @@
 import { useEffect, useRef, useState } from 'react';
-import { executeTool, runAssistantTurn } from '../ai/assistant';
-import { newTurn, type AssistantPlanStep, type AssistantTurn } from '../ai/assistantTypes';
-import { geminiProvider } from '../ai/geminiProvider';
+import type { DiscoveredPaper } from '../alphaxiv';
+import {
+  executeTool,
+  runAssistantTurn,
+  type AssistantPhase,
+} from '../ai/assistant';
+import {
+  newTurn,
+  type AssistantPlanStep,
+  type AssistantTurn,
+  type TraceStep,
+} from '../ai/assistantTypes';
+import { cloudProviderFor, hasCloudKey } from '../ai/cloud';
+import { getActiveTools } from '../ai/connector';
+import { resolvePaperDeckId } from '../ai/connectors/base';
 import { nanoProvider } from '../ai/nanoProvider';
 import { cancelSpeech, speak } from '../ai/tts';
 import { patchTurn, persistOutcome, persistTurn } from '../ai/turnLog';
 import { localDate } from '../format';
 import { sendMessage } from '../messages';
+import { paperDraftFromDiscovered } from '../papers';
+import { arxivPdfUrl, readerPageUrl } from '../pdf';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { useSessionValue } from '../hooks/useSessionValue';
 import { useSpeechInput } from '../hooks/useSpeechInput';
 import { useStorageValue } from '../hooks/useStorageValue';
 import { DEFAULT_SETTINGS, patchSettings, setSession } from '../storage';
+import type { Settings } from '../types';
+import type { SourceRef } from '../ai/tools';
+import { Markdown } from './Markdown';
 import './assistant.css';
 
 const SUGGESTIONS = [
-  '“Add a task to email my advisor”',
-  '“How’s my streak doing?”',
-  '“Start a 25-minute focus session”',
+  'Add a task to email my advisor',
+  'How’s my streak doing?',
+  'Start a 25-minute focus session',
 ];
 
-export function AssistantChat({ compact = false }: { compact?: boolean }) {
-  const [thread] = useSessionValue('assistantThread');
-  const [storedSettings] = useStorageValue('settings');
-  const [briefing] = useStorageValue('assistantBriefing');
+interface AssistantChatProps {
+  compact?: boolean;
+  /** For surfaces that open on demand — the dashboard dock, not the popup */
+  autoFocus?: boolean;
+  surface?: 'embedded' | 'dashboard' | 'sidepanel';
+  /** Quiet orientation copy supplied by the surface that owns the assistant. */
+  contextLabel?: string;
+}
+
+/**
+ * Keep the enabled/disabled branch outside the hook-heavy chat. Settings load
+ * asynchronously: returning early halfway through the chat made its first
+ * render call fewer hooks than its second, crashing React with error #310.
+ */
+export function AssistantChat(props: AssistantChatProps) {
+  const [storedSettings, loaded] = useStorageValue('settings');
+  if (!loaded) return <p className="as-hint">Preparing assistant…</p>;
+
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  if (!settings.assistantEnabled) {
+    return <p className="as-hint">The assistant is turned off — enable it in Settings.</p>;
+  }
+  return <EnabledAssistantChat {...props} settings={settings} />;
+}
+
+function EnabledAssistantChat({
+  compact = false,
+  autoFocus = false,
+  surface = 'embedded',
+  contextLabel,
+  settings,
+}: AssistantChatProps & { settings: Settings }) {
+  const [thread] = useSessionValue('assistantThread');
+  const [briefing] = useStorageValue('assistantBriefing');
   const ai = useBrainDumpAI();
   const todaysBriefing = briefing?.date === localDate() ? briefing.text : null;
 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [partial, setPartial] = useState<string | null>(null);
+  const [phase, setPhase] = useState<AssistantPhase | null>(null);
+  // What the ReAct loop is doing right now. Replaced by the persisted trace on
+  // the finished turn, so the list does not jump when the answer lands.
+  const [liveTrace, setLiveTrace] = useState<TraceStep[]>([]);
   const [speakingBriefing, setSpeakingBriefing] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const nanoUsable = ai.availability === 'available' || ai.availability === 'downloadable';
+  const cloudReady = hasCloudKey(settings);
+  const usable = nanoUsable || cloudReady;
+
+  // Settings arrive a tick after mount, so the input is disabled — and unable to
+  // take focus — on the first render. Focus when it can actually accept it.
+  useEffect(() => {
+    if (autoFocus && usable) inputRef.current?.focus();
+  }, [autoFocus, usable]);
 
   const speech = useSpeechInput({
     onFinal: (transcript) => void send(transcript),
     onInterim: setText,
+    // Browsers without the Web Speech API transcribe with Gemini instead
+    hasGeminiKey: settings.geminiApiKey.length > 0,
   });
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    const log = logRef.current;
+    if (!log) return;
+    // A list of results is read from the top — landing on the last card would
+    // hide the best-ranked one above the fold. Replies still land at the end.
+    if (partial === null && thread[thread.length - 1]?.papers?.length) {
+      log.lastElementChild?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    log.scrollTo({ top: log.scrollHeight });
   }, [thread, partial]);
-
-  if (!settings.assistantEnabled) {
-    return <p className="as-hint">The assistant is turned off — enable it in Settings.</p>;
-  }
-
-  const nanoUsable = ai.availability === 'available' || ai.availability === 'downloadable';
-  const cloudReady = settings.geminiApiKey.trim() !== '';
-  const usable = nanoUsable || cloudReady;
 
   const say = (reply: string) => {
     if (settings.assistantVoiceEnabled) speak(reply, settings.assistantTtsVoice);
@@ -63,14 +126,36 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
     setBusy(true);
 
     const prior = thread;
+    const toolsPromise = getActiveTools();
     await persistTurn(newTurn('user', input));
 
     try {
       const outcome = await runAssistantTurn(input, prior, {
         nano: nanoProvider,
-        cloud: geminiProvider,
+        cloud: cloudProviderFor(settings),
+        // Only connected integrations, so Jarvis can't offer to archive mail
+        // or block time on a calendar this install has never signed into
+        tools: await toolsPromise,
         onToken: setPartial,
+        onPhase: setPhase,
         cache: true,
+        react: settings.assistantReactEnabled,
+        preferCloudForAnswers: true,
+        availability: {
+          nano: nanoUsable,
+          cloud: cloudReady,
+          gemini: settings.geminiApiKey.trim() !== '',
+          anthropic: settings.anthropicApiKey.trim() !== '',
+          ollama: settings.ollamaBaseUrl.trim() !== '',
+        },
+        onStep: (step) =>
+          setLiveTrace((steps) => {
+            const at = steps.findIndex((s) => s.n === step.n);
+            if (at === -1) return [...steps, step];
+            const next = [...steps];
+            next[at] = step;
+            return next;
+          }),
       });
       void ai.refresh();
       await persistOutcome(outcome, say);
@@ -80,6 +165,8 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
       );
     } finally {
       setPartial(null);
+      setPhase(null);
+      setLiveTrace([]);
       setBusy(false);
     }
   };
@@ -101,10 +188,12 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
     if (!turn.toolCall || busy) return;
     setBusy(true);
     try {
-      const result = await executeTool(turn.toolCall.name, turn.toolCall.params);
+      const { text, papers } = await executeTool(turn.toolCall.name, turn.toolCall.params);
       await patchTurn(turn.id, { toolCall: { ...turn.toolCall, status: 'done' } });
-      await persistTurn(newTurn('assistant', result, { kind: 'action-result', source: 'local' }));
-      say(result);
+      await persistTurn(
+        newTurn('assistant', text, { kind: 'action-result', source: 'local', papers }),
+      );
+      say(text);
     } catch (err) {
       await patchTurn(turn.id, { toolCall: { ...turn.toolCall, status: 'failed' } });
       await persistTurn(
@@ -158,7 +247,8 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <div className={compact ? 'as-chat compact' : 'as-chat'}>
+    <div className={`as-chat${compact ? ' compact' : ''} as-chat--${surface}`}>
+      {contextLabel && <p className="as-context">{contextLabel}</p>}
       <div className="as-log" ref={logRef}>
         {todaysBriefing && !compact && (
           <div className="as-bubble assistant briefing">
@@ -187,12 +277,21 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
         )}
         {thread.length === 0 && partial === null && (
           <div className="as-empty">
-            <p className="as-hint">Ask about your day or tell me what to do:</p>
+            <p className="as-empty-title">What would you like to accomplish?</p>
+            <p className="as-hint">Ask about your day or give the assistant something to do.</p>
+            <div className="as-suggestions">
             {SUGGESTIONS.map((s) => (
-              <p key={s} className="as-suggestion">
+              <button
+                key={s}
+                type="button"
+                className="as-suggestion"
+                disabled={busy || !usable}
+                onClick={() => void send(s)}
+              >
                 {s}
-              </p>
+              </button>
             ))}
+            </div>
           </div>
         )}
         {thread.map((turn) => (
@@ -205,27 +304,42 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
             busy={busy}
           />
         ))}
-        {partial !== null && (
+        {(partial !== null || busy) && (
           <div className="as-bubble assistant streaming">
-            {partial || <span className="as-thinking">…</span>}
+            <Trace steps={liveTrace} live />
+            {partial || (
+              <span className="as-thinking">
+                {phase === 'routing'
+                  ? 'Understanding…'
+                  : phase === 'retrieving'
+                    ? 'Checking your data…'
+                    : phase === 'verifying'
+                      ? 'Checking the answer…'
+                      : phase === 'generating'
+                        ? 'Writing…'
+                        : '…'}
+              </span>
+            )}
           </div>
         )}
-        {busy && partial === null && <div className="as-bubble assistant streaming as-thinking">…</div>}
       </div>
 
       {ai.checked && !usable && (
         <p className="as-hint">
-          On-device AI isn’t available in this Chrome — add a Gemini API key in Settings →
+          On-device AI isn’t available in this browser — add a Gemini API key in Settings →
           Assistant to chat via the cloud.
         </p>
       )}
       {ai.availability === 'downloadable' && (
-        <p className="as-hint">First use downloads Chrome’s on-device model (one time).</p>
+        <p className="as-hint">First use downloads the browser’s on-device model (one time).</p>
       )}
       {speech.denied && (
         <p className="as-hint">
           Microphone is blocked — grant it from Settings → Assistant, then reload.
         </p>
+      )}
+      {!speech.supported && speech.reason && usable && (
+        <p className="as-hint">{speech.reason}</p>
       )}
 
       <form
@@ -235,12 +349,20 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
           void send();
         }}
       >
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
           className="as-input"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Ask or command…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          rows={1}
+          aria-label="Message Assistant"
+          placeholder="Message Assistant"
           maxLength={1000}
           disabled={busy || !usable}
         />
@@ -248,8 +370,9 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
           <button
             type="button"
             className={speech.listening ? 'as-mic listening' : 'as-mic'}
-            title="Hold to talk"
-            disabled={busy}
+            aria-label={speech.listening ? 'Release to stop listening' : 'Hold to talk'}
+            title={speech.cloud ? 'Hold to talk (audio is sent to Gemini)' : 'Hold to talk'}
+            disabled={busy || speech.transcribing}
             onPointerDown={(e) => {
               e.preventDefault();
               cancelSpeech();
@@ -258,35 +381,209 @@ export function AssistantChat({ compact = false }: { compact?: boolean }) {
             onPointerUp={speech.stop}
             onPointerLeave={speech.stop}
           >
-            Talk
+            {speech.transcribing ? (
+              <span className="as-mic-progress">…</span>
+            ) : (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 15.25a3.75 3.75 0 0 0 3.75-3.75V6a3.75 3.75 0 0 0-7.5 0v5.5A3.75 3.75 0 0 0 12 15.25Z" />
+                <path d="M5.75 11.25a6.25 6.25 0 0 0 12.5 0M12 17.5V21M9 21h6" />
+              </svg>
+            )}
           </button>
         )}
         <button
-          type="button"
-          className={settings.assistantVoiceEnabled ? 'as-voice on' : 'as-voice'}
-          title={settings.assistantVoiceEnabled ? 'Stop speaking replies' : 'Speak replies aloud'}
-          onClick={() => {
-            if (settings.assistantVoiceEnabled) cancelSpeech();
-            void patchSettings({ assistantVoiceEnabled: !settings.assistantVoiceEnabled });
-          }}
+          type="submit"
+          className="as-send"
+          aria-label="Send message"
+          disabled={busy || !usable || !text.trim()}
         >
-          {settings.assistantVoiceEnabled ? 'Voice on' : 'Voice off'}
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />
+          </svg>
         </button>
-        <button type="submit" className="as-send" disabled={busy || !usable || !text.trim()}>
-          ↑
-        </button>
-        {thread.length > 0 && (
-          <button
-            type="button"
-            className="as-clear"
-            title="Clear conversation"
-            onClick={() => void setSession({ assistantThread: [] })}
-          >
-            ✕
-          </button>
-        )}
+        <details className="as-more">
+          <summary aria-label="Assistant options" title="Assistant options">
+            •••
+          </summary>
+          <div className="as-more-menu">
+            <button
+              type="button"
+              onClick={() => {
+                if (settings.assistantVoiceEnabled) cancelSpeech();
+                void patchSettings({ assistantVoiceEnabled: !settings.assistantVoiceEnabled });
+              }}
+            >
+              {settings.assistantVoiceEnabled ? 'Turn spoken replies off' : 'Speak replies aloud'}
+            </button>
+            {thread.length > 0 && (
+              <button type="button" onClick={() => void setSession({ assistantThread: [] })}>
+                Clear conversation
+              </button>
+            )}
+          </div>
+        </details>
       </form>
     </div>
+  );
+}
+
+/** Opens with a scannable handful; the rest is one tap away. */
+const COLLAPSED_PAPERS = 4;
+
+/** Year, id and score — the three things worth comparing across results. */
+function paperMeta(paper: DiscoveredPaper): string {
+  return [
+    paper.published.slice(0, 4),
+    paper.id && `arXiv ${paper.id}`,
+    paper.votes !== null && `${paper.votes} votes`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * A discovered paper with two ways into the reading loop: open it in the
+ * in-extension reader (so highlights + cloze cards work) and track it in the
+ * local reading list. Without these a result was a dead-end that only opened a
+ * browser tab.
+ */
+function PaperCard({ paper }: { paper: DiscoveredPaper }) {
+  const [added, setAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Prefer the in-extension reader when we can build a PDF URL from the arXiv id;
+  // otherwise open the paper's own page (pdfIntercept still catches a PDF link).
+  const pdfUrl = arxivPdfUrl(paper.id);
+  const openTarget = pdfUrl ? readerPageUrl(pdfUrl) : paper.url;
+
+  const add = async () => {
+    setAdding(true);
+    setError(null);
+    try {
+      const deckId = await resolvePaperDeckId();
+      const res = await sendMessage({
+        type: 'PAPER_ADD',
+        draft: paperDraftFromDiscovered(paper, deckId),
+      });
+      if (res.ok) setAdded(true);
+      else setError(res.error ?? 'Could not add.');
+    } catch {
+      setError('Could not add.');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="as-paper">
+      <div className="as-paper-body" title={paper.title}>
+        <span className="as-paper-title">{paper.title}</span>
+        <span className="as-paper-meta">{paperMeta(paper)}</span>
+        {paper.authors && <span className="as-paper-authors">{paper.authors}</span>}
+        {paper.abstract && <span className="as-paper-abstract">{paper.abstract}</span>}
+      </div>
+      <div className="as-paper-actions">
+        <button
+          type="button"
+          className="as-paper-action"
+          disabled={!openTarget}
+          onClick={() => void chrome.tabs.create({ url: openTarget })}
+        >
+          {pdfUrl ? 'Open in reader' : 'Open'}
+        </button>
+        <button
+          type="button"
+          className="as-paper-action"
+          disabled={added || adding}
+          onClick={() => void add()}
+        >
+          {added ? 'Added' : adding ? 'Adding…' : 'Add to deck'}
+        </button>
+        {error && <span className="as-paper-error">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+function PaperList({ papers }: { papers: DiscoveredPaper[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? papers : papers.slice(0, COLLAPSED_PAPERS);
+
+  return (
+    <>
+      <div className="as-papers">
+        {shown.map((paper) => (
+          <PaperCard key={paper.id || paper.title} paper={paper} />
+        ))}
+      </div>
+      {!expanded && papers.length > COLLAPSED_PAPERS && (
+        <button type="button" className="as-papers-more" onClick={() => setExpanded(true)}>
+          Show all {papers.length}
+        </button>
+      )}
+    </>
+  );
+}
+
+function traceIcon(status: TraceStep['status']): string {
+  if (status === 'done') return '✓';
+  if (status === 'failed') return '✗';
+  if (status === 'staged') return '⏸';
+  if (status === 'skipped') return '–';
+  return '·';
+}
+
+/**
+ * What the assistant is doing, or did. Live while the turn runs; collapsed
+ * under the answer afterwards, so the work is auditable without the trace
+ * competing with the reply for attention.
+ */
+function Trace({ steps, live }: { steps: TraceStep[]; live?: boolean }) {
+  if (steps.length === 0) return null;
+  const list = (
+    <ul className="as-trace">
+      {steps.map((step) => (
+        <li key={step.n} className={`as-trace-step ${step.status}`}>
+          <span className="as-trace-icon">{traceIcon(step.status)}</span> {step.label}
+          {step.detail && <span className="as-trace-detail"> — {step.detail}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+  if (live) return list;
+  return (
+    <details className="as-trace-wrap">
+      <summary>
+        Worked through {steps.length} step{steps.length === 1 ? '' : 's'}
+      </summary>
+      {list}
+    </details>
+  );
+}
+
+function Sources({ sources }: { sources: SourceRef[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <details className="as-sources">
+      <summary>
+        {sources.length} source{sources.length === 1 ? '' : 's'} checked
+      </summary>
+      <ul>
+        {sources.map((source) => (
+          <li key={source.id}>
+            {source.url ? (
+              <a href={source.url} target="_blank" rel="noreferrer">
+                {source.title}
+              </a>
+            ) : (
+              <span>{source.title}</span>
+            )}
+            {source.snippet && <small>{source.snippet}</small>}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -310,19 +607,41 @@ function Bubble({
   onCancel: (turn: AssistantTurn) => void;
   busy: boolean;
 }) {
+  // Search hits are information, not a completed action — no green, no check.
+  const papers = turn.papers?.length ? turn.papers : null;
+  // Model prose gets Markdown + LaTeX. Tool outputs and errors are our own one
+  // line of text, and their bubbles put "✓ " inline in front of it — a block
+  // renderer would break that onto its own line for nothing.
+  const prose =
+    turn.role === 'assistant' && !papers && turn.kind !== 'action-result' && turn.kind !== 'error';
   const cls =
     turn.role === 'user'
       ? 'as-bubble user'
       : turn.kind === 'error'
         ? 'as-bubble assistant error'
-        : turn.kind === 'action-result'
-          ? 'as-bubble assistant action'
-          : 'as-bubble assistant';
+        : papers
+          ? 'as-bubble assistant results'
+          : turn.kind === 'action-result'
+            ? 'as-bubble assistant action'
+            : 'as-bubble assistant';
 
   return (
     <div className={cls}>
-      {turn.kind === 'action-result' && '✓ '}
-      {turn.text}
+      {turn.kind === 'action-result' && !papers && '✓ '}
+      {/* The cards carry the detail, so only the headline line of the text form
+          is worth repeating above them — and its colon introduced a list that
+          isn't there any more. */}
+      {papers ? (
+        <span className="as-results-head">{turn.text.split('\n')[0].replace(/:$/, '')}</span>
+      ) : prose ? (
+        <Markdown text={turn.text} />
+      ) : (
+        turn.text
+      )}
+      {papers && <PaperList papers={papers} />}
+      {turn.sources?.length ? <Sources sources={turn.sources} /> : null}
+      {turn.trace && <Trace steps={turn.trace} />}
+      {turn.grounding === 'insufficient' && <span className="as-badge">limited evidence</span>}
       {turn.source === 'cloud' && <span className="as-badge">cloud</span>}
       {turn.plan && (
         <ul className="as-plan">

@@ -112,7 +112,14 @@ describe('mergeDayStats', () => {
       videosFinished: 2,
       focusBlocks: 0,
       tasksCompleted: 0,
+      hours: {},
     });
+  });
+
+  it('merges the hourly ledger per hour, also by max', () => {
+    const a: DayStats = { minutes: 0, sprints: 0, articlesFinished: 0, hours: { '9': 2, '21': 5 } };
+    const b: DayStats = { minutes: 0, sprints: 0, articlesFinished: 0, hours: { '9': 4, '14': 1 } };
+    expect(mergeDayStats(a, b).hours).toEqual({ '9': 4, '14': 1, '21': 5 });
   });
 });
 

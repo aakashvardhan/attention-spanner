@@ -1,13 +1,24 @@
 import type { Message } from '../shared/messages';
+import { OFFSCREEN_PAGE_PATH } from '../shared/constants';
 import { appendTurn } from '../shared/ai/assistantTypes';
 import { getActivePageContent } from '../shared/ai/pageContent';
 import { getSession, setSession } from '../shared/storage';
 import { handleWakeEvent } from './offscreen';
+import { speakViaTts, stopTts } from './speech';
+import {
+  axAskPdf,
+  axConnect,
+  axDisconnect,
+  axDiscover,
+  axLibrary,
+  axPaperContent,
+  axSavePaper,
+} from './alphaxiv';
 import { calSignIn, calSignOut, createCalendarEvent, listEvents, refreshCalendar } from './calendar';
-import { refreshMeetingNotes } from './meetingNotes';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
+  addNoteLink,
   applyStructureResult,
   confirmNoteTasks,
   deleteNote,
@@ -37,23 +48,56 @@ import {
   moveAnnotation,
   updateAnnotation,
 } from './annotations';
+import { reconcileDailyBrainDump } from './dailyBrainDump';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
+import {
+  captureNow,
+  deleteRecording,
+  handleCaptureEnded,
+  handleSegmentReady,
+  handleVisualReady,
+  importYouTubeCaptions,
+  renameRecording,
+  startRecording,
+  stopRecording,
+  summarizeRecording,
+} from './recordings';
+import { askLive, catchMeUp, pinSkill, setMode, setPace, suggestNow } from './live';
 import { openNativePdf } from './pdfIntercept';
 import { getSyncStatus } from './sync';
 import { signIn, signOutSync, signUp } from './firestoreBackend';
 import { startFocus, stopFocus } from './focus';
+import { archiveMessage, labelMessage, listLabels } from './gmail';
+import { connect as gmailConnect, disconnect as gmailDisconnect } from './gmailAuth';
+import { dropFromTriage, runTriage } from './gmailTriage';
+import { patchDayPlan, recordEntry, savePlan } from './journal';
 import { addFact, deleteFact } from './memory';
 import { addSkill, deleteSkill, updateSkill } from './skills';
 import { applyProposals } from './agentRuns';
 import { addAutomation, deleteAutomation, runAutomation, updateAutomation } from './automations';
-import { flushQueue, listDatabases, testConnection } from './notion';
 import { gymCheckin, gymUndo } from './gym';
+import { addExternalPaper, applyCitedTags, expandCitations } from './citations';
+import { indexDocCitations } from './docCitations';
+import { applyTags, reconcileGraphNodes, setManualTags } from './graphNodes';
 import { completeWarmup } from './warmup';
 import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
 import { handleVideoProgress, handleVideoReady } from './videoTracking';
+import { isXBookmarksUrl, openXBookmarks, saveVisibleXBookmarks } from './xBookmarks';
+
+/**
+ * Is this message from our own offscreen document? Its sender.url is the
+ * extension-origin offscreen page; content scripts report the page's URL and
+ * other extension surfaces report their own page, so neither can pass. The
+ * in-process dispatcher passes an empty sender ({} — see setLocalDispatcher),
+ * which also fails, and correctly: the worker has chrome.storage itself and
+ * never proxies.
+ */
+function isOffscreenSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.url === chrome.runtime.getURL(OFFSCREEN_PAGE_PATH);
+}
 
 /** Run an auth action and normalize Firebase errors into a UI-friendly result. */
 async function authResult(action: () => Promise<void>): Promise<{ ok: boolean; error?: string }> {
@@ -85,7 +129,7 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'REFRESH_FEEDS':
       return refreshFeeds();
     case 'OPEN_ARTICLE':
-      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false);
+      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true);
     case 'ADD_TASK':
       return { ok: true, task: await addTask(msg.text, msg.source) };
     case 'TOGGLE_TASK':
@@ -134,6 +178,14 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'DELETE_BOOKMARK_GROUP':
       await deleteBookmarkGroup(msg.id);
       return { ok: true };
+    case 'X_BOOKMARKS_OPEN':
+      await openXBookmarks();
+      return { ok: true };
+    case 'X_BOOKMARKS_SYNC':
+      // Content-script messages share the extension channel with every page,
+      // so only accept personal bookmark data from X's bookmarks route.
+      if (!isXBookmarksUrl(sender.url)) return { ok: false, count: 0 };
+      return { ok: true, count: await saveVisibleXBookmarks(msg.items) };
     case 'MEMORY_ADD':
       return addFact(msg.text);
     case 'MEMORY_DELETE':
@@ -145,6 +197,42 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return updateSkill(msg.id, msg.patch);
     case 'SKILL_DELETE':
       await deleteSkill(msg.id);
+      return { ok: true };
+    case 'GMAIL_CONNECT':
+      return gmailConnect();
+    case 'GMAIL_DISCONNECT':
+      return gmailDisconnect(msg.accountId);
+    case 'GMAIL_TRIAGE':
+      return runTriage({ force: msg.force });
+    case 'GMAIL_ARCHIVE':
+      try {
+        await archiveMessage(msg.accountId, msg.messageId);
+        await dropFromTriage(msg.messageId);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    case 'GMAIL_LABEL':
+      try {
+        await labelMessage(msg.accountId, msg.messageId, msg.labelId);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    case 'GMAIL_LIST_LABELS':
+      try {
+        return { ok: true, labels: await listLabels(msg.accountId) };
+      } catch (err) {
+        return { ok: false, labels: [], error: (err as Error).message };
+      }
+    case 'JOURNAL_APPEND':
+      await recordEntry(msg.kind, msg.text);
+      return { ok: true };
+    case 'JOURNAL_SAVE_PLAN':
+      await savePlan(msg.plan);
+      return { ok: true };
+    case 'JOURNAL_PATCH_PLAN':
+      await patchDayPlan(msg.date, msg.patch);
       return { ok: true };
     case 'AGENT_APPLY_PROPOSALS':
       return applyProposals(msg.proposals);
@@ -158,14 +246,9 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'AUTOMATION_RUN_NOW':
       return runAutomation(msg.id, { force: true });
     case 'SAVE_NOTE':
-      return { ok: true, note: await saveNote(msg.rawText, msg.willStructure) };
-    case 'NOTION_LIST_DBS':
-      return listDatabases();
-    case 'NOTION_TEST':
-      return testConnection();
-    case 'NOTION_FLUSH_NOW':
-      void flushQueue();
-      return { ok: true };
+      return { ok: true, ...(await saveNote(msg.rawText)) };
+    case 'DAILY_GATE_STATUS':
+      return { ok: true, ...(await reconcileDailyBrainDump()) };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
     case 'FLASH_RENAME_DECK':
@@ -219,8 +302,20 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
     case 'CAL_LIST_EVENTS':
       return listEvents(msg.startMs, msg.endMs);
-    case 'MEETING_NOTES_REFRESH':
-      return refreshMeetingNotes();
+    case 'AX_CONNECT':
+      return axConnect();
+    case 'AX_DISCONNECT':
+      return axDisconnect();
+    case 'AX_LIBRARY':
+      return axLibrary();
+    case 'AX_DISCOVER':
+      return axDiscover(msg.topic, msg.recent);
+    case 'AX_PAPER_CONTENT':
+      return axPaperContent(msg.paper, msg.fullText);
+    case 'AX_ASK_PDF':
+      return axAskPdf(msg.paper, msg.queries);
+    case 'AX_SAVE_PAPER':
+      return axSavePaper(msg.paper);
     case 'SYNC_STATUS':
       return getSyncStatus();
     case 'SYNC_SIGN_IN':
@@ -239,7 +334,7 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       await deleteNote(msg.id);
       return { ok: true };
     case 'CONFIRM_NOTE_TASKS':
-      return { ok: true, ...(await confirmNoteTasks(msg.id, msg.taskIndexes)) };
+      return { ok: true, ...(await confirmNoteTasks(msg.id, msg.tasks)) };
     case 'TRACKER_READY':
       return {
         ok: true,
@@ -253,12 +348,38 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'VIDEO_PROGRESS':
       await handleVideoProgress(sender, msg);
       return { ok: true };
+    case 'GRAPH_SYNC':
+      await reconcileGraphNodes();
+      return { ok: true };
+    case 'GRAPH_SET_TAGS':
+      return applyTags(msg.assignments);
+    case 'GRAPH_SET_MANUAL_TAGS':
+      return setManualTags(msg.id, msg.tags);
+    case 'DOC_CITATIONS_INDEX':
+      return indexDocCitations(msg.entry);
+    case 'GRAPH_EXPAND_CITATIONS':
+      return expandCitations(msg.paperId, msg.force ?? false);
+    case 'GRAPH_ADD_EXTERNAL':
+      return addExternalPaper(msg.nodeId);
+    case 'GRAPH_SET_CITED_TAGS':
+      return applyCitedTags(msg.assignments);
+    case 'NOTE_ADD_LINK':
+      return addNoteLink(msg.id, msg.rawText);
     case 'TIME_PILL_READY':
       return handleTimePillReady(msg.host);
     case 'TIME_PILL_TICK':
       return handleTimePillTick(msg.host, msg.seconds);
-    // Offscreen wake-word listener (no chrome.storage/tabs there — SW does it)
+    // Offscreen wake-word listener (no chrome.storage/tabs there — SW does it).
+    // This is an unrestricted read/write of everything in storage: `get([])`
+    // hands back the API keys, the Google client secret and the refresh
+    // tokens. The offscreen document is the only context that needs it (every
+    // other one has chrome.storage directly), so nothing else may ask — a
+    // content script on a hostile page shares this same message channel.
     case 'PROXY_STORAGE': {
+      if (!isOffscreenSender(sender)) {
+        console.warn('[router] PROXY_STORAGE from an unexpected sender:', sender.url);
+        return { ok: false };
+      }
       if (msg.op === 'get') return chrome.storage[msg.area].get(msg.keys ?? []);
       await chrome.storage[msg.area].set(msg.items ?? {});
       return {};
@@ -296,9 +417,59 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'WAKE_EVENT':
       await handleWakeEvent(msg.event, msg.text);
       return { ok: true };
+    case 'TTS_SPEAK':
+      await speakViaTts(msg.text, msg.voiceName, msg.enqueue);
+      return { ok: true };
+    case 'TTS_STOP':
+      stopTts();
+      return { ok: true };
     case 'WAKE_MIC_BUSY':
+    case 'WAKE_LISTENER_SET':
+    case 'REC_BEGIN':
+    case 'REC_GRAB_FRAME':
       // Addressed to the offscreen doc, which listens on the same broadcast
       return { ok: true };
+    case 'REC_START':
+      return startRecording(msg.mode, msg.tabId, msg.title, msg.purpose);
+    case 'REC_STOP':
+      // The offscreen recorder stops itself off the same broadcast
+      return stopRecording();
+    case 'REC_SEGMENT_READY':
+      await handleSegmentReady(msg);
+      return { ok: true };
+    case 'REC_VISUAL_READY':
+      await handleVisualReady(msg);
+      return { ok: true };
+    case 'REC_CAPTURE_ENDED':
+      await handleCaptureEnded(msg);
+      return { ok: true };
+    case 'LIVE_SET_MODE':
+      await setMode(msg.mode);
+      return { ok: true };
+    case 'LIVE_SET_PACE':
+      await setPace(msg.pace);
+      return { ok: true };
+    case 'LIVE_PIN_SKILL':
+      await pinSkill(msg.skillId);
+      return { ok: true };
+    case 'LIVE_SUGGEST':
+      await suggestNow();
+      return { ok: true };
+    case 'LIVE_ASK':
+      await askLive(msg.question);
+      return { ok: true };
+    case 'LIVE_CATCH_UP':
+      return { text: await catchMeUp(msg.minutes) };
+    case 'REC_DELETE':
+      return deleteRecording(msg.id);
+    case 'REC_RENAME':
+      return renameRecording(msg.id, msg.title);
+    case 'REC_SUMMARIZE':
+      return summarizeRecording(msg.id);
+    case 'REC_CAPTURE_NOW':
+      return captureNow();
+    case 'REC_YOUTUBE_IMPORT':
+      return importYouTubeCaptions(msg.url);
   }
 }
 

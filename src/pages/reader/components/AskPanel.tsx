@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import { alphaxivPaperRef, formatPageExcerpts, pagesToContext, parsePagesXml } from '../../../shared/alphaxiv';
+import { cloudProviderFor, hasCloudKey } from '../../../shared/ai/cloud';
 import { nanoProvider } from '../../../shared/ai/nanoProvider';
 import { answerAboutPdf, type QaTurn } from '../../../shared/ai/pdfQa';
+import { sendMessage } from '../../../shared/messages';
 import { DEFAULT_SETTINGS } from '../../../shared/storage';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
+import { Markdown } from '../../../shared/components/Markdown';
 import '../../../shared/components/assistant.css';
 
-const SUGGESTIONS: Record<'paper' | 'article', string[]> = {
+type DocNoun = 'paper' | 'article' | 'transcript';
+
+const SUGGESTIONS: Record<DocNoun, string[]> = {
   paper: [
     '“Summarize this paper”',
     '“What problem does it solve?”',
@@ -15,6 +21,11 @@ const SUGGESTIONS: Record<'paper' | 'article', string[]> = {
     '“Summarize this in three points”',
     '“What is the main claim?”',
     '“What should I remember from this?”',
+  ],
+  transcript: [
+    '“What were the action items?”',
+    '“What did I commit to?”',
+    '“Explain the part about…”',
   ],
 };
 
@@ -52,6 +63,7 @@ export function AskPanel({
   position,
   total,
   noun,
+  src,
 }: {
   /** Stable across renders — the caller memoizes it */
   getText: () => Promise<string>;
@@ -59,10 +71,13 @@ export function AskPanel({
   /** 1-based position in the document; the answer window is built around it */
   position: number;
   total: number;
-  noun: 'paper' | 'article';
+  noun: DocNoun;
+  /** The document's URL. Enables the alphaXiv source when the server can fetch it. */
+  src?: string;
 }) {
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  const [alphaxiv] = useStorageValue('alphaxiv');
 
   const { text: fullText, loading } = useDocText(getText);
   const [turns, setTurns] = useState<QaTurn[]>([]);
@@ -84,36 +99,88 @@ export function AskPanel({
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [turns, partial]);
 
-  const cloudOk = settings.geminiApiKey.trim() !== '';
-  const usable = nanoOk || cloudOk;
+  const cloudOk = hasCloudKey(settings);
+  const modelOk = nanoOk || cloudOk;
+  // alphaXiv only resolves papers it can fetch — an arXiv id, or some public URL
+  const alphaxivOk = alphaxiv.connected && Boolean(src && alphaxivPaperRef(src));
+  // One assistant: alphaXiv retrieval when it's reachable (it needs no local
+  // model of its own), otherwise the on-device/cloud answer over the local text.
+  const usable = alphaxivOk || modelOk;
+  // Only the local path waits on text extraction; alphaXiv answers straight away.
+  const waiting = loading && !alphaxivOk;
+
+  const push = (turn: QaTurn) => setTurns((prev) => [...prev, turn]);
+
+  /** Answer from the extracted document text — Nano first, cloud when it's too big. */
+  const askLocal = async (question: string, history: QaTurn[]): Promise<QaTurn> => {
+    const answer = await answerAboutPdf({
+      title,
+      fullText,
+      currentPage: position,
+      pageCount: total,
+      question,
+      history,
+      nanoOk,
+      cloudOk,
+      transcript: noun === 'transcript',
+      cloudProvider: cloudProviderFor(settings),
+      onToken: setPartial,
+    });
+    const text = answer.partial && !cloudOk ? answer.text + NO_KEY_NOTE : answer.text;
+    return { role: 'assistant', text };
+  };
+
+  /** Retrieve the relevant pages from alphaXiv, then compose locally from them. */
+  const askAlphaxiv = async (question: string, history: QaTurn[]): Promise<QaTurn> => {
+    const res = await sendMessage({ type: 'AX_ASK_PDF', paper: src!, queries: [question] });
+    // A retrieval hiccup shouldn't dead-end the one assistant — fall back to the
+    // local text when there's a model to compose it.
+    if (!res.ok) {
+      if (modelOk) return askLocal(question, history);
+      throw new Error(res.error ?? 'alphaXiv could not read this paper.');
+    }
+
+    const parsed = parsePagesXml(res.text ?? '');
+    if (!parsed.pages.length) {
+      if (modelOk) return askLocal(question, history);
+      return { role: 'assistant', text: (res.text ?? '').trim() || 'alphaXiv found nothing on that.' };
+    }
+    const pages = parsed.pages.map((p) => p.num);
+    // No local model: the excerpts are the answer, which is still a real one.
+    if (!modelOk) return { role: 'assistant', text: formatPageExcerpts(parsed), pages };
+
+    const answer = await answerAboutPdf({
+      title,
+      fullText: pagesToContext(parsed),
+      // The context is already only the relevant pages — no windowing to do
+      currentPage: 1,
+      pageCount: 1,
+      question,
+      history,
+      nanoOk,
+      cloudOk,
+      transcript: noun === 'transcript',
+      cloudProvider: cloudProviderFor(settings),
+      onToken: setPartial,
+    });
+    return { role: 'assistant', text: answer.text, pages };
+  };
 
   const send = async (raw?: string) => {
     const question = (raw ?? input).trim();
-    if (!question || busy || loading || !usable) return;
+    if (!question || busy || waiting || !usable) return;
     setInput('');
     setBusy(true);
     const history = turns;
-    setTurns([...history, { role: 'user', text: question }]);
+    push({ role: 'user', text: question });
 
     try {
-      const answer = await answerAboutPdf({
-        title,
-        fullText,
-        currentPage: position,
-        pageCount: total,
-        question,
-        history,
-        nanoOk,
-        cloudOk,
-        onToken: setPartial,
+      push(alphaxivOk ? await askAlphaxiv(question, history) : await askLocal(question, history));
+    } catch (err) {
+      push({
+        role: 'assistant',
+        text: (err as Error).message || `Something went wrong reading the ${noun}. Try again?`,
       });
-      const text = answer.partial && !cloudOk ? answer.text + NO_KEY_NOTE : answer.text;
-      setTurns((prev) => [...prev, { role: 'assistant', text }]);
-    } catch {
-      setTurns((prev) => [
-        ...prev,
-        { role: 'assistant', text: `Something went wrong reading the ${noun}. Try again?` },
-      ]);
     } finally {
       setPartial(null);
       setBusy(false);
@@ -134,22 +201,40 @@ export function AskPanel({
         <div className="as-log" ref={logRef}>
           {turns.length === 0 && partial === null && (
             <div className="as-empty">
-              <p className="as-hint">Ask about this {noun}:</p>
+              <p className="as-hint">
+                {alphaxivOk
+                  ? `Ask about this ${noun} — answers cite the pages they came from:`
+                  : `Ask about this ${noun}:`}
+              </p>
               {SUGGESTIONS[noun].map((s) => (
-                <p key={s} className="as-suggestion">
+                <button
+                  key={s}
+                  type="button"
+                  className="as-suggestion"
+                  disabled={busy || waiting || !usable}
+                  onClick={() => void send(s)}
+                >
                   {s}
-                </p>
+                </button>
               ))}
             </div>
           )}
           {turns.map((t, i) => (
             <div key={i} className={t.role === 'user' ? 'as-bubble user' : 'as-bubble assistant'}>
-              {t.text}
+              {t.role === 'assistant' ? <Markdown text={t.text} /> : t.text}
+              {t.pages?.length ? (
+                <span className="as-pages">
+                  Page{t.pages.length > 1 ? 's' : ''} {t.pages.join(', ')}
+                </span>
+              ) : null}
             </div>
           ))}
           {partial !== null && (
             <div className="as-bubble assistant streaming">
-              {partial || <span className="as-thinking">…</span>}
+              {/* Keep streamed answers in the same Markdown + KaTeX path as
+                  completed ones, so equations do not briefly appear as raw
+                  `$...$` text inside the PDF reader. */}
+              {partial ? <Markdown text={partial} /> : <span className="as-thinking">…</span>}
             </div>
           )}
           {busy && partial === null && (
@@ -157,10 +242,10 @@ export function AskPanel({
           )}
         </div>
 
-        {loading && <p className="as-hint">Reading the paper…</p>}
+        {waiting && <p className="as-hint">Reading the {noun}…</p>}
         {checked && !usable && (
           <p className="as-hint">
-            On-device AI isn’t available in this Chrome — add a Gemini API key in Settings →
+            On-device AI isn’t available in this browser — add a Gemini API key in Settings →
             Assistant to ask via the cloud.
           </p>
         )}
@@ -177,14 +262,14 @@ export function AskPanel({
             className="as-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about this paper…"
+            placeholder={`Ask about this ${noun}…`}
             maxLength={1000}
-            disabled={busy || loading || !usable}
+            disabled={busy || waiting || !usable}
           />
           <button
             type="submit"
             className="as-send"
-            disabled={busy || loading || !usable || !input.trim()}
+            disabled={busy || waiting || !usable || !input.trim()}
           >
             ↑
           </button>

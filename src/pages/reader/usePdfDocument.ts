@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getDocument, type PDFDocumentProxy } from 'pdfjs-dist';
+import { getDocument, VerbosityLevel, type PDFDocumentProxy } from 'pdfjs-dist';
 import { flattenOutline, type FlatOutlineItem, type RawOutlineItem } from '../../shared/pdfOutline';
 
 /** Page size at scale 1 (PDF points × the default 1.0 viewport). */
@@ -82,7 +82,11 @@ export function usePdfDocument(src: string): PdfLoadState {
       }
 
       try {
-        loadingTask = getDocument({ data });
+        // Real-world PDFs make pdf.js warn about junk it recovers from anyway
+        // ("minus sign in the middle", missing glyphs). Those warnings land in
+        // the extension's error list and bury the ones that matter; failures
+        // still throw and land in the catch below.
+        loadingTask = getDocument({ data, verbosity: VerbosityLevel.ERRORS });
         const doc = await loadingTask.promise;
         const pageSizes: PdfPageSize[] = [];
         for (let i = 1; i <= doc.numPages; i++) {

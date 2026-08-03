@@ -1,1157 +1,529 @@
 import { useEffect, useMemo, useState } from 'react';
-import { runPendingAutomations } from '../../shared/ai/automations';
-import { maybeGenerateBriefing } from '../../shared/ai/briefing';
-import { nanoProvider } from '../../shared/ai/nanoProvider';
-import { BADGES } from '../../shared/badges';
+import { suggestFirstAction } from '../../shared/ai/ignition';
 import {
-  currentEvent,
-  formatCountdown,
-  nextUpcoming,
-  todayEvents,
-} from '../../shared/calendar';
-import { BrainDump } from '../../shared/components/BrainDump';
-import { HoldToQuit } from '../../shared/components/HoldToQuit';
-import { IgnitionCard } from '../../shared/components/IgnitionCard';
-import { NotesHistory } from '../../shared/components/NotesHistory';
-import { SortableTaskList } from '../../shared/components/SortableTaskList';
-import {
-  Button,
-  EmptyState,
-  Panel,
-  ProgressBar,
-  Stat,
-  StatRow,
-} from '../../shared/components/ui';
-import { WakeHandoff } from '../../shared/components/WakeHandoff';
+  mostRecentUnfinished,
+  resumeContextFromProgress,
+} from '../../shared/attention';
+import { currentEvent, formatCountdown, nextUpcoming } from '../../shared/calendar';
+import { DailyBrainDumpGate } from '../../shared/components/DailyBrainDumpGate';
 import {
   FLASHCARDS_PAGE_PATH,
-  FOCUS_PRESETS,
-  MAX_LIST_ITEMS,
   PAPERS_PAGE_PATH,
 } from '../../shared/constants';
+import { isDailyBrainDumpComplete } from '../../shared/dailyBrainDump';
+import { formatTime } from '../../shared/format';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
-import {
-  daysAgo,
-  faviconUrl,
-  formatRelativeDate,
-  formatTime,
-  formatWatchTime,
-  localDate,
-} from '../../shared/format';
-import { useBookmarks } from '../../shared/hooks/useBookmarks';
-import { useFeed } from '../../shared/hooks/useFeed';
-import { usePapers } from '../../shared/hooks/usePapers';
-import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
-import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
-import { dueCounts, newIntroducedToday, totalDue } from '../../shared/srs';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
-import type { Paper, Task } from '../../shared/types';
 import { paperOpenUrl } from '../../shared/pdf';
-import { weekDates, weekKey } from '../../shared/week';
-import type { MeetingNote } from '../../shared/meetingNotes';
-import { ActivityCalendar } from './ActivityCalendar';
-import { CommandPalette } from './CommandPalette';
-import { DashboardGrid, type DashCard } from './DashboardGrid';
-import { MeetingNoteReader } from './MeetingNoteReader';
-import { WarmupPanel } from './WarmupPanel';
-
-const DASHBOARD_CARDS: readonly DashCard[] = [
-  { id: 'feeds', title: 'Feeds', Component: FeedsPanel },
-  { id: 'agenda', title: 'Today', Component: AgendaPanel },
-  { id: 'links', title: 'Links', Component: BookmarksPanel },
-  { id: 'tasks', title: 'Tasks', Component: TaskPanel },
-  { id: 'continue', title: 'Continue', Component: ContinuePanel },
-  { id: 'streak', title: 'Focus', Component: StreakPanel },
-  { id: 'gym', title: 'Gym', Component: GymPanel },
-  { id: 'braindump', title: 'Brain dump', Component: BrainDumpPanel },
-  { id: 'flashcards', title: 'Flashcards', Component: FlashcardsPanel },
-  { id: 'papers', title: 'Papers', Component: PapersPanel },
-  { id: 'meetings', title: 'Meetings', Component: MeetingNotesPanel },
-  { id: 'warmup', title: 'Warm-up', Component: WarmupPanel },
-];
+import { DEFAULT_SETTINGS, getLocal, setLocal } from '../../shared/storage';
+import type {
+  ActiveIntent,
+  EnabledPack,
+  IntentResumeContext,
+  ParkingLotItem,
+  Paper,
+  Task,
+} from '../../shared/types';
+import { AssistantDock } from './AssistantDock';
+import { BookmarksPanel } from './BookmarksPanel';
+import { XBookmarksPanel } from './XBookmarksPanel';
 
 export function Dashboard() {
-  const hour = new Date().getHours();
-  const greeting = hour < 5 ? 'Up late?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const focus = useFocusSession();
-  const inFocus = focus.active && focus.phase === 'focus';
-  const theme = useTheme();
+  const [gate, loaded] = useStorageValue('dailyBrainDumpGate');
+  const complete = isDailyBrainDumpComplete(gate);
+  const [gateFlowActive, setGateFlowActive] = useState(false);
+
+  useEffect(() => {
+    if (loaded && !complete) setGateFlowActive(true);
+  }, [loaded, complete]);
+
+  if (!loaded) {
+    return (
+      <main className="daily-gate daily-gate--center" aria-busy="true">
+        <div className="daily-gate-spinner" />
+        <p>Preparing today’s workspace…</p>
+      </main>
+    );
+  }
+  if (!complete || gateFlowActive) {
+    return <DailyBrainDumpGate onContinue={() => setGateFlowActive(false)} />;
+  }
+  return <AttentionRelay />;
+}
+
+function AttentionRelay() {
+  const [activeIntent] = useStorageValue('activeIntent');
+  const [readingProgress] = useStorageValue('readingProgress');
+  const [papers] = useStorageValue('papers');
+  const [calendar] = useStorageValue('calendar');
+  const [gmail] = useStorageValue('gmail');
+  const [parkingLot] = useStorageValue('parkingLot');
+  const [enabledPacks] = useStorageValue('enabledPacks');
+  const [notes] = useStorageValue('notes');
   const [storedSettings] = useStorageValue('settings');
+  const tasks = useTasks();
+  const focus = useFocusSession();
+  const [manualText, setManualText] = useState('');
+  const [parkText, setParkText] = useState('');
+  const [breadcrumb, setBreadcrumb] = useState('');
+  const [smallerAction, setSmallerAction] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const [acknowledgment, setAcknowledgment] = useState('');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
 
-  useEffect(() => {
-    document.body.classList.toggle('focus-active', inFocus);
-    return () => document.body.classList.remove('focus-active');
-  }, [inFocus]);
-
-  useEffect(() => {
-    void maybeGenerateBriefing();
-    // Automations queued while no cloud key was reachable run on-device here
-    void runPendingAutomations(nanoProvider);
-  }, []);
-
-  return (
-    <div className="dashboard">
-      <CommandPalette />
-      {inFocus && <FocusBanner focus={focus} />}
-      <div className="dash-topbar">
-        <header className="dash-header">
-          <div>
-            <h1>{greeting}.</h1>
-            <p className="dash-date">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-          </div>
-          <div className="dash-header-right">
-            <Button
-              variant="ghost"
-              className="theme-toggle"
-              title={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              aria-label={theme.resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              onClick={() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark')}
-            >
-              {theme.resolved === 'dark' ? 'Light' : 'Dark'}
-            </Button>
-            <Clock />
-          </div>
-        </header>
-        <ActivityCalendar />
-      </div>
-      <DashboardGrid cards={DASHBOARD_CARDS} />
-      {/* The visible assistant lives in the popup; the wake-word listener opens
-          this page when it can't run a command itself, so keep a headless
-          runner here to execute the handed-off command. */}
-      {settings.assistantWakeWordEnabled && <WakeHandoff />}
-    </div>
+  const recentProgress = useMemo(
+    () => mostRecentUnfinished(readingProgress),
+    [readingProgress],
   );
-}
-
-function FeedsPanel() {
-  const feed = useFeed();
-  const [filter, setFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
-
-  const sources = useMemo(
-    () => [...new Set(feed.items.map((item) => item.source))].sort(),
-    [feed.items],
+  const recentPaper = useMemo(
+    () =>
+      papers
+        .filter((paper) => paper.status === 'reading' && paper.lastReadAt !== null)
+        .sort((a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0))[0] ?? null,
+    [papers],
   );
-  const categories = useMemo(
-    () => [...new Set(feed.items.flatMap((item) => item.categories ?? []))].sort(),
-    [feed.items],
+  const candidate = useMemo(
+    () => activeIntent ?? candidateIntent(tasks.openTasks[0] ?? null, recentProgress, recentPaper),
+    [activeIntent, tasks.openTasks, recentProgress, recentPaper],
   );
-  const effectiveFilter = filter !== 'all' && !sources.includes(filter) ? 'all' : filter;
-  const effectiveCategory =
-    categoryFilter !== 'all' && !categories.includes(categoryFilter) ? 'all' : categoryFilter;
-  const query = search.trim().toLowerCase();
-
-  const filtered = feed.items.filter((item) => {
-    if (effectiveFilter !== 'all' && item.source !== effectiveFilter) return false;
-    if (effectiveCategory !== 'all' && !(item.categories ?? []).includes(effectiveCategory))
-      return false;
-    if (unreadOnly && feed.readItems.includes(item.id)) return false;
-    if (
-      query &&
-      !`${item.title} ${item.snippet} ${item.source}`.toLowerCase().includes(query)
-    )
-      return false;
-    return true;
-  });
-
-  const hasFilters = query !== '' || unreadOnly || effectiveFilter !== 'all' || effectiveCategory !== 'all';
-
-  return (
-    <Panel
-        title="Feeds"
-        action={
-        <Button
-          variant="ghost"
-          title="Refresh feeds"
-          onClick={() => void feed.refresh()}
-          disabled={feed.refreshing}
-        >
-          ↻
-        </Button>
-        }
-      >
-
-      {feed.items.length > 0 && (
-        <div className="dash-feed-filters">
-          <input
-            type="search"
-            className="dash-feed-search"
-            placeholder="Search articles…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {sources.length > 1 && (
-            <select
-              className="dash-feed-filter"
-              value={effectiveFilter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="all">All feeds ({feed.items.length})</option>
-              {sources.map((source) => (
-                <option key={source} value={source}>
-                  {source} ({feed.items.filter((item) => item.source === source).length})
-                </option>
-              ))}
-            </select>
-          )}
-          {categories.length > 0 && (
-            <select
-              className="dash-feed-filter"
-              value={effectiveCategory}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="all">All topics</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          )}
-          <button
-            className={unreadOnly ? 'dash-feed-toggle active' : 'dash-feed-toggle'}
-            aria-pressed={unreadOnly}
-            title="Show unread only"
-            onClick={() => setUnreadOnly((v) => !v)}
-          >
-            Unread
-          </button>
-        </div>
-      )}
-
-      <div className="panel-scroll">
-        {feed.feeds.length === 0 ? (
-          <EmptyState>
-            No feeds yet.{' '}
-            <button className="link-btn" onClick={() => chrome.runtime.openOptionsPage()}>
-              Add a feed
-            </button>
-          </EmptyState>
-        ) : filtered.length === 0 ? (
-          <EmptyState>
-            {feed.refreshing
-              ? 'Loading feeds…'
-              : hasFilters
-                ? 'No items match your filters.'
-                : 'No items — try refreshing.'}
-          </EmptyState>
-        ) : (
-          filtered.slice(0, MAX_LIST_ITEMS).map((item) => {
-            const read = feed.readItems.includes(item.id);
-            return (
-              <div
-                key={item.id}
-                className={read ? 'dash-article read' : 'dash-article'}
-                onClick={() =>
-                  void sendMessage({
-                    type: 'OPEN_ARTICLE',
-                    url: item.link,
-                    feedItemId: item.id,
-                    resume: false,
-                  })
-                }
-              >
-                <div className="dash-article-top">
-                  <span className="dash-article-title">{item.title}</span>
-                </div>
-                <span className="dash-article-meta">
-                  {item.source} · {formatRelativeDate(new Date(item.pubDate))}
-                </span>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function AgendaPanel() {
-  const [calendar] = useStorageValue('calendar');
-  const [now, setNow] = useState(() => new Date());
-  const [connecting, setConnecting] = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
+  const now = new Date();
+  const happening = currentEvent(calendar.events, now);
+  const upcoming = nextUpcoming(calendar.events, now);
+  const relevantEvent =
+    happening ?? (upcoming && upcoming.minutesUntil <= 120 ? upcoming.event : null);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(timer);
-  }, []);
+    setBreadcrumb(candidate?.resumeContext?.breadcrumb ?? '');
+  }, [candidate?.id, candidate?.resumeContext?.breadcrumb]);
 
-  useEffect(() => {
-    // Throttled server-side; a fresh cache makes this a no-op
-    void sendMessage({ type: 'CAL_REFRESH' });
-  }, []);
-
-  const configured = Boolean(chrome.runtime.getManifest().oauth2?.client_id);
-
-  const connect = async () => {
-    setConnecting(true);
-    setConnectError(null);
-    const res = await sendMessage({ type: 'CAL_SIGN_IN' });
-    if (!res.ok) setConnectError(res.error ?? 'Google sign-in failed.');
-    setConnecting(false);
+  const chooseManual = async () => {
+    const text = manualText.trim();
+    if (!text) return;
+    const next: ActiveIntent = {
+      id: crypto.randomUUID(),
+      text,
+      source: 'manual',
+      sourceId: null,
+      fromTodayBrainDump: false,
+      createdAt: Date.now(),
+      startedAt: null,
+      state: 'ready',
+      resumeContext: null,
+    };
+    setManualText('');
+    await setLocal({ activeIntent: next });
   };
 
-  if (!configured) {
-    return (
-      <Panel title="Today">
-        <EmptyState>
-          Google Calendar isn't configured for this build — see
-          docs/google-calendar-setup.md to enable it.
-        </EmptyState>
-      </Panel>
-    );
-  }
+  const ensureStored = async (): Promise<ActiveIntent | null> => {
+    if (!candidate) return null;
+    const stored: ActiveIntent = {
+      ...candidate,
+      state: 'active',
+      startedAt: candidate.startedAt ?? Date.now(),
+      resumeContext: candidate.resumeContext
+        ? { ...candidate.resumeContext, breadcrumb: breadcrumb.trim() }
+        : null,
+    };
+    await setLocal({ activeIntent: stored });
+    return stored;
+  };
 
-  if (!calendar.connected) {
-    return (
-      <Panel title="Today">
-        <EmptyState>See your day's events here and let the assistant block time.</EmptyState>
-        {(connectError ?? calendar.lastError) && (
-          <p className="ag-error">{connectError ?? calendar.lastError}</p>
-        )}
-        <Button block disabled={connecting} onClick={() => void connect()}>
-          {connecting ? 'Connecting…' : 'Connect Google Calendar'}
-        </Button>
-      </Panel>
-    );
-  }
+  const start = async () => {
+    const intent = await ensureStored();
+    if (!intent) return;
+    if (focus.active) {
+      if (intent.resumeContext) await openResume(intent.resumeContext);
+      return;
+    }
+    await sendMessage({
+      type: 'START_FOCUS',
+      mode: 'oneshot',
+      focusMinutes: intent.state === 'blocked' || smallerAction ? 5 : settings.focusMinutes,
+      breakMinutes: settings.focusBreakMinutes,
+      ...(intent.source === 'task' && intent.sourceId ? { taskId: intent.sourceId } : {}),
+      intent: smallerAction || intent.text,
+    });
+    if (intent.resumeContext) {
+      await openResume(intent.resumeContext);
+    }
+  };
 
-  const today = todayEvents(calendar.events, now);
-  const current = currentEvent(today, now);
-  const next = nextUpcoming(today, now);
-  const timeOf = (ms: number) =>
-    new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const closeLoop = async (result: 'done' | 'later' | 'blocked') => {
+    if (!candidate) return;
+    if (focus.active) await focus.stop(true);
+    if (result === 'done') {
+      if (candidate.source === 'task' && candidate.sourceId) {
+        const linked = tasks.openTasks.find((task) => task.id === candidate.sourceId);
+        if (linked) await tasks.toggleTask(linked.id);
+      }
+      await sendMessage({ type: 'JOURNAL_APPEND', kind: 'action', text: `Done: ${candidate.text}` });
+      await setLocal({ activeIntent: null });
+      setAcknowledgment('Finished. That loop is closed.');
+      return;
+    }
+    if (result === 'later') {
+      await setLocal({
+        activeIntent: {
+          ...candidate,
+          state: 'paused',
+          resumeContext: candidate.resumeContext
+            ? { ...candidate.resumeContext, breadcrumb: breadcrumb.trim() }
+            : null,
+        },
+      });
+      return;
+    }
+    setThinking(true);
+    try {
+      setSmallerAction(await suggestFirstAction(candidate.text));
+    } catch {
+      setSmallerAction(`Open what you need and work on “${candidate.text}” for two minutes.`);
+    } finally {
+      setThinking(false);
+    }
+    await setLocal({ activeIntent: { ...candidate, state: 'blocked' } });
+  };
+
+  const park = async () => {
+    const text = parkText.trim();
+    if (!text) return;
+    const item: ParkingLotItem = { id: crypto.randomUUID(), text, createdAt: Date.now() };
+    const { parkingLot: latest } = await getLocal('parkingLot');
+    setParkText('');
+    await setLocal({ parkingLot: [item, ...latest].slice(0, 100) });
+  };
+
+  const actionableMail = enabledPacks.includes('work')
+    ? gmail.triaged.filter((message) => message.bucket === 'URGENT' || message.bucket === 'THIS_WEEK')
+    : [];
+  const laterItems = [
+    ...tasks.openTasks
+      .filter((task) => !(candidate?.source === 'task' && candidate.sourceId === task.id))
+      .map((task) => ({ id: `task:${task.id}`, label: task.text, task })),
+    ...(recentProgress && candidate?.source !== 'resume'
+      ? [{ id: 'resume', label: recentProgress.title || recentProgress.url, progress: recentProgress }]
+      : []),
+    ...(recentPaper && candidate?.resumeContext?.kind !== 'pdf'
+      ? [{ id: `paper:${recentPaper.id}`, label: recentPaper.title, paper: recentPaper }]
+      : []),
+    ...actionableMail.map((mail) => ({
+      id: `mail:${mail.accountId}:${mail.id}`,
+      label: mail.subject || mail.from,
+      mail,
+    })),
+  ].slice(0, 3);
+
+  const setLaterAsNow = async (item: (typeof laterItems)[number]) => {
+    if ('task' in item && item.task) {
+      await setLocal({ activeIntent: intentFromTask(item.task) });
+    } else if ('progress' in item && item.progress) {
+      await setLocal({ activeIntent: intentFromProgress(item.progress) });
+    } else if ('paper' in item && item.paper) {
+      await setLocal({ activeIntent: intentFromPaper(item.paper) });
+    } else if ('mail' in item && item.mail) {
+      const accountIndex = Math.max(
+        0,
+        gmail.accounts.findIndex((account) => account.id === item.mail!.accountId),
+      );
+      await setLocal({
+        activeIntent: {
+          id: `mail:${item.mail.accountId}:${item.mail.id}`,
+          text: item.mail.subject || `Reply to ${item.mail.from}`,
+          source: 'manual',
+          sourceId: item.mail.id,
+          fromTodayBrainDump: false,
+          createdAt: item.mail.receivedAt,
+          startedAt: null,
+          state: 'ready',
+          resumeContext: {
+            kind: 'web',
+            url: `https://mail.google.com/mail/u/${accountIndex}/#inbox/${item.mail.id}`,
+            title: item.mail.subject,
+            breadcrumb: '',
+          },
+        },
+      });
+    }
+  };
 
   return (
-    <Panel title="Today">
-      {next ? (
-        <p className="ag-next">
-          {next.event.title} <span className="ag-countdown">{formatCountdown(next.minutesUntil)}</span>
-        </p>
-      ) : current ? (
-        <p className="ag-next">
-          {current.title} <span className="ag-countdown">now</span>
-        </p>
-      ) : (
-        <p className="ag-next ag-clear">No more events — clear runway.</p>
-      )}
-      <div className="panel-scroll">
-        {today.length === 0 && <EmptyState>Nothing scheduled today.</EmptyState>}
-        {today.map((event) => (
+    <>
+      <main className="relay">
+        <header className="relay-header">
+          <div>
+            <p className="relay-eyebrow"><span aria-hidden="true" /> Focus workspace</p>
+            <h1>What’s next?</h1>
+          </div>
+          <button className="relay-command" onClick={() => void openSidePanel()}>
+            Open workspace
+          </button>
+        </header>
+        {acknowledgment && <p className="relay-ack" role="status">{acknowledgment}</p>}
+
+      <section className="relay-now" aria-labelledby="relay-now-title">
+        <div className="relay-now-label">
+          <span>Now</span>
+          {candidate?.fromTodayBrainDump && <small>from today’s reset</small>}
+        </div>
+        {candidate ? (
+          <>
+            <h2 id="relay-now-title">{candidate.text}</h2>
+            {candidate.resumeContext && (
+              <label className="relay-breadcrumb">
+                <span>Next step when you return</span>
+                <input
+                  value={breadcrumb}
+                  onChange={(event) => setBreadcrumb(event.target.value)}
+                  placeholder="e.g. Compare Figure 3 with the baseline"
+                  maxLength={240}
+                />
+              </label>
+            )}
+            {smallerAction && <p className="relay-smaller">Start smaller: {smallerAction}</p>}
+            <button className="relay-start" onClick={() => void start()}>
+              {candidate.resumeContext ? 'Resume' : focus.active ? `Session · ${focus.countdown}` : 'Start'}
+            </button>
+            {(candidate.startedAt !== null || focus.active || candidate.state === 'blocked') && (
+              <div className="relay-close-loop" aria-label="Close this attention loop">
+                <button onClick={() => void closeLoop('done')}>Done</button>
+                <button onClick={() => void closeLoop('later')}>Continue later</button>
+                <button disabled={thinking} onClick={() => void closeLoop('blocked')}>
+                  {thinking ? 'Finding a smaller step…' : 'Blocked'}
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <form
+            className="relay-manual"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void chooseManual();
+            }}
+          >
+            <label htmlFor="manual-intent">Choose one thing that matters now.</label>
+            <div>
+              <input
+                id="manual-intent"
+                value={manualText}
+                onChange={(event) => setManualText(event.target.value)}
+                placeholder="Write the first draft"
+                maxLength={300}
+              />
+              <button disabled={!manualText.trim()}>Set Now</button>
+            </div>
+          </form>
+        )}
+
+        {relevantEvent && (
           <a
-            key={event.id}
-            className={
-              event === current
-                ? 'ag-event current'
-                : event.endMs <= now.getTime() && !event.allDay
-                  ? 'ag-event past'
-                  : 'ag-event'
-            }
-            href={event.htmlLink || undefined}
+            className="relay-event"
+            href={relevantEvent.hangoutLink || relevantEvent.htmlLink || undefined}
             target="_blank"
             rel="noreferrer"
           >
-            <span className="ag-time">
-              {event.allDay ? 'all day' : `${timeOf(event.startMs)}–${timeOf(event.endMs)}`}
-            </span>
-            <span className="ag-title">{event.title}</span>
-            {event.hangoutLink && (
-              <button
-                className="ag-join"
-                onClick={(e) => {
-                  e.preventDefault();
-                  void chrome.tabs.create({ url: event.hangoutLink });
-                }}
-              >
-                Join
-              </button>
-            )}
+            <span>{happening ? 'Happening now' : formatCountdown(upcoming!.minutesUntil)}</span>
+            <strong>{relevantEvent.title}</strong>
+            <small>{formatTime(new Date(relevantEvent.startMs))}</small>
           </a>
-        ))}
-      </div>
-      {calendar.lastError && <p className="ag-error">{calendar.lastError}</p>}
-    </Panel>
-  );
-}
-
-function MeetingNotesPanel() {
-  const [state] = useStorageValue('meetingNotes');
-  const [settings] = useStorageValue('settings');
-  const [readerNote, setReaderNote] = useState<MeetingNote | null>(null);
-
-  useEffect(() => {
-    // Throttled server-side; a fresh cache makes this a no-op
-    void sendMessage({ type: 'MEETING_NOTES_REFRESH' });
-  }, []);
-
-  const configured = settings.notionToken !== '' && settings.notionMeetingNotesDbId !== '';
-
-  if (!configured) {
-    return (
-      <Panel title="Meetings">
-        <EmptyState>
-          Pull your Notion meeting notes here — pick a database in Settings → Notion Sync.
-        </EmptyState>
-        <Button block onClick={() => void chrome.runtime.openOptionsPage()}>
-          Open Settings
-        </Button>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel title="Meetings">
-      <div className="panel-scroll">
-        {state.notes.length === 0 && <EmptyState>No notes yet.</EmptyState>}
-        {state.notes.map((note) => (
-          <button key={note.id} className="mn-row" onClick={() => setReaderNote(note)}>
-            <span className="mn-row-title">{note.title}</span>
-            <span className="mn-date">{formatRelativeDate(new Date(note.dateMs))}</span>
-          </button>
-        ))}
-      </div>
-      {state.lastError && <p className="ag-error">{state.lastError}</p>}
-      {readerNote && <MeetingNoteReader note={readerNote} onClose={() => setReaderNote(null)} />}
-    </Panel>
-  );
-}
-
-function BookmarksPanel() {
-  const bm = useBookmarks();
-  const [editing, setEditing] = useState(false);
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [groupChoice, setGroupChoice] = useState<string>('unsorted');
-  const [newGroupName, setNewGroupName] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const add = async () => {
-    let normalized = url.trim();
-    if (!normalized) return;
-    if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
-    try {
-      new URL(normalized);
-    } catch {
-      setError('Not a valid URL.');
-      return;
-    }
-    setError(null);
-
-    let groupId: string | null = groupChoice === 'unsorted' ? null : groupChoice;
-    if (groupChoice === 'new') {
-      if (!newGroupName.trim()) {
-        setError('Name the new group first.');
-        return;
-      }
-      const res = await bm.addGroup(newGroupName.trim());
-      groupId = res.group.id;
-      setGroupChoice(res.group.id);
-      setNewGroupName('');
-    }
-    await bm.addBookmark(normalized, title.trim(), groupId);
-    setUrl('');
-    setTitle('');
-  };
-
-  return (
-    <Panel
-        title="Links"
-        action={
-        <Button
-          variant="ghost"
-          className={editing ? 'editing' : undefined}
-          title={editing ? 'Done editing' : 'Edit links'}
-          onClick={() => setEditing((e) => !e)}
-        >
-          {editing ? 'Done' : '✎'}
-        </Button>
-        }
-      >
-
-      <div className="panel-scroll">
-        {bm.grouped.length === 0 && (
-          <EmptyState>No links yet — add your go-to sites below.</EmptyState>
         )}
-        {bm.grouped.map((section) => (
-          <div key={section.id ?? 'unsorted'} className="bm-group">
-            <p className="row-label bm-group-head">
-              {section.name}
-              {editing && section.id !== null && (
-                <Button
-                  variant="ghost"
-                  title="Delete group (links move to Unsorted)"
-                  onClick={() => {
-                    if (window.confirm(`Delete group "${section.name}"? Its links move to Unsorted.`)) {
-                      void bm.deleteGroup(section.id!);
-                    }
-                  }}
-                >
-                  ✕
-                </Button>
-              )}
-            </p>
-            <div className="bm-grid">
-              {section.links.map((link) => (
-                <div key={link.id} className="bm-tile-wrap">
-                  <a className="bm-tile" href={link.url} title={link.url}>
-                    <BookmarkIcon url={link.url} title={link.title} />
-                    <span className="bm-name">{link.title}</span>
-                  </a>
-                  {editing && (
-                    <div className="bm-edit">
-                      <select
-                        value={link.groupId ?? 'unsorted'}
-                        onChange={(e) =>
-                          void bm.moveBookmark(
-                            link.id,
-                            e.target.value === 'unsorted' ? null : e.target.value,
-                          )
-                        }
-                      >
-                        {bm.groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                        <option value="unsorted">Unsorted</option>
-                      </select>
-                      <Button
-                        variant="ghost"
-                        title="Delete link"
-                        onClick={() => void bm.deleteBookmark(link.id)}
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      </section>
 
-      <form
-        className="bm-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void add();
-        }}
-      >
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a URL…"
-        />
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Name (optional)"
-        />
-        <div className="bm-add-row">
-          <select value={groupChoice} onChange={(e) => setGroupChoice(e.target.value)}>
-            {bm.groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-            <option value="unsorted">Unsorted</option>
-            <option value="new">＋ New group…</option>
-          </select>
-          {groupChoice === 'new' && (
-            <input
-              type="text"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Group name"
-              maxLength={40}
-            />
-          )}
-          <button type="submit" className="bm-add-btn" disabled={!url.trim()}>
-            Add
-          </button>
-        </div>
-        {error && <p className="bm-error">{error}</p>}
-      </form>
-    </Panel>
-  );
-}
-
-function BookmarkIcon({ url, title }: { url: string; title: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <span className="bm-letter">{(title[0] ?? '?').toUpperCase()}</span>;
-  }
-  return (
-    <img
-      className="bm-favicon"
-      src={faviconUrl(url, 64)}
-      alt=""
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
-function FocusBanner({ focus }: { focus: ReturnType<typeof useFocusSession> }) {
-  const [storedSettings] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-
-  return (
-    <div className="focus-banner">
-      <p className="focus-banner-label">
-        Focus — {settings.focusBlocklist.length} sites blocked
-        {focus.session?.mode === 'pomodoro' && ` · block ${focus.completedBlocks + 1}`}
-        {focus.session?.intent && (
-          <span className="focus-banner-intent"> · {focus.session.intent}</span>
-        )}
-      </p>
-      <p className="focus-banner-countdown">{focus.countdown}</p>
-      <HoldToQuit label="Hold 5s to end early" onConfirm={() => void focus.stop(true)} />
-    </div>
-  );
-}
-
-function Clock() {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const [time, meridiem] = formatTime(now).split(' ');
-  return (
-    <div className="dash-clock" title={now.toLocaleTimeString()}>
-      {time}
-      <span className="dash-clock-meridiem">{meridiem}</span>
-    </div>
-  );
-}
-
-function GymPanel() {
-  const [gym] = useStorageValue('gym');
-  const [storedSettings] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-
-  const today = localDate();
-  const checkedInToday = today in gym.checkins;
-  const thisWeek = weekDates(weekKey());
-  const weekCount = thisWeek.filter((date) => date in gym.checkins).length;
-
-  return (
-    <Panel title="Gym">
-      <StatRow>
-        <Stat value={gym.currentWeekStreak} label="week streak" />
-        <Stat value={gym.longestWeekStreak} label="longest" />
-        <Stat value={<>{weekCount}/{settings.gymWeeklyTarget}</>} label="this week" />
-      </StatRow>
-
-      <div className="heatmap" title={`Goal: ${settings.gymWeeklyTarget} sessions per week`}>
-        {thisWeek.map((date, i) => (
-          <div key={date} className="heat-col">
-            <div
-              className={date in gym.checkins ? 'heat-cell qualified' : 'heat-cell'}
-              title={date}
-            />
-            <span className="heat-label">{'MTWTFSS'[i]}</span>
-          </div>
-        ))}
-      </div>
-
-      {checkedInToday ? (
-        <div className="sprint-live">
-          <p className="gym-logged">Logged for today</p>
-          <button
-            className="sprint-cancel"
-            onClick={() => void sendMessage({ type: 'GYM_UNDO' })}
-          >
-            undo
-          </button>
-        </div>
-      ) : (
-        <Button
-          block
-          onClick={() => void sendMessage({ type: 'GYM_CHECKIN' })}
-        >
-          I went today
-        </Button>
-      )}
-    </Panel>
-  );
-}
-
-/**
- * Milestones, folded into the streak card. Deliberately one line, not a grid
- * of 24 tiles: the count is a nudge, the detail lives behind the tooltip.
- */
-function MilestoneLine() {
-  const [gamification] = useStorageValue('gamification');
-  const unlocked = BADGES.filter((b) => gamification.badges[b.id]);
-  if (unlocked.length === 0) return null;
-
-  const recent = [...unlocked]
-    .sort((a, b) => gamification.badges[b.id] - gamification.badges[a.id])
-    .slice(0, 3);
-
-  return (
-    <p
-      className="milestone-line"
-      title={recent
-        .map(
-          (b) =>
-            `${b.title} — ${new Date(gamification.badges[b.id]).toLocaleDateString()}`,
-        )
-        .join('\n')}
-    >
-      {unlocked.length} of {BADGES.length} milestones · latest: {recent[0].title}
-    </p>
-  );
-}
-
-function BrainDumpPanel() {
-  return (
-    <Panel title="Brain dump">
-      <BrainDump source="newtab" />
-      <div className="panel-scroll">
-        <NotesHistory />
-      </div>
-    </Panel>
-  );
-}
-
-function FlashcardsPanel() {
-  const [decks] = useStorageValue('decks');
-  const [flashCards] = useStorageValue('flashCards');
-  const [srsDaily] = useStorageValue('srsDaily');
-
-  const counts = dueCounts(flashCards, Date.now(), newIntroducedToday(srsDaily, localDate()));
-  const due = totalDue(counts);
-  const deckDue = (id: string) => {
-    const c = counts[id];
-    return c ? c.newCount + c.learningCount + c.reviewCount : 0;
-  };
-  const topDecks = decks
-    .filter((deck) => (deck.kind ?? 'flashcards') === 'flashcards')
-    .map((deck) => ({ deck, due: deckDue(deck.id) }))
-    .sort((a, b) => b.due - a.due)
-    .slice(0, 3);
-  const open = (hash = '') =>
-    void chrome.tabs.create({ url: chrome.runtime.getURL(FLASHCARDS_PAGE_PATH) + hash });
-
-  return (
-    <Panel title="Flashcards">
-      {decks.length === 0 ? (
-        <EmptyState>No decks yet — create one to start studying.</EmptyState>
-      ) : (
-        <>
-          <StatRow>
-            <Stat value={due} label="due now" />
-          </StatRow>
-          <div className="fc-dash-decks">
-            {topDecks.map(({ deck, due: d }) => (
-              <button className="fc-dash-deck" key={deck.id} onClick={() => open(`#deck=${deck.id}`)}>
-                <span className="fc-dash-deck-name">{deck.name}</span>
-                <span className="fc-dash-deck-due">{d}</span>
+      {laterItems.length > 0 && (
+        <details className="relay-later">
+          <summary>Later <span>{laterItems.length}</span></summary>
+          <div>
+            {laterItems.map((item) => (
+              <button key={item.id} onClick={() => void setLaterAsNow(item)}>
+                <span>{item.label}</span>
+                <small>Make Now</small>
               </button>
             ))}
           </div>
-        </>
+        </details>
       )}
-      <Button block onClick={() => open(due > 0 && topDecks[0] ? `#review=${topDecks[0].deck.id}` : '')}>
-        {due > 0 ? 'Study now' : 'Open flashcards'}
-      </Button>
-    </Panel>
-  );
-}
 
-function PapersPanel() {
-  const { readingNow, toReadCount } = usePapers();
-  const openPage = () => void chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) });
-  // Papers read in the PDF reader reopen there, resuming the saved position
-  const openPaper = (p: Paper) => {
-    const url = paperOpenUrl(p);
-    if (url) void chrome.tabs.create({ url });
-    else openPage();
-  };
-  const top = readingNow.slice(0, 4);
-
-  return (
-    <Panel title="Papers">
-      {readingNow.length === 0 ? (
-        <EmptyState>
-          {toReadCount > 0
-            ? `${toReadCount} paper${toReadCount === 1 ? '' : 's'} queued to read.`
-            : 'No papers yet — track what you read, and pick up where you drifted off.'}
-        </EmptyState>
-      ) : (
-        <>
-          <p className="row-label">Reading now</p>
-          <div className="paper-now-list">
-            {top.map((p) => (
-              <button
-                key={p.id}
-                className="paper-now"
-                title={p.leftOff ? `Left off: ${p.leftOff}` : p.title}
-                onClick={() => openPaper(p)}
-              >
-                <div className="paper-now-top">
-                  <span className="paper-now-title">{p.title}</span>
-                  <span className="paper-now-pct">{p.progressPercent}%</span>
-                </div>
-                <ProgressBar percent={p.progressPercent} />
-                {p.leftOff && <span className="paper-now-leftoff">↳ {p.leftOff}</span>}
-              </button>
-            ))}
-          </div>
-          {toReadCount > 0 && (
-            <p className="paper-toread">
-              {toReadCount} more queued to read
-            </p>
-          )}
-        </>
-      )}
-      <Button block onClick={openPage}>
-        {readingNow.length > 0 || toReadCount > 0 ? 'Open Papers' : '+ Track a paper'}
-      </Button>
-    </Panel>
-  );
-}
-
-function TaskPanel() {
-  const tasks = useTasks();
-  const [text, setText] = useState('');
-  const [ignitionTaskId, setIgnitionTaskId] = useState<string | null>(null);
-
-  const submit = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setText('');
-    await tasks.addTask(trimmed, 'newtab');
-  };
-
-  return (
-    <Panel title="Tasks">
-      <form
-        className="dash-task-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-      >
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add a task… (⌘⇧Y works anywhere)"
-          maxLength={300}
-        />
-      </form>
-      <div className="panel-scroll">
-        {tasks.openTasks.length === 0 ? (
-          <EmptyState>Nothing pending.</EmptyState>
-        ) : (
-          <SortableTaskList
-            tasks={tasks.openTasks}
-            onMove={(id, toIndex) => void tasks.moveTask(id, toIndex)}
-            renderRow={(task, handle) => (
-              <>
-                <DashTaskRow
-                  task={task}
-                  tasks={tasks}
-                  handle={handle}
-                  onIgnite={() =>
-                    setIgnitionTaskId((cur) => (cur === task.id ? null : task.id))
-                  }
-                />
-                {ignitionTaskId === task.id && (
-                  <IgnitionCard task={task} onClose={() => setIgnitionTaskId(null)} />
-                )}
-              </>
-            )}
-          />
-        )}
-        {tasks.completedTasks.length > 0 && (
-          <>
-            <p className="row-label">Done</p>
-            {tasks.completedTasks.slice(0, 5).map((task) => (
-              <DashTaskRow key={task.id} task={task} tasks={tasks} />
-            ))}
-          </>
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function DashTaskRow({
-  task,
-  tasks,
-  handle,
-  onIgnite,
-}: {
-  task: Task;
-  tasks: ReturnType<typeof useTasks>;
-  handle?: React.JSX.Element;
-  onIgnite?: () => void;
-}) {
-  const done = task.completedAt !== null;
-  const snoozed = task.snoozedUntil !== null && task.snoozedUntil > Date.now();
-  return (
-    <div className={done ? 'dash-task done' : 'dash-task'}>
-      {handle}
-      <input type="checkbox" checked={done} onChange={() => void tasks.toggleTask(task.id)} />
-      <div className="dash-task-body">
-        <span className="dash-task-text">{task.text}</span>
-        <span className="dash-task-meta">
-          {formatRelativeDate(new Date(task.createdAt))}
-          {snoozed && ` · snoozed until ${formatTime(new Date(task.snoozedUntil!))}`}
-        </span>
-      </div>
-      {!done && onIgnite && (
-        <button className="task-ignite" title="Stuck? Get a 2-minute first step" onClick={onIgnite}>
-          Start
-        </button>
-      )}
-      {!done && (
-        <Button
-          variant="ghost"
-          title="Snooze reminders for 1 hour"
-          onClick={() => void sendMessage({ type: 'SNOOZE_TASK', id: task.id, minutes: 60 })}
-        >
-          Snooze
-        </Button>
-      )}
-      <Button variant="ghost" title="Delete" onClick={() => void tasks.deleteTask(task.id)}>
-        ✕
-      </Button>
-    </div>
-  );
-}
-
-function ContinuePanel() {
-  const [readingProgress] = useStorageValue('readingProgress');
-
-  const inProgress = useMemo(
-    () =>
-      Object.entries(readingProgress)
-        .filter(([, p]) => p.completedAt === null && p.maxPercent >= 5)
-        .sort(([, a], [, b]) => b.updatedAt - a.updatedAt),
-    [readingProgress],
-  );
-
-  return (
-    <Panel title="Continue">
-      <div className="panel-scroll">
-        {inProgress.length === 0 ? (
-          <EmptyState>No half-read articles or videos. Open one from the popup!</EmptyState>
-        ) : (
-          inProgress.map(([key, p]) => (
-            <div
-              key={key}
-              className="dash-article"
-              onClick={() =>
-                void sendMessage({
-                  type: 'OPEN_ARTICLE',
-                  url: p.url,
-                  feedItemId: p.kind === 'video' ? null : p.feedItemId,
-                  resume: true,
-                })
-              }
-            >
-              <div className="dash-article-top">
-                <span className="dash-article-title">
-                  {p.kind === 'video' ? 'Video · ' : ''}
-                  {p.title || p.url}
-                </span>
-                <span className="dash-article-percent">{p.maxPercent}%</span>
-              </div>
-              <ProgressBar percent={p.maxPercent} />
-              <span className="dash-article-meta">
-                {p.kind === 'video'
-                  ? `${formatWatchTime(p.positionSeconds)} / ${formatWatchTime(p.durationSeconds)} · `
-                  : ''}
-                {p.source ? `${p.source} · ` : ''}
-                {formatRelativeDate(new Date(p.updatedAt))}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function StreakPanel() {
-  const [streaks] = useStorageValue('streaks');
-  const [storedSettings] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-  const sprint = useSprint();
-
-  const days = useMemo(() => {
-    const out: { date: string; label: string; minutes: number; qualified: boolean }[] = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = daysAgo(i);
-      const date = localDate(d);
-      const stats = streaks.daily[date];
-      const minutes = stats?.minutes ?? 0;
-      out.push({
-        date,
-        label: d.toLocaleDateString('en-US', { weekday: 'narrow' }),
-        minutes,
-        qualified: minutes >= settings.dailyGoalMinutes || (stats?.sprints ?? 0) >= 1,
-      });
-    }
-    return out;
-  }, [streaks, settings.dailyGoalMinutes]);
-
-  const today = streaks.daily[localDate()];
-
-  return (
-    <Panel title="Focus">
-      <StatRow>
-        <Stat value={streaks.currentStreak} label="day streak" />
-        <Stat value={streaks.longestStreak} label="longest" />
-        <Stat value={Math.round(today?.minutes ?? 0)} label="min today" />
-        <Stat
-          title="Freeze tokens auto-cover missed days so a bad day can't break your streak. Earn one every 5 consecutive days (max 3), or as a surprise drop when you finish something."
-          value={streaks.freezeTokens ?? 0}
-          label="freezes"
-        />
-      </StatRow>
-
-      <div className="heatmap" title={`Goal: ${settings.dailyGoalMinutes} min of reading (or one sprint) per day`}>
-        {days.map((day) => (
-          <div key={day.date} className="heat-col">
-            <div
-              className={day.qualified ? 'heat-cell qualified' : 'heat-cell'}
-              title={`${day.date}: ${Math.round(day.minutes)} min`}
-            />
-            <span className="heat-label">{day.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {sprint.active ? (
-        <div className="sprint-live">
-          <span className="sprint-countdown">{sprint.countdown}</span>
-          <p className="sprint-hint">Committed reading — stay with it.</p>
-          <button className="sprint-cancel" onClick={() => void sprint.cancel()}>
-            Cancel sprint
-          </button>
+      <section className="relay-parking" aria-labelledby="parking-title">
+        <div>
+          <h2 id="parking-title">Parking Lot</h2>
+          <p>Capture it without committing to it.</p>
         </div>
-      ) : (
-        <Button block onClick={() => void sprint.start()}>
-          Start a {settings.sprintMinutes}-minute reading sprint
-        </Button>
-      )}
-
-      <MilestoneLine />
-
-      <FocusModeSection />
-    </Panel>
-  );
-}
-
-function FocusModeSection() {
-  const focus = useFocusSession();
-  const [storedSettings] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-  const [customMinutes, setCustomMinutes] = useState('');
-
-  if (focus.active) {
-    const inFocus = focus.phase === 'focus';
-    return (
-      <div className="focus-mode active">
-        <div className="focus-mode-status">
-          <span className="focus-mode-phase">{inFocus ? 'Focus' : 'Break'}</span>
-          <span className="focus-mode-countdown">{focus.countdown}</span>
-        </div>
-        {focus.session?.mode === 'pomodoro' && (
-          <p className="focus-mode-meta">
-            {focus.completedBlocks} block{focus.completedBlocks === 1 ? '' : 's'} done ·{' '}
-            {focus.session.focusMinutes}:{focus.session.breakMinutes} pomodoro
-          </p>
-        )}
-        {inFocus ? (
-          <p className="focus-mode-meta">{settings.focusBlocklist.length} sites blocked</p>
-        ) : (
-          <p className="focus-mode-meta">Sites are open — back to it soon.</p>
-        )}
-        <HoldToQuit label="Hold 5s to end early" onConfirm={() => void focus.stop(true)} />
-      </div>
-    );
-  }
-
-  const startOneshot = (minutes: number) =>
-    void focus.start({ mode: 'oneshot', focusMinutes: minutes, breakMinutes: 0 });
-
-  return (
-    <div className="focus-mode">
-      <p className="row-label">Focus mode — block distractions</p>
-      <div className="focus-mode-buttons">
-        {FOCUS_PRESETS.map((minutes) => (
-          <button key={minutes} className="focus-preset" onClick={() => startOneshot(minutes)}>
-            {minutes}m
-          </button>
-        ))}
-        <input
-          className="focus-custom"
-          type="number"
-          min={5}
-          max={240}
-          placeholder="min"
-          value={customMinutes}
-          onChange={(e) => setCustomMinutes(e.target.value)}
-          onKeyDown={(e) => {
-            const n = Number(customMinutes);
-            if (e.key === 'Enter' && n >= 5) {
-              setCustomMinutes('');
-              startOneshot(n);
-            }
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void park();
           }}
-        />
-        <button
-          className="focus-preset pomodoro"
-          title={`Cycles of ${settings.focusMinutes} min focus / ${settings.focusBreakMinutes} min break until you stop`}
-          onClick={() =>
-            void focus.start({
-              mode: 'pomodoro',
-              focusMinutes: settings.focusMinutes,
-              breakMinutes: settings.focusBreakMinutes,
-            })
-          }
         >
-          {settings.focusMinutes}:{settings.focusBreakMinutes} pomodoro
-        </button>
-        <button
-          className={settings.focusMusicEnabled ? 'focus-preset music on' : 'focus-preset music'}
-          title={
-            settings.focusMusicEnabled
-              ? 'Flowtunes focus music will open when a session starts (click to disable)'
-              : 'Open Flowtunes focus music when a session starts (click to enable)'
-          }
-          onClick={() =>
-            void patchSettings({ focusMusicEnabled: !settings.focusMusicEnabled })
-          }
-        >
-          Music
-        </button>
+          <input
+            value={parkText}
+            onChange={(event) => setParkText(event.target.value)}
+            placeholder="A thought for later…"
+            maxLength={500}
+          />
+          <button disabled={!parkText.trim()}>Park</button>
+        </form>
+        {parkingLot.length > 0 && (
+          <details>
+            <summary>{parkingLot.length} parked thought{parkingLot.length === 1 ? '' : 's'}</summary>
+            <ul>{parkingLot.slice(0, 5).map((item) => <li key={item.id}>{item.text}</li>)}</ul>
+          </details>
+        )}
+      </section>
+
+        <BookmarksPanel />
+        <XBookmarksPanel />
+        <Library enabledPacks={enabledPacks} notes={notes} />
+      </main>
+      <AssistantDock />
+    </>
+  );
+}
+
+function candidateIntent(
+  task: Task | null,
+  progress: ReturnType<typeof mostRecentUnfinished>,
+  paper: Paper | null,
+) {
+  if (task) return intentFromTask(task);
+  if (progress) return intentFromProgress(progress);
+  if (paper) return intentFromPaper(paper);
+  return null;
+}
+
+function intentFromTask(task: Task): ActiveIntent {
+  return {
+    id: `task:${task.id}`,
+    text: task.text,
+    source: 'task',
+    sourceId: task.id,
+    fromTodayBrainDump:
+      task.source === 'braindump' &&
+      new Date(task.createdAt).toDateString() === new Date().toDateString(),
+    createdAt: task.createdAt,
+    startedAt: null,
+    state: 'ready',
+    resumeContext: null,
+  };
+}
+
+function intentFromProgress(progress: NonNullable<ReturnType<typeof mostRecentUnfinished>>): ActiveIntent {
+  return {
+    id: `resume:${progress.url}`,
+    text: progress.title || 'Continue where you left off',
+    source: 'resume',
+    sourceId: null,
+    fromTodayBrainDump: false,
+    createdAt: progress.updatedAt,
+    startedAt: null,
+    state: 'paused',
+    resumeContext: resumeContextFromProgress(progress),
+  };
+}
+
+function intentFromPaper(paper: Paper): ActiveIntent {
+  return {
+    id: `paper:${paper.id}`,
+    text: paper.title,
+    source: 'resume',
+    sourceId: paper.id,
+    fromTodayBrainDump: false,
+    createdAt: paper.lastReadAt ?? paper.addedAt,
+    startedAt: null,
+    state: 'paused',
+    resumeContext: {
+      kind: 'pdf',
+      url: paperOpenUrl(paper),
+      title: paper.title,
+      page: paper.pdf?.page,
+      offset: paper.pdf?.offset,
+      breadcrumb: paper.leftOff,
+    },
+  };
+}
+
+async function openResume(context: IntentResumeContext) {
+  if (context.kind === 'pdf' || context.kind === 'web') {
+    await chrome.tabs.create({ url: context.url });
+    return;
+  }
+  await sendMessage({
+    type: 'OPEN_ARTICLE',
+    url: context.url,
+    feedItemId: null,
+    resume: true,
+  });
+}
+
+async function openSidePanel() {
+  const window = await chrome.windows.getCurrent();
+  if (window.id !== undefined) await chrome.sidePanel.open({ windowId: window.id });
+}
+
+function Library({
+  enabledPacks,
+  notes,
+}: {
+  enabledPacks: EnabledPack[];
+  notes: { id: string; rawText: string; createdAt: number; encRaw?: string }[];
+}) {
+  const togglePack = async (pack: EnabledPack) => {
+    const { enabledPacks: latest } = await getLocal('enabledPacks');
+    await setLocal({
+      enabledPacks: latest.includes(pack)
+        ? latest.filter((item) => item !== pack)
+        : [...latest, pack],
+    });
+  };
+  const openPage = (path: string) => chrome.tabs.create({ url: chrome.runtime.getURL(path) });
+
+  return (
+    <details className="relay-library">
+      <summary>Library and optional tools</summary>
+      <div className="relay-library-body">
+        <section>
+          <h2>Daily resets</h2>
+          {notes.length === 0 ? (
+            <p>No saved resets yet.</p>
+          ) : (
+            <ul>
+              {notes.slice(0, 3).map((note) => (
+                <li key={note.id}>
+                  <time>{new Date(note.createdAt).toLocaleDateString()}</time>
+                  <span>{note.encRaw ? 'Encrypted brain dump' : note.rawText.slice(0, 100)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section>
+          <h2>Packs</h2>
+          <div className="relay-packs">
+            {(['research', 'work', 'assistant'] as const).map((pack) => (
+              <button
+                key={pack}
+                aria-pressed={enabledPacks.includes(pack)}
+                onClick={() => void togglePack(pack)}
+              >
+                {pack} <span>{enabledPacks.includes(pack) ? 'On' : 'Off'}</span>
+              </button>
+            ))}
+          </div>
+          {enabledPacks.includes('research') && (
+            <div className="relay-tool-links">
+              <button onClick={() => void openPage(PAPERS_PAGE_PATH)}>Papers</button>
+              <button onClick={() => void openPage(FLASHCARDS_PAGE_PATH)}>Flashcards</button>
+            </div>
+          )}
+          {enabledPacks.includes('work') && <p>Calendar timing and actionable mail are enabled.</p>}
+          {enabledPacks.includes('assistant') && (
+            <button className="relay-inline-link" onClick={() => void openSidePanel()}>
+              Open command box
+            </button>
+          )}
+        </section>
       </div>
-    </div>
+    </details>
   );
 }

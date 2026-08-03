@@ -2,6 +2,7 @@ import { executeTool, type PlanStepOutcome } from '../shared/ai/assistant';
 import { getLocal, type LocalSchema } from '../shared/storage';
 import { RECORD_COLLECTIONS, type RecordCollection } from '../shared/sync/collections';
 import type { AgentProposal } from '../shared/types';
+import { recordEntrySafe } from './journal';
 import { withLock } from './runLock';
 
 /**
@@ -65,9 +66,11 @@ export async function applyProposals(
         }
       }
       try {
-        const result = await executeTool(proposal.tool, proposal.params, tools);
-        outcomes.push({ status: 'done', detail: result });
-        lines.push(`Done: ${result}`);
+        const { text } = await executeTool(proposal.tool, proposal.params, tools);
+        outcomes.push({ status: 'done', detail: text });
+        lines.push(`Done: ${text}`);
+        // What the assistant actually did, for the weekly review to read back
+        recordEntrySafe('action', text);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'That step failed.';
         outcomes.push({ status: 'failed', detail: message });

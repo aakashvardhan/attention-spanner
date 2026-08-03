@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPdfContext, pdfAnswerCacheKey } from './pdfQa';
+import { buildPdfContext, buildQaSystem, pdfAnswerCacheKey, TRANSCRIPT_DISCIPLINE } from './pdfQa';
 
 describe('buildPdfContext', () => {
   it('returns the whole paper when it fits the budget', () => {
@@ -64,5 +64,21 @@ describe('pdfAnswerCacheKey', () => {
       { role: 'assistant', text: 'it solves X.' },
     ]);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('buildQaSystem', () => {
+  it('embeds the title and document text', () => {
+    const system = buildQaSystem('My Paper', 'the document body', false);
+    expect(system).toContain('My Paper');
+    expect(system).toContain('the document body');
+    expect(system).not.toContain('machine transcription');
+  });
+
+  it('appends transcript discipline only for transcripts', () => {
+    const system = buildQaSystem('Standup', 'we shipped it', true);
+    expect(system).toContain(TRANSCRIPT_DISCIPLINE.trim());
+    expect(system).toContain('Not in the transcript');
+    expect(system).toContain('mis-hear');
   });
 });

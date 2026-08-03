@@ -38,6 +38,23 @@
   background: var(--disabled);
 }
 
+/* Tinted — full-weight but unfilled. For the block button that only *navigates*
+   ("Open Papers", "Play again"): it has to be as easy to hit as a primary, but
+   a page of six solid accent bars has no primary at all. */
+.ui-btn--tinted {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.ui-btn--tinted:hover:not(:disabled) {
+  background: var(--accent-border);
+}
+
+.ui-btn--tinted:disabled {
+  opacity: 0.5;
+}
+
 /* Ghost — secondary and icon-adjacent controls; recedes until hovered. */
 .ui-btn--ghost {
   background: transparent;
@@ -85,6 +102,16 @@
   height: 100%;
 }
 
+/* See the note in newtab.css: macOS draws its large surfaces as superellipses.
+   The dashboard overrides this radius to 16px and re-declares the same thing
+   for its own selector; this covers every other .ui-panel (options, papers,
+   flashcards) at --radius-lg. */
+@supports (corner-shape: squircle) {
+  .ui-panel {
+    corner-shape: squircle;
+  }
+}
+
 .ui-panel-head {
   display: flex;
   align-items: center;
@@ -118,10 +145,13 @@
   gap: var(--space-1);
 }
 
+/* Ink, not accent: a stat is something you read, not something you can press.
+   Reserving the accent for controls is what lets it mean anything. */
 .ui-stat-value {
   font-size: var(--text-2xl);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 

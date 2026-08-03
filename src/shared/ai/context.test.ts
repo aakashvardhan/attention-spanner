@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CALENDAR_DEFAULTS } from '../calendar';
 import { DEFAULT_SETTINGS } from '../storage';
 import type { Task } from '../types';
 import { buildDataContext, MAX_CONTEXT_CHARS, type AssistantContextData } from './context';
@@ -34,8 +35,10 @@ function emptyData(): AssistantContextData {
     siteTime: { date: '', hosts: {} },
     readingProgress: {},
     settings: DEFAULT_SETTINGS,
-    calendar: { connected: false, email: '', events: [], fetchedAt: 0, lastError: '' },
+    calendar: CALENDAR_DEFAULTS,
     assistantMemory: [],
+    assistantProfile: { text: '', updatedAt: 0 },
+    assistantJournal: {},
     feedUnread: { count: 0, topTitles: [] },
   };
 }
@@ -47,6 +50,23 @@ describe('buildDataContext', () => {
     expect(out).toContain('Open tasks: none');
     expect(out).toContain('Reading streak: 0 days');
     expect(out).toContain('Flashcards due now: 0');
+  });
+
+  it('names the prime-time windows once the hourly ledger has a sample', () => {
+    const data = emptyData();
+    data.streaks.daily['2026-07-06'] = {
+      minutes: 0,
+      sprints: 0,
+      articlesFinished: 0,
+      hours: { '20': 20, '21': 20, '22': 20 },
+    };
+    expect(buildDataContext(data, NOW)).toContain('Prime time: their best window is 8-11pm');
+  });
+
+  it('omits prime time while the ledger is still learning', () => {
+    const data = emptyData();
+    data.streaks.daily['2026-07-06'] = { minutes: 0, sprints: 0, articlesFinished: 0, hours: { '21': 3 } };
+    expect(buildDataContext(data, NOW)).not.toContain('Prime time');
   });
 
   it('lists open tasks and skips completed ones', () => {
@@ -125,9 +145,46 @@ describe('buildDataContext', () => {
     expect(out.indexOf('I lift Mon/Wed/Fri')).toBeLessThan(out.indexOf('My advisor is Dr. Lee'));
   });
 
+  it('omits the profile block when the profile is blank', () => {
+    expect(buildDataContext(emptyData(), NOW)).not.toContain('About the user');
+  });
+
+  it('recaps yesterday from the journal', () => {
+    const data = emptyData();
+    expect(buildDataContext(data, NOW)).not.toContain('Yesterday');
+
+    data.assistantJournal = {
+      '2026-07-10': {
+        date: '2026-07-10',
+        plan: {
+          date: '2026-07-10',
+          priorities: [
+            { text: 'Write intro', taskId: null, estimateMin: 60, done: true },
+            { text: 'Email advisor', taskId: null, estimateMin: 10, done: false },
+          ],
+          blocks: [],
+          generatedAt: 0,
+          reviewedAt: 1,
+          reflection: '',
+        },
+        entries: [],
+      },
+    };
+    expect(buildDataContext(data, NOW)).toContain('Yesterday (2026-07-10): planned 2, finished 1.');
+  });
+
   it('caps the snapshot length', () => {
     const data = emptyData();
     data.tasks = Array.from({ length: 200 }, (_, i) => task(`${i}`, `Task ${'x'.repeat(200)} ${i}`));
     expect(buildDataContext(data, NOW).length).toBeLessThanOrEqual(MAX_CONTEXT_CHARS);
+  });
+
+  it('keeps the profile even when the rest of the snapshot overflows the cap', () => {
+    const data = emptyData();
+    data.assistantProfile = { text: 'Masters student; mornings are for deep work.', updatedAt: 1 };
+    data.tasks = Array.from({ length: 200 }, (_, i) => task(`${i}`, `Task ${'x'.repeat(200)} ${i}`));
+    const out = buildDataContext(data, NOW);
+    expect(out.length).toBeLessThanOrEqual(MAX_CONTEXT_CHARS);
+    expect(out).toContain('Masters student; mornings are for deep work.');
   });
 });
