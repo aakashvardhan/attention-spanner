@@ -1,7 +1,7 @@
 import type { AssistantTurn } from './ai/assistantTypes';
 import type { AiOutlineItem } from './ai/pdfOutline';
 import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
-import { DEFAULT_FOCUS_BLOCKLIST, OLLAMA_DEFAULT_MODEL } from './constants';
+import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import { connectedAccounts, GMAIL_DEFAULTS, type GmailState } from './gmail';
 import type { CitationExpansion } from './citations';
 import type { DocCitations } from './docCitations';
@@ -269,8 +269,6 @@ export const DEFAULT_SETTINGS: Settings = {
   geminiApiKey: '',
   anthropicApiKey: '',
   cloudProvider: 'gemini',
-  ollamaBaseUrl: '',
-  ollamaModel: OLLAMA_DEFAULT_MODEL,
   assistantReactEnabled: true,
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',

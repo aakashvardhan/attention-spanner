@@ -195,8 +195,9 @@ export function AskPanel({
         {waiting && <p className="as-hint">Reading the {noun}…</p>}
         {checked && !usable && (
           <p className="as-hint">
-            On-device AI isn’t available in this browser — add a Gemini API key in Settings →
-            Assistant to ask via the cloud.
+            Asking needs a model. Add a Gemini or Anthropic API key in Settings → Assistant.
+            Chrome can also run Google’s built-in Nano model on-device where it is available;
+            Brave and other Chromium browsers do not ship it.
           </p>
         )}
 

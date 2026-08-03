@@ -259,16 +259,10 @@ export const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1/messages';
 export const ANTHROPIC_VERSION = '2023-06-01';
 /** Max output tokens for the Claude provider (the Messages API requires it) */
 export const ANTHROPIC_MAX_TOKENS = 4096;
-/* Local OpenAI-compatible model (Ollama, vLLM, llama.cpp). Off unless the user
- * sets settings.ollamaBaseUrl — nothing probes localhost unasked. */
-export const OLLAMA_DEFAULT_BASE = 'http://localhost:11434/v1';
-export const OLLAMA_DEFAULT_MODEL = 'llama3.2';
 /** Generous: a cold local model pays a one-time load of several GB into RAM
  *  before it emits a first token, which the cloud providers never do. */
-export const OLLAMA_TIMEOUT_MS = 120_000;
 /** Liveness probe. Short on purpose — a dead localhost must fail fast enough
  *  that the turn falls through to another provider instead of stalling. */
-export const OLLAMA_PROBE_TIMEOUT_MS = 1500;
 
 /** Above this many chars of system+input, answers escalate from Nano to cloud */
 export const NANO_INPUT_BUDGET_CHARS = 5000;

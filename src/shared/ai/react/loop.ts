@@ -141,7 +141,7 @@ export async function runReactLoop(
   // this install has no looping path — the caller falls back to the two-step
   // JSON orchestrator rather than degrading into a worse loop.
   //
-  // This is a check about Nano specifically, NOT about local models: 'ollama'
+  // This is a check about Nano specifically, NOT about local models: a local
   // serves the OpenAI tool-calling API and belongs in the loop. A local model
   // too small to use its tools returns no calls, which reads as a stall, and
   // the escalation in guardrails.ts already handles that.

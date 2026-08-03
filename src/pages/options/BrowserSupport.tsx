@@ -10,10 +10,9 @@ import { DEFAULT_SETTINGS } from '../../shared/storage';
  *
  * Chromium is not one browser. Brave keeps the extension APIs but strips the
  * Google-backed platform features behind them — no Web Speech API, no Gemini
- * Nano — and every one of those gaps used to fail to nothing: a wake word that
- * never armed, a mic button that never rendered, an on-device model that was
- * simply absent. A user cannot fix, or even name, a feature that fails silently.
- * This is where they find out.
+ * Nano — and every one of those gaps used to fail to nothing: a mic button that
+ * never rendered, an on-device model that was simply absent. A user cannot fix,
+ * or even name, a feature that fails silently. This is where they find out.
  */
 
 type Support = {

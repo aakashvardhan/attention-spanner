@@ -319,11 +319,6 @@ export interface Settings {
   anthropicApiKey: string;
   /** Which cloud provider the assistant escalates to when on-device Nano can't cope */
   cloudProvider: 'gemini' | 'anthropic';
-  /** Local OpenAI-compatible endpoint (Ollama, vLLM, llama.cpp); '' = off.
-   *  Empty by default so nothing probes localhost unless it was asked to. */
-  ollamaBaseUrl: string;
-  /** Model name to request from the local endpoint */
-  ollamaModel: string;
   /** Let the assistant run a ReAct loop — call read-only tools, see what came
    *  back, and decide what to do next — instead of the one-shot planner.
    *  Mutating tools are still staged behind the confirm chip either way. */

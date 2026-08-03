@@ -109,7 +109,6 @@ export interface AssistantDeps {
     cloud: boolean;
     gemini?: boolean;
     anthropic?: boolean;
-    ollama?: boolean;
   };
   /**
    * Opt into the shared response cache (intent classifications, data context,
@@ -578,9 +577,12 @@ export async function runAssistantTurn(
   // usable" — so the size-based escalation below behaves exactly as it did.
   const cloudOk = deps.cloud ? routingEnv.available[deps.cloud.id] : false;
   if (!nanoOk && !cloudOk) {
+    // Say what to do, not what is missing. The old text led with "this browser
+    // has no built-in Gemini Nano" — true in Brave and in most Chrome profiles,
+    // and useless either way, because the fix is the same in both: a key.
     return {
       kind: 'error',
-      text: "No AI model is available — this browser has no built-in Gemini Nano model. Add a Gemini API key in Settings → Assistant to use the cloud instead.",
+      text: 'The assistant needs a model. Add a Gemini or Anthropic API key in Settings → Assistant. (Chrome can also run Google’s built-in Nano model on-device, where it is available.)',
     };
   }
   /**

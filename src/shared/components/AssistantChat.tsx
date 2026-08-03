@@ -134,7 +134,6 @@ function EnabledAssistantChat({
           cloud: cloudReady,
           gemini: settings.geminiApiKey.trim() !== '',
           anthropic: settings.anthropicApiKey.trim() !== '',
-          ollama: settings.ollamaBaseUrl.trim() !== '',
         },
         onStep: (step) =>
           setLiveTrace((steps) => {
@@ -228,7 +227,27 @@ function EnabledAssistantChat({
     <div className={`as-chat${compact ? ' compact' : ''} as-chat--${surface}`}>
       {contextLabel && <p className="as-context">{contextLabel}</p>}
       <div className="as-log" ref={logRef}>
-        {thread.length === 0 && partial === null && (
+        {thread.length === 0 && partial === null && !usable && (
+          // An inert input with greyed-out suggestions is the state this
+          // replaces: in Brave there is no Nano to wait for, so nothing would
+          // ever have enabled it, and nothing said so.
+          <div className="as-empty">
+            <p className="as-empty-title">The assistant needs a model</p>
+            <p className="as-hint">
+              Add a Gemini or Anthropic API key to use the assistant. Chrome can also run
+              Google’s built-in Nano model on-device where it is available; Brave and other
+              Chromium browsers do not ship it.
+            </p>
+            <button
+              type="button"
+              className="as-suggestion"
+              onClick={() => void chrome.runtime.openOptionsPage()}
+            >
+              Open Settings → Assistant
+            </button>
+          </div>
+        )}
+        {thread.length === 0 && partial === null && usable && (
           <div className="as-empty">
             <p className="as-empty-title">What would you like to accomplish?</p>
             <p className="as-hint">Ask about your day or give the assistant something to do.</p>
@@ -238,7 +257,7 @@ function EnabledAssistantChat({
                 key={s}
                 type="button"
                 className="as-suggestion"
-                disabled={busy || !usable}
+                disabled={busy}
                 onClick={() => void send(s)}
               >
                 {s}

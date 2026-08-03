@@ -19,19 +19,17 @@ function fake(id: ProviderId, available = true): AssistantProvider {
 const nano = fake('nano');
 const gemini = fake('gemini');
 const anthropic = fake('anthropic');
-const ollama = fake('ollama');
 
 function env(
   available: Partial<Record<ProviderId, boolean>>,
   preferred: 'gemini' | 'anthropic' = 'gemini',
 ): RoutingEnv {
   return {
-    providers: { nano, gemini, anthropic, ollama },
+    providers: { nano, gemini, anthropic },
     available: {
       nano: available.nano ?? false,
       gemini: available.gemini ?? false,
       anthropic: available.anthropic ?? false,
-      ollama: available.ollama ?? false,
     },
     preferred,
   };
@@ -119,32 +117,6 @@ describe('providerChain', () => {
   });
 });
 
-describe('providerChain with a local model', () => {
-  it('ollama sits beside nano in the local-first roles', () => {
-    const e = env({ nano: true, ollama: true, gemini: true, anthropic: true });
-    expect(ids(providerChain('classify', e))).toEqual(['nano', 'ollama', 'gemini']);
-    expect(ids(providerChain('extract', e))).toEqual(['nano', 'ollama', 'gemini', 'anthropic']);
-  });
-
-  it('ollama outranks nano in the loop — it has native function calling', () => {
-    const e = env({ nano: true, ollama: true, gemini: true, anthropic: true });
-    expect(ids(providerChain('loop', e))).toEqual(['gemini', 'anthropic', 'ollama', 'nano']);
-  });
-
-  it('a Brave user with only a local model gets a loop head that is not nano', () => {
-    // The scenario this whole provider exists for: no Nano, no cloud key.
-    // The head must not be 'nano', or runReactLoop returns 'unsupported'.
-    const e = env({ ollama: true });
-    expect(ids(providerChain('loop', e))).toEqual(['ollama']);
-    expect(ids(providerChain('chat', e))).toEqual(['ollama']);
-    expect(ids(providerChain('classify', e))).toEqual(['ollama']);
-  });
-
-  it('vision still has no substitute — a local text model is not one', () => {
-    expect(ids(providerChain('vision', env({ ollama: true, nano: true })))).toEqual([]);
-  });
-});
-
 describe('cloudFor', () => {
   it('skips nano at the head of a chain', () => {
     expect(cloudFor('classify', env({ nano: true, gemini: true }))?.id).toBe('gemini');
@@ -154,16 +126,6 @@ describe('cloudFor', () => {
     expect(cloudFor('classify', env({ nano: true }))).toBeUndefined();
   });
 
-  it('does not treat a local model as a cloud escalation', () => {
-    // assistant.ts calls this to escalate OFF the local path once input passes
-    // the Nano budget. Returning ollama would escalate local -> local.
-    expect(cloudFor('classify', env({ nano: true, ollama: true }))).toBeUndefined();
-    expect(cloudFor('chat', env({ ollama: true }))).toBeUndefined();
-  });
-
-  it('skips past a local model to reach a real cloud', () => {
-    expect(cloudFor('extract', env({ nano: true, ollama: true, gemini: true }))?.id).toBe('gemini');
-  });
 });
 
 describe('resolveRoutingEnv', () => {
@@ -181,7 +143,6 @@ describe('resolveRoutingEnv', () => {
       nano: true,
       gemini: true,
       anthropic: false,
-      ollama: false,
     });
   });
 
@@ -196,7 +157,6 @@ describe('resolveRoutingEnv', () => {
       nano: false,
       gemini: false,
       anthropic: true,
-      ollama: false,
     });
   });
 
@@ -210,7 +170,6 @@ describe('resolveRoutingEnv', () => {
       nano: true,
       gemini: true,
       anthropic: true,
-      ollama: false,
     });
   });
 

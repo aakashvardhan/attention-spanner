@@ -135,7 +135,7 @@ export interface GenerateRequest {
   audio?: { mimeType: string; dataBase64: string };
   /**
    * Images attached to the LAST turn, same contract as `audio`: read by Gemini
-   * and Claude (both are multimodal); Nano and Ollama ignore them rather than
+   * and Claude (both are multimodal); Nano ignores them rather than
    * fail. How frames and screenshots reach a vision call (shared/ai/vision.ts,
    * screenshot.ts).
    */
@@ -146,7 +146,7 @@ export interface GenerateRequest {
 }
 
 export interface AssistantProvider {
-  id: 'nano' | 'gemini' | 'anthropic' | 'ollama';
+  id: 'nano' | 'gemini' | 'anthropic';
   available(): Promise<boolean>;
   generate(req: GenerateRequest): Promise<ProviderReply>;
 }

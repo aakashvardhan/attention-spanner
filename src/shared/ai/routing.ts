@@ -2,7 +2,6 @@ import type { Settings } from '../types';
 import { anthropicProvider } from './anthropicProvider';
 import type { AssistantProvider } from './assistantTypes';
 import { geminiProvider } from './geminiProvider';
-import { ollamaProvider } from './ollamaProvider';
 
 /**
  * Which model runs which kind of call. One table, consulted by role rather than
@@ -40,32 +39,23 @@ export type ModelRole =
 
 /**
  * Providers that run on the user's own machine. Nano is Chrome's built-in;
- * 'ollama' is any local OpenAI-compatible server the user pointed us at.
  * Membership here means "costs nothing and sends nothing", which is what
  * cloudFor() is really asking about.
  */
-const LOCAL_PROVIDER_IDS = new Set<ProviderId>(['nano', 'ollama']);
+const LOCAL_PROVIDER_IDS = new Set<ProviderId>(['nano']);
 
-/**
- * 'ollama' sits beside 'nano' wherever local-first is the point, but AHEAD of
- * it in 'loop': Nano has no native function calling and a local server does, so
- * a Brave user with a local model gets the real ReAct loop rather than the
- * two-step JSON fallback. It trails the clouds in 'loop'/'plan'/'critic'/'chat'
- * because a 3B model is genuinely worse at those, and the tier IS the routing
- * decision — a user who wants only local supplies only local.
- */
 const TIERS: Record<ModelRole, readonly ProviderId[]> = {
-  classify: ['nano', 'ollama', 'gemini'],
-  extract: ['nano', 'ollama', 'gemini', 'anthropic'],
-  loop: ['gemini', 'anthropic', 'ollama', 'nano'],
-  plan: ['anthropic', 'gemini', 'ollama'],
-  critic: ['anthropic', 'gemini', 'ollama'],
+  classify: ['nano', 'gemini'],
+  extract: ['nano', 'gemini', 'anthropic'],
+  loop: ['gemini', 'anthropic', 'nano'],
+  plan: ['anthropic', 'gemini'],
+  critic: ['anthropic', 'gemini'],
   vision: ['gemini', 'anthropic'],
-  chat: ['gemini', 'anthropic', 'ollama'],
+  chat: ['gemini', 'anthropic'],
 };
 
 /** Last-resort order when a role's own tier yields nothing available */
-const ANY_ORDER: readonly ProviderId[] = ['gemini', 'anthropic', 'ollama', 'nano'];
+const ANY_ORDER: readonly ProviderId[] = ['gemini', 'anthropic', 'nano'];
 
 export interface RoutingEnv {
   providers: Partial<Record<ProviderId, AssistantProvider>>;
@@ -113,7 +103,6 @@ export interface ResolveRoutingDeps {
     cloud: boolean;
     gemini?: boolean;
     anthropic?: boolean;
-    ollama?: boolean;
   };
   preferred?: Settings['cloudProvider'];
 }
@@ -130,7 +119,6 @@ export async function resolveRoutingEnv(deps: ResolveRoutingDeps): Promise<Routi
     nano: deps.nano,
     gemini: geminiProvider,
     anthropic: anthropicProvider,
-    ollama: ollamaProvider,
   };
   // A caller-supplied cloud wins for its own id — it may be a test double, or a
   // provider the caller configured differently from the module singleton.
@@ -139,7 +127,7 @@ export async function resolveRoutingEnv(deps: ResolveRoutingDeps): Promise<Routi
   const preferred = deps.preferred ?? 'gemini';
 
   if (deps.availability) {
-    const { nano, cloud, gemini, anthropic, ollama } = deps.availability;
+    const { nano, cloud, gemini, anthropic } = deps.availability;
     // The wake path memoizes a single {nano, cloud} pair. Honor it verbatim:
     // `cloud` describes deps.cloud, and the cloud it did NOT probe is unknown,
     // so treat it as unavailable rather than spending a round trip to find out.
@@ -154,7 +142,6 @@ export async function resolveRoutingEnv(deps: ResolveRoutingDeps): Promise<Routi
         // same rule the two clouds follow. A caller that memoized only
         // {nano, cloud} must not accidentally enlist a local server it never
         // checked, which on a dead port would stall the turn.
-        ollama: ollama ?? (cloudId === 'ollama' ? cloud : false),
       },
       preferred,
     };
@@ -171,13 +158,12 @@ export async function resolveRoutingEnv(deps: ResolveRoutingDeps): Promise<Routi
       return false;
     }
   };
-  const [nano, gemini, anthropic, ollama] = await Promise.all([
+  const [nano, gemini, anthropic] = await Promise.all([
     probe(providers.nano),
     probe(providers.gemini),
     probe(providers.anthropic),
-    probe(providers.ollama),
   ]);
-  return { providers, available: { nano, gemini, anthropic, ollama }, preferred };
+  return { providers, available: { nano, gemini, anthropic }, preferred };
 }
 
 /**
