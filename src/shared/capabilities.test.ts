@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { detectCapabilities, probeWasm } from './capabilities';
+import { detectCapabilities } from './capabilities';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -37,39 +37,21 @@ describe('detectCapabilities', () => {
      drops the Google-backed web platform ones. */
   it('describes Brave: extension APIs present, speech and Nano absent', () => {
     vi.stubGlobal('navigator', { brave: {} });
-    vi.stubGlobal('chrome', { tts: { speak() {} }, sidePanel: { open() {} } });
+    vi.stubGlobal('chrome', { sidePanel: { open() {} } });
+    vi.stubGlobal('speechSynthesis', {});
     const caps = detectCapabilities();
     expect(caps).toEqual({
       webSpeech: false,
       promptApi: false,
-      tts: true,
+      speechSynthesis: true,
       sidePanel: true,
       isBrave: true,
     });
   });
 
-  it('treats a chrome object without tts/sidePanel as lacking them', () => {
+  it('treats a chrome object without sidePanel as lacking it', () => {
     vi.stubGlobal('chrome', { runtime: {} });
-    const caps = detectCapabilities();
-    expect(caps.tts).toBe(false);
-    expect(caps.sidePanel).toBe(false);
+    expect(detectCapabilities().sidePanel).toBe(false);
   });
 });
 
-describe('probeWasm', () => {
-  it('instantiates the empty module when WebAssembly is usable', async () => {
-    await expect(probeWasm()).resolves.toBe(true);
-  });
-
-  it('is false when instantiation throws, even though the API exists', async () => {
-    vi.stubGlobal('WebAssembly', {
-      instantiate: () => Promise.reject(new Error('blocked by CSP')),
-    });
-    await expect(probeWasm()).resolves.toBe(false);
-  });
-
-  it('is false when WebAssembly is absent entirely', async () => {
-    vi.stubGlobal('WebAssembly', undefined);
-    await expect(probeWasm()).resolves.toBe(false);
-  });
-});

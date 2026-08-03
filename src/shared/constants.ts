@@ -386,8 +386,6 @@ export const REACT_MAX_STAGED_MUTATIONS = MAX_PLAN_STEPS;
 /** Wall clock for the WHOLE loop. Six iterations against a 60s provider timeout
     is six minutes; this is the constant that actually bounds a runaway turn. */
 export const REACT_DEADLINE_MS = 60_000;
-/** Shorter on the wake path — nobody waits a minute for a spoken reply */
-export const REACT_WAKE_DEADLINE_MS = 25_000;
 /** One observation, after truncation */
 export const REACT_OBSERVATION_MAX_CHARS = 2_000;
 /** All observations together; older ones elide rather than push out the newest */
@@ -410,61 +408,11 @@ export const REACT_MAX_SUFFICIENCY_CHECKS = 2;
 
 /* "Hey Jarvis" wake word — always-on mic in an offscreen document */
 export const OFFSCREEN_PAGE_PATH = 'src/pages/offscreen/index.html';
-/** Quiet gap that ends command capture after the wake word. Chrome's
-    recognizer already endpoints ~500ms before emitting a final result,
-    so this stacks on top of that — keep it short. */
-export const WAKE_CAPTURE_SILENCE_MS = 800;
-/** Hard cap on one command capture */
-export const WAKE_CAPTURE_MAX_MS = 15_000;
-/** Wake word said alone: how long the "Yes?" window stays open */
-export const WAKE_ACK_TIMEOUT_MS = 5000;
-/** Auto-resume if a push-to-talk page died without sending busy:false */
-export const WAKE_PTT_FAILSAFE_MS = 60_000;
-/**
- * How long to wait before retrying after the microphone was refused.
- *
- * Permission is granted from the options page, and nothing notifies the
- * offscreen document when that happens — so a denial that stops the listener
- * for good leaves it dead until the browser restarts. Retrying costs nothing
- * (an offscreen document cannot raise a permission prompt, so a refusal is
- * silent), but it must be slow enough not to spin.
- */
-export const WAKE_MIC_RETRY_MS = 300_000;
 
 /* On-device wake word (openWakeWord pipeline; see shared/ai/wakeDetector.ts).
    These are not tunable preferences — the first five are fixed by the shapes
    the pretrained models were exported with, and changing one makes the graph
    refuse to run. Only the last two are ours to pick. */
-/** openWakeWord was trained at 16 kHz mono; the AudioContext resamples to it */
-export const WAKE_SAMPLE_RATE = 16_000;
-/** 80 ms of audio — one detector step */
-export const WAKE_CHUNK_SAMPLES = 1280;
-/** Mel frames the embedding model consumes at once */
-export const WAKE_MEL_WINDOW = 76;
-/** Mel frames advanced per embedding — 8 frames of 10 ms each is one 80ms chunk */
-export const WAKE_MEL_STRIDE = 8;
-/**
- * Samples of the *previous* chunk prepended before the mel model runs.
- *
- * Not padding — arithmetic. The model consumes 400-sample windows every 160,
- * so 1280 samples alone yield only 5 mel frames, and the pipeline needs 8 per
- * step to advance one full stride. 1280 + 480 gives exactly 8. Drop this and
- * the mel buffer fills at 5/8 the rate the embedder consumes it: the detector
- * still runs, still scores, and never fires. Measured against the real model,
- * not assumed — see the shape check in wakeDetector.test.ts.
- */
-export const WAKE_MEL_CONTEXT_SAMPLES = 480;
-/** Embeddings the wake model consumes at once — 1.28 s of context */
-export const WAKE_EMBEDDING_WINDOW = 16;
-/**
- * Score above which "hey jarvis" is considered said. openWakeWord's own
- * recommended starting point; a false accept is worse than a miss here, since
- * it opens the microphone and sends what follows to a model.
- */
-export const WAKE_SCORE_THRESHOLD = 0.5;
-/** Ignore further detections this long after one fires, so a single utterance
-    spanning several windows cannot trigger twice */
-export const WAKE_REFRACTORY_MS = 2000;
 
 export const CAPTURE_WINDOW_TASK = { width: 440, height: 180 } as const;
 export const CAPTURE_WINDOW_DUMP = { width: 440, height: 520 } as const;
@@ -499,8 +447,6 @@ export const NOTIFICATION_IDS = {
   hyperfocus: 'hyperfocus',
   monitorEvening: 'monitor-evening',
   monitorEventPrefix: 'monitor-event|',
-  wakeReply: 'wake-reply',
-  wakeMicDenied: 'wake-mic-denied',
   automationPrefix: 'automation|',
   gmailTriage: 'gmail-triage',
 } as const;

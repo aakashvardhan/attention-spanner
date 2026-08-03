@@ -70,20 +70,10 @@ export default defineManifest(async (env) => {
       'unlimitedStorage',
       // The live copilot docks beside the tab you're in a meeting on
       'sidePanel',
-      // Spoken replies on the wake-word path: the offscreen document cannot use
-      // speechSynthesis (no user activation, so the autoplay policy blocks it),
-      // so the worker speaks on its behalf
-      'tts',
     ],
     host_permissions: ['<all_urls>'],
-    // The on-device wake word runs three ONNX models through onnxruntime-web.
-    // MV3's default policy has no wasm-unsafe-eval, so WebAssembly.instantiate
-    // throws and the detector cannot load at all. 'self' is unchanged: this
-    // adds the ability to run our own bundled WASM, not to fetch any remotely —
-    // MV3 forbids remote code regardless, which is why dist/ort/ is copied in
-    // at build time (scripts/copy-ort.mjs).
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      extension_pages: "script-src 'self'; object-src 'self'",
     },
     web_accessible_resources: [
       {

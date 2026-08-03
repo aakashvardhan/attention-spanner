@@ -32,7 +32,6 @@ import { maybeInjectTimePill } from './timePill';
 import { toggleCopilotOverlay } from './copilotOverlay';
 import { markPaperReadingByUrl } from './papers';
 import { maybeInterceptPdf, maybeInterceptPdfResponse } from './pdfIntercept';
-import { openDashboard, syncWakeWordListener } from './offscreen';
 import { reconcileRecordings, refreshTimedtextTees, registerTimedtextTee } from './recordings';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
@@ -128,7 +127,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await reinjectIntoOpenTabs();
     // Resume cloud sync if signed in (inert until a transport is registered)
     await initSync();
-    await syncWakeWordListener();
     await registerTimedtextTee();
   })();
 });
@@ -163,7 +161,6 @@ chrome.runtime.onStartup.addListener(() => {
   void refreshCalendar();
   // Resume cloud sync if signed in (inert until a transport is registered)
   void initSync();
-  void syncWakeWordListener();
 });
 
 chrome.alarms.onAlarm.addListener(handleAlarm);
@@ -260,12 +257,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     ) {
       void refreshFocusRules(newSettings.focusBlocklist);
     }
-    if (
-      oldSettings.assistantWakeWordEnabled !== newSettings.assistantWakeWordEnabled ||
-      oldSettings.assistantEnabled !== newSettings.assistantEnabled
-    ) {
-      void syncWakeWordListener();
-    }
   }
 });
 
@@ -355,15 +346,5 @@ chrome.notifications.onClicked.addListener((notificationId) => {
     // The nudge is already waiting in the assistant chat on the dashboard
     void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
     return;
-  }
-  if (notificationId === NOTIFICATION_IDS.wakeReply) {
-    chrome.notifications.clear(notificationId);
-    // The exchange is already in the assistant chat on the dashboard
-    void openDashboard();
-    return;
-  }
-  if (notificationId === NOTIFICATION_IDS.wakeMicDenied) {
-    chrome.notifications.clear(notificationId);
-    void chrome.runtime.openOptionsPage();
   }
 });

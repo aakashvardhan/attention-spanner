@@ -40,15 +40,6 @@ import { FrameWatcher } from './frameWatcher';
 /** Speech, mono. Enough for transcription, and it keeps a 5-minute segment near 1.2 MB. */
 const AUDIO_BITS_PER_SECOND = 32_000;
 
-/**
- * The wake listener auto-resumes 60s after anything claims the mic
- * (WAKE_PTT_FAILSAFE_MS), on the assumption that a push-to-talk page died
- * without releasing it. That assumption is wrong for a 90-minute lecture, so
- * re-assert the claim well inside the window instead of widening it — the
- * failsafe is still correct for the caller it was written for.
- */
-const MIC_HEARTBEAT_MS = 30_000;
-
 const SEGMENT_MS = SEGMENT_MINUTES * 60 * 1000;
 
 export class Recorder {
@@ -59,10 +50,8 @@ export class Recorder {
   private chunks: Blob[] = [];
   private segmentIndex = 0;
   private startedAt = 0;
-  private usesMic = false;
   private stopping = false;
   private rotateTimer: ReturnType<typeof setTimeout> | undefined;
-  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   /**
    * Transcription runs off the recording path, but segments must be transcribed
    * in order — each one is handed the tail of the previous for continuity. This
@@ -107,7 +96,6 @@ export class Recorder {
     this.queue = Promise.resolve();
     this.priorTail = '';
     this.firstError = '';
-    this.usesMic = mode === 'mic' || mode === 'mixed';
     this.title = opts?.title ?? '';
     this.purpose = opts?.purpose;
     this.stats = { transcribed: 0, skippedSilent: 0 };
@@ -116,7 +104,6 @@ export class Recorder {
     try {
       const stream = await this.buildStream(mode, streamId, opts?.visualCapture ?? false);
       if (this.live) this.attachAnalyser(stream);
-      if (this.usesMic) this.startMicHeartbeat();
       this.startSegment(stream);
     } catch (error) {
       this.teardown();
@@ -341,19 +328,10 @@ export class Recorder {
     }).catch(() => undefined);
   }
 
-  private startMicHeartbeat(): void {
-    const claim = () =>
-      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: true }).catch(() => undefined);
-    claim();
-    this.heartbeatTimer = setInterval(claim, MIC_HEARTBEAT_MS);
-  }
-
   private teardown(): void {
     clearTimeout(this.rotateTimer);
     clearInterval(this.vadTimer);
-    clearInterval(this.heartbeatTimer);
     this.vadTimer = undefined;
-    this.heartbeatTimer = undefined;
     this.analyser = null;
     this.watcher?.stop();
     this.watcher = null;
@@ -362,10 +340,6 @@ export class Recorder {
     void this.ctx?.close().catch(() => undefined);
     this.ctx = null;
     this.recorder = null;
-    if (this.usesMic) {
-      void sendMessage({ type: 'WAKE_MIC_BUSY', busy: false }).catch(() => undefined);
-      this.usesMic = false;
-    }
   }
 }
 

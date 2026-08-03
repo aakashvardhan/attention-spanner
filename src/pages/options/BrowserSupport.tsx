@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAvailability, type AiAvailability } from '../../shared/ai/brainDump';
 import { sttAvailability } from '../../shared/ai/stt';
-import { detectCapabilities, probeWasm, type Capabilities } from '../../shared/capabilities';
+import { detectCapabilities, type Capabilities } from '../../shared/capabilities';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
 
@@ -39,14 +39,12 @@ function nanoDetail(nano: AiAvailability, promptApi: boolean, isBrave: boolean):
 export function BrowserSupport() {
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [nano, setNano] = useState<AiAvailability>('unavailable');
-  const [wasm, setWasm] = useState(false);
   const [stored] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...stored };
 
   useEffect(() => {
     setCaps(detectCapabilities());
     void getAvailability().then(setNano).catch(() => undefined);
-    void probeWasm().then(setWasm).catch(() => undefined);
   }, []);
 
   if (!caps) return null;
@@ -68,19 +66,10 @@ export function BrowserSupport() {
       detail: nanoDetail(nano, caps.promptApi, caps.isBrave),
     },
     {
-      // Always true now: detection is three ONNX models on-device, so the only
-      // way it fails is WebAssembly being unavailable, which probeWasm catches.
-      label: '“Hey Jarvis” wake word',
-      ok: wasm,
-      detail: wasm
-        ? 'Runs on-device. Nothing is sent anywhere until the wake word fires — only the command after it is transcribed.'
-        : 'Unavailable — this browser cannot run the on-device detector, and the wake word needs it.',
-    },
-    {
       label: 'Spoken replies',
-      ok: caps.tts,
-      detail: caps.tts
-        ? 'Available.'
+      ok: caps.speechSynthesis,
+      detail: caps.speechSynthesis
+        ? 'Available — replies can be read aloud by the browser.'
         : 'Unavailable — replies will arrive as text only.',
     },
   ];

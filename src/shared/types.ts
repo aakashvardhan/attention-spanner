@@ -332,8 +332,7 @@ export interface Settings {
   assistantVoiceEnabled: boolean;
   /** speechSynthesis voice name; '' = system default */
   assistantTtsVoice: string;
-  /** Always-on "Hey Jarvis" wake word (offscreen mic listener) */
-  assistantWakeWordEnabled: boolean;
+
   /** Describe slides/screens during tab recordings and let the assistant see
    *  the current tab when asked — frames go to Gemini, like recorded audio */
   assistantVisionEnabled: boolean;

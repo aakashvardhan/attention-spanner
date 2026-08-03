@@ -170,16 +170,6 @@ function EnabledAssistantChat({
   const sendRef = useRef(send);
   sendRef.current = send;
 
-  // Wake-word handoff: a command the offscreen listener captured but couldn't
-  // run (no model reachable there) — run it here, where Nano can download.
-  // Claimed through the SW so this and the dashboard's headless drainer
-  // (WakeHandoff) can both be mounted without double-running the command.
-  useEffect(() => {
-    void sendMessage({ type: 'ASSISTANT_CLAIM_PENDING' }).then(({ input }) => {
-      if (input) void sendRef.current(input);
-    });
-  }, []);
-
   const confirm = async (turn: AssistantTurn) => {
     if (!turn.toolCall || busy) return;
     setBusy(true);

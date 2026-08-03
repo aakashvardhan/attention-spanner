@@ -1,6 +1,5 @@
 import type { CalendarEvent } from './calendar';
 import type { AssistantTurn } from './ai/assistantTypes';
-import type { PageContent } from './ai/pageContent';
 import type { TagAssignment } from './ai/topics';
 import type { DocCitations } from './docCitations';
 import type { LiveMode, LivePace } from './live';
@@ -169,18 +168,11 @@ export type Message =
   | { type: 'ASSISTANT_APPEND_TURN'; turn: AssistantTurn }
 | { type: 'ASSISTANT_BEGIN_TURN'; turn: AssistantTurn }
   | { type: 'ASSISTANT_PATCH_TURN'; id: string; patch: Partial<AssistantTurn> }
-  | { type: 'ASSISTANT_CLAIM_PENDING' }
-  | { type: 'WAKE_GET_PAGE' }
-  | { type: 'WAKE_EVENT'; event: 'replied' | 'needs-ui' | 'handoff' | 'mic-denied'; text?: string }
   // Extension pages → offscreen doc (push-to-talk holds the mic; router no-ops it)
-  | { type: 'WAKE_MIC_BUSY'; busy: boolean }
   // Service worker → offscreen doc: start/stop the listener without closing the
   // document, which the recorder may also be holding (router no-ops it)
-  | { type: 'WAKE_LISTENER_SET'; enabled: boolean }
   // Offscreen doc → service worker: speak. The offscreen document cannot do it
   // itself — see src/background/speech.ts. Replies once the audio has stopped.
-  | { type: 'TTS_SPEAK'; text: string; voiceName: string; enqueue: boolean }
-  | { type: 'TTS_STOP' }
   // Recording control. Tab and mixed capture must start from the side panel:
   // getMediaStreamId needs the extension to have been invoked on that tab.
   | {
@@ -397,13 +389,6 @@ export interface MessageResponses {
   ASSISTANT_APPEND_TURN: { ok: boolean };
 ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
   ASSISTANT_PATCH_TURN: { ok: boolean };
-  ASSISTANT_CLAIM_PENDING: { input: string };
-  WAKE_GET_PAGE: { page: PageContent | null };
-  WAKE_EVENT: { ok: boolean };
-  WAKE_MIC_BUSY: { ok: boolean };
-  WAKE_LISTENER_SET: { ok: boolean };
-  TTS_SPEAK: { ok: boolean };
-  TTS_STOP: { ok: boolean };
   REC_START: { ok: boolean; id?: string; error?: string };
   REC_STOP: { ok: boolean };
   REC_DELETE: { ok: boolean };

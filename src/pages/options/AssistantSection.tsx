@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { testAnthropicKey } from '../../shared/ai/anthropicProvider';
 import { testGeminiKey } from '../../shared/ai/geminiProvider';
 import { listVoices, speak } from '../../shared/ai/tts';
-import { detectCapabilities } from '../../shared/capabilities';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../shared/messages';
 import { PROFILE_MAX_CHARS } from '../../shared/constants';
@@ -31,9 +30,6 @@ export function AssistantSection() {
   const [test, setTest] = useState<Test>({ state: 'idle' });
   const [mic, setMic] = useState<Mic>({ state: 'unknown' });
   const [voices, setVoices] = useState<{ name: string; lang: string }[]>([]);
-  // Sync and constant for the life of the page — no state needed
-  const caps = detectCapabilities();
-
   useEffect(() => {
     void navigator.permissions
       ?.query({ name: 'microphone' as PermissionName })
@@ -57,12 +53,6 @@ export function AssistantSection() {
       setMic({ state: 'denied' });
       return false;
     }
-  };
-
-  const toggleWakeWord = async (on: boolean) => {
-    // The offscreen listener is useless without the mic — sort that out first
-    if (on && mic.state !== 'granted' && !(await grantMic())) return;
-    await patchSettings({ assistantWakeWordEnabled: on });
   };
 
   const keyToTest = keyInput.trim() || currentKey;
@@ -214,23 +204,6 @@ export function AssistantSection() {
           onChange={(e) => void patchSettings({ assistantVoiceEnabled: e.target.checked })}
         />
       </div>
-      <div className="setting-row">
-        <label htmlFor="assistant-wake">“Hey Jarvis” wake word</label>
-        <input
-          id="assistant-wake"
-          type="checkbox"
-          checked={settings.assistantWakeWordEnabled}
-          onChange={(e) => void toggleWakeWord(e.target.checked)}
-        />
-      </div>
-      {settings.assistantWakeWordEnabled && (
-        <p className="hint">
-          Jarvis listens for “hey Jarvis” whenever the browser is running. Detection runs
-          on-device, so nothing is sent anywhere until the wake word actually fires — then your
-          request is transcribed{caps.webSpeech ? " by the browser's recognizer" : ' by Gemini'},
-          the reply is spoken aloud, and it lands in the assistant chat.
-        </p>
-      )}
       <div className="setting-row">
         <label htmlFor="assistant-react">Look things up before answering</label>
         <input

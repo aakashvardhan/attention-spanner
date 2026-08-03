@@ -1,10 +1,7 @@
 import type { Message } from '../shared/messages';
 import { OFFSCREEN_PAGE_PATH } from '../shared/constants';
 import { appendTurn } from '../shared/ai/assistantTypes';
-import { getActivePageContent } from '../shared/ai/pageContent';
 import { getSession, setSession } from '../shared/storage';
-import { handleWakeEvent } from './offscreen';
-import { speakViaTts, stopTts } from './speech';
 import {
   axAskPdf,
   axConnect,
@@ -396,27 +393,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       });
       return { ok: true };
     }
-    case 'ASSISTANT_CLAIM_PENDING': {
-      // Read-and-clear in one hop. Any surface may be open when a wake command
-      // hands off; the single SW context serializes this, so exactly one of
-      // them claims the command and the others get ''.
-      const { assistantPendingInput } = await getSession('assistantPendingInput');
-      if (assistantPendingInput) await setSession({ assistantPendingInput: '' });
-      return { input: assistantPendingInput };
-    }
-    case 'WAKE_GET_PAGE':
-      return { page: await getActivePageContent() };
-    case 'WAKE_EVENT':
-      await handleWakeEvent(msg.event, msg.text);
-      return { ok: true };
-    case 'TTS_SPEAK':
-      await speakViaTts(msg.text, msg.voiceName, msg.enqueue);
-      return { ok: true };
-    case 'TTS_STOP':
-      stopTts();
-      return { ok: true };
-    case 'WAKE_MIC_BUSY':
-    case 'WAKE_LISTENER_SET':
     case 'REC_BEGIN':
     case 'REC_GRAB_FRAME':
       // Addressed to the offscreen doc, which listens on the same broadcast

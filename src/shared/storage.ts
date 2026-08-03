@@ -284,7 +284,6 @@ export const DEFAULT_SETTINGS: Settings = {
   assistantReactEnabled: true,
   assistantVoiceEnabled: false,
   assistantTtsVoice: '',
-  assistantWakeWordEnabled: false,
   assistantVisionEnabled: true,
   assistantLiveEnabled: false,
   focusCalendarBlockEnabled: false,

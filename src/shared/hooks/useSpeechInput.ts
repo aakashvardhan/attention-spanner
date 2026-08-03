@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSttEngine, sttAvailability, type SttEngine } from '../ai/stt';
-import { sendMessage } from '../messages';
 
 /**
  * Push-to-talk speech input. Hold the mic button: pointerdown starts,
@@ -58,12 +57,8 @@ export function useSpeechInput(handlers: {
         engineRef.current = null;
         setListening(false);
         setTranscribing(false);
-        // Fires on stop, abort, and unmount alike — release the wake-word mic
-        void sendMessage({ type: 'WAKE_MIC_BUSY', busy: false }).catch(() => undefined);
       },
     });
-    // Pause the always-on "hey Jarvis" listener — two sessions conflict
-    void sendMessage({ type: 'WAKE_MIC_BUSY', busy: true }).catch(() => undefined);
   }, [usable]);
 
   const stop = useCallback(() => {

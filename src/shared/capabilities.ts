@@ -25,8 +25,8 @@ export interface Capabilities {
   webSpeech: boolean;
   /** Chrome's built-in on-device model (Gemini Nano). Chrome-only. */
   promptApi: boolean;
-  /** chrome.tts, how the worker speaks on the offscreen document's behalf */
-  tts: boolean;
+  /** speechSynthesis, how a page speaks an assistant reply aloud */
+  speechSynthesis: boolean;
   /** Extension-page side panel */
   sidePanel: boolean;
   /** Labelling and the cosmetic skin only. Never gate a feature on this. */
@@ -48,7 +48,7 @@ export function detectCapabilities(): Capabilities {
   return {
     webSpeech: g.SpeechRecognition !== undefined || g.webkitSpeechRecognition !== undefined,
     promptApi: g.LanguageModel !== undefined,
-    tts: typeof chrome !== 'undefined' && typeof chrome.tts?.speak === 'function',
+    speechSynthesis: typeof globalThis.speechSynthesis !== 'undefined',
     sidePanel: typeof chrome !== 'undefined' && typeof chrome.sidePanel?.open === 'function',
     // navigator.brave exists only in Brave; isBrave() is async and we do not
     // need the answer badly enough to make every caller await it.
@@ -56,24 +56,3 @@ export function detectCapabilities(): Capabilities {
   };
 }
 
-/** The 8-byte empty module: magic number plus version, nothing else. */
-const EMPTY_WASM = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
-
-/**
- * Can this context actually instantiate WebAssembly?
- *
- * Separate from the sync flags above because the honest answer needs a real
- * instantiation. `typeof WebAssembly.instantiate === 'function'` is true even
- * when MV3's default CSP forbids the call — the constructor is there, the
- * instantiation is what throws. Anything relying on WASM (the on-device wake
- * word) has to know the difference, so ask the question properly.
- */
-export async function probeWasm(): Promise<boolean> {
-  if (typeof WebAssembly?.instantiate !== 'function') return false;
-  try {
-    await WebAssembly.instantiate(EMPTY_WASM);
-    return true;
-  } catch {
-    return false;
-  }
-}
