@@ -152,6 +152,7 @@ body::before {
 }
 
 .relay-close-loop button,
+.relay-continue button,
 .relay-later button,
 .relay-manual button,
 .relay-parking form button,
@@ -3637,6 +3638,7 @@ body::before {
 }
 
 .relay-close-loop button,
+.relay-continue button,
 .relay-later button,
 .relay-manual button,
 .relay-parking form button,
@@ -3890,4 +3892,46 @@ body::before {
   .dock-panel .as-chat {
     padding: 0 12px 12px;
   }
+}
+
+/* Continue reading — deliberately a plain section, not a <details>. Half-read
+   articles were invisible on this screen until you remembered them yourself,
+   which is the opposite of what a new tab is for. */
+.relay-continue {
+  margin-top: var(--space-4);
+}
+
+.relay-continue h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.relay-continue ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay-continue button {
+  width: 100%;
+  text-align: left;
+}
+
+/* Low emphasis on purpose: walking past the brain dump should be possible,
+   not inviting. */
+.daily-gate-skip {
+  margin-top: var(--space-3);
+  padding: 6px 10px;
+  color: var(--text-tertiary, var(--text-secondary));
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
 }

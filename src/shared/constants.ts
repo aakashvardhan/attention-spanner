@@ -56,12 +56,9 @@ export const FOCUS_DNR_ID_LIMIT = 2000;
 /** Persistent daily redirect + session-scoped daily unlock rule. */
 export const DAILY_GATE_DNR_ID = 900;
 export const DAILY_GATE_ALLOW_DNR_ID = 901;
-export const DAILY_GATE_REDIRECT_PRIORITY = 100;
-export const DAILY_GATE_ALLOW_PRIORITY = 200;
 export const FOCUS_DNR_PRIORITY = 300;
 export const DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS = 20;
 export const BLOCKED_PAGE_PATH = 'src/pages/blocked/index.html';
-export const DAILY_GATE_PAGE_PATH = 'src/pages/daily-gate/index.html';
 export const HOLD_TO_QUIT_MS = 5000;
 export const FLOWTUNES_URL = 'https://www.flowtunes.app/';
 export const MAX_BOOKMARKS = 200;

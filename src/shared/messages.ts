@@ -21,7 +21,6 @@ import type {
   Paper,
   PaperDraft,
   Task,
-  XBookmark,
 } from './types';
 
 export interface ResumeTarget {
@@ -64,8 +63,6 @@ export type Message =
   | { type: 'MOVE_BOOKMARK'; id: string; groupId: string | null }
   | { type: 'ADD_BOOKMARK_GROUP'; name: string }
   | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
-  | { type: 'X_BOOKMARKS_OPEN' }
-  | { type: 'X_BOOKMARKS_SYNC'; items: XBookmark[] }
   | { type: 'MEMORY_ADD'; text: string }
   | { type: 'MEMORY_DELETE'; id: string }
   | { type: 'SKILL_ADD'; name: string; keywords: string[]; body: string }
@@ -288,8 +285,6 @@ export interface MessageResponses {
   MOVE_BOOKMARK: { ok: boolean };
   ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
   DELETE_BOOKMARK_GROUP: { ok: boolean };
-  X_BOOKMARKS_OPEN: { ok: boolean };
-  X_BOOKMARKS_SYNC: { ok: boolean; count: number };
   MEMORY_ADD: { ok: boolean; fact?: AssistantFact; error?: string };
   MEMORY_DELETE: { ok: boolean };
   SKILL_ADD: { ok: boolean; skill?: AssistantSkill; error?: string };

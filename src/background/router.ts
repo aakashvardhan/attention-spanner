@@ -60,7 +60,6 @@ import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from 
 import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
 import { handleVideoProgress, handleVideoReady } from './videoTracking';
-import { isXBookmarksUrl, openXBookmarks, saveVisibleXBookmarks } from './xBookmarks';
 
 /**
  * Is this message from our own offscreen document? Its sender.url is the
@@ -147,14 +146,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'DELETE_BOOKMARK_GROUP':
       await deleteBookmarkGroup(msg.id);
       return { ok: true };
-    case 'X_BOOKMARKS_OPEN':
-      await openXBookmarks();
-      return { ok: true };
-    case 'X_BOOKMARKS_SYNC':
-      // Content-script messages share the extension channel with every page,
-      // so only accept personal bookmark data from X's bookmarks route.
-      if (!isXBookmarksUrl(sender.url)) return { ok: false, count: 0 };
-      return { ok: true, count: await saveVisibleXBookmarks(msg.items) };
     case 'MEMORY_ADD':
       return addFact(msg.text);
     case 'MEMORY_DELETE':

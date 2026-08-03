@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   structureBrainDump,
   type StructuredDump,
@@ -20,7 +20,6 @@ import { setLocal } from '../storage';
 import './dailyBrainDumpGate.css';
 
 interface DailyBrainDumpGateProps {
-  originalUrl?: URL | null;
   onContinue?: () => void;
 }
 
@@ -31,20 +30,15 @@ type GateStage =
   | { name: 'structuring'; downloadProgress: number | null }
   | { name: 'review'; result: StructuredDump; basic: boolean; noteId: string };
 
-export function DailyBrainDumpGate({
-  originalUrl = null,
-  onContinue,
-}: DailyBrainDumpGateProps) {
+export function DailyBrainDumpGate({ onContinue }: DailyBrainDumpGateProps) {
   const [gate, loaded] = useStorageValue('dailyBrainDumpGate');
   const [text, setText] = useState('');
   const [stage, setStage] = useState<GateStage>({ name: 'entry' });
   const [submittedHere, setSubmittedHere] = useState(false);
   const [error, setError] = useState('');
   const [initialState, setInitialState] = useState<InitialState>('loading');
-  const healedRef = useRef(false);
   const count = useMemo(() => visibleCharacterCount(text), [text]);
   const complete = isDailyBrainDumpComplete(gate);
-  const host = originalUrl?.hostname.replace(/^www\./, '') ?? null;
 
   useEffect(() => {
     if (!loaded || initialState !== 'loading') return;
@@ -54,15 +48,6 @@ export function DailyBrainDumpGate({
   // A persistent redirect can catch restored tabs before the worker reinstalls
   // today's session allow. If today was already complete, heal that bounce
   // automatically; it is not a new gate cycle.
-  useEffect(() => {
-    if (initialState !== 'complete' || !originalUrl || healedRef.current) return;
-    healedRef.current = true;
-    void (async () => {
-      const status = await sendMessage({ type: 'DAILY_GATE_STATUS' });
-      if (status.complete) location.replace(originalUrl.href);
-    })();
-  }, [initialState, originalUrl]);
-
   const submit = async () => {
     if (count < DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS || stage.name !== 'entry') return;
     const rawText = text.trim();
@@ -112,13 +97,8 @@ export function DailyBrainDumpGate({
   };
 
   const continueDay = () => {
-    if (originalUrl) {
-      location.replace(originalUrl.href);
-    } else if (onContinue) {
-      onContinue();
-    } else {
-      location.replace(chrome.runtime.getURL(NEWTAB_PAGE_PATH));
-    }
+    if (onContinue) onContinue();
+    else location.replace(chrome.runtime.getURL(NEWTAB_PAGE_PATH));
   };
 
   const useAsNow = async (recommendation: string, noteId: string) => {
@@ -126,7 +106,7 @@ export function DailyBrainDumpGate({
     continueDay();
   };
 
-  if (!loaded || initialState === 'loading' || (initialState === 'complete' && originalUrl)) {
+  if (!loaded || initialState === 'loading') {
     return (
       <main className="daily-gate daily-gate--center" aria-busy="true">
         <div className="daily-gate-spinner" />
@@ -201,21 +181,8 @@ export function DailyBrainDumpGate({
       <main className="daily-gate daily-gate--center">
         <div className="daily-gate-check" aria-hidden="true">✓</div>
         <h1>{submittedHere ? 'Brain dump saved.' : 'You’re clear for today.'}</h1>
-        {originalUrl ? (
-          <>
-            <p className="daily-gate-sub">
-              This tab stayed quiet so all your restored pages would not rush back at once.
-            </p>
-            <a className="daily-gate-primary daily-gate-link" href={originalUrl.href}>
-              Continue to {host}
-            </a>
-          </>
-        ) : (
-          <>
-            <p className="daily-gate-sub">Your brain dump was completed from another surface.</p>
-            <button className="daily-gate-primary" onClick={continueDay}>Open my dashboard</button>
-          </>
-        )}
+        <p className="daily-gate-sub">Your brain dump was completed from another surface.</p>
+        <button className="daily-gate-primary" onClick={continueDay}>Open my dashboard</button>
       </main>
     );
   }
@@ -230,7 +197,6 @@ export function DailyBrainDumpGate({
           Put down whatever is pulling at your attention—tasks, worries, reminders, unfinished
           thoughts. It is saved locally before browsing opens.
         </p>
-        {host && <p className="daily-gate-destination">Waiting: {host}</p>}
         <label className="daily-gate-label" htmlFor="daily-brain-dump">
           What’s on your mind?
         </label>
@@ -268,6 +234,12 @@ export function DailyBrainDumpGate({
         <p className="daily-gate-privacy">
           Saved before structuring. If AI is unavailable, you’ll still get a basic offline outline.
         </p>
+        {/* The dump used to hold every tab in the browser hostage until it was
+            written. Keeping it as the first thing on a new tab is the useful
+            half; making it compulsory is what turned it into a morning toll. */}
+        <button className="daily-gate-skip" onClick={continueDay}>
+          Skip for today
+        </button>
       </section>
     </main>
   );

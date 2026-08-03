@@ -78,10 +78,7 @@ export default defineManifest(async (env) => {
     web_accessible_resources: [
       {
         // DNR redirects to an extension page require it to be web-accessible
-        resources: [
-          'src/pages/blocked/index.html',
-          'src/pages/daily-gate/index.html',
-        ],
+        resources: ['src/pages/blocked/index.html'],
         matches: ['http://*/*', 'https://*/*'],
       },
       {
@@ -120,6 +117,17 @@ export default defineManifest(async (env) => {
           mac: 'Command+Shift+O',
         },
         description: 'Float Jarvis over this page',
+      },
+      // Chrome binds at most four suggested keys, and this is the fourth.
+      // Shift+E is unclaimed in both Chrome and Brave; on an update the key
+      // only binds if the user has not customised their shortcuts, so it is
+      // worth checking chrome://extensions/shortcuts after installing.
+      'read-this-page': {
+        suggested_key: {
+          default: 'Ctrl+Shift+E',
+          mac: 'Command+Shift+E',
+        },
+        description: 'Read this page in Reader',
       },
     },
   };

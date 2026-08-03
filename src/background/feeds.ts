@@ -1,5 +1,6 @@
 import { ACCENT_COLOR, MAX_CACHED_ITEMS, MAX_READ_ITEMS } from '../shared/constants';
 import { articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
+import { belongsInContinue } from '../shared/progress';
 import { getLocal, getSession, setLocal } from '../shared/storage';
 import type { FeedItem } from '../shared/types';
 import { getYouTubeVideoId } from '../shared/youtube';
@@ -53,7 +54,9 @@ export async function refreshFeeds(): Promise<RefreshResult> {
   const { feeds } = await getLocal('feeds');
 
   if (feeds.length === 0) {
-    await chrome.action.setBadgeText({ text: '' });
+    // Not setBadgeText('') — the badge no longer counts feed items, so blanking
+    // it here would wipe the resumable-reading count every refresh tick.
+    await updateBadge();
     return { ok: true, itemCount: 0, newCount: 0, failedCount: 0 };
   }
 
@@ -90,7 +93,7 @@ export async function refreshFeeds(): Promise<RefreshResult> {
 
 export async function updateBadge(): Promise<void> {
   // A live recording outranks everything: it is the one state the user must
-  // not forget about, and the popup is the only other place that shows it.
+  // not forget about.
   // Read from session storage here (not recordings.ts) so the focus alarm's
   // periodic tick can't stomp the badge back to a countdown.
   const { activeRecording } = await getSession('activeRecording');
@@ -119,9 +122,16 @@ export async function updateBadge(): Promise<void> {
     return;
   }
 
-  const { cachedItems, readItems } = await getLocal('cachedItems', 'readItems');
-  const unreadCount = cachedItems.filter((item) => !readItems.includes(item.id)).length;
-  const badgeText = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : '';
+  // Was the unread feed count, which pointed at a screen that does not exist —
+  // no page renders cachedItems, and `feeds` defaults to empty, so the badge
+  // was blank or meaningless. Resumable reading is something the dashboard
+  // actually shows, so the number now leads somewhere. Capped low: a badge
+  // reading 40 is noise, not an invitation.
+  const { readingProgress, papers } = await getLocal('readingProgress', 'papers');
+  const count =
+    Object.values(readingProgress).filter((entry) => belongsInContinue(entry)).length +
+    papers.filter((paper) => paper.status === 'reading').length;
+  const badgeText = count > 9 ? '9+' : count > 0 ? String(count) : '';
   await chrome.action.setBadgeText({ text: badgeText });
   await chrome.action.setBadgeBackgroundColor({ color: ACCENT_COLOR });
 }

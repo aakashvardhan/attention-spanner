@@ -1,10 +1,4 @@
-import {
-  DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS,
-  DAILY_GATE_ALLOW_DNR_ID,
-  DAILY_GATE_ALLOW_PRIORITY,
-  DAILY_GATE_DNR_ID,
-  DAILY_GATE_REDIRECT_PRIORITY,
-} from './constants';
+import { DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS } from './constants';
 import { localDate } from './format';
 import type { BrainDumpNote, DailyBrainDumpGateState } from './types';
 
@@ -73,44 +67,4 @@ export function nextLocalMidnight(now = new Date()): number {
   const next = new Date(now);
   next.setHours(24, 0, 0, 0);
   return next.getTime();
-}
-
-export function buildDailyGateRedirectRule(
-  redirectBase: string,
-): chrome.declarativeNetRequest.Rule {
-  return {
-    id: DAILY_GATE_DNR_ID,
-    priority: DAILY_GATE_REDIRECT_PRIORITY,
-    action: {
-      type: 'redirect' as chrome.declarativeNetRequest.RuleActionType,
-      redirect: { regexSubstitution: `${redirectBase}#\\0` },
-    },
-    condition: {
-      regexFilter: '^https?://.*',
-      resourceTypes: ['main_frame' as chrome.declarativeNetRequest.ResourceType],
-    },
-  };
-}
-
-export function buildDailyGateAllowRule(): chrome.declarativeNetRequest.Rule {
-  return {
-    id: DAILY_GATE_ALLOW_DNR_ID,
-    priority: DAILY_GATE_ALLOW_PRIORITY,
-    action: { type: 'allow' as chrome.declarativeNetRequest.RuleActionType },
-    condition: {
-      regexFilter: '^https?://.*',
-      resourceTypes: ['main_frame' as chrome.declarativeNetRequest.ResourceType],
-    },
-  };
-}
-
-export function safeOriginalUrl(hash: string): URL | null {
-  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
-  } catch {
-    return null;
-  }
 }

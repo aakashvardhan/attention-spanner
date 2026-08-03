@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button, EmptyState } from '../../shared/components/ui';
 import { faviconUrl } from '../../shared/format';
 import { useBookmarks } from '../../shared/hooks/useBookmarks';
+import { sendMessage } from '../../shared/messages';
+import { shouldOpenInReader } from '../../shared/pdf';
 
 export function normalizeBookmarkUrl(value: string): string | null {
   const candidate = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
@@ -94,7 +96,27 @@ export function BookmarksPanel() {
             <div className="bm-grid">
               {group.links.map((link) => (
                 <div key={link.id} className="bm-tile-wrap">
-                  <a className="bm-tile" href={link.url} title={link.url}>
+                  {/* The href stays so middle-click, modifier-click and "open in
+                      new tab" keep working; a plain left click is the one we
+                      reroute. shouldOpenInReader decides per link, so a Gmail
+                      or dashboard bookmark still opens as itself. */}
+                  <a
+                    className="bm-tile"
+                    href={link.url}
+                    title={link.url}
+                    onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+                        return;
+                      }
+                      event.preventDefault();
+                      void sendMessage({
+                        type: 'OPEN_ARTICLE',
+                        url: link.url,
+                        feedItemId: null,
+                        readerView: shouldOpenInReader(link.url),
+                      });
+                    }}
+                  >
                     <BookmarkIcon url={link.url} title={link.title} />
                     <span className="bm-name">{link.title}</span>
                   </a>

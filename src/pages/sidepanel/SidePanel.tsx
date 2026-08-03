@@ -9,6 +9,7 @@ import { useSessionValue } from '../../shared/hooks/useSessionValue';
 import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
+import { sendMessage } from '../../shared/messages';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isLiveActive } from '../../shared/live';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
@@ -114,6 +115,22 @@ export function SidePanel() {
           <details className="panel-actions-menu" ref={actionsRef}>
             <summary>Actions</summary>
             <div className="panel-actions-popover">
+              {activeTab?.url && /^https?:/.test(activeTab.url) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void sendMessage({
+                      type: 'OPEN_ARTICLE',
+                      url: activeTab.url!,
+                      feedItemId: null,
+                      readerView: true,
+                    });
+                    closeActions();
+                  }}
+                >
+                  Read this page
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

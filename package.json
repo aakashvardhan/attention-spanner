@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && npm run build:content",
-    "build:content": "esbuild src/content/readingTracker.ts src/content/videoTracker.ts src/content/timePill.ts src/content/timedtextTee.ts src/content/copilotOverlay.ts src/content/xBookmarks.ts --bundle --format=iife --outdir=dist/content --log-level=error",
+    "build:content": "esbuild src/content/readingTracker.ts src/content/videoTracker.ts src/content/timePill.ts src/content/timedtextTee.ts src/content/copilotOverlay.ts --bundle --format=iife --outdir=dist/content --log-level=error",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "package": "node scripts/package.mjs"

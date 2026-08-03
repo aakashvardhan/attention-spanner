@@ -14,7 +14,7 @@ import {
 } from './alarms';
 import { refreshCalendar } from './calendar';
 import { bookmarkFromContextMenu } from './bookmarks';
-import { refreshFeeds, updateBadge } from './feeds';
+import { openArticle, refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
 import {
   ensureDailyGateDateForNavigation,
@@ -35,7 +35,6 @@ import { maybeInterceptPdf, maybeInterceptPdfResponse } from './pdfIntercept';
 import { reconcileRecordings, refreshTimedtextTees, registerTimedtextTee } from './recordings';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
-import { maybeInjectXBookmarks } from './xBookmarks';
 import { initSync, onLocalChanged } from './sync';
 // Side-effect import: registers the Firestore transport + auth listener on every
 // service-worker instantiation (guarded by whether firebaseConfig is filled in).
@@ -91,7 +90,6 @@ async function reinjectIntoOpenTabs(): Promise<void> {
             maybeInjectTracker(tab.id, tab.url),
             maybeInjectVideoTracker(tab.id, tab.url),
             maybeInjectTimePill(tab.id, tab.url),
-            maybeInjectXBookmarks(tab.id, tab.url),
           ]
         : [],
     ),
@@ -110,7 +108,7 @@ chrome.runtime.onInstalled.addListener(() => {
     await setupMonitorAlarms();
     await setupGmailTriageAlarm();
     await setupAutomationAlarms();
-    await reconcileDailyBrainDump({ redirectTabs: true, restoreCompletedRedirects: true });
+    await reconcileDailyBrainDump();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -118,8 +116,14 @@ chrome.runtime.onInstalled.addListener(() => {
     // onInstalled also fires on extension reloads — clear before re-creating
     await chrome.contextMenus.removeAll();
     chrome.contextMenus.create({
+      id: 'read-in-reader',
+      title: 'Read in Reader',
+      contexts: ['page', 'link'],
+    });
+    chrome.contextMenus.create({
       id: 'bookmark-link',
-      title: 'Bookmark in Reader',
+      // Was "Bookmark in Reader", which promised the reader and only bookmarked
+      title: 'Bookmark this page',
       contexts: ['page', 'link'],
     });
     await refreshFeeds();
@@ -134,6 +138,11 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'bookmark-link') {
     void bookmarkFromContextMenu(info, tab);
+    return;
+  }
+  if (info.menuItemId === 'read-in-reader') {
+    const url = info.linkUrl ?? info.pageUrl;
+    if (url && /^https?:/.test(url)) void openArticle(url, null, false, true);
   }
 });
 
@@ -149,7 +158,7 @@ chrome.runtime.onStartup.addListener(() => {
   void setupGmailTriageAlarm();
   void setupAutomationAlarms();
   void (async () => {
-    await reconcileDailyBrainDump({ redirectTabs: true, restoreCompletedRedirects: true });
+    await reconcileDailyBrainDump();
     await reconcileFocusOnStartup();
   })();
   // A recording in flight died with the browser; settle whatever it transcribed
@@ -196,6 +205,13 @@ chrome.commands.onCommand.addListener((command, tab) => {
     }
   } else if (command === 'toggle-overlay') {
     if (tab?.id !== undefined) void toggleCopilotOverlay(tab.id, tab.url ?? '');
+  } else if (command === 'read-this-page') {
+    // Opens a new tab rather than replacing this one on purpose: the reader
+    // re-fetches the URL from the extension origin, which an app-shell page can
+    // defeat, and leaving the original open makes that recoverable.
+    if (tab?.url && /^https?:/.test(tab.url)) {
+      void openArticle(tab.url, null, false, true);
+    }
   }
 });
 
@@ -207,7 +223,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
   // Badge is derived state — recompute whenever its inputs change
   // (focusSession flips it between countdown and unread-count modes)
-  if (changes.cachedItems || changes.readItems || changes.focusSession) {
+  if (changes.readingProgress || changes.papers || changes.focusSession) {
     void updateBadge();
   }
 
@@ -272,7 +288,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     void maybeInjectTracker(tabId, tab.url);
     void maybeInjectTimePill(tabId, tab.url);
-    void maybeInjectXBookmarks(tabId, tab.url);
     // URL-only match — works even in PDF viewers our content scripts can't enter
     void markPaperReadingByUrl(tab.url);
   }
@@ -282,7 +297,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (navUrl) {
     void maybeInjectVideoTracker(tabId, navUrl);
     // X is an SPA; navigating to Bookmarks may not produce a completed load.
-    void maybeInjectXBookmarks(tabId, navUrl);
   }
 });
 

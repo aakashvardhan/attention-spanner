@@ -2,23 +2,14 @@ import {
   BLOCKED_PAGE_PATH,
   DAILY_GATE_ALLOW_DNR_ID,
   DAILY_GATE_DNR_ID,
-  DAILY_GATE_PAGE_PATH,
   FLOWTUNES_URL,
   FOCUS_DNR_ID_BASE,
   FOCUS_DNR_ID_LIMIT,
 } from '../shared/constants';
-import {
-  buildDailyGateAllowRule,
-  buildDailyGateRedirectRule,
-  isDailyBrainDumpComplete,
-} from '../shared/dailyBrainDump';
+import { isDailyBrainDumpComplete } from '../shared/dailyBrainDump';
 import { buildFocusRules } from '../shared/focusRules';
 import { getLocal, getSettings } from '../shared/storage';
-import type { DailyBrainDumpGateState, FocusSession } from '../shared/types';
-
-function dailyGatePageUrl(): string {
-  return chrome.runtime.getURL(DAILY_GATE_PAGE_PATH);
-}
+import type { FocusSession } from '../shared/types';
 
 function blockedPageUrl(): string {
   return chrome.runtime.getURL(BLOCKED_PAGE_PATH);
@@ -33,56 +24,65 @@ function isOwnedSessionRule(id: number): boolean {
 }
 
 /**
- * The redirect is deliberately always present. The per-browser-session allow
- * rule is what opens the web after today's dump; it disappears on shutdown,
- * so a restored page cannot beat startup reconciliation on a new day.
+ * Remove the browser-wide gate redirect, if this profile still carries it.
+ *
+ * The gate used to redirect every http(s) main-frame navigation until the day's
+ * brain dump was written, unlocked by a per-session allow rule. It is now a
+ * newtab prompt instead, so the redirect must come off — and it has to be taken
+ * off actively, not merely left uncreated. Rule 900 is a DYNAMIC rule: it
+ * survives restarts and updates, while the session allow rule that opened the
+ * web disappears on every shutdown. Shipping a build that simply stopped
+ * creating it would strand anyone who already had it behind a permanently
+ * redirected browser, with no code left to unlock it.
+ *
+ * Called from reconcileDailyBrainDump, which runs on every service-worker
+ * start, so the removal cannot be missed.
  */
-export async function ensurePersistentDailyGateRule(): Promise<void> {
+export async function removeLegacyDailyGateRule(): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const rules = await chrome.declarativeNetRequest.getDynamicRules();
     const removeRuleIds = rules
       .map((rule) => rule.id)
       .filter((id) => id === DAILY_GATE_DNR_ID || isLegacyFocusRule(id));
+    if (removeRuleIds.length === 0) return;
     try {
-      await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds,
-        addRules: [buildDailyGateRedirectRule(dailyGatePageUrl())],
-      });
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds });
       return;
     } catch (error) {
       // Startup, onInstalled and a page message can reconcile concurrently.
-      // Re-read once so a duplicate-ID race cannot strand the gate.
+      // Re-read once so a racing removal cannot leave the rule installed.
       if (attempt === 1) throw error;
     }
   }
 }
 
+/**
+ * Focus blocking is all that is left here. The daily gate's allow rule is gone
+ * with the redirect it existed to punch through — focus rules are redirects in
+ * their own right and never depended on it.
+ */
 export function buildSessionAccessRules(config: {
-  gate: DailyBrainDumpGateState;
   focusSession: FocusSession | null;
   focusDomains: string[];
   focusRedirectUrl: string;
 }): chrome.declarativeNetRequest.Rule[] {
-  if (!isDailyBrainDumpComplete(config.gate)) return [];
-  const rules = [buildDailyGateAllowRule()];
   if (
     config.focusSession?.phase === 'focus' &&
     config.focusSession.phaseEndsAt > Date.now()
   ) {
-    rules.push(...buildFocusRules(config.focusDomains, config.focusRedirectUrl));
+    return buildFocusRules(config.focusDomains, config.focusRedirectUrl);
   }
-  return rules;
+  return [];
 }
 
 /**
- * Rebuild all session-scoped access rules in one atomic DNR update:
- * daily locked → no session rules; unlocked → global allow; active Focus →
- * higher-priority domain redirects layered above that allow.
+ * Rebuild the session-scoped access rules in one atomic DNR update. Also sweeps
+ * the daily gate's old allow rule, which some sessions may still be carrying.
  */
 export async function syncSessionAccessRules(): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const [{ dailyBrainDumpGate, focusSession }, settings, existing] = await Promise.all([
-      getLocal('dailyBrainDumpGate', 'focusSession'),
+    const [{ focusSession }, settings, existing] = await Promise.all([
+      getLocal('focusSession'),
       getSettings(),
       chrome.declarativeNetRequest.getSessionRules(),
     ]);
@@ -91,7 +91,6 @@ export async function syncSessionAccessRules(): Promise<void> {
       (domain) => domain !== new URL(FLOWTUNES_URL).hostname,
     );
     const addRules = buildSessionAccessRules({
-      gate: dailyBrainDumpGate,
       focusSession,
       focusDomains,
       focusRedirectUrl: blockedPageUrl(),

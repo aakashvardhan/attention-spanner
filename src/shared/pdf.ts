@@ -82,13 +82,23 @@ export function recordingReaderUrl(id: string): string {
  * link goes down the PDF path instead, and anything else (mailto:, a video
  * host) belongs in a normal tab.
  */
+/**
+ * Hosts that are somewhere you go, not something you read. Extraction on an app
+ * shell yields an empty article, so the reader would open on nothing — which is
+ * exactly what a bookmark to Gmail or a dashboard used to do once saved links
+ * started routing through here.
+ */
+const APP_HOSTS =
+  /^(mail\.google\.com|docs\.google\.com|drive\.google\.com|calendar\.google\.com|meet\.google\.com|notion\.so|x\.com|twitter\.com|github\.com|linkedin\.com)$/;
+
 export function shouldOpenInReader(url: string): boolean {
   if (!/^https?:\/\//i.test(url)) return false;
   if (isPdfUrl(url)) return false;
   try {
     const host = new URL(url).hostname.replace(/^www\./, '');
     // Video pages are watched, not read — the video tracker handles them
-    return !/^(youtube\.com|youtu\.be|vimeo\.com)$/.test(host);
+    if (/^(youtube\.com|youtu\.be|vimeo\.com)$/.test(host)) return false;
+    return !APP_HOSTS.test(host);
   } catch {
     return false;
   }

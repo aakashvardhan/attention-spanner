@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { suggestFirstAction } from '../../shared/ai/ignition';
 import {
   mostRecentUnfinished,
+  resumableItems,
   resumeContextFromProgress,
 } from '../../shared/attention';
 import { currentEvent, formatCountdown, nextUpcoming } from '../../shared/calendar';
@@ -21,13 +22,11 @@ import type {
   ActiveIntent,
   EnabledPack,
   IntentResumeContext,
-  ParkingLotItem,
   Paper,
   Task,
 } from '../../shared/types';
 import { AssistantDock } from './AssistantDock';
 import { BookmarksPanel } from './BookmarksPanel';
-import { XBookmarksPanel } from './XBookmarksPanel';
 
 export function Dashboard() {
   const [gate, loaded] = useStorageValue('dailyBrainDumpGate');
@@ -46,7 +45,9 @@ export function Dashboard() {
       </main>
     );
   }
-  if (!complete || gateFlowActive) {
+  // Shown when today's dump is missing, but `onContinue` (Skip for today) can
+  // dismiss it — the gate is the first thing on a new tab, not a toll gate.
+  if (gateFlowActive) {
     return <DailyBrainDumpGate onContinue={() => setGateFlowActive(false)} />;
   }
   return <AttentionRelay />;
@@ -58,14 +59,12 @@ function AttentionRelay() {
   const [papers] = useStorageValue('papers');
   const [calendar] = useStorageValue('calendar');
   const [gmail] = useStorageValue('gmail');
-  const [parkingLot] = useStorageValue('parkingLot');
   const [enabledPacks] = useStorageValue('enabledPacks');
   const [notes] = useStorageValue('notes');
   const [storedSettings] = useStorageValue('settings');
   const tasks = useTasks();
   const focus = useFocusSession();
   const [manualText, setManualText] = useState('');
-  const [parkText, setParkText] = useState('');
   const [breadcrumb, setBreadcrumb] = useState('');
   const [smallerAction, setSmallerAction] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -82,6 +81,10 @@ function AttentionRelay() {
         .filter((paper) => paper.status === 'reading' && paper.lastReadAt !== null)
         .sort((a, b) => (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0))[0] ?? null,
     [papers],
+  );
+  const resumable = useMemo(
+    () => resumableItems(readingProgress, papers),
+    [readingProgress, papers],
   );
   const candidate = useMemo(
     () => activeIntent ?? candidateIntent(tasks.openTasks[0] ?? null, recentProgress, recentPaper),
@@ -183,15 +186,6 @@ function AttentionRelay() {
       setThinking(false);
     }
     await setLocal({ activeIntent: { ...candidate, state: 'blocked' } });
-  };
-
-  const park = async () => {
-    const text = parkText.trim();
-    if (!text) return;
-    const item: ParkingLotItem = { id: crypto.randomUUID(), text, createdAt: Date.now() };
-    const { parkingLot: latest } = await getLocal('parkingLot');
-    setParkText('');
-    await setLocal({ parkingLot: [item, ...latest].slice(0, 100) });
   };
 
   const actionableMail = enabledPacks.includes('work')
@@ -330,6 +324,29 @@ function AttentionRelay() {
         )}
       </section>
 
+      {resumable.length > 0 && (
+        <section className="relay-continue" aria-labelledby="continue-title">
+          <h2 id="continue-title">Continue reading</h2>
+          <ul>
+            {resumable.map((item) => (
+              <li key={item.key}>
+                <button
+                  onClick={() => {
+                    if (item.paper) {
+                      void chrome.tabs.create({ url: paperOpenUrl(item.paper) });
+                    } else if (item.progress) {
+                      void openResume(resumeContextFromProgress(item.progress));
+                    }
+                  }}
+                >
+                  {item.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {laterItems.length > 0 && (
         <details className="relay-later">
           <summary>Later <span>{laterItems.length}</span></summary>
@@ -344,35 +361,7 @@ function AttentionRelay() {
         </details>
       )}
 
-      <section className="relay-parking" aria-labelledby="parking-title">
-        <div>
-          <h2 id="parking-title">Parking Lot</h2>
-          <p>Capture it without committing to it.</p>
-        </div>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void park();
-          }}
-        >
-          <input
-            value={parkText}
-            onChange={(event) => setParkText(event.target.value)}
-            placeholder="A thought for later…"
-            maxLength={500}
-          />
-          <button disabled={!parkText.trim()}>Park</button>
-        </form>
-        {parkingLot.length > 0 && (
-          <details>
-            <summary>{parkingLot.length} parked thought{parkingLot.length === 1 ? '' : 's'}</summary>
-            <ul>{parkingLot.slice(0, 5).map((item) => <li key={item.id}>{item.text}</li>)}</ul>
-          </details>
-        )}
-      </section>
-
         <BookmarksPanel />
-        <XBookmarksPanel />
         <Library enabledPacks={enabledPacks} notes={notes} />
       </main>
       <AssistantDock />

@@ -1,20 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS,
-  DAILY_GATE_ALLOW_DNR_ID,
-  DAILY_GATE_ALLOW_PRIORITY,
-  DAILY_GATE_DNR_ID,
-  DAILY_GATE_REDIRECT_PRIORITY,
 } from './constants';
 import {
   basicBrainDumpBullets,
-  buildDailyGateAllowRule,
-  buildDailyGateRedirectRule,
   gateStateForDate,
   isDailyBrainDumpComplete,
   nextLocalMidnight,
   qualifiesDailyBrainDump,
-  safeOriginalUrl,
   visibleCharacterCount,
 } from './dailyBrainDump';
 import type { BrainDumpNote } from './types';
@@ -120,31 +113,3 @@ describe('daily gate state', () => {
   });
 });
 
-describe('daily DNR rules', () => {
-  it('builds the persistent all-web redirect with the original URL in the fragment', () => {
-    const rule = buildDailyGateRedirectRule('chrome-extension://id/daily.html');
-    expect(rule.id).toBe(DAILY_GATE_DNR_ID);
-    expect(rule.priority).toBe(DAILY_GATE_REDIRECT_PRIORITY);
-    expect(rule.condition.resourceTypes).toEqual(['main_frame']);
-    expect(rule.action.redirect?.regexSubstitution).toBe(
-      'chrome-extension://id/daily.html#\\0',
-    );
-  });
-
-  it('builds a higher-priority session allow', () => {
-    const rule = buildDailyGateAllowRule();
-    expect(rule.id).toBe(DAILY_GATE_ALLOW_DNR_ID);
-    expect(rule.priority).toBe(DAILY_GATE_ALLOW_PRIORITY);
-    expect(rule.action.type).toBe('allow');
-  });
-});
-
-describe('safeOriginalUrl', () => {
-  it('allows only http and https destinations', () => {
-    expect(safeOriginalUrl('#https://example.com/a#b')?.href).toBe('https://example.com/a#b');
-    expect(safeOriginalUrl('http://localhost:3000/')).not.toBeNull();
-    expect(safeOriginalUrl('#javascript:alert(1)')).toBeNull();
-    expect(safeOriginalUrl('#chrome://settings')).toBeNull();
-    expect(safeOriginalUrl('#not a url')).toBeNull();
-  });
-});
