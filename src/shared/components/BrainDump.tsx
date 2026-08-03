@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { MAX_DUMP_CHARS, structureBrainDump, type StructuredDump } from '../ai/brainDump';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { sendMessage } from '../messages';
-import { useLinkAutocomplete } from './useLinkAutocomplete';
 import type { Task } from '../types';
 import './brainDump.css';
 
@@ -23,22 +22,8 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
   const [text, setText] = useState('');
   const [stage, setStage] = useState<Stage>({ name: 'idle' });
   const [error, setError] = useState<string | null>(null);
-  const [caret, setCaret] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const ai = useBrainDumpAI();
-  const links = useLinkAutocomplete(text, caret);
-
-  /** Accept a suggestion and put the caret after the completed link. */
-  const pickLink = (title: string) => {
-    const next = links.complete(title);
-    setText(next);
-    const at = next.indexOf(`[[${title}]] `) + `[[${title}]] `.length;
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(at, at);
-      setCaret(at);
-    });
-  };
 
   const reset = () => {
     setStage({ name: 'idle' });
@@ -206,43 +191,14 @@ export function BrainDump({ compact = false, onDone }: BrainDumpProps) {
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            setCaret(e.target.selectionStart);
           }}
-          onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)}
-          onClick={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={(e) => {
-            // Enter accepts the top suggestion while the list is open, so a
-            // link can be finished without leaving the keyboard.
-            if (links.suggestions.length > 0) {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                links.dismiss();
-                return;
-              }
-              if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
-                e.preventDefault();
-                pickLink(links.suggestions[0].title);
-                return;
-              }
-            }
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && aiUsable) void structure();
           }}
           placeholder="Brain dump — type everything on your mind, unfiltered…"
           maxLength={MAX_DUMP_CHARS}
           rows={compact ? 4 : 6}
         />
-        {links.suggestions.length > 0 && (
-          <ul className="bd-links" role="listbox" aria-label="Link to something">
-            {links.suggestions.map((s) => (
-              <li key={s.title}>
-                <button className="bd-link" onClick={() => pickLink(s.title)}>
-                  <span className="gr-glyph" data-kind={s.kind} aria-hidden="true" />
-                  <span className="bd-link-title">{s.title}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
       {error && <p className="bd-error">{error}</p>}
       {ai.checked && ai.engine === 'none' && (

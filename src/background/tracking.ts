@@ -4,7 +4,6 @@ import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../sh
 import { normalizeUrl } from '../shared/urlNormalize';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { recordEvent } from './gamification';
-import { touchProgressNode } from './graphNodes';
 import { recordEngagement } from './hyperfocus';
 import { scheduleNudge, cancelNudge } from './nudges';
 import { recordReading } from './streaks';
@@ -202,7 +201,6 @@ export async function handleProgressUpdate(
   await setLocal({ readingProgress: prune(readingProgress) });
   // prune() above is why this exists: the graph node outlives the entry it was
   // built from, and its feed categories outlive cachedItems.
-  await touchProgressNode(key, progress);
   await recordReading(Math.max(0, update.activeSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
   if (finishedNow) {

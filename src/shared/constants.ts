@@ -85,7 +85,6 @@ export const ANNOTATION_TEXT_MAX_CHARS = 500;
 
 /* Knowledge graph. Article and video nodes are the only ones stored on their
    own account — the rest mirror durable records and are pruned with them. */
-export const GRAPH_PAGE_PATH = 'src/pages/graph/index.html';
 /** Hard cap on stored nodes; only article/video nodes are ever evicted */
 export const MAX_GRAPH_NODES = 2000;
 /** How many nodes a single layout draws, picked by degree then recency */
@@ -147,8 +146,6 @@ export const OPENALEX_HYDRATE_MAX = 50;
 /** The DataCite DOI arXiv mints per paper, so an arXiv id resolves on OpenAlex
     without a title search — which could silently return a different paper */
 export const ARXIV_DOI_PREFIX = '10.48550/arXiv.';
-/** alphaXiv spends the user's quota, so it never asks twice */
-export const ALPHAXIV_REFS_MAX = 60;
 
 /* Resolving a saved page to one canonical work (see shared/workResolve.ts).
    Verified 2026-07-28 against developers.openalex.org: keys became mandatory on
@@ -217,25 +214,13 @@ export const GRAPH_VISIBLE_STALE_MS = 45_000;
    arXiv:<id>, DOI:<doi>, or URL:<url> as the paper reference. */
 export const SEMANTIC_SCHOLAR_PAPER_API = 'https://api.semanticscholar.org/graph/v1/paper/';
 
-/* alphaXiv MCP server — paper discovery, page-cited PDF Q&A, hosted library.
-   OAuth 2.1 + PKCE with dynamic client registration, so there is nothing to
-   configure per build (see docs/alphaxiv-setup.md). */
-export const ALPHAXIV_MCP_URL = 'https://api.alphaxiv.org/mcp/v1';
-export const ALPHAXIV_AUTH_BASE = 'https://api.alphaxiv.org/auth';
-export const ALPHAXIV_SCOPE = 'openid profile email offline_access';
 /** MCP revision this client speaks; sent as MCP-Protocol-Version. */
-export const ALPHAXIV_MCP_PROTOCOL = '2025-06-18';
 /** Tool calls run AI models server-side — discovery can take a while. */
-export const ALPHAXIV_TOOL_TIMEOUT_MS = 120_000;
 /** Refresh an access token this long before it actually expires. */
-export const ALPHAXIV_EXPIRY_SKEW_MS = 60_000;
-export const ALPHAXIV_API_HOST = 'api.alphaxiv.org';
 /** The only Origin alphaXiv's auth server trusts on its oauth2 endpoints — its
     own web app's (see alphaxivAuth.ts). */
-export const ALPHAXIV_TRUSTED_ORIGIN = 'https://www.alphaxiv.org';
 /** Rewrites the Origin header (see alphaxivAuth.ts). Kept outside the reserved
     daily-gate and Focus rule IDs so access-rule reconciliation never removes it. */
-export const ALPHAXIV_DNR_RULE_ID = 1;
 
 /* Google Calendar. The OAuth client belongs to the user, not to this build:
    authorization code + PKCE through launchWebAuthFlow, with the id and secret

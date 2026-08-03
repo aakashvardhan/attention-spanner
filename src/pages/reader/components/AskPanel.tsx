@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { alphaxivPaperRef, formatPageExcerpts, pagesToContext, parsePagesXml } from '../../../shared/alphaxiv';
 import { cloudProviderFor, hasCloudKey } from '../../../shared/ai/cloud';
 import { nanoProvider } from '../../../shared/ai/nanoProvider';
 import { answerAboutPdf, type QaTurn } from '../../../shared/ai/pdfQa';
-import { sendMessage } from '../../../shared/messages';
 import { DEFAULT_SETTINGS } from '../../../shared/storage';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { Markdown } from '../../../shared/components/Markdown';
@@ -63,7 +61,6 @@ export function AskPanel({
   position,
   total,
   noun,
-  src,
 }: {
   /** Stable across renders — the caller memoizes it */
   getText: () => Promise<string>;
@@ -72,12 +69,9 @@ export function AskPanel({
   position: number;
   total: number;
   noun: DocNoun;
-  /** The document's URL. Enables the alphaXiv source when the server can fetch it. */
-  src?: string;
 }) {
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
-  const [alphaxiv] = useStorageValue('alphaxiv');
 
   const { text: fullText, loading } = useDocText(getText);
   const [turns, setTurns] = useState<QaTurn[]>([]);
@@ -100,14 +94,10 @@ export function AskPanel({
   }, [turns, partial]);
 
   const cloudOk = hasCloudKey(settings);
-  const modelOk = nanoOk || cloudOk;
-  // alphaXiv only resolves papers it can fetch — an arXiv id, or some public URL
-  const alphaxivOk = alphaxiv.connected && Boolean(src && alphaxivPaperRef(src));
-  // One assistant: alphaXiv retrieval when it's reachable (it needs no local
-  // model of its own), otherwise the on-device/cloud answer over the local text.
-  const usable = alphaxivOk || modelOk;
-  // Only the local path waits on text extraction; alphaXiv answers straight away.
-  const waiting = loading && !alphaxivOk;
+  // Answers are composed from the extracted document text, so a model is the
+  // whole requirement — and the extraction has to finish before asking.
+  const usable = nanoOk || cloudOk;
+  const waiting = loading;
 
   const push = (turn: QaTurn) => setTurns((prev) => [...prev, turn]);
 
@@ -130,42 +120,6 @@ export function AskPanel({
     return { role: 'assistant', text };
   };
 
-  /** Retrieve the relevant pages from alphaXiv, then compose locally from them. */
-  const askAlphaxiv = async (question: string, history: QaTurn[]): Promise<QaTurn> => {
-    const res = await sendMessage({ type: 'AX_ASK_PDF', paper: src!, queries: [question] });
-    // A retrieval hiccup shouldn't dead-end the one assistant — fall back to the
-    // local text when there's a model to compose it.
-    if (!res.ok) {
-      if (modelOk) return askLocal(question, history);
-      throw new Error(res.error ?? 'alphaXiv could not read this paper.');
-    }
-
-    const parsed = parsePagesXml(res.text ?? '');
-    if (!parsed.pages.length) {
-      if (modelOk) return askLocal(question, history);
-      return { role: 'assistant', text: (res.text ?? '').trim() || 'alphaXiv found nothing on that.' };
-    }
-    const pages = parsed.pages.map((p) => p.num);
-    // No local model: the excerpts are the answer, which is still a real one.
-    if (!modelOk) return { role: 'assistant', text: formatPageExcerpts(parsed), pages };
-
-    const answer = await answerAboutPdf({
-      title,
-      fullText: pagesToContext(parsed),
-      // The context is already only the relevant pages — no windowing to do
-      currentPage: 1,
-      pageCount: 1,
-      question,
-      history,
-      nanoOk,
-      cloudOk,
-      transcript: noun === 'transcript',
-      cloudProvider: cloudProviderFor(settings),
-      onToken: setPartial,
-    });
-    return { role: 'assistant', text: answer.text, pages };
-  };
-
   const send = async (raw?: string) => {
     const question = (raw ?? input).trim();
     if (!question || busy || waiting || !usable) return;
@@ -175,7 +129,7 @@ export function AskPanel({
     push({ role: 'user', text: question });
 
     try {
-      push(alphaxivOk ? await askAlphaxiv(question, history) : await askLocal(question, history));
+      push(await askLocal(question, history));
     } catch (err) {
       push({
         role: 'assistant',
@@ -201,11 +155,7 @@ export function AskPanel({
         <div className="as-log" ref={logRef}>
           {turns.length === 0 && partial === null && (
             <div className="as-empty">
-              <p className="as-hint">
-                {alphaxivOk
-                  ? `Ask about this ${noun} — answers cite the pages they came from:`
-                  : `Ask about this ${noun}:`}
-              </p>
+              <p className="as-hint">{`Ask about this ${noun}:`}</p>
               {SUGGESTIONS[noun].map((s) => (
                 <button
                   key={s}

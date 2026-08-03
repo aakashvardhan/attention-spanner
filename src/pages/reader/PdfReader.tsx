@@ -399,7 +399,6 @@ export function PdfReader({ src }: { src: string }) {
             position={position.page}
             total={pageCount}
             noun="paper"
-            src={src}
           />
         )}
       </div>

@@ -4,7 +4,6 @@ import {
   GRAPH_TAG_MAX_BATCHES,
   GRAPH_TAG_VOCAB_PROMPT_MAX,
 } from '../constants';
-import { sendMessage } from '../messages';
 import { parseJsonObject } from './assistant';
 import type { AssistantProvider } from './assistantTypes';
 import { newTurn } from './assistantTypes';
@@ -346,12 +345,8 @@ export async function enrichTopics(
   opts: {
     onProgress?: (p: EnrichProgress) => void;
     provider?: AssistantProvider;
-    /**
-     * Where the labels are written. Defaults to the graph's own nodes; the
-     * citation lineage supplies its own so cited papers can be labelled without
-     * a second copy of the batching, the vocabulary and the sweep.
-     */
-    apply?: (assignments: TagAssignment[]) => Promise<void>;
+    /** Where the assignments land. Required: there is no default sink. */
+    apply: (assignments: TagAssignment[]) => Promise<void>;
     /**
      * Extra labelled things whose words seed the vocabulary but which are not
      * themselves labelled. Passing the library here is what makes a cited paper
@@ -359,13 +354,9 @@ export async function enrichTopics(
      * whole reason "you have already read two of these" can be said at all.
      */
     vocabularyFrom?: readonly { tags: string[] }[];
-  } = {},
+  },
 ): Promise<EnrichProgress> {
-  const apply =
-    opts.apply ??
-    (async (assignments: TagAssignment[]) => {
-      await sendMessage({ type: 'GRAPH_SET_TAGS', assignments });
-    });
+  const apply = opts.apply;
   const pending = all.filter(needsTags);
   const total = Math.min(pending.length, GRAPH_TAG_BATCH * GRAPH_TAG_MAX_BATCHES);
   if (total === 0) return { done: 0, total: 0 };

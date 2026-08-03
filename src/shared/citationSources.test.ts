@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExternalPaper } from './citations';
 import {
-  alphaxivSource,
   collect,
   localSource,
   openAlexKey,
@@ -17,7 +16,7 @@ import type { DocCitations } from './docCitations';
 const NOW = 1_700_000_000_000;
 
 function env(over: Partial<CitationEnv> = {}): CitationEnv {
-  return { semanticScholarKey: '', alphaxivConnected: false, docCitations: {}, ...over };
+  return { semanticScholarKey: '', docCitations: {}, ...over };
 }
 
 function doc(over: Partial<DocCitations> = {}): DocCitations {
@@ -228,22 +227,6 @@ describe('localSource', () => {
   });
 });
 
-describe('alphaxivSource', () => {
-  // There is no "who cites this" endpoint. Dressing up a topic search as
-  // backlinks would silently turn "papers that cite this" into "papers vaguely
-  // about the same thing" — exactly the quiet wrongness this feature avoids.
-  it('does not claim to answer who cites a paper', () => {
-    expect(alphaxivSource.supports.citations).toBe(false);
-  });
-
-  it('stays unavailable while disconnected', () => {
-    expect(alphaxivSource.available('arXiv:2406.09246', env())).toBe(false);
-    expect(alphaxivSource.available('arXiv:2406.09246', env({ alphaxivConnected: true }))).toBe(
-      true,
-    );
-  });
-});
-
 describe('collect', () => {
   it('stops at the first source that answers', async () => {
     const calls: string[] = [];
@@ -267,7 +250,6 @@ describe('collect', () => {
   it('skips a source that does not serve the direction asked', async () => {
     const calls: string[] = [];
     const chain = [
-      fake('alphaxiv', 'ok', calls, { references: true, citations: false }),
       fake('openalex', 'ok', calls),
     ];
     const got = await collect('citations', 'arXiv:1', env(), chain);

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   v12ReadingProgress,
-  v14GraphNodes,
   v15Skin,
   v16DashboardMode,
   v17DailyBrainDumpGate,
@@ -203,67 +202,6 @@ describe('v12ReadingProgress', () => {
  * tracking.prune. Only articles and videos — papers, bookmarks and recordings
  * are reconciled on the first graph open instead.
  */
-describe('v14GraphNodes', () => {
-  const NOW = 1_700_000_000_000;
-  const base = {
-    source: 'A Feed',
-    activeSeconds: 120,
-    firstOpenedAt: NOW - 5000,
-    updatedAt: NOW,
-    completedAt: null,
-    nudge: { count: 0, lastAt: 0, dismissed: false },
-  };
-
-  it('seeds an article node keyed by its normalized url', () => {
-    const [node] = v14GraphNodes(
-      {
-        'example.com/a': {
-          ...base,
-          url: 'https://example.com/a',
-          title: 'A Post',
-          maxPercent: 40,
-          feedItemId: null,
-          scrollY: 0,
-          pageHeight: 0,
-        } as never,
-      },
-      NOW,
-    );
-
-    expect(node).toMatchObject({
-      id: 'example.com/a',
-      kind: 'article',
-      title: 'A Post',
-      completion: 0.4,
-      tagSource: 'auto',
-    });
-  });
-
-  it('seeds a video node carrying its videoId', () => {
-    const [node] = v14GraphNodes(
-      {
-        'yt:abc': {
-          ...base,
-          kind: 'video',
-          url: 'https://www.youtube.com/watch?v=abc',
-          title: 'A Talk',
-          maxPercent: 100,
-          videoId: 'abc',
-          durationSeconds: 600,
-          positionSeconds: 600,
-        } as never,
-      },
-      NOW,
-    );
-
-    expect(node).toMatchObject({ id: 'yt:abc', kind: 'video', videoId: 'abc', completion: 1 });
-  });
-
-  it('yields nothing for a profile with no surviving history', () => {
-    expect(v14GraphNodes({}, NOW)).toEqual([]);
-  });
-});
-
 /*
  * v14 → v15 flips the default skin to Brave. patchSettings writes the whole
  * settings object, so a profile that ever changed any setting has a stored

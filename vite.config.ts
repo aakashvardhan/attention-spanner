@@ -13,7 +13,6 @@ export default defineConfig({
         capture: 'src/pages/capture/index.html',
         blocked: 'src/pages/blocked/index.html',
         dailyGate: 'src/pages/daily-gate/index.html',
-        graph: 'src/pages/graph/index.html',
         papers: 'src/pages/papers/index.html',
         reader: 'src/pages/reader/index.html',
         offscreen: 'src/pages/offscreen/index.html',

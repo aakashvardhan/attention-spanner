@@ -4,11 +4,8 @@ import { buildLineage, lineageStats, UNGROUPED, type LineageEntry } from '../../
 import { enrichTopics } from '../../../shared/ai/topics';
 import { citationRef } from '../../../shared/citations';
 import { backlinksFor } from '../../../shared/docCitations';
-import { nextView } from '../../../shared/graphView';
-import { GRAPH_PAGE_PATH } from '../../../shared/constants';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../../shared/messages';
-import { getSession, setSession } from '../../../shared/storage';
 import type { Paper } from '../../../shared/types';
 import type { KnownTarget } from '../citationLinks';
 
@@ -83,7 +80,6 @@ export function RelatedPanel({
 }) {
   const [docCitations] = useStorageValue('docCitations');
   const [graphCitations] = useStorageValue('graphCitations');
-  const [graphNodes] = useStorageValue('graphNodes');
   const [expanding, setExpanding] = useState(false);
   const [expandNote, setExpandNote] = useState('');
   const [sorting, setSorting] = useState<{ done: number; total: number } | null>(null);
@@ -156,7 +152,6 @@ export function RelatedPanel({
         })),
         {
           onProgress: setSorting,
-          vocabularyFrom: graphNodes,
           apply: async (assignments) => {
             await sendMessage({
               type: 'GRAPH_SET_CITED_TAGS',
@@ -168,14 +163,6 @@ export function RelatedPanel({
     } finally {
       setSorting(null);
     }
-  }
-
-  /** Open the graph focused on this paper's lineage, where there is room. */
-  async function seeWholeMap() {
-    if (!paper) return;
-    const { graphView } = await getSession('graphView');
-    await setSession({ graphView: nextView(graphView, { lineageOf: `paper:${paper.id}` }) });
-    void chrome.tabs.create({ url: chrome.runtime.getURL(GRAPH_PAGE_PATH) });
   }
 
   return (
@@ -264,12 +251,6 @@ export function RelatedPanel({
             </li>
           ))}
         </ul>
-      )}
-
-      {paper && (
-        <button className="reader-related-action" onClick={() => void seeWholeMap()}>
-          See the whole map
-        </button>
       )}
     </aside>
   );

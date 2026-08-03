@@ -1,4 +1,3 @@
-import type { DiscoveredPaper } from '../alphaxiv';
 import type { SourceRef, Tool } from './tools';
 
 /**
@@ -65,7 +64,6 @@ export interface AssistantTurn {
   /** Set on assistant turns that propose (or ran) a multi-step plan */
   plan?: { steps: AssistantPlanStep[]; status: AssistantToolCall['status'] };
   /** Search hits to draw as cards; `text` names the first few for every other surface */
-  papers?: DiscoveredPaper[];
   /** Which engine produced this turn — 'local' = no model involved */
   source?: 'nano' | 'cloud' | 'local';
   /** Evidence retained with the turn so grounding is visible independently of

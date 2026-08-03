@@ -79,7 +79,7 @@ export type AssistantOutcome =
       summary: string;
     } & OutcomeTrace)
   | ({ kind: 'confirm-plan'; steps: PlannedStep[]; summary: string } & OutcomeTrace)
-  | ({ kind: 'done'; text: string; papers?: ToolOutput['papers'] } & OutcomeTrace)
+  | ({ kind: 'done'; text: string } & OutcomeTrace)
   | { kind: 'error'; text: string };
 
 export interface AssistantDeps {
@@ -548,11 +548,6 @@ function loopOutcome(loop: Extract<ReactResult, { kind: 'answered' }>): Assistan
       summary: withProse(loop.staged.map((s, i) => `${i + 1}. ${s.summary}`).join('\n')),
       trace,
     };
-  }
-  // Papers are drawn as cards, so a lookup that found some reports as an
-  // action result rather than plain prose — losing them would be a regression.
-  if (loop.scratch.papers.length > 0) {
-    return { kind: 'done', text: prose, papers: loop.scratch.papers, trace };
   }
   return { kind: 'reply', text: stripEmoji(prose), source: 'cloud', trace };
 }

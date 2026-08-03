@@ -1,6 +1,5 @@
 import type { CalendarEvent } from './calendar';
 import type { AssistantTurn } from './ai/assistantTypes';
-import type { TagAssignment } from './ai/topics';
 import type { DocCitations } from './docCitations';
 import type { LiveMode, LivePace } from './live';
 import type { SyncLocalState } from './storage';
@@ -129,15 +128,6 @@ export type Message =
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   | { type: 'CAL_LIST_EVENTS'; startMs: number; endMs: number }
-  // alphaXiv (MCP). Narrow per-feature messages, not a generic tool passthrough,
-  // so the destructive library tools stay unreachable from page code.
-  | { type: 'AX_CONNECT' }
-  | { type: 'AX_DISCONNECT' }
-  | { type: 'AX_LIBRARY' }
-  | { type: 'AX_DISCOVER'; topic: string; recent?: boolean }
-  | { type: 'AX_PAPER_CONTENT'; paper: string; fullText?: boolean }
-  | { type: 'AX_ASK_PDF'; paper: string; queries: string[] }
-  | { type: 'AX_SAVE_PAPER'; paper: string }
   | { type: 'SYNC_STATUS' }
   | { type: 'SYNC_SIGN_IN'; email: string; password: string }
   | { type: 'SYNC_SIGN_UP'; email: string; password: string }
@@ -249,16 +239,13 @@ export type Message =
       doc?: { url: string; title: string };
     }
   /** Rebuild the graph nodes that mirror papers, bookmarks and recordings. */
-  | { type: 'GRAPH_SYNC' }
   /**
    * Write topic labels onto graph nodes. Batched — one message per model call —
    * and routed through the worker rather than written from the page: three
    * other writers touch `graphNodes`, and a page-side read-modify-write of the
    * whole collection would silently drop concurrent tracker writes.
    */
-  | { type: 'GRAPH_SET_TAGS'; assignments: TagAssignment[] }
   /** Replace a node's topics with labels the user explicitly chose. */
-  | { type: 'GRAPH_SET_MANUAL_TAGS'; id: string; tags: string[] }
   /**
    * Record which works a document cites, so "what links here" can be answered
    * from documents the user has actually opened. Sent once per PDF open, after
@@ -271,7 +258,7 @@ export type Message =
   | { type: 'GRAPH_ADD_EXTERNAL'; nodeId: string }
   /**
    * Write subject labels onto cited papers the sources gave none for. Keyed by
-   * the source's own id, the same way GRAPH_SET_TAGS is keyed by node id.
+   * the source's own id.
    */
   | { type: 'GRAPH_SET_CITED_TAGS'; assignments: { id: string; tags: string[] }[] }
   /**
@@ -279,7 +266,7 @@ export type Message =
    * link. The caller supplies the text because a sealed note's plaintext exists
    * only in the page that decrypted it — the worker cannot read it.
    */
-  | { type: 'NOTE_ADD_LINK'; id: string; rawText: string };
+
 
 export interface MessageResponses {
   REFRESH_FEEDS: { ok: boolean; itemCount: number; newCount: number; failedCount: number };
@@ -349,13 +336,6 @@ export interface MessageResponses {
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   CAL_LIST_EVENTS: { ok: boolean; events?: CalendarEvent[]; error?: string };
-  AX_CONNECT: { ok: boolean; email?: string; error?: string };
-  AX_DISCONNECT: { ok: boolean };
-  AX_LIBRARY: { ok: boolean; text?: string; error?: string };
-  AX_DISCOVER: { ok: boolean; text?: string; error?: string };
-  AX_PAPER_CONTENT: { ok: boolean; text?: string; error?: string };
-  AX_ASK_PDF: { ok: boolean; text?: string; error?: string };
-  AX_SAVE_PAPER: { ok: boolean; text?: string; error?: string };
   SYNC_STATUS: SyncLocalState;
   SYNC_SIGN_IN: { ok: boolean; error?: string };
   SYNC_SIGN_UP: { ok: boolean; error?: string };
@@ -392,14 +372,10 @@ ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
     resume: { positionSeconds: number } | null;
   };
   VIDEO_PROGRESS: { ok: boolean };
-  GRAPH_SYNC: { ok: boolean };
-  GRAPH_SET_TAGS: { ok: boolean; updated: number };
-  GRAPH_SET_MANUAL_TAGS: { ok: boolean; updated: number };
   DOC_CITATIONS_INDEX: { ok: boolean };
   GRAPH_EXPAND_CITATIONS: { ok: boolean; added?: number; note?: string; error?: string };
   GRAPH_ADD_EXTERNAL: { ok: boolean; paperId?: string; error?: string };
   GRAPH_SET_CITED_TAGS: { ok: boolean; updated: number };
-  NOTE_ADD_LINK: { ok: boolean };
 }
 
 /**

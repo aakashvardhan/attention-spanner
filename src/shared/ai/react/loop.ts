@@ -326,7 +326,6 @@ export async function runReactLoop(
     if (use === 'costly') scratch.costlyCalls++;
     try {
       const output = await ctx.runTool(tool.name, valid.params, offered);
-      if (output.papers?.length) scratch.papers.push(...output.papers);
       const ids = addSources(scratch, output.sources ?? []);
       const cited = ids.length > 0 ? `\n(sources: ${ids.join(', ')})` : '';
       const ok = step('tool', output.text + cited);

@@ -1,7 +1,6 @@
 import { allReferences, parseBibliography } from './bibliography';
 import { topicLabel, type CitationSourceId, type ExternalPaper } from './citations';
 import {
-  ALPHAXIV_REFS_MAX,
   ARXIV_DOI_PREFIX,
   FETCH_TIMEOUT_MS,
   OPENALEX_API,
@@ -31,7 +30,6 @@ import { openAlexLookup, resolveWork, type OpenAlexWork } from './workResolve';
 
 export interface CitationEnv {
   semanticScholarKey: string;
-  alphaxivConnected: boolean;
   /**
    * The paper's title, so a lookup can fall back to searching for it when the
    * identifier is not in the index. Optional: a source that has no title simply
@@ -40,8 +38,6 @@ export interface CitationEnv {
   title?: string;
   /** The reverse index built by the reader (Phase 4b) */
   docCitations: Record<string, DocCitations>;
-  /** Fetches a paper's full text via alphaXiv; null when not connected */
-  alphaxivText?: (ref: string) => Promise<string>;
 }
 
 export interface CitationSource {
@@ -318,37 +314,7 @@ export const openAlexSource: CitationSource = {
   },
 };
 
-/* ---- alphaXiv ------------------------------------------------------------ */
-
-/**
- * alphaXiv returns a paper's full text, and parseBibliography turns full text
- * into a reference list — so this source is two existing functions joined, with
- * no new parsing and no new API surface. It reaches papers the user has never
- * opened, which is exactly the gap the local tier leaves.
- *
- * It cannot answer "who cites this": there is no such endpoint, and dressing up
- * a topic search as backlinks would quietly turn "papers that cite this" into
- * "papers vaguely about the same thing".
- */
-export const alphaxivSource: CitationSource = {
-  id: 'alphaxiv',
-  supports: { references: true, citations: false },
-  available: (ref, env) => env.alphaxivConnected && ref.startsWith('arXiv:'),
-
-  async fetchReferences(ref, env) {
-    if (!env.alphaxivText) throw new SourceUnavailable('not connected');
-    const text = await env.alphaxivText(ref.slice('arXiv:'.length));
-    return referencesFromText(text, ALPHAXIV_REFS_MAX);
-  },
-
-  async fetchCitations() {
-    throw new SourceUnavailable('alphaXiv has no citation index');
-  },
-};
-
-/* ---- local --------------------------------------------------------------- */
-
-/** Bibliography entries as externals. Shared by the alphaXiv and local tiers. */
+/** Bibliography entries as externals. */
 export function referencesFromText(text: string, cap: number): ExternalPaper[] {
   const index = parseBibliography(text);
   const out: ExternalPaper[] = [];
@@ -407,7 +373,6 @@ export const CITATION_SOURCES: readonly CitationSource[] = [
   localSource,
   openAlexSource,
   semanticScholarSource,
-  alphaxivSource,
 ];
 
 /**

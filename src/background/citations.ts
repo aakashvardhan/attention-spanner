@@ -1,4 +1,3 @@
-import { axPaperContent } from './alphaxiv';
 import { resolvePaperDeckId } from '../shared/ai/connectors/base';
 import {
   citationRef,
@@ -15,7 +14,6 @@ import {
   SEMANTIC_SCHOLAR_MIN_INTERVAL_MS,
 } from '../shared/constants';
 import { fetchPaperMeta } from '../shared/papers';
-import { reconcileGraphNodes } from './graphNodes';
 import { addPaper } from './papers';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 
@@ -66,11 +64,10 @@ export async function expandCitations(
   paperId: string,
   force = false,
 ): Promise<{ ok: boolean; added?: number; note?: string; error?: string }> {
-  const { papers, graphCitations, docCitations, alphaxiv } = await getLocal(
+  const { papers, graphCitations, docCitations } = await getLocal(
     'papers',
     'graphCitations',
     'docCitations',
-    'alphaxiv',
   );
 
   const paper = papers.find((p) => p.id === paperId);
@@ -92,19 +89,11 @@ export async function expandCitations(
   const settings = await getSettings();
   const env: CitationEnv = {
     semanticScholarKey: settings.semanticScholarApiKey.trim(),
-    alphaxivConnected: alphaxiv.connected,
     // Lets OpenAlex fall back to a title search when the identifier is not in
     // the index — which is how a paper like the Transformer, whose arXiv DOI
     // OpenAlex never linked, gets expanded at all.
     title: paper.title,
     docCitations,
-    alphaxivText: alphaxiv.connected
-      ? async (id: string) => {
-          const res = await axPaperContent(id, true);
-          if (!res.ok || !res.text) throw new Error('no content');
-          return res.text;
-        }
-      : undefined,
   };
 
   // The two directions are independent: one source may serve the references
@@ -176,7 +165,6 @@ export async function addExternalPaper(
   // this the borrowed node vanishes (it is owned already) while its replacement
   // does not exist yet, so the paper the user just saved disappears from the
   // map entirely — the opposite of what pressing Add should do.
-  await reconcileGraphNodes();
   return { ok: true, paperId: res.paper.id };
 }
 

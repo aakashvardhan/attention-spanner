@@ -3,7 +3,6 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { recordEvent } from './gamification';
-import { touchProgressNode } from './graphNodes';
 import { recordEngagement } from './hyperfocus';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
@@ -128,7 +127,6 @@ export async function handleVideoProgress(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await touchProgressNode(key, progress);
   await recordWatching(Math.max(0, msg.watchedSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
   if (finishedNow) {

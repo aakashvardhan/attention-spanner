@@ -1,13 +1,10 @@
 import type { AssistantTurn } from './ai/assistantTypes';
 import type { AiOutlineItem } from './ai/pdfOutline';
-import { ALPHAXIV_DEFAULTS, type AlphaxivState } from './alphaxiv';
 import { CALENDAR_DEFAULTS, type CalendarState } from './calendar';
 import { DEFAULT_FOCUS_BLOCKLIST, OLLAMA_DEFAULT_MODEL } from './constants';
 import { connectedAccounts, GMAIL_DEFAULTS, type GmailState } from './gmail';
-import { EMPTY_VIEW, EMPTY_VISIBLE, type GraphView, type VisibleGraph } from './graphView';
 import type { CitationExpansion } from './citations';
 import type { DocCitations } from './docCitations';
-import { nodeFromProgress } from './graphNodes';
 import { gateStateForDate } from './dailyBrainDump';
 import { idleLiveSession, type LiveSession } from './live';
 import type { NotesVault } from './notesVault';
@@ -31,7 +28,6 @@ import type {
   FlashNote,
   FocusSession,
   Gamification,
-  GraphNode,
   GymState,
   JournalDay,
   LifetimeCounters,
@@ -130,9 +126,6 @@ export interface LocalSchema {
    * for the user's mail, which must never reach Firestore or the iOS app.
    */
   gmail: GmailState;
-  /** alphaXiv connection: OAuth tokens + the deck→folder map. Device-local —
-   *  never synced (the tokens are this browser's, and so is the client id). */
-  alphaxiv: AlphaxivState;
   /**
    * Brain-dump encryption keys; null = encryption off. Deliberately absent from
    * RECORD_COLLECTIONS and DOC_UNITS so it can never reach Firestore: notes sync
@@ -146,7 +139,6 @@ export interface LocalSchema {
    * also be the wrong merge: two devices prune `readingProgress` on different
    * schedules, so their node sets are both correct and different.
    */
-  graphNodes: GraphNode[];
   /**
    * Reverse citation index, keyed by document. Built from bibliographies the
    * reader already parses, so it needs no network and works offline. Out of
@@ -248,10 +240,8 @@ export interface SessionSchema {
    * the assistant's focus_graph tool write through the same key, so there is
    * one source of truth instead of tool state merged over React state.
    */
-  graphView: GraphView;
   /** What the graph is currently drawing — published by the page, read by the
    *  assistant. See shared/ai/graphDigest.ts for why it flows that way. */
-  graphVisible: VisibleGraph;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -348,9 +338,7 @@ export const DEFAULTS: LocalSchema = {
   weekReviews: {},
   calendar: CALENDAR_DEFAULTS,
   gmail: GMAIL_DEFAULTS,
-  alphaxiv: ALPHAXIV_DEFAULTS,
   notesVault: null,
-  graphNodes: [],
   docCitations: {},
   graphCitations: {},
   pdfOutlineCache: {},
@@ -372,8 +360,6 @@ export const SESSION_DEFAULTS: SessionSchema = {
   offscreenHolders: [],
   liveSession: idleLiveSession(),
   notesPrivateKey: '',
-  graphView: EMPTY_VIEW,
-  graphVisible: EMPTY_VISIBLE,
 };
 
 /* Offscreen documents get chrome.runtime but not chrome.storage — route their
@@ -585,7 +571,6 @@ export async function migrate(): Promise<void> {
   if (version < 11) await chrome.storage.local.set({ readItems: [] });
   if (version < 12) await migrateToV12();
   if (version < 13) await migrateToV13();
-  if (version < 14) await migrateToV14();
   if (version < 15) await migrateToV15();
   if (version < 16) await migrateToV16();
   if (version < 17) {
@@ -688,11 +673,6 @@ async function migrateToV16(): Promise<void> {
   if (patched) await chrome.storage.local.set({ settings: patched });
 }
 
-/** Pure core of v14, so the seeding rule is testable without chrome.storage. */
-export function v14GraphNodes(progress: Record<string, AnyProgress>, now: number): GraphNode[] {
-  return Object.entries(progress).map(([key, p]) => nodeFromProgress(key, p, undefined, now));
-}
-
 /** Pure core of v15. Null means "nothing stored to rewrite" — an absent
  *  settings object already picks up the new default, and an explicit skin is
  *  the user's choice. */
@@ -705,13 +685,6 @@ async function migrateToV15(): Promise<void> {
   const { settings } = await chrome.storage.local.get('settings');
   const patched = v15Skin(settings as Partial<Settings> | undefined);
   if (patched) await chrome.storage.local.set({ settings: patched });
-}
-
-async function migrateToV14(): Promise<void> {
-  const { readingProgress } = await chrome.storage.local.get('readingProgress');
-  const progress = (readingProgress as Record<string, AnyProgress> | undefined) ?? {};
-  const graphNodes = v14GraphNodes(progress, Date.now());
-  if (graphNodes.length) await chrome.storage.local.set({ graphNodes });
 }
 
 /** The document a reader-page URL was showing, or null if this isn't one. */

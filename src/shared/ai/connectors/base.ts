@@ -1,4 +1,3 @@
-import type { DiscoveredPaper } from '../../alphaxiv';
 import { sendMessage } from '../../messages';
 import { getLocal } from '../../storage';
 import type { Settings, Task } from '../../types';
@@ -38,7 +37,6 @@ export interface ToolParamsSchema {
  */
 export interface ToolOutput {
   text: string;
-  papers?: DiscoveredPaper[];
   /** Citable provenance for what `text` reports. Tools fill this in so the
    *  assistant cites things it actually looked at — see SourceRef. */
   sources?: SourceRef[];
@@ -111,7 +109,6 @@ export interface Tool {
 export interface ConnectorEnv {
   settings: Settings;
   calendarConnected: boolean;
-  alphaxivConnected: boolean;
   /** True once at least one mailbox is connected */
   gmailConnected: boolean;
 }

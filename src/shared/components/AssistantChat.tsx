@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { DiscoveredPaper } from '../alphaxiv';
 import {
   executeTool,
   runAssistantTurn,
@@ -13,13 +12,10 @@ import {
 } from '../ai/assistantTypes';
 import { cloudProviderFor, hasCloudKey } from '../ai/cloud';
 import { getActiveTools } from '../ai/connector';
-import { resolvePaperDeckId } from '../ai/connectors/base';
 import { nanoProvider } from '../ai/nanoProvider';
 import { cancelSpeech, speak } from '../ai/tts';
 import { patchTurn, persistOutcome, persistTurn } from '../ai/turnLog';
 import { sendMessage } from '../messages';
-import { paperDraftFromDiscovered } from '../papers';
-import { arxivPdfUrl, readerPageUrl } from '../pdf';
 import { useBrainDumpAI } from '../hooks/useBrainDumpAI';
 import { useSessionValue } from '../hooks/useSessionValue';
 import { useSpeechInput } from '../hooks/useSpeechInput';
@@ -103,10 +99,6 @@ function EnabledAssistantChat({
     if (!log) return;
     // A list of results is read from the top — landing on the last card would
     // hide the best-ranked one above the fold. Replies still land at the end.
-    if (partial === null && thread[thread.length - 1]?.papers?.length) {
-      log.lastElementChild?.scrollIntoView({ block: 'start' });
-      return;
-    }
     log.scrollTo({ top: log.scrollHeight });
   }, [thread, partial]);
 
@@ -174,10 +166,10 @@ function EnabledAssistantChat({
     if (!turn.toolCall || busy) return;
     setBusy(true);
     try {
-      const { text, papers } = await executeTool(turn.toolCall.name, turn.toolCall.params);
+      const { text } = await executeTool(turn.toolCall.name, turn.toolCall.params);
       await patchTurn(turn.id, { toolCall: { ...turn.toolCall, status: 'done' } });
       await persistTurn(
-        newTurn('assistant', text, { kind: 'action-result', source: 'local', papers }),
+        newTurn('assistant', text, { kind: 'action-result', source: 'local' }),
       );
       say(text);
     } catch (err) {
@@ -388,105 +380,6 @@ function EnabledAssistantChat({
   );
 }
 
-/** Opens with a scannable handful; the rest is one tap away. */
-const COLLAPSED_PAPERS = 4;
-
-/** Year, id and score — the three things worth comparing across results. */
-function paperMeta(paper: DiscoveredPaper): string {
-  return [
-    paper.published.slice(0, 4),
-    paper.id && `arXiv ${paper.id}`,
-    paper.votes !== null && `${paper.votes} votes`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-/**
- * A discovered paper with two ways into the reading loop: open it in the
- * in-extension reader (so highlights + cloze cards work) and track it in the
- * local reading list. Without these a result was a dead-end that only opened a
- * browser tab.
- */
-function PaperCard({ paper }: { paper: DiscoveredPaper }) {
-  const [added, setAdded] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Prefer the in-extension reader when we can build a PDF URL from the arXiv id;
-  // otherwise open the paper's own page (pdfIntercept still catches a PDF link).
-  const pdfUrl = arxivPdfUrl(paper.id);
-  const openTarget = pdfUrl ? readerPageUrl(pdfUrl) : paper.url;
-
-  const add = async () => {
-    setAdding(true);
-    setError(null);
-    try {
-      const deckId = await resolvePaperDeckId();
-      const res = await sendMessage({
-        type: 'PAPER_ADD',
-        draft: paperDraftFromDiscovered(paper, deckId),
-      });
-      if (res.ok) setAdded(true);
-      else setError(res.error ?? 'Could not add.');
-    } catch {
-      setError('Could not add.');
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  return (
-    <div className="as-paper">
-      <div className="as-paper-body" title={paper.title}>
-        <span className="as-paper-title">{paper.title}</span>
-        <span className="as-paper-meta">{paperMeta(paper)}</span>
-        {paper.authors && <span className="as-paper-authors">{paper.authors}</span>}
-        {paper.abstract && <span className="as-paper-abstract">{paper.abstract}</span>}
-      </div>
-      <div className="as-paper-actions">
-        <button
-          type="button"
-          className="as-paper-action"
-          disabled={!openTarget}
-          onClick={() => void chrome.tabs.create({ url: openTarget })}
-        >
-          {pdfUrl ? 'Open in reader' : 'Open'}
-        </button>
-        <button
-          type="button"
-          className="as-paper-action"
-          disabled={added || adding}
-          onClick={() => void add()}
-        >
-          {added ? 'Added' : adding ? 'Adding…' : 'Add to deck'}
-        </button>
-        {error && <span className="as-paper-error">{error}</span>}
-      </div>
-    </div>
-  );
-}
-
-function PaperList({ papers }: { papers: DiscoveredPaper[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? papers : papers.slice(0, COLLAPSED_PAPERS);
-
-  return (
-    <>
-      <div className="as-papers">
-        {shown.map((paper) => (
-          <PaperCard key={paper.id || paper.title} paper={paper} />
-        ))}
-      </div>
-      {!expanded && papers.length > COLLAPSED_PAPERS && (
-        <button type="button" className="as-papers-more" onClick={() => setExpanded(true)}>
-          Show all {papers.length}
-        </button>
-      )}
-    </>
-  );
-}
-
 function traceIcon(status: TraceStep['status']): string {
   if (status === 'done') return '✓';
   if (status === 'failed') return '✗';
@@ -568,38 +461,28 @@ function Bubble({
   onCancel: (turn: AssistantTurn) => void;
   busy: boolean;
 }) {
-  // Search hits are information, not a completed action — no green, no check.
-  const papers = turn.papers?.length ? turn.papers : null;
   // Model prose gets Markdown + LaTeX. Tool outputs and errors are our own one
   // line of text, and their bubbles put "✓ " inline in front of it — a block
   // renderer would break that onto its own line for nothing.
   const prose =
-    turn.role === 'assistant' && !papers && turn.kind !== 'action-result' && turn.kind !== 'error';
+    turn.role === 'assistant' && turn.kind !== 'action-result' && turn.kind !== 'error';
   const cls =
     turn.role === 'user'
       ? 'as-bubble user'
       : turn.kind === 'error'
         ? 'as-bubble assistant error'
-        : papers
-          ? 'as-bubble assistant results'
-          : turn.kind === 'action-result'
-            ? 'as-bubble assistant action'
-            : 'as-bubble assistant';
+        : turn.kind === 'action-result'
+          ? 'as-bubble assistant action'
+          : 'as-bubble assistant';
 
   return (
     <div className={cls}>
-      {turn.kind === 'action-result' && !papers && '✓ '}
-      {/* The cards carry the detail, so only the headline line of the text form
-          is worth repeating above them — and its colon introduced a list that
-          isn't there any more. */}
-      {papers ? (
-        <span className="as-results-head">{turn.text.split('\n')[0].replace(/:$/, '')}</span>
-      ) : prose ? (
+      {turn.kind === 'action-result' && '✓ '}
+      {prose ? (
         <Markdown text={turn.text} />
       ) : (
         turn.text
       )}
-      {papers && <PaperList papers={papers} />}
       {turn.sources?.length ? <Sources sources={turn.sources} /> : null}
       {turn.trace && <Trace steps={turn.trace} />}
       {turn.grounding === 'insufficient' && <span className="as-badge">limited evidence</span>}

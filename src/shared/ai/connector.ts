@@ -1,13 +1,11 @@
 import { connectedAccounts } from '../gmail';
 import { getLocal, getSettings } from '../storage';
 import type { Connector, ConnectorEnv, Tool } from './connectors/base';
-import { alphaxivConnector } from './connectors/alphaxiv';
 import { bookmarksConnector } from './connectors/bookmarks';
 import { calendarConnector } from './connectors/calendar';
 import { feedsConnector } from './connectors/feeds';
 import { gmailConnector } from './connectors/gmail';
 import { focusConnector } from './connectors/focus';
-import { graphConnector } from './connectors/graph';
 import { libraryConnector } from './connectors/library';
 import { memoryConnector } from './connectors/memory';
 import { pagesConnector } from './connectors/pages';
@@ -30,12 +28,10 @@ export const CONNECTORS: readonly Connector[] = [
   bookmarksConnector,
   papersConnector,
   libraryConnector,
-  alphaxivConnector,
   calendarConnector,
   gmailConnector,
   feedsConnector,
   pagesConnector,
-  graphConnector,
   liveConnector,
 ];
 
@@ -69,12 +65,11 @@ if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
 export async function getActiveTools(): Promise<Tool[]> {
   if (cachedActiveTools) return cachedActiveTools;
   if (activeToolsRead) return activeToolsRead;
-  activeToolsRead = Promise.all([getSettings(), getLocal('calendar', 'alphaxiv', 'gmail')])
-    .then(([settings, { calendar, alphaxiv, gmail }]) => {
+  activeToolsRead = Promise.all([getSettings(), getLocal('calendar', 'gmail')])
+    .then(([settings, { calendar, gmail }]) => {
       const tools = activeTools({
         settings,
         calendarConnected: calendar.connected,
-        alphaxivConnected: alphaxiv.connected,
         gmailConnected: connectedAccounts(gmail).length > 0,
       });
       cachedActiveTools = tools;

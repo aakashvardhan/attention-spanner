@@ -8,7 +8,6 @@ import { DEFAULT_SETTINGS, getLocal, patchSettings, setLocal } from '../../share
 import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
 import { AccountSection } from './AccountSection';
 import { AssistantSection } from './AssistantSection';
-import { AlphaxivSection } from './AlphaxivSection';
 import { CalendarSection } from './CalendarSection';
 import { GmailSection } from './GmailSection';
 import { PapersSection } from './PapersSection';
@@ -474,7 +473,6 @@ export function Options() {
 
         <PapersSection />
 
-        <AlphaxivSection />
 
         <PrivacySection />
 

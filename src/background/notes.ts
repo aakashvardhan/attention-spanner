@@ -66,24 +66,6 @@ export async function saveNote(
  * the worker holds ciphertext and could not perform the edit itself. Re-sealing
  * here keeps encryption where every other note write already does it.
  */
-export async function addNoteLink(id: string, rawText: string): Promise<{ ok: boolean }> {
-  const { notes, notesVault } = await getLocal('notes', 'notesVault');
-  const note = notes.find((n) => n.id === id);
-  if (!note) return { ok: false };
-
-  const trimmed = rawText.trim();
-  if (notesVault) {
-    note.rawText = '';
-    note.encRaw = await seal(trimmed, notesVault, id);
-  } else {
-    note.rawText = trimmed;
-    delete note.encRaw;
-  }
-
-  await setLocal({ notes });
-  return { ok: true };
-}
-
 export async function applyStructureResult(
   id: string,
   bullets: string[],

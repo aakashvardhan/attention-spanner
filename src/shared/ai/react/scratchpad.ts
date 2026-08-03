@@ -1,4 +1,3 @@
-import type { DiscoveredPaper } from '../../alphaxiv';
 import { REACT_OBSERVATION_MAX_CHARS, REACT_SCRATCHPAD_MAX_CHARS } from '../../constants';
 import type { PlannedStep } from '../assistant';
 import { newTurn, type AssistantToolUse, type AssistantTurn } from '../assistantTypes';
@@ -36,7 +35,6 @@ export interface Scratchpad {
   sources: Map<string, SourceRef>;
   /** Paper hits worth drawing as cards — the chat renders these, so losing
    *  them to a text-only observation would be a visible regression */
-  papers: DiscoveredPaper[];
   iterations: number;
   costlyCalls: number;
   toolErrors: number;
@@ -57,7 +55,6 @@ export function beginScratchpad(deadlineAt: number, startedAt = Date.now()): Scr
     staged: [],
     seen: new Map(),
     sources: new Map(),
-    papers: [],
     iterations: 0,
     costlyCalls: 0,
     toolErrors: 0,

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DiscoveredPaper } from './alphaxiv';
-import { normalizeTitle, paperDraftFromDiscovered, paperMatchKey, parsePaperRef } from './papers';
+import { normalizeTitle, paperMatchKey, parsePaperRef } from './papers';
 
 describe('parsePaperRef', () => {
   it('recognizes arXiv abs/pdf/versioned/.pdf as the same id', () => {
@@ -44,39 +43,6 @@ describe('paperMatchKey', () => {
 
   it('returns null for unmatchable input', () => {
     expect(paperMatchKey('not a url')).toBeNull();
-  });
-});
-
-describe('paperDraftFromDiscovered', () => {
-  const discovered: DiscoveredPaper = {
-    id: '2406.09246',
-    title: '  Learning to Act  ',
-    url: 'https://www.alphaxiv.org/abs/2406.09246',
-    published: '2024-06-13',
-    authors: 'Jane Doe, John Roe',
-    votes: 42,
-    abstract: 'We propose a method.',
-  };
-
-  it('maps a result to a to-read draft: trims the title, takes the year', () => {
-    expect(paperDraftFromDiscovered(discovered, 'deck-1')).toEqual({
-      deckId: 'deck-1',
-      title: 'Learning to Act',
-      authors: 'Jane Doe, John Roe',
-      venue: '',
-      year: 2024,
-      citations: null,
-      url: 'https://www.alphaxiv.org/abs/2406.09246',
-      abstract: 'We propose a method.',
-      relevance: '',
-      status: 'to-read',
-      progressPercent: 0,
-      leftOff: '',
-    });
-  });
-
-  it('leaves year null when the result carried no date', () => {
-    expect(paperDraftFromDiscovered({ ...discovered, published: '' }, 'deck-1').year).toBeNull();
   });
 });
 

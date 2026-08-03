@@ -77,7 +77,6 @@ export async function persistOutcome(
         kind: 'action-result',
         source: 'nano',
         trace: outcome.trace,
-        papers: outcome.papers,
       }),
     );
     say(outcome.text);

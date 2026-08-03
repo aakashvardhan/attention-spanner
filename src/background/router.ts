@@ -2,20 +2,10 @@ import type { Message } from '../shared/messages';
 import { OFFSCREEN_PAGE_PATH } from '../shared/constants';
 import { appendTurn } from '../shared/ai/assistantTypes';
 import { getSession, setSession } from '../shared/storage';
-import {
-  axAskPdf,
-  axConnect,
-  axDisconnect,
-  axDiscover,
-  axLibrary,
-  axPaperContent,
-  axSavePaper,
-} from './alphaxiv';
 import { calSignIn, calSignOut, createCalendarEvent, listEvents, refreshCalendar } from './calendar';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
-  addNoteLink,
   applyStructureResult,
   confirmNoteTasks,
   deleteNote,
@@ -65,7 +55,6 @@ import { applyProposals } from './agentRuns';
 import { addAutomation, deleteAutomation, runAutomation, updateAutomation } from './automations';
 import { addExternalPaper, applyCitedTags, expandCitations } from './citations';
 import { indexDocCitations } from './docCitations';
-import { applyTags, reconcileGraphNodes, setManualTags } from './graphNodes';
 import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
@@ -272,20 +261,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
     case 'CAL_LIST_EVENTS':
       return listEvents(msg.startMs, msg.endMs);
-    case 'AX_CONNECT':
-      return axConnect();
-    case 'AX_DISCONNECT':
-      return axDisconnect();
-    case 'AX_LIBRARY':
-      return axLibrary();
-    case 'AX_DISCOVER':
-      return axDiscover(msg.topic, msg.recent);
-    case 'AX_PAPER_CONTENT':
-      return axPaperContent(msg.paper, msg.fullText);
-    case 'AX_ASK_PDF':
-      return axAskPdf(msg.paper, msg.queries);
-    case 'AX_SAVE_PAPER':
-      return axSavePaper(msg.paper);
     case 'SYNC_STATUS':
       return getSyncStatus();
     case 'SYNC_SIGN_IN':
@@ -318,13 +293,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'VIDEO_PROGRESS':
       await handleVideoProgress(sender, msg);
       return { ok: true };
-    case 'GRAPH_SYNC':
-      await reconcileGraphNodes();
-      return { ok: true };
-    case 'GRAPH_SET_TAGS':
-      return applyTags(msg.assignments);
-    case 'GRAPH_SET_MANUAL_TAGS':
-      return setManualTags(msg.id, msg.tags);
     case 'DOC_CITATIONS_INDEX':
       return indexDocCitations(msg.entry);
     case 'GRAPH_EXPAND_CITATIONS':
@@ -333,8 +301,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return addExternalPaper(msg.nodeId);
     case 'GRAPH_SET_CITED_TAGS':
       return applyCitedTags(msg.assignments);
-    case 'NOTE_ADD_LINK':
-      return addNoteLink(msg.id, msg.rawText);
     case 'TIME_PILL_READY':
       return handleTimePillReady(msg.host);
     case 'TIME_PILL_TICK':

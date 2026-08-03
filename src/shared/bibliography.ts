@@ -5,7 +5,7 @@
  * Three callers depend on this one parser, which is why it lives here rather
  * than beside the reader that first needed it: the PDF reader's citation
  * previews, the citation source that reads a paper's own bibliography, and the
- * alphaXiv source, which fetches a paper's full text and hands it straight in.
+ * full text of a paper, handed in by whichever source fetched it.
  */
 
 /** A single bibliography entry, resolved from a citation marker. */

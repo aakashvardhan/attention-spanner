@@ -1,6 +1,5 @@
-import type { DiscoveredPaper } from './alphaxiv';
 import { FETCH_TIMEOUT_MS, SEMANTIC_SCHOLAR_PAPER_API } from './constants';
-import type { Paper, PaperDraft } from './types';
+import type { Paper } from './types';
 
 /** Metadata fields a lookup can fill; the rest of a Paper is user-supplied. */
 export type PaperMeta = Pick<
@@ -70,24 +69,6 @@ export function normalizeTitle(title: string): string {
  * TrackPrompt seeds a paper with (venue/relevance/leftOff empty, no citations —
  * those are edited later); the caller supplies the deck. Pure so it's testable.
  */
-export function paperDraftFromDiscovered(p: DiscoveredPaper, deckId: string): PaperDraft {
-  const year = p.published ? parseInt(p.published.slice(0, 4), 10) : NaN;
-  return {
-    deckId,
-    title: p.title.trim(),
-    authors: p.authors,
-    venue: '',
-    year: Number.isFinite(year) ? year : null,
-    citations: null,
-    url: p.url,
-    abstract: p.abstract,
-    relevance: '',
-    status: 'to-read',
-    progressPercent: 0,
-    leftOff: '',
-  };
-}
-
 interface S2Response {
   title?: string | null;
   abstract?: string | null;
