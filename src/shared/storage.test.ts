@@ -5,7 +5,9 @@ import {
   v16DashboardMode,
   v17DailyBrainDumpGate,
   v18EnabledPacks,
+  v20StripSettings,
   v7Patch,
+  V20_DEAD_KEYS,
 } from './storage';
 
 /**
@@ -314,5 +316,66 @@ describe('v18EnabledPacks', () => {
         papers: [{}],
       }),
     ).toEqual(['research', 'work', 'assistant']);
+  });
+});
+
+/**
+ * v19 → v20 retires every key belonging to a cut feature. The settings half
+ * needs its own delete rather than a changed DEFAULT_SETTINGS: patchSettings
+ * writes the whole merged object, so a dropped field persists on disk for
+ * anyone who has ever opened Settings, and a new default never reaches them.
+ */
+describe('v20', () => {
+  it('names only keys whose feature is gone, and keeps the ones that are not', () => {
+    // decks survive the flashcards cut — papers live in them
+    expect(V20_DEAD_KEYS).not.toContain('decks');
+    expect(V20_DEAD_KEYS).not.toContain('papers');
+    expect(V20_DEAD_KEYS).not.toContain('recordings');
+    expect(V20_DEAD_KEYS).not.toContain('annotations');
+    expect(V20_DEAD_KEYS).not.toContain('graphCitations');
+    expect(V20_DEAD_KEYS).toEqual(
+      expect.arrayContaining([
+        'sync',
+        'tombstones',
+        'flashCards',
+        'flashNotes',
+        'srsDaily',
+        'graphNodes',
+        'alphaxiv',
+        'gym',
+        'warmup',
+        'parkingLot',
+        'xBookmarks',
+        'assistantBriefing',
+      ]),
+    );
+  });
+
+  it('strips the dead settings and leaves everything else untouched', () => {
+    const stripped = v20StripSettings({
+      focusMinutes: 25,
+      cloudProvider: 'anthropic',
+      geminiApiKey: 'k',
+      dashboardMode: 'focus',
+      gymWeeklyTarget: 3,
+      gymReminderTime: '18:00',
+      assistantWakeWordEnabled: true,
+      ollamaBaseUrl: 'http://localhost:11434',
+      ollamaModel: 'llama3',
+    });
+    expect(stripped).toEqual({
+      focusMinutes: 25,
+      cloudProvider: 'anthropic',
+      geminiApiKey: 'k',
+    });
+  });
+
+  it('is a no-op on a profile that never stored settings', () => {
+    expect(v20StripSettings(undefined)).toBeNull();
+  });
+
+  it('leaves a settings object that carries none of the dead fields alone', () => {
+    const clean = { focusMinutes: 25, cloudProvider: 'gemini' };
+    expect(v20StripSettings(clean)).toEqual(clean);
   });
 });

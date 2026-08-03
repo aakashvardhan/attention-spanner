@@ -537,7 +537,7 @@ export async function migrate(): Promise<void> {
  * merged object, so a dropped field stays on disk for anyone who ever opened
  * Settings, and changing DEFAULT_SETTINGS alone never reaches them.
  */
-const V20_DEAD_KEYS = [
+export const V20_DEAD_KEYS = [
   // Cloud sync + iOS
   'sync',
   'tombstones',
@@ -561,7 +561,7 @@ const V20_DEAD_KEYS = [
   'assistantBriefing',
 ];
 
-const V20_DEAD_SETTINGS = [
+export const V20_DEAD_SETTINGS = [
   'dashboardMode',
   'gymWeeklyTarget',
   'gymReminderTime',
@@ -570,16 +570,23 @@ const V20_DEAD_SETTINGS = [
   'ollamaModel',
 ];
 
+/** Pure core of v20's settings half, so the delete rule is testable. */
+export function v20StripSettings(
+  settings: Record<string, unknown> | undefined,
+): Record<string, unknown> | null {
+  if (!settings || typeof settings !== 'object') return null;
+  const next = { ...settings };
+  for (const key of V20_DEAD_SETTINGS) delete next[key];
+  return next;
+}
+
 async function migrateToV20(): Promise<void> {
   await chrome.storage.local.remove(V20_DEAD_KEYS);
   // Read fresh rather than from the `stored` snapshot at the top of migrate():
   // that snapshot predates the version < 1 branch's own write.
   const { settings } = await chrome.storage.local.get('settings');
-  if (settings && typeof settings === 'object') {
-    const next = { ...(settings as Record<string, unknown>) };
-    for (const key of V20_DEAD_SETTINGS) delete next[key];
-    await chrome.storage.local.set({ settings: next });
-  }
+  const next = v20StripSettings(settings as Record<string, unknown> | undefined);
+  if (next) await chrome.storage.local.set({ settings: next });
 }
 
 export function v18EnabledPacks(input: {
