@@ -222,6 +222,7 @@ body::before {
 }
 
 .relay-later > summary,
+.relay-history > summary,
 .relay-library > summary {
   padding: 18px 20px;
   font-weight: 800;
@@ -1745,6 +1746,7 @@ body::before {
 .relay-now,
 .relay-parking,
 .relay-later,
+.relay-history,
 .relay-library {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -1872,11 +1874,13 @@ body::before {
 
 .relay-later,
 .relay-parking,
+.relay-history,
 .relay-library {
   margin-top: 16px;
 }
 
 .relay-later > summary,
+.relay-history > summary,
 .relay-library > summary {
   min-height: 58px;
   padding: 18px 20px;
@@ -2137,115 +2141,17 @@ body::before {
   white-space: nowrap;
 }
 
-/* The activity grid is wide; let it scroll inside its own box rather than
-   widening the page. */
-.relay-history {
-  margin-top: var(--space-4);
-}
-
-.relay-history > summary {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.relay-history .activity-strip {
-  margin-top: var(--space-3);
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-/* Low emphasis on purpose: walking past the brain dump should be possible,
-   not inviting. */
-.daily-gate-skip {
-  margin-top: var(--space-3);
-  padding: 6px 10px;
-  color: var(--text-tertiary, var(--text-secondary));
-  background: none;
-  border: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* The header's right-hand column: the streak, then the workspace button. */
-.relay-header-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-/* One quiet line, not a scoreboard — the number is the only emphasis. */
-.relay-streak {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-
-.relay-streak strong {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.relay-freezes {
-  color: var(--text-faint);
-}
-
-/* Continue reading — deliberately a plain section, not a <details>. Half-read
-   articles were invisible on this screen until you remembered them yourself,
-   which is the opposite of what a new tab is for. */
-.relay-continue {
-  margin-top: var(--space-4);
-}
-
-.relay-continue h2 {
-  margin: 0 0 var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.relay-continue ul {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.relay-continue button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  /* Titles are arbitrary length; clip rather than reflow the row */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* A 53-week grid is heavy against a one-decision screen, so it opens on
    demand. The header streak is the at-a-glance version. */
 .relay-history {
-  margin-top: var(--space-4);
+  margin-top: var(--space-3);
 }
 
-.relay-history > summary {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.relay-history .activity-strip {
+.relay-history > .activity-strip {
   /* No overflow rule here on purpose: .act-scroll already owns the horizontal
      scroll, and a second one on the outer box fights it. */
-  margin-top: var(--space-3);
-  max-width: 100%;
+  margin: 0 12px 12px;
+  max-width: calc(100% - 24px);
 }
 
 /* Low emphasis on purpose: walking past the brain dump should be possible,
