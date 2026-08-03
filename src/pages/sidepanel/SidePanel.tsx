@@ -12,7 +12,6 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isLiveActive } from '../../shared/live';
-import { sendMessage } from '../../shared/messages';
 import { dueCounts, newIntroducedToday, totalDue } from '../../shared/srs';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
 import { BookmarkPicker } from './components/BookmarkPicker';
@@ -51,7 +50,6 @@ export function SidePanel() {
   const tasks = useTasks();
   const focus = useFocusSession();
   const sprint = useSprint();
-  const [gym] = useStorageValue('gym');
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
   const [flashCards] = useStorageValue('flashCards');
@@ -60,7 +58,6 @@ export function SidePanel() {
     dueCounts(flashCards, Date.now(), newIntroducedToday(srsDaily, localDate())),
   );
   const liveOn = isLiveActive(live);
-  const gymDone = localDate() in gym.checkins;
 
   const primaryTabs: { id: PrimaryTab; label: string; badge: number }[] = [
     { id: 'ask', label: 'Ask', badge: 0 },
@@ -158,17 +155,6 @@ export function SidePanel() {
                   }}
                 >
                   Start {settings.sprintMinutes}-minute sprint
-                </button>
-              )}
-              {!gymDone && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void sendMessage({ type: 'GYM_CHECKIN' });
-                    closeActions();
-                  }}
-                >
-                  Log gym visit
                 </button>
               )}
               <button

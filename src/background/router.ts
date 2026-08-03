@@ -75,11 +75,9 @@ import { addFact, deleteFact } from './memory';
 import { addSkill, deleteSkill, updateSkill } from './skills';
 import { applyProposals } from './agentRuns';
 import { addAutomation, deleteAutomation, runAutomation, updateAutomation } from './automations';
-import { gymCheckin, gymUndo } from './gym';
 import { addExternalPaper, applyCitedTags, expandCitations } from './citations';
 import { indexDocCitations } from './docCitations';
 import { applyTags, reconcileGraphNodes, setManualTags } from './graphNodes';
-import { completeWarmup } from './warmup';
 import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
@@ -155,12 +153,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return startSprint();
     case 'CANCEL_SPRINT':
       return cancelSprint();
-    case 'GYM_CHECKIN':
-      return gymCheckin();
-    case 'GYM_UNDO':
-      return gymUndo();
-    case 'WARMUP_COMPLETE':
-      return completeWarmup(msg.score, msg.total);
     case 'START_FOCUS':
       return startFocus(msg);
     case 'STOP_FOCUS':

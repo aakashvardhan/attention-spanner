@@ -6,7 +6,6 @@ import { refreshCalendar } from './calendar';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
 import { fireScheduledTriage } from './gmailTriage';
-import { fireGymReminder } from './gym';
 import { fireCalendarCheck, fireEveningCheck } from './monitor';
 import { fireNudge, isNudgeAlarm } from './nudges';
 import { finishSprint } from './streaks';
@@ -25,16 +24,6 @@ export async function setupTaskReminderAlarm(intervalMinutes?: number): Promise<
   if (minutes > 0) {
     chrome.alarms.create(ALARMS.taskReminders, { periodInMinutes: minutes });
   }
-}
-
-export async function setupGymReminderAlarm(time?: string): Promise<void> {
-  await chrome.alarms.clear(ALARMS.gymReminder);
-  const hhmm = time ?? (await getSettings()).gymReminderTime;
-  if (hhmm === '') return;
-  chrome.alarms.create(ALARMS.gymReminder, {
-    when: nextDailyOccurrence(hhmm),
-    periodInMinutes: 24 * 60,
-  });
 }
 
 export async function setupMonitorAlarms(eveningTime?: string): Promise<void> {
@@ -116,10 +105,6 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
       break;
     case ALARMS.sprintEnd:
       void finishSprint();
-      break;
-    case ALARMS.gymReminder:
-    case ALARMS.gymReminderSnooze:
-      void fireGymReminder();
       break;
     case ALARMS.focusPhaseEnd:
       void handleFocusPhaseEnd();

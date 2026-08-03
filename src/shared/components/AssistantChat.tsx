@@ -17,7 +17,6 @@ import { resolvePaperDeckId } from '../ai/connectors/base';
 import { nanoProvider } from '../ai/nanoProvider';
 import { cancelSpeech, speak } from '../ai/tts';
 import { patchTurn, persistOutcome, persistTurn } from '../ai/turnLog';
-import { localDate } from '../format';
 import { sendMessage } from '../messages';
 import { paperDraftFromDiscovered } from '../papers';
 import { arxivPdfUrl, readerPageUrl } from '../pdf';
@@ -70,9 +69,7 @@ function EnabledAssistantChat({
   settings,
 }: AssistantChatProps & { settings: Settings }) {
   const [thread] = useSessionValue('assistantThread');
-  const [briefing] = useStorageValue('assistantBriefing');
   const ai = useBrainDumpAI();
-  const todaysBriefing = briefing?.date === localDate() ? briefing.text : null;
 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -81,7 +78,6 @@ function EnabledAssistantChat({
   // What the ReAct loop is doing right now. Replaced by the persisted trace on
   // the finished turn, so the list does not jump when the answer lands.
   const [liveTrace, setLiveTrace] = useState<TraceStep[]>([]);
-  const [speakingBriefing, setSpeakingBriefing] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -250,31 +246,6 @@ function EnabledAssistantChat({
     <div className={`as-chat${compact ? ' compact' : ''} as-chat--${surface}`}>
       {contextLabel && <p className="as-context">{contextLabel}</p>}
       <div className="as-log" ref={logRef}>
-        {todaysBriefing && !compact && (
-          <div className="as-bubble assistant briefing">
-            <span className="as-briefing-label">Today</span>
-            <button
-              type="button"
-              className="as-briefing-play"
-              title={speakingBriefing ? 'Stop' : 'Play briefing'}
-              onClick={() => {
-                if (speakingBriefing) {
-                  cancelSpeech();
-                  setSpeakingBriefing(false);
-                } else {
-                  // Explicit click = consent, so no assistantVoiceEnabled gate
-                  setSpeakingBriefing(true);
-                  speak(todaysBriefing, settings.assistantTtsVoice, () =>
-                    setSpeakingBriefing(false),
-                  );
-                }
-              }}
-            >
-              {speakingBriefing ? 'Stop' : 'Play'}
-            </button>
-            {todaysBriefing}
-          </div>
-        )}
         {thread.length === 0 && partial === null && (
           <div className="as-empty">
             <p className="as-empty-title">What would you like to accomplish?</p>

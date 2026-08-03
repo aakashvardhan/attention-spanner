@@ -54,9 +54,6 @@ export type Message =
   | { type: 'SNOOZE_TASK'; id: string; minutes: number }
   | { type: 'START_SPRINT' }
   | { type: 'CANCEL_SPRINT' }
-  | { type: 'GYM_CHECKIN' }
-  | { type: 'GYM_UNDO' }
-  | { type: 'WARMUP_COMPLETE'; score: number; total: number }
   | {
       type: 'START_FOCUS';
       mode: 'oneshot' | 'pomodoro';
@@ -325,9 +322,6 @@ export interface MessageResponses {
   SNOOZE_TASK: { ok: boolean };
   START_SPRINT: { ok: boolean };
   CANCEL_SPRINT: { ok: boolean };
-  GYM_CHECKIN: { ok: boolean };
-  GYM_UNDO: { ok: boolean };
-  WARMUP_COMPLETE: { ok: boolean; firstToday: boolean };
   START_FOCUS: { ok: boolean };
   STOP_FOCUS: { ok: boolean };
   ADD_BOOKMARK: { ok: boolean; bookmark: BookmarkLink };

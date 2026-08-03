@@ -1,5 +1,5 @@
 import { cacheInvalidateTag } from '../shared/ai/cache';
-import { ALARMS, CAPTURE_WINDOW_TASK, NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
+import { CAPTURE_WINDOW_TASK, NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
 import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
@@ -7,7 +7,6 @@ import {
   handleAlarm,
   setupAutomationAlarms,
   setupCalendarRefreshAlarm,
-  setupGymReminderAlarm,
   setupGmailTriageAlarm,
   setupMonitorAlarms,
   setupRefreshAlarm,
@@ -21,8 +20,6 @@ import {
   ensureDailyGateDateForNavigation,
   reconcileDailyBrainDump,
 } from './dailyBrainDump';
-import { gymCheckin, recomputeGymStreak } from './gym';
-import { recomputeWarmupStreak } from './warmup';
 import {
   dismissNudgesForArticle,
   isNudgeNotification,
@@ -110,7 +107,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await migrate();
     await setupRefreshAlarm();
     await setupTaskReminderAlarm();
-    await setupGymReminderAlarm();
     await setupCalendarRefreshAlarm();
     await setupMonitorAlarms();
     await setupGmailTriageAlarm();
@@ -120,8 +116,6 @@ chrome.runtime.onInstalled.addListener(() => {
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
     await recomputeStreak();
-    await recomputeGymStreak();
-    await recomputeWarmupStreak();
     // onInstalled also fires on extension reloads — clear before re-creating
     await chrome.contextMenus.removeAll();
     chrome.contextMenus.create({
@@ -149,13 +143,10 @@ chrome.runtime.onStartup.addListener(() => {
   void pruneCompletedTasks();
   void updateBadge();
   void recomputeStreak();
-  void recomputeGymStreak();
-  void recomputeWarmupStreak();
   // MV3 alarms normally survive a restart, but nothing else re-creates this
   // one if it is ever lost — and losing it silently stops all feed refreshes.
   void setupRefreshAlarm();
   // Re-anchor the daily reminders to the wall clock (bounds DST drift)
-  void setupGymReminderAlarm();
   void setupMonitorAlarms();
   void setupGmailTriageAlarm();
   void setupAutomationAlarms();
@@ -236,7 +227,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     changes.flashNotes ||
     changes.decks ||
     changes.papers ||
-    changes.gym ||
     changes.streaks ||
     changes.gamification ||
     changes.bookmarks ||
@@ -256,9 +246,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
     if (oldSettings.taskReminderIntervalMinutes !== newSettings.taskReminderIntervalMinutes) {
       void setupTaskReminderAlarm(newSettings.taskReminderIntervalMinutes);
-    }
-    if (oldSettings.gymReminderTime !== newSettings.gymReminderTime) {
-      void setupGymReminderAlarm(newSettings.gymReminderTime);
     }
     if (oldSettings.monitorEveningTime !== newSettings.monitorEveningTime) {
       void setupMonitorAlarms(newSettings.monitorEveningTime);
@@ -349,16 +336,6 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
       void dismissNudgesForArticle(key);
     }
     return;
-  }
-  if (notificationId === NOTIFICATION_IDS.gymReminder) {
-    chrome.notifications.clear(notificationId);
-    if (buttonIndex === 0) {
-      void gymCheckin();
-    } else {
-      // Snooze 1h; the alarm routes back through fireGymReminder, which
-      // re-checks every gate at fire time
-      chrome.alarms.create(ALARMS.gymReminderSnooze, { delayInMinutes: 60 });
-    }
   }
 });
 

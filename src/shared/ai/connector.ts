@@ -9,7 +9,6 @@ import { gmailConnector } from './connectors/gmail';
 import { flashcardsConnector } from './connectors/flashcards';
 import { focusConnector } from './connectors/focus';
 import { graphConnector } from './connectors/graph';
-import { gymConnector } from './connectors/gym';
 import { libraryConnector } from './connectors/library';
 import { memoryConnector } from './connectors/memory';
 import { pagesConnector } from './connectors/pages';
@@ -28,7 +27,6 @@ export const CONNECTORS: readonly Connector[] = [
   tasksConnector,
   planningConnector,
   focusConnector,
-  gymConnector,
   memoryConnector,
   bookmarksConnector,
   flashcardsConnector,
