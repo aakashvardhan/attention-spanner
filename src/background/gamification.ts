@@ -2,11 +2,11 @@ import { BADGES, type StatsSnapshot } from '../shared/badges';
 import { NOTIFICATION_IDS } from '../shared/constants';
 import { FREEZE_TOKEN_CAP } from '../shared/streakInsurance';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
-import type { Gamification, GymState, Streaks } from '../shared/types';
+import type { Gamification,  Streaks } from '../shared/types';
 
 /**
  * Habit bookkeeping: lifetime counters + one-time milestones. Called from
- * every habit module (gym, tracking, streaks, tasks, notes) — imports only
+ * every habit module (tracking, streaks, tasks, notes) — imports only
  * shared code and storage, so no import cycles.
  *
  * There used to be an XP economy, a level curve, and a weekly quest layered
@@ -18,26 +18,21 @@ import type { Gamification, GymState, Streaks } from '../shared/types';
 
 /** Habit events worth counting. Formerly XP-bearing; now counters only. */
 export type HabitEvent =
-  | 'gym_checkin'
   | 'article_finished'
   | 'video_finished'
   | 'sprint_completed'
   | 'task_completed'
   | 'braindump_structured'
   | 'focus_block'
-  | 'flashcard_review'
-  | 'warmup_complete';
+;
 
 const COUNTER_FOR_EVENT: Record<HabitEvent, keyof StatsSnapshot & string> = {
-  gym_checkin: 'workouts',
   article_finished: 'articlesFinished',
   video_finished: 'videosFinished',
   sprint_completed: 'sprints',
   task_completed: 'tasksCompleted',
   braindump_structured: 'brainDumps',
   focus_block: 'focusBlocks',
-  flashcard_review: 'cardsReviewed',
-  warmup_complete: 'warmups',
 };
 
 interface QueuedNotification {
@@ -60,20 +55,16 @@ function notify(queue: QueuedNotification[]): void {
 
 interface Trio {
   gamification: Gamification;
-  gym: GymState;
   streaks: Streaks;
 }
 
-function snapshotOf({ gamification, gym, streaks }: Trio): StatsSnapshot {
+function snapshotOf({ gamification, streaks }: Trio): StatsSnapshot {
   return {
     ...gamification.counters,
     // ?? 0: profiles from before a counter existed may lack the key
     videosFinished: gamification.counters.videosFinished ?? 0,
     focusBlocks: gamification.counters.focusBlocks ?? 0,
-    cardsReviewed: gamification.counters.cardsReviewed ?? 0,
     freezesEarned: gamification.counters.freezesEarned ?? 0,
-    warmups: gamification.counters.warmups ?? 0,
-    gymWeekStreak: gym.currentWeekStreak,
     readingStreak: streaks.currentStreak,
   };
 }
@@ -95,7 +86,7 @@ function badgePass(state: Trio, queue: QueuedNotification[]): void {
 
 /** Count a habit event and check whether it unlocked a milestone. */
 export async function recordEvent(event: HabitEvent): Promise<void> {
-  const { gamification, gym, streaks } = await getLocal('gamification', 'gym', 'streaks');
+  const { gamification, streaks } = await getLocal('gamification', 'streaks');
   const settings = await getSettings();
   const queue: QueuedNotification[] = [];
 
@@ -103,7 +94,7 @@ export async function recordEvent(event: HabitEvent): Promise<void> {
   // ?? 0: profiles from before a counter existed may lack the key
   gamification.counters[counterKey] = (gamification.counters[counterKey] ?? 0) + 1;
 
-  badgePass({ gamification, gym, streaks }, queue);
+  badgePass({ gamification, streaks }, queue);
 
   await setLocal({ gamification });
   if (settings.notificationsEnabled) notify(queue);
@@ -124,7 +115,7 @@ export async function revokeEvent(event: HabitEvent): Promise<void> {
  * token the user may already have spent.
  */
 export async function grantFreezeToken(): Promise<void> {
-  const { gamification, gym, streaks } = await getLocal('gamification', 'gym', 'streaks');
+  const { gamification, streaks } = await getLocal('gamification', 'streaks');
   if ((streaks.freezeTokens ?? 0) >= FREEZE_TOKEN_CAP) return;
 
   streaks.freezeTokens = (streaks.freezeTokens ?? 0) + 1;
@@ -138,7 +129,7 @@ export async function grantFreezeToken(): Promise<void> {
       message: `That completion dropped a freeze token — ${streaks.freezeTokens} in the bank.`,
     },
   ];
-  badgePass({ gamification, gym, streaks }, queue);
+  badgePass({ gamification, streaks }, queue);
 
   await setLocal({ gamification, streaks });
   if (settings.notificationsEnabled) notify(queue);
@@ -146,7 +137,7 @@ export async function grantFreezeToken(): Promise<void> {
 
 /** Milestone-only evaluation for events that carry no counter (e.g. reading day qualified) */
 export async function checkBadges(): Promise<void> {
-  const state = await getLocal('gamification', 'gym', 'streaks');
+  const state = await getLocal('gamification', 'streaks');
   const settings = await getSettings();
   const queue: QueuedNotification[] = [];
 

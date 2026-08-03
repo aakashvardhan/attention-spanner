@@ -2,7 +2,7 @@ import { MAX_PAPERS } from '../shared/constants';
 import { paperMatchKey } from '../shared/papers';
 import { computePdfPercent } from '../shared/pdf';
 import { getLocal, setLocal } from '../shared/storage';
-import { newPaper } from '../shared/sync/recordShapes';
+import { newPaper } from '../shared/records';
 import type { Paper, PaperDraft } from '../shared/types';
 
 /** Don't rewrite lastReadAt more than once a minute while a paper tab stays open */

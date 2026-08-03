@@ -23,18 +23,15 @@ function data(): AssistantContextData {
   return {
     tasks: [],
     streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
-    gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
     gamification: {
       badges: {},
       counters: {
-        workouts: 0,
         articlesFinished: 0,
         videosFinished: 0,
         sprints: 0,
         tasksCompleted: 0,
         brainDumps: 0,
         focusBlocks: 0,
-        cardsReviewed: 0,
         freezesEarned: 0,
       },
     },

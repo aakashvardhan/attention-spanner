@@ -1,5 +1,5 @@
 import { localDate } from './format';
-import type { DayStats, SrsDayStats } from './types';
+import type { DayStats } from './types';
 
 /**
  * Activity scoring for the dashboard's GitHub-style contribution calendar.
@@ -13,15 +13,13 @@ export interface DayActivityParts {
   articles: number;
   videos: number;
   focusBlocks: number;
-  gym: boolean;
-  cardsReviewed: number;
   tasks: number;
 }
 
 /**
- * Each discrete completion = 1 point; continuous quantities are normalized
- * (15 min ≈ one activity, 10 card reviews ≈ one activity) so no single
- * signal drowns the rest.
+ * Each discrete completion = 1 point; minutes are normalized (15 min ≈ one
+ * activity) so reading time cannot drown the rest. Gym check-ins and card
+ * reviews used to count here and left with those features.
  */
 export function dayActivityScore(p: DayActivityParts): number {
   return (
@@ -30,17 +28,11 @@ export function dayActivityScore(p: DayActivityParts): number {
     p.videos +
     p.sprints +
     p.focusBlocks +
-    (p.gym ? 1 : 0) +
-    Math.floor(p.minutes / 15) +
-    Math.floor(p.cardsReviewed / 10)
+    Math.floor(p.minutes / 15)
   );
 }
 
-/**
- * The same score over a bare DayStats. Gym check-ins and card reviews live in
- * their own stores, so they contribute 0 here — callers holding only a DayStats
- * (the hourly ledger in background/streaks.ts) get the reading/task/focus slice.
- */
+/** The same score over a bare DayStats. */
 export function dayStatsScore(day: DayStats): number {
   return dayActivityScore({
     minutes: day.minutes,
@@ -48,8 +40,6 @@ export function dayStatsScore(day: DayStats): number {
     articles: day.articlesFinished,
     videos: day.videosFinished ?? 0,
     focusBlocks: day.focusBlocks ?? 0,
-    gym: false,
-    cardsReviewed: 0,
     tasks: day.tasksCompleted ?? 0,
   });
 }
@@ -94,8 +84,6 @@ export function formatDayTooltip(date: Date, parts: DayActivityParts, score: num
   if (parts.articles > 0) bits.push(plural(parts.articles, 'article'));
   if (parts.videos > 0) bits.push(plural(parts.videos, 'video'));
   if (parts.focusBlocks > 0) bits.push(plural(parts.focusBlocks, 'focus block'));
-  if (parts.gym) bits.push('gym');
-  if (parts.cardsReviewed > 0) bits.push(plural(parts.cardsReviewed, 'review'));
   return `${head} — ${bits.join(' · ')}`;
 }
 
@@ -130,8 +118,6 @@ export function forwardMonthWindow(
 
 export function buildActivityDays(
   streaksDaily: Record<string, DayStats>,
-  gymCheckins: Record<string, number>,
-  srsDaily: Record<string, SrsDayStats>,
   todayKey: string,
   weeks = 53,
   startKey?: string,
@@ -166,8 +152,6 @@ export function buildActivityDays(
         articles: stats?.articlesFinished ?? 0,
         videos: stats?.videosFinished ?? 0,
         focusBlocks: stats?.focusBlocks ?? 0,
-        gym: date in gymCheckins,
-        cardsReviewed: Object.values(srsDaily[date]?.reviews ?? {}).reduce((a, b) => a + b, 0),
         tasks: stats?.tasksCompleted ?? 0,
       };
       const future = date > todayKey;

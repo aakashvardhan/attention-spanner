@@ -172,7 +172,7 @@ export async function addExternalPaper(
  * Label cited papers the sources had no subject for.
  *
  * Keyed by the source's own id rather than a node id, because a cited paper may
- * have no node at all — it is stored inside its expansion, not in `graphNodes`.
+ * have no library entry at all — it is stored inside its expansion.
  * An assignment for a paper that has since been evicted is dropped rather than
  * resurrecting it, the same rule `applyTags` follows for nodes.
  */

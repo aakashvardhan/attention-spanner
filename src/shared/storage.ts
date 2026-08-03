@@ -19,25 +19,18 @@ import type {
   AssistantSkill,
   BookmarkGroup,
   BookmarkLink,
-  XBookmark,
   BrainDumpNote,
   DailyBrainDumpGateState,
   Deck,
   FeedItem,
-  FlashCard,
-  FlashNote,
   FocusSession,
   Gamification,
-  GymState,
   JournalDay,
   LifetimeCounters,
   Paper,
-  ParkingLotItem,
   Settings,
-  SrsDayStats,
   Streaks,
   Task,
-  WarmupState,
   WeekReview,
   EnabledPack,
 } from './types';
@@ -54,21 +47,13 @@ export interface LocalSchema {
   dailyBrainDumpGate: DailyBrainDumpGateState;
   enabledPacks: EnabledPack[];
   activeIntent: ActiveIntent | null;
-  parkingLot: ParkingLotItem[];
   readingProgress: Record<string, AnyProgress>;
   streaks: Streaks;
-  gym: GymState;
   gamification: Gamification;
-  warmup: WarmupState;
   focusSession: FocusSession | null;
   bookmarks: BookmarkLink[];
   bookmarkGroups: BookmarkGroup[];
-  /** Cached from the user's signed-in X bookmarks page; never cloud-synced. */
-  xBookmarks: XBookmark[];
-  xBookmarksLastSyncedAt: number;
   decks: Deck[];
-  flashNotes: FlashNote[];
-  flashCards: FlashCard[];
   /** Research papers, grouped into decks (shared with flashcards) */
   papers: Paper[];
   /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey.
@@ -81,20 +66,8 @@ export interface LocalSchema {
    * that captured it rather than reaching Firestore or the iOS app.
    */
   recordings: Recording[];
-  /** Keyed by local date 'YYYY-MM-DD', pruned to SRS_DAILY_RETENTION_DAYS */
-  srsDaily: Record<string, SrsDayStats>;
   /** Time-pill totals for the one local day in `date`; hosts keyed by configured domain */
   siteTime: { date: string; hosts: Record<string, number> };
-  /** Cloud-sync control state. Device-local — never pushed to Firestore itself. */
-  sync: SyncLocalState;
-  /**
-   * Deletion tombstones for synced record collections, keyed `${collection}:${id}`
-   * → deletedAt (ms). Managed entirely by the sync layer (src/background/sync.ts);
-   * lets deletions propagate without record arrays ever holding dead entries.
-   */
-  tombstones: Record<string, number>;
-  /** Today's assistant morning briefing; regenerated when `date` rolls over */
-  assistantBriefing: { date: string; text: string } | null;
   /** Facts the user asked the assistant to remember. Device-local — not synced (v1). */
   assistantMemory: AssistantFact[];
   /** User-written instruction docs the assistant consults. Device-local — not synced (v1). */
@@ -133,24 +106,15 @@ export interface LocalSchema {
    */
   notesVault: NotesVault | null;
   /**
-   * Knowledge-graph vertices: everything consumed, durably. Deliberately absent
-   * from RECORD_COLLECTIONS — a recording node carries a recording's title, and
-   * transcripts stay on the device that captured them. Last-write-wins would
-   * also be the wrong merge: two devices prune `readingProgress` on different
-   * schedules, so their node sets are both correct and different.
-   */
-  /**
    * Reverse citation index, keyed by document. Built from bibliographies the
    * reader already parses, so it needs no network and works offline. Out of
-   * RECORD_COLLECTIONS for the same reason `graphNodes` is: it is a per-device
-   * projection of what that device has opened, and two machines holding
-   * different sets are both correct.
+   * Per-device: a projection of what this device has opened, cheap to rebuild.
    */
   docCitations: Record<string, DocCitations>;
   /**
-   * Citation expansions, keyed by the library paper they hang off. Out of
-   * RECORD_COLLECTIONS like the rest of the graph state: this is a per-device
-   * cache of what a remote index said, cheap to rebuild and wrong to merge.
+   * Citation expansions, keyed by the library paper they hang off. The `graph`
+   * in the name is a leftover — the knowledge graph is gone and this is now the
+   * reader's Related panel cache. Per-device: cheap to rebuild, wrong to merge.
    */
   graphCitations: Record<string, CitationExpansion>;
   /**
@@ -165,17 +129,6 @@ export interface LocalSchema {
 }
 
 /** Per-device cloud-sync bookkeeping (see src/background/sync.ts). */
-export interface SyncLocalState {
-  /** Firebase uid of the signed-in account; null = sync off. */
-  userId: string | null;
-  /** Signed-in account email, for display; null = signed out. */
-  email: string | null;
-  /** Last successful full push→pull reconcile (ms epoch); 0 = never. */
-  lastSyncedAt: number;
-  /** Last surfaced error message; '' = healthy. */
-  lastError: string;
-}
-
 export interface SessionSchema {
   trackedTabs: Record<number, { normalizedUrl: string; injectedAt: number }>;
   pendingResume: Record<
@@ -281,7 +234,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 19,
+  schemaVersion: 20,
   feeds: [],
   readItems: [],
   cachedItems: [],
@@ -292,42 +245,28 @@ export const DEFAULTS: LocalSchema = {
   dailyBrainDumpGate: { date: '', completedAt: null, noteId: null },
   enabledPacks: [],
   activeIntent: null,
-  parkingLot: [],
   readingProgress: {},
   streaks: { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 },
-  gym: { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' },
   gamification: {
     badges: {},
     counters: {
-      workouts: 0,
       articlesFinished: 0,
       videosFinished: 0,
       sprints: 0,
       tasksCompleted: 0,
       brainDumps: 0,
       focusBlocks: 0,
-      cardsReviewed: 0,
       freezesEarned: 0,
-      warmups: 0,
     },
   },
-  warmup: { days: {}, currentStreak: 0, longestStreak: 0, lastPlayedDate: '', bestScore: 0 },
   focusSession: null,
   bookmarks: [],
   bookmarkGroups: [],
-  xBookmarks: [],
-  xBookmarksLastSyncedAt: 0,
   decks: [],
-  flashNotes: [],
-  flashCards: [],
   papers: [],
   annotations: [],
   recordings: [],
-  srsDaily: {},
   siteTime: { date: '', hosts: {} },
-  sync: { userId: null, email: null, lastSyncedAt: 0, lastError: '' },
-  tombstones: {},
-  assistantBriefing: null,
   assistantMemory: [],
   assistantSkills: [],
   assistantAutomations: [],
@@ -493,7 +432,7 @@ export async function migrate(): Promise<void> {
   const version = (stored.schemaVersion as number | undefined) ?? 0;
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 19) return;
+  if (version >= 20) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -511,7 +450,6 @@ export async function migrate(): Promise<void> {
     const gamification = stored.gamification as Gamification;
     gamification.counters.videosFinished ??= 0;
     gamification.counters.focusBlocks ??= 0;
-    gamification.counters.cardsReviewed ??= 0;
     await chrome.storage.local.set({ gamification });
   }
 
@@ -586,7 +524,62 @@ export async function migrate(): Promise<void> {
     await chrome.storage.local.set({ xBookmarks: [], xBookmarksLastSyncedAt: 0 });
   }
 
-  await chrome.storage.local.set({ schemaVersion: 19 });
+  if (version < 20) await migrateToV20();
+
+  await chrome.storage.local.set({ schemaVersion: 20 });
+}
+
+/**
+ * Every key belonging to a feature that has been cut. Removing them is not
+ * cosmetic: `getLocal` merges DEFAULTS over what is stored, so an orphaned key
+ * sits in quota forever, and `flashCards`/`recordings`-sized values are not
+ * small. Settings need an explicit delete too — patchSettings writes the whole
+ * merged object, so a dropped field stays on disk for anyone who ever opened
+ * Settings, and changing DEFAULT_SETTINGS alone never reaches them.
+ */
+const V20_DEAD_KEYS = [
+  // Cloud sync + iOS
+  'sync',
+  'tombstones',
+  // Flashcards / SRS (decks stay — papers live in them)
+  'flashCards',
+  'flashNotes',
+  'srsDaily',
+  // Knowledge graph
+  'graphNodes',
+  'graphView',
+  'graphVisible',
+  // alphaXiv
+  'alphaxiv',
+  // Gym, warm-up, parking lot, X bookmarks
+  'gym',
+  'warmup',
+  'parkingLot',
+  'xBookmarks',
+  'xBookmarksLastSyncedAt',
+  // Wake word / briefing
+  'assistantBriefing',
+];
+
+const V20_DEAD_SETTINGS = [
+  'dashboardMode',
+  'gymWeeklyTarget',
+  'gymReminderTime',
+  'assistantWakeWordEnabled',
+  'ollamaBaseUrl',
+  'ollamaModel',
+];
+
+async function migrateToV20(): Promise<void> {
+  await chrome.storage.local.remove(V20_DEAD_KEYS);
+  // Read fresh rather than from the `stored` snapshot at the top of migrate():
+  // that snapshot predates the version < 1 branch's own write.
+  const { settings } = await chrome.storage.local.get('settings');
+  if (settings && typeof settings === 'object') {
+    const next = { ...(settings as Record<string, unknown>) };
+    for (const key of V20_DEAD_SETTINGS) delete next[key];
+    await chrome.storage.local.set({ settings: next });
+  }
 }
 
 export function v18EnabledPacks(input: {
@@ -830,7 +823,6 @@ export function seedTimestamps(stored: Record<string, unknown>): number[] {
   for (const n of (stored.notes as BrainDumpNote[] | undefined) ?? []) push(n.createdAt, n.structuredAt);
   for (const b of (stored.bookmarks as BookmarkLink[] | undefined) ?? []) push(b.createdAt);
   for (const a of (stored.annotations as Annotation[] | undefined) ?? []) push(a.createdAt);
-  for (const n of (stored.flashNotes as FlashNote[] | undefined) ?? []) push(n.createdAt);
   for (const p of (stored.papers as Paper[] | undefined) ?? []) push(p.addedAt, p.lastReadAt);
   for (const p of Object.values((stored.readingProgress as Record<string, AnyProgress>) ?? {})) {
     push(p.firstOpenedAt, p.completedAt);

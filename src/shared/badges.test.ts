@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { BADGES, type StatsSnapshot } from './badges';
 
 const ZERO: StatsSnapshot = {
-  workouts: 0,
-  gymWeekStreak: 0,
   articlesFinished: 0,
   videosFinished: 0,
   readingStreak: 0,
@@ -11,18 +9,11 @@ const ZERO: StatsSnapshot = {
   tasksCompleted: 0,
   brainDumps: 0,
   focusBlocks: 0,
-  cardsReviewed: 0,
   freezesEarned: 0,
-  warmups: 0,
 };
 
 // [badgeId, snapshot field, threshold]
 const THRESHOLDS: [string, keyof StatsSnapshot, number][] = [
-  ['first-workout', 'workouts', 1],
-  ['gym-10', 'workouts', 10],
-  ['gym-50', 'workouts', 50],
-  ['gym-streak-4', 'gymWeekStreak', 4],
-  ['gym-streak-12', 'gymWeekStreak', 12],
   ['first-article', 'articlesFinished', 1],
   ['articles-10', 'articlesFinished', 10],
   ['articles-50', 'articlesFinished', 50],
@@ -37,7 +28,6 @@ const THRESHOLDS: [string, keyof StatsSnapshot, number][] = [
   ['focus-25', 'focusBlocks', 25],
   ['focus-100', 'focusBlocks', 100],
   ['tasks-50', 'tasksCompleted', 50],
-  ['cards-100', 'cardsReviewed', 100],
   ['dumps-10', 'brainDumps', 10],
   ['freezes-10', 'freezesEarned', 10],
 ];

@@ -1,6 +1,6 @@
 import { executeTool, type PlanStepOutcome } from '../shared/ai/assistant';
 import { getLocal, type LocalSchema } from '../shared/storage';
-import { RECORD_COLLECTIONS, type RecordCollection } from '../shared/sync/collections';
+import { RECORD_COLLECTIONS, type RecordCollection } from '../shared/records';
 import type { AgentProposal } from '../shared/types';
 import { recordEntrySafe } from './journal';
 import { withLock } from './runLock';
@@ -11,7 +11,7 @@ import { withLock } from './runLock';
  * can't interleave), and each precondition is re-checked against live
  * storage at apply time — a record edited or deleted since the proposer's
  * snapshot skips as stale instead of clobbering the user's change.
- * Reuses the sync layer's updatedAt/tombstone conventions.
+ * Staleness is the record's own updatedAt/deletedAt (see RecordMeta).
  */
 
 type StoredRecord = { id: string; updatedAt?: number; deletedAt?: number | null };
@@ -23,13 +23,7 @@ async function checkPrecondition(
     return { ok: true }; // unknown collection — nothing to check against
   }
   const collection = pre.collection as RecordCollection & keyof LocalSchema;
-  const [data, { tombstones }] = await Promise.all([
-    getLocal(collection),
-    getLocal('tombstones'),
-  ]);
-  if (tombstones[`${pre.collection}:${pre.id}`]) {
-    return { ok: false, reason: 'stale — item was deleted' };
-  }
+  const data = await getLocal(collection);
   const list = data[collection] as unknown as StoredRecord[];
   const record = list.find((r) => r.id === pre.id);
   if (!record || record.deletedAt) {

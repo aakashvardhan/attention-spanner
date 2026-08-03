@@ -8,14 +8,12 @@ import type {
   AssistantFact,
   FeedItem,
   Gamification,
-  GymState,
   JournalDay,
   Paper,
   Settings,
   Streaks,
   Task,
 } from '../types';
-import { countInWeek, weekKey } from '../week';
 import { journalContextLines } from './journal';
 
 /**
@@ -30,7 +28,6 @@ export const MAX_CONTEXT_CHARS = 3000;
 export interface AssistantContextData {
   tasks: Task[];
   streaks: Streaks;
-  gym: GymState;
   gamification: Gamification;
   papers: Paper[];
   siteTime: LocalSchema['siteTime'];
@@ -104,17 +101,10 @@ export function buildDataContext(data: AssistantContextData, now = new Date()): 
     );
   }
 
-  const week = weekKey(now);
-  lines.push(
-    `Gym: ${countInWeek(data.gym.checkins, week)}/${data.settings.gymWeeklyTarget} sessions this week` +
-      `${today in data.gym.checkins ? ' (checked in today)' : ''}, ` +
-      `week streak ${data.gym.currentWeekStreak} (longest ${data.gym.longestWeekStreak}).`,
-  );
-
   const c = data.gamification.counters;
   lines.push(
     `Lifetime: ${c.articlesFinished} articles, ${c.videosFinished ?? 0} videos, ` +
-      `${c.focusBlocks ?? 0} focus blocks, ${c.tasksCompleted} tasks, ${c.workouts} workouts.`,
+      `${c.focusBlocks ?? 0} focus blocks, ${c.tasksCompleted} tasks.`,
   );
 
   const reading = data.papers.filter((p) => p.status === 'reading');
@@ -173,7 +163,6 @@ export async function gatherDataContext(now = new Date()): Promise<string> {
   const data = await getLocal(
     'tasks',
     'streaks',
-    'gym',
     'gamification',
       'papers',
     'siteTime',

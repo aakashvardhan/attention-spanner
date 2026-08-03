@@ -1,5 +1,5 @@
-import type { DayStats, Gamification, GymState, Streaks } from '../types';
-import { countInWeek, weekDates } from '../week';
+import type { DayStats, Gamification, Streaks } from '../types';
+import { weekDates } from '../week';
 import type { Journal } from './journal';
 import { formatLooseEnds, type LooseEnd } from './looseEnds';
 
@@ -27,8 +27,6 @@ export interface WeekSummary {
   readingMinutes: number;
   sprints: number;
   tasksCompleted: number;
-  gymSessions: number;
-  gymTarget: number;
   /** Actions the assistant applied on the user's behalf */
   actionsRun: number;
   /** Reflections the user wrote at close-out, oldest first */
@@ -39,9 +37,7 @@ export interface WeekSummary {
 export interface WeekReviewData {
   journal: Journal;
   streaks: Streaks;
-  gym: GymState;
   gamification: Gamification;
-  gymWeeklyTarget: number;
   looseEnds: LooseEnd[];
 }
 
@@ -61,8 +57,6 @@ export function buildWeekSummary(data: WeekReviewData, key: string): WeekSummary
     readingMinutes: 0,
     sprints: 0,
     tasksCompleted: 0,
-    gymSessions: countInWeek(data.gym.checkins, key),
-    gymTarget: data.gymWeeklyTarget,
     actionsRun: 0,
     reflections: [],
     looseEnds: data.looseEnds,
@@ -98,7 +92,6 @@ export function formatWeekSummary(summary: WeekSummary): string {
     `Priorities: ${summary.prioritiesDone} done of ${summary.prioritiesPlanned} planned.`,
     `Reading: ${summary.readingMinutes} minutes across ${summary.sprints} sprints.`,
     `Tasks completed: ${summary.tasksCompleted}. Assistant actions run: ${summary.actionsRun}.`,
-    `Gym: ${summary.gymSessions}/${summary.gymTarget} sessions.`,
   ];
   if (summary.reflections.length > 0) {
     lines.push('What they wrote at close-out:', ...summary.reflections.map((r) => `- ${r}`));
@@ -128,8 +121,7 @@ export function templateReview(summary: WeekSummary): string {
   }
 
   parts.push(
-    `${summary.readingMinutes} minutes read, ${summary.tasksCompleted} tasks done, ` +
-      `gym ${summary.gymSessions}/${summary.gymTarget}.`,
+    `${summary.readingMinutes} minutes read, ${summary.tasksCompleted} tasks done, `
   );
 
   if (summary.looseEnds.length > 0) {

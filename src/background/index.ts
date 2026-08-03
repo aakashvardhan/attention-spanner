@@ -35,10 +35,6 @@ import { maybeInterceptPdf, maybeInterceptPdfResponse } from './pdfIntercept';
 import { reconcileRecordings, refreshTimedtextTees, registerTimedtextTee } from './recordings';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
-import { initSync, onLocalChanged } from './sync';
-// Side-effect import: registers the Firestore transport + auth listener on every
-// service-worker instantiation (guarded by whether firebaseConfig is filled in).
-import './firestoreBackend';
 import { dispatch, handleMessage } from './router';
 
 /**
@@ -129,8 +125,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await refreshFeeds();
     // This reload just orphaned every content script already running
     await reinjectIntoOpenTabs();
-    // Resume cloud sync if signed in (inert until a transport is registered)
-    await initSync();
     await registerTimedtextTee();
   })();
 });
@@ -168,8 +162,6 @@ chrome.runtime.onStartup.addListener(() => {
   // Restored session tabs come back without their content scripts
   void reinjectIntoOpenTabs();
   void refreshCalendar();
-  // Resume cloud sync if signed in (inert until a transport is registered)
-  void initSync();
 });
 
 chrome.alarms.onAlarm.addListener(handleAlarm);
@@ -218,11 +210,8 @@ chrome.commands.onCommand.addListener((command, tab) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
 
-  // Mirror changed collections to the cloud (no-op until sync is running)
-  onLocalChanged(changes);
-
   // Badge is derived state — recompute whenever its inputs change
-  // (focusSession flips it between countdown and unread-count modes)
+  // (focusSession flips it between countdown and resumable-count modes)
   if (changes.readingProgress || changes.papers || changes.focusSession) {
     void updateBadge();
   }
@@ -236,8 +225,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (
     changes.tasks ||
     changes.notes ||
-    changes.flashCards ||
-    changes.flashNotes ||
     changes.decks ||
     changes.papers ||
     changes.streaks ||

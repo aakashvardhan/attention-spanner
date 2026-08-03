@@ -7,7 +7,7 @@ import {
   forwardMonthWindow,
   type DayActivityParts,
 } from './activity';
-import type { DayStats, SrsDayStats } from './types';
+import type {DayStats} from './types';
 
 const ZERO: DayActivityParts = {
   minutes: 0,
@@ -15,8 +15,6 @@ const ZERO: DayActivityParts = {
   articles: 0,
   videos: 0,
   focusBlocks: 0,
-  gym: false,
-  cardsReviewed: 0,
   tasks: 0,
 };
 
@@ -27,15 +25,12 @@ describe('dayActivityScore', () => {
     expect(dayActivityScore({ ...ZERO, videos: 2 })).toBe(2);
     expect(dayActivityScore({ ...ZERO, sprints: 1 })).toBe(1);
     expect(dayActivityScore({ ...ZERO, focusBlocks: 2 })).toBe(2);
-    expect(dayActivityScore({ ...ZERO, gym: true })).toBe(1);
   });
 
-  it('normalizes minutes at 15 per point and reviews at 10 per point', () => {
+  it('normalizes minutes at 15 per point', () => {
     expect(dayActivityScore({ ...ZERO, minutes: 14 })).toBe(0);
     expect(dayActivityScore({ ...ZERO, minutes: 15 })).toBe(1);
     expect(dayActivityScore({ ...ZERO, minutes: 45 })).toBe(3);
-    expect(dayActivityScore({ ...ZERO, cardsReviewed: 9 })).toBe(0);
-    expect(dayActivityScore({ ...ZERO, cardsReviewed: 10 })).toBe(1);
   });
 
   it('sums a combined day', () => {
@@ -46,11 +41,9 @@ describe('dayActivityScore', () => {
         articles: 1,
         videos: 0,
         focusBlocks: 1,
-        gym: true,
-        cardsReviewed: 20,
         tasks: 3,
       }),
-    ).toBe(2 + 1 + 1 + 1 + 1 + 2 + 3);
+    ).toBe(2 + 1 + 1 + 1 + 3);
   });
 });
 
@@ -92,11 +85,9 @@ describe('formatDayTooltip', () => {
       tasks: 1,
       minutes: 25.4,
       sprints: 2,
-      gym: true,
-      cardsReviewed: 12,
     };
     expect(formatDayTooltip(date, parts, dayActivityScore(parts))).toBe(
-      'Mon, Jul 6 — 1 task · 25 min · 2 sprints · gym · 12 reviews',
+      'Mon, Jul 6 — 1 task · 25 min · 2 sprints',
     );
   });
 });
@@ -111,7 +102,7 @@ describe('buildActivityDays', () => {
   });
 
   it('builds 53 Monday-start columns of 7 ending in today’s week', () => {
-    const model = buildActivityDays({}, {}, {}, TODAY);
+    const model = buildActivityDays({}, TODAY);
     expect(model.weeks).toHaveLength(53);
     expect(model.weeks.every((w) => w.length === 7)).toBe(true);
     const last = model.weeks[52];
@@ -130,25 +121,22 @@ describe('buildActivityDays', () => {
         '2026-07-06': day({ tasksCompleted: 2, minutes: 30 }), // today: 2 + 2
         '2026-06-30': day({ sprints: 1 }), // previous week, Tuesday
       },
-      { '2026-07-06': Date.now() }, // gym today: +1
-      { '2026-06-30': { reviews: { d1: 7, d2: 5 }, newIntroduced: {} } as SrsDayStats }, // +1
       TODAY,
     );
     const todayCell = model.weeks[52][0];
-    expect(todayCell.score).toBe(5);
+    expect(todayCell.score).toBe(4);
     const tuesday = model.weeks[51][1];
     expect(tuesday.date).toBe('2026-06-30');
-    expect(tuesday.score).toBe(2); // 1 sprint + 12 reviews
-    expect(model.maxScore).toBe(5);
-    expect(model.totalActivities).toBe(7);
+    expect(tuesday.score).toBe(1); // 1 sprint
+    expect(model.maxScore).toBe(4);
+    expect(model.totalActivities).toBe(5);
     expect(todayCell.level).toBe(4);
-    expect(tuesday.level).toBe(2); // ceil(2/5*4) = 2
+    expect(tuesday.level).toBe(1); // ceil(1/4*4) = 1
     expect(tuesday.tooltip).toContain('1 sprint');
-    expect(tuesday.tooltip).toContain('12 reviews');
   });
 
   it('produces ~13 month labels in order without collisions', () => {
-    const model = buildActivityDays({}, {}, {}, TODAY);
+    const model = buildActivityDays({}, TODAY);
     const labels = model.monthLabels;
     expect(labels.length).toBeGreaterThanOrEqual(12);
     expect(labels.length).toBeLessThanOrEqual(13);
@@ -159,7 +147,7 @@ describe('buildActivityDays', () => {
   });
 
   it('an all-zero year yields level 0 everywhere and zero total', () => {
-    const model = buildActivityDays({}, {}, {}, TODAY);
+    const model = buildActivityDays({}, TODAY);
     expect(model.totalActivities).toBe(0);
     expect(model.weeks.flat().every((d) => d.level === 0)).toBe(true);
   });
@@ -173,7 +161,7 @@ describe('forwardMonthWindow', () => {
     expect(startKey).toBe('2026-06-29'); // Monday of the week containing Jul 1
     expect(weeks).toBe(14); // through the Sunday after Sep 30
 
-    const model = buildActivityDays({}, {}, {}, TODAY, weeks, startKey);
+    const model = buildActivityDays({}, TODAY, weeks, startKey);
     expect(model.weeks).toHaveLength(14);
     expect(model.weeks[0][0].date).toBe('2026-06-29');
     expect(model.monthLabels.map((l) => l.label)).toEqual(['Jul', 'Aug', 'Sep']);
@@ -181,7 +169,7 @@ describe('forwardMonthWindow', () => {
 
   it('marks days after today as future and keeps today lit', () => {
     const { startKey, weeks } = forwardMonthWindow(TODAY, 3);
-    const model = buildActivityDays({}, {}, {}, TODAY, weeks, startKey);
+    const model = buildActivityDays({}, TODAY, weeks, startKey);
     const byDate = Object.fromEntries(model.weeks.flat().map((d) => [d.date, d]));
     expect(byDate[TODAY].future).toBe(false);
     expect(byDate['2026-07-07'].future).toBe(true);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newPaper, newTask } from './recordShapes';
+import { newPaper, newTask } from './records';
 
 /**
  * These shapes are the contract between the extension's writers and the

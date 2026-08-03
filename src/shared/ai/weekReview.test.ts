@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DayPlan, Gamification, GymState, Streaks } from '../types';
+import type { DayPlan, Gamification, Streaks } from '../types';
 import type { Journal } from './journal';
 import type { LooseEnd } from './looseEnds';
 import {
@@ -37,22 +37,16 @@ function streaks(): Streaks {
   return { currentStreak: 0, longestStreak: 0, lastQualifiedDate: '', daily: {}, freezeTokens: 0 };
 }
 
-function gym(): GymState {
-  return { checkins: {}, currentWeekStreak: 0, longestWeekStreak: 0, lastQualifiedWeek: '' };
-}
-
 function gamification(): Gamification {
   return {
     badges: {},
     counters: {
-      workouts: 0,
       articlesFinished: 0,
       videosFinished: 0,
       sprints: 0,
       tasksCompleted: 0,
       brainDumps: 0,
       focusBlocks: 0,
-      cardsReviewed: 0,
       freezesEarned: 0,
     },
   };
@@ -62,9 +56,7 @@ function data(overrides: Partial<WeekReviewData> = {}): WeekReviewData {
   return {
     journal: {},
     streaks: streaks(),
-    gym: gym(),
     gamification: gamification(),
-    gymWeeklyTarget: 3,
     looseEnds: [],
     ...overrides,
   };
@@ -132,14 +124,10 @@ describe('buildWeekSummary', () => {
     const s = streaks();
     s.daily['2026-07-20'] = { minutes: 30.4, sprints: 2, articlesFinished: 1, tasksCompleted: 3 };
     s.daily['2026-07-23'] = { minutes: 10.2, sprints: 1, articlesFinished: 0, tasksCompleted: 1 };
-    const g = gym();
-    g.checkins = { '2026-07-21': 1, '2026-07-24': 1 };
-    const summary = buildWeekSummary(data({ streaks: s, gym: g }), KEY);
+    const summary = buildWeekSummary(data({ streaks: s }), KEY);
     expect(summary.readingMinutes).toBe(40); // 30 + 10, each rounded
     expect(summary.sprints).toBe(3);
     expect(summary.tasksCompleted).toBe(4);
-    expect(summary.gymSessions).toBe(2);
-    expect(summary.gymTarget).toBe(3);
   });
 });
 

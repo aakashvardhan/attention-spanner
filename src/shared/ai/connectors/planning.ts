@@ -40,8 +40,8 @@ async function loadLooseEnds() {
 /** Build this week's review, store it, return the text. */
 export async function runWeeklyReview(now = new Date()): Promise<string> {
   const key = weekKey(now);
-  const [{ assistantJournal, streaks, gym, gamification }, settings, looseEnds] = await Promise.all([
-    getLocal('assistantJournal', 'streaks', 'gym', 'gamification'),
+  const [{ assistantJournal, streaks, gamification }, settings, looseEnds] = await Promise.all([
+    getLocal('assistantJournal', 'streaks', 'gamification'),
     getSettings(),
     loadLooseEnds(),
   ]);
@@ -50,9 +50,7 @@ export async function runWeeklyReview(now = new Date()): Promise<string> {
     {
       journal: assistantJournal,
       streaks,
-      gym,
       gamification,
-      gymWeeklyTarget: settings.gymWeeklyTarget,
       looseEnds,
     },
     key,

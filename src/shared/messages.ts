@@ -2,7 +2,6 @@ import type { CalendarEvent } from './calendar';
 import type { AssistantTurn } from './ai/assistantTypes';
 import type { DocCitations } from './docCitations';
 import type { LiveMode, LivePace } from './live';
-import type { SyncLocalState } from './storage';
 import type {
   AgentProposal,
   Annotation,
@@ -125,10 +124,6 @@ export type Message =
   | { type: 'CAL_REFRESH' }
   | { type: 'CAL_CREATE_EVENT'; title: string; startMs: number; endMs: number }
   | { type: 'CAL_LIST_EVENTS'; startMs: number; endMs: number }
-  | { type: 'SYNC_STATUS' }
-  | { type: 'SYNC_SIGN_IN'; email: string; password: string }
-  | { type: 'SYNC_SIGN_UP'; email: string; password: string }
-  | { type: 'SYNC_SIGN_OUT' }
   // Offscreen document ↔ service worker
   | {
       type: 'PROXY_STORAGE';
@@ -235,14 +230,6 @@ export type Message =
        */
       doc?: { url: string; title: string };
     }
-  /** Rebuild the graph nodes that mirror papers, bookmarks and recordings. */
-  /**
-   * Write topic labels onto graph nodes. Batched — one message per model call —
-   * and routed through the worker rather than written from the page: three
-   * other writers touch `graphNodes`, and a page-side read-modify-write of the
-   * whole collection would silently drop concurrent tracker writes.
-   */
-  /** Replace a node's topics with labels the user explicitly chose. */
   /**
    * Record which works a document cites, so "what links here" can be answered
    * from documents the user has actually opened. Sent once per PDF open, after
@@ -331,10 +318,6 @@ export interface MessageResponses {
   CAL_REFRESH: { ok: boolean; error?: string };
   CAL_CREATE_EVENT: { ok: boolean; event?: CalendarEvent; error?: string };
   CAL_LIST_EVENTS: { ok: boolean; events?: CalendarEvent[]; error?: string };
-  SYNC_STATUS: SyncLocalState;
-  SYNC_SIGN_IN: { ok: boolean; error?: string };
-  SYNC_SIGN_UP: { ok: boolean; error?: string };
-  SYNC_SIGN_OUT: { ok: boolean; error?: string };
   PROXY_STORAGE: Record<string, unknown>;
   ASSISTANT_APPEND_TURN: { ok: boolean };
 ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };

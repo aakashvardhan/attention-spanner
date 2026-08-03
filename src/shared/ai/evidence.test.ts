@@ -33,12 +33,6 @@ function emptyData(): EvidenceData {
       daily: {},
       freezeTokens: 0,
     },
-    gym: {
-      checkins: {},
-      currentWeekStreak: 0,
-      longestWeekStreak: 0,
-      lastQualifiedWeek: '',
-    },
     calendar: structuredClone(CALENDAR_DEFAULTS),
     assistantMemory: [],
     assistantProfile: { text: '', updatedAt: 0 },

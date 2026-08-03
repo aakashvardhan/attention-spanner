@@ -1,11 +1,15 @@
 /**
- * Cloud-sync metadata mixed into every user-authored, synced record.
- * Optional so pre-sync (schemaVersion < 6) records typecheck; the v6 migration
- * backfills `updatedAt` (from createdAt) and leaves `deletedAt` unset (null).
- * Merge is last-write-wins by `updatedAt`; a set `deletedAt` is a tombstone
- * that propagates deletes and wins ties. See src/shared/sync/merge.ts.
+ * Versioning metadata on every user-authored record.
+ *
+ * This arrived for cloud sync, which is gone, but it did not leave with it:
+ * agentRuns.ts reads `updatedAt` to detect a record that changed under a
+ * pending agent proposal, and `deletedAt` to detect one that was removed. That
+ * is optimistic concurrency, not bookkeeping for a transport.
+ *
+ * Optional so pre-v6 records still typecheck; the v6 migration backfilled
+ * `updatedAt` from createdAt and left `deletedAt` unset.
  */
-export interface SyncMeta {
+export interface RecordMeta {
   updatedAt?: number;
   deletedAt?: number | null;
 }
@@ -26,7 +30,7 @@ export interface FeedItem {
   categories?: string[];
 }
 
-export interface Task extends SyncMeta {
+export interface Task extends RecordMeta {
   id: string;
   text: string;
   createdAt: number;
@@ -189,7 +193,7 @@ export interface WeekReview {
  * Invariant: `encRaw` present ⇒ `rawText` is '', `bullets` is [] and every
  * `proposedTasks[i].text` is ''.
  */
-export interface BrainDumpNote extends SyncMeta {
+export interface BrainDumpNote extends RecordMeta {
   id: string;
   rawText: string;
   /** Sealed rawText. Presence of this field is what marks a note encrypted. */
@@ -353,7 +357,7 @@ export interface Settings {
 /** A deck is dedicated to one purpose — flashcards or research papers. */
 export type DeckKind = 'flashcards' | 'papers';
 
-export interface Deck extends SyncMeta {
+export interface Deck extends RecordMeta {
   id: string;
   name: string;
   createdAt: number;
@@ -363,7 +367,7 @@ export interface Deck extends SyncMeta {
 
 export type FlashNoteType = 'basic' | 'cloze';
 
-export interface FlashNote extends SyncMeta {
+export interface FlashNote extends RecordMeta {
   id: string;
   deckId: string;
   type: FlashNoteType;
@@ -380,7 +384,7 @@ export interface FlashNote extends SyncMeta {
 export type CardPhase = 'new' | 'learning' | 'review' | 'relearning';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
-export interface FlashCard extends SyncMeta {
+export interface FlashCard extends RecordMeta {
   /** `${noteId}#${variant}` — deterministic, survives note edits */
   id: string;
   noteId: string;
@@ -417,7 +421,7 @@ export interface SrsDayStats {
 
 export type PaperStatus = 'to-read' | 'reading' | 'read';
 
-export interface Paper extends SyncMeta {
+export interface Paper extends RecordMeta {
   id: string;
   /** Reuses Deck.id — the same decks as flashcards */
   deckId: string;
@@ -470,7 +474,7 @@ export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadA
    a W3C TextQuoteSelector (quote plus surrounding context) resolved against
    the extracted blocks at load time.
 
-   Local-only, but id-addressable + SyncMeta so per-record sync can be added. */
+   Local-only, id-addressable and versioned like every other record. */
 
 export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
 
@@ -504,7 +508,7 @@ export type AnnotationAnchor =
       suffix: string;
     };
 
-export interface Annotation extends SyncMeta {
+export interface Annotation extends RecordMeta {
   id: string;
   /** Stable doc identity: paperMatchKey(url) ?? normalized url */
   docKey: string;
@@ -544,13 +548,13 @@ export function isTextAnchored(a: Annotation): a is TextAnchoredAnnotation {
   return a.anchor.kind === 'text';
 }
 
-export interface BookmarkGroup extends SyncMeta {
+export interface BookmarkGroup extends RecordMeta {
   id: string;
   name: string;
   createdAt: number;
 }
 
-export interface BookmarkLink extends SyncMeta {
+export interface BookmarkLink extends RecordMeta {
   id: string;
   url: string;
   title: string;
@@ -613,18 +617,14 @@ export interface WarmupState {
 
 /** Survive pruning of readingProgress/streaks.daily/gym.checkins — badge math uses these */
 export interface LifetimeCounters {
-  workouts: number;
   articlesFinished: number;
   videosFinished: number;
   sprints: number;
   tasksCompleted: number;
   brainDumps: number;
   focusBlocks: number;
-  cardsReviewed: number;
   /** Freeze tokens banked from the variable-ratio drop — read with `?? 0` */
   freezesEarned?: number;
-  /** Added with the warm-up card — read with `?? 0` */
-  warmups?: number;
 }
 
 /**

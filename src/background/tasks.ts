@@ -2,7 +2,7 @@ import { rollFreeze } from '../shared/chests';
 import { COMPLETED_TASK_TTL_MS, NOTIFICATION_IDS } from '../shared/constants';
 import { localDate } from '../shared/format';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
-import { newTask } from '../shared/sync/recordShapes';
+import { newTask } from '../shared/records';
 import type { Task } from '../shared/types';
 import { grantFreezeToken, recordEvent, revokeEvent } from './gamification';
 import { recordTaskToggled } from './streaks';

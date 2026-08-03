@@ -8,7 +8,7 @@ const store: Record<string, unknown> = {};
 vi.mock('../shared/storage', () => ({
   getLocal: async (...keys: string[]) => {
     const out: Record<string, unknown> = {};
-    for (const key of keys) out[key] = store[key] ?? (key === 'tombstones' ? {} : []);
+    for (const key of keys) out[key] = store[key] ?? [];
     return out;
   },
 }));
@@ -86,7 +86,7 @@ describe('applyProposals', () => {
     expect(run.outcomes[1].status).toBe('done'); // later steps still run
   });
 
-  it('skips when the target is gone or tombstoned', async () => {
+  it('skips when the target is gone or soft-deleted', async () => {
     store.tasks = [];
     const gone = await applyProposals(
       [
@@ -101,8 +101,9 @@ describe('applyProposals', () => {
     );
     expect(gone.outcomes[0]).toEqual({ status: 'skipped', detail: 'stale — item no longer exists' });
 
-    store.tasks = [{ id: 't1', text: 'x', updatedAt: 500 }];
-    store.tombstones = { 'tasks:t1': 999 };
+    // Present in the list but carrying deletedAt — the record-level tombstone
+    // that outlived the sync layer's separate tombstone map.
+    store.tasks = [{ id: 't1', text: 'x', updatedAt: 500, deletedAt: 999 }];
     const tombstoned = await applyProposals(
       [
         {
@@ -114,7 +115,10 @@ describe('applyProposals', () => {
       ],
       [tool()],
     );
-    expect(tombstoned.outcomes[0]).toEqual({ status: 'skipped', detail: 'stale — item was deleted' });
+    expect(tombstoned.outcomes[0]).toEqual({
+      status: 'skipped',
+      detail: 'stale — item no longer exists',
+    });
   });
 
   it('stops at the first failure and skips the rest', async () => {

@@ -21,14 +21,12 @@ function dateFromKey(key: string): Date {
 /** Rolling 53-week contribution calendar ending in the current week. */
 export const ActivityCalendar = memo(function ActivityCalendar() {
   const [streaks] = useStorageValue('streaks');
-  const [gym] = useStorageValue('gym');
-  const [srsDaily] = useStorageValue('srsDaily');
   const [selectedDay, setSelectedDay] = useState<ActivityDay | null>(null);
 
   const todayKey = localDate();
   const model = useMemo(
-    () => buildActivityDays(streaks.daily, gym.checkins, srsDaily, todayKey),
-    [streaks, gym, srsDaily, todayKey],
+    () => buildActivityDays(streaks.daily, todayKey),
+    [streaks, todayKey],
   );
   const prime = useMemo(() => buildPrimeTime(streaks.daily, new Date()), [streaks]);
   const monthPrefix = todayKey.slice(0, 7);

@@ -6,7 +6,6 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, getLocal, patchSettings, setLocal } from '../../shared/storage';
 import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
-import { AccountSection } from './AccountSection';
 import { AssistantSection } from './AssistantSection';
 import { CalendarSection } from './CalendarSection';
 import { GmailSection } from './GmailSection';
@@ -469,7 +468,6 @@ export function Options() {
 
         <GmailSection />
 
-        <AccountSection />
 
         <PapersSection />
 

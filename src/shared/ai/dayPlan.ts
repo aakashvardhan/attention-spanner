@@ -181,11 +181,8 @@ async function loadContextData(): Promise<AssistantContextData> {
   const data = await getLocal(
     'tasks',
     'streaks',
-    'gym',
-    'gamification',
-    'flashCards',
-    'srsDaily',
-    'papers',
+      'gamification',
+      'papers',
     'siteTime',
     'readingProgress',
     'calendar',

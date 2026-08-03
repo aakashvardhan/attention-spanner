@@ -3,7 +3,6 @@ import { localDate } from '../format';
 import { getLocal, getSettings } from '../storage';
 import type { LocalSchema } from '../storage';
 import type { AssistantFact, Settings } from '../types';
-import { countInWeek, weekKey } from '../week';
 import { hash32 } from './cache';
 import { gatherLibrary, hitToSource } from './connectors/library';
 import { searchLibrary, tokenize, type LibraryHit } from './library';
@@ -12,7 +11,6 @@ import type { SourceRef } from './tools';
 export type EvidenceDomain =
   | 'tasks'
   | 'streak'
-  | 'gym'
   | 'flashcards'
   | 'calendar'
   | 'memory'
@@ -44,7 +42,6 @@ export interface EvidenceBundle {
 export interface EvidenceData {
   tasks: LocalSchema['tasks'];
   streaks: LocalSchema['streaks'];
-  gym: LocalSchema['gym'];
   calendar: LocalSchema['calendar'];
   assistantMemory: LocalSchema['assistantMemory'];
   assistantProfile: LocalSchema['assistantProfile'];
@@ -61,8 +58,6 @@ export interface EvidenceData {
 const DOMAIN_RULES: Array<[EvidenceDomain, RegExp]> = [
   ['tasks', /\b(task|tasks|todo|to-do|priority|priorities|need to do|open item)/i],
   ['streak', /\b(streak|read today|reading today|minutes read|sprint)/i],
-  ['gym', /\b(gym|workout|lift|training|exercise)/i],
-  ['flashcards', /\b(flash ?cards?|anki|review cards?|cards? due|srs)/i],
   ['calendar', /\b(calendar|agenda|schedule|meeting|event|free time|busy|available)/i],
   ['memory', /\b(remember|know about me|about me|preference|advisor|supervisor)/i],
   ['library', /\b(highlight|note|wrote|written|read about|saved|marked|annotat|quote|lecture|recording)/i],
@@ -189,14 +184,6 @@ export function buildEvidenceBundle(
     push({ kind: 'metric', title: 'Reading activity', url: '', snippet: text }, text);
   }
 
-  if (domains.includes('gym')) {
-    const sessions = countInWeek(data.gym.checkins, weekKey(now));
-    const text =
-      `Gym: ${sessions}/${data.settings.gymWeeklyTarget} sessions this week; ` +
-      `week streak ${data.gym.currentWeekStreak}; longest ${data.gym.longestWeekStreak}.`;
-    push({ kind: 'metric', title: 'Gym activity', url: '', snippet: text }, text);
-  }
-
   if (domains.includes('calendar')) {
     const lines = data.calendar.connected
       ? calendarContextLines(data.calendar.events, now)
@@ -319,11 +306,7 @@ export function buildEvidenceBundle(
           : open.slice(0, 10).map((task) => `- ${task.text}`).join('\n');
     } else if (domain === 'streak') {
       exactAnswer = evidence[0]?.text;
-    } else if (domain === 'gym') {
-      exactAnswer = evidence[0]?.text;
-    } else if (domain === 'flashcards') {
-      exactAnswer = evidence[0]?.text;
-    } else if (domain === 'calendar' && /\b(today|agenda|calendar)\b/i.test(query)) {
+            } else if (domain === 'calendar' && /\b(today|agenda|calendar)\b/i.test(query)) {
       exactAnswer = evidence[0]?.text;
     } else if (
       domain === 'memory' &&
@@ -359,8 +342,7 @@ export async function gatherEvidence(query: string, now = new Date()): Promise<E
     getLocal(
       'tasks',
       'streaks',
-      'gym',
-            'calendar',
+              'calendar',
       'assistantMemory',
       'assistantProfile',
       'papers',

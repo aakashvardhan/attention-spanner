@@ -4,8 +4,6 @@
  */
 
 export interface StatsSnapshot {
-  workouts: number;
-  gymWeekStreak: number;
   articlesFinished: number;
   videosFinished: number;
   readingStreak: number;
@@ -13,9 +11,7 @@ export interface StatsSnapshot {
   tasksCompleted: number;
   brainDumps: number;
   focusBlocks: number;
-  cardsReviewed: number;
   freezesEarned: number;
-  warmups: number;
 }
 
 export interface Badge {
@@ -26,11 +22,6 @@ export interface Badge {
 }
 
 export const BADGES: readonly Badge[] = [
-  { id: 'first-workout', title: 'First Rep', description: 'Log your first workout', earned: (s) => s.workouts >= 1 },
-  { id: 'gym-10', title: 'Regular', description: 'Log 10 workouts', earned: (s) => s.workouts >= 10 },
-  { id: 'gym-50', title: 'Iron Habit', description: 'Log 50 workouts', earned: (s) => s.workouts >= 50 },
-  { id: 'gym-streak-4', title: 'Four-Week Club', description: 'Hit your gym goal 4 weeks in a row', earned: (s) => s.gymWeekStreak >= 4 },
-  { id: 'gym-streak-12', title: 'Quarter Machine', description: 'Hit your gym goal 12 weeks in a row', earned: (s) => s.gymWeekStreak >= 12 },
   { id: 'first-article', title: 'Finisher', description: 'Finish reading your first article', earned: (s) => s.articlesFinished >= 1 },
   { id: 'articles-10', title: 'Ten Down', description: 'Finish 10 articles', earned: (s) => s.articlesFinished >= 10 },
   { id: 'articles-50', title: 'Well Read', description: 'Finish 50 articles', earned: (s) => s.articlesFinished >= 50 },
@@ -45,7 +36,6 @@ export const BADGES: readonly Badge[] = [
   { id: 'focus-25', title: 'Distraction Slayer', description: 'Complete 25 focus blocks', earned: (s) => s.focusBlocks >= 25 },
   { id: 'focus-100', title: 'Deep Work', description: 'Complete 100 focus blocks', earned: (s) => s.focusBlocks >= 100 },
   { id: 'tasks-50', title: 'Task Slayer', description: 'Complete 50 tasks', earned: (s) => s.tasksCompleted >= 50 },
-  { id: 'cards-100', title: 'Century Recall', description: 'Review 100 flashcards', earned: (s) => s.cardsReviewed >= 100 },
   { id: 'dumps-10', title: 'Mind Gardener', description: 'Structure 10 brain dumps', earned: (s) => s.brainDumps >= 10 },
   { id: 'freezes-10', title: 'Lucky Streak', description: 'Bank 10 streak freezes', earned: (s) => (s.freezesEarned ?? 0) >= 10 },
 ];
