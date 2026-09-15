@@ -169,3 +169,47 @@ export function videoTitle(playerResponse: unknown): string {
   const title = (playerResponse as { videoDetails?: { title?: string } })?.videoDetails?.title;
   return typeof title === 'string' ? title.trim() : '';
 }
+
+/**
+ * Which transcript block the playhead is in, or -1 when there is no transcript.
+ *
+ * Binary search rather than a scan: this runs on every tick of the live
+ * readout, against an hour of captions. Blocks are CAPTION_GROUP_SECONDS long
+ * and contiguous, so "the last block that has started" is the answer — which
+ * also puts a playhead before the first block, or past the end, on the nearest
+ * real block instead of nowhere.
+ */
+export function segmentAt(segments: TranscriptSegment[], positionSeconds: number): number {
+  if (segments.length === 0) return -1;
+  let lo = 0;
+  let hi = segments.length - 1;
+  let found = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (segments[mid].startSec <= positionSeconds) {
+      found = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return found;
+}
+
+/** Blocks mentioning `query`, in transcript order. Substring, not BM25 — the
+ *  caller is looking for a phrase they half-remember hearing, not ranking a
+ *  corpus, and the whole haystack is one video. */
+export function searchSegments(
+  segments: TranscriptSegment[],
+  query: string,
+  limit = 5,
+): TranscriptSegment[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  const hits: TranscriptSegment[] = [];
+  for (const segment of segments) {
+    if (segment.text.toLowerCase().includes(needle)) hits.push(segment);
+    if (hits.length >= limit) break;
+  }
+  return hits;
+}

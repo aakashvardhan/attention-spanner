@@ -9,6 +9,7 @@ import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
 import { AssistantSection } from './AssistantSection';
 import { CalendarSection } from './CalendarSection';
 import { GmailSection } from './GmailSection';
+import { JobsSection } from './JobsSection';
 import { PapersSection } from './PapersSection';
 import { PrivacySection } from './PrivacySection';
 
@@ -468,6 +469,8 @@ export function Options() {
 
         <GmailSection />
 
+
+        <JobsSection />
 
         <PapersSection />
 

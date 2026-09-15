@@ -4,13 +4,25 @@ import { nextDailyOccurrence } from '../shared/week';
 import { runAutomation } from './automations';
 import { refreshCalendar } from './calendar';
 import { refreshFeeds, updateBadge } from './feeds';
+import { refreshJobs } from './jobs';
 import { handleFocusPhaseEnd } from './focus';
 import { fireScheduledTriage } from './gmailTriage';
 import { fireCalendarCheck, fireEveningCheck } from './monitor';
 import { fireNudge, isNudgeAlarm } from './nudges';
 import { finishSprint } from './streaks';
 import { showTaskDigest } from './tasks';
-import { handleDailyBrainDumpMidnight } from './dailyBrainDump';
+
+/**
+ * Alarms belonging to features that have been cut. An alarm outlives the code
+ * that created it — it survives updates and keeps waking the service worker to
+ * hit a `switch` with no matching case. Clearing by literal name on purpose:
+ * the constants these used to reference are gone.
+ */
+const RETIRED_ALARMS = ['daily-brain-dump-midnight'];
+
+export async function clearRetiredAlarms(): Promise<void> {
+  for (const name of RETIRED_ALARMS) await chrome.alarms.clear(name);
+}
 
 export async function setupRefreshAlarm(intervalMinutes?: number): Promise<void> {
   await chrome.alarms.clear(ALARMS.refreshFeeds);
@@ -24,6 +36,21 @@ export async function setupTaskReminderAlarm(intervalMinutes?: number): Promise<
   if (minutes > 0) {
     chrome.alarms.create(ALARMS.taskReminders, { periodInMinutes: minutes });
   }
+}
+
+/**
+ * Daily job refresh, offset by a random hour. The jitter is politeness rather
+ * than caution about our own load: without it every install of this extension
+ * would hit the same handful of job boards at the same wall-clock minute.
+ *
+ * No-ops with no sources configured, so it costs nothing until you add one.
+ */
+export async function setupJobsAlarm(): Promise<void> {
+  await chrome.alarms.clear(ALARMS.refreshJobs);
+  chrome.alarms.create(ALARMS.refreshJobs, {
+    delayInMinutes: Math.floor(Math.random() * 60),
+    periodInMinutes: 24 * 60,
+  });
 }
 
 export async function setupMonitorAlarms(eveningTime?: string): Promise<void> {
@@ -100,6 +127,9 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
     case ALARMS.refreshFeeds:
       void refreshFeeds();
       break;
+    case ALARMS.refreshJobs:
+      void refreshJobs();
+      break;
     case ALARMS.taskReminders:
       void showTaskDigest();
       break;
@@ -111,9 +141,6 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
       break;
     case ALARMS.focusBadgeTick:
       void updateBadge();
-      break;
-    case ALARMS.dailyBrainDumpMidnight:
-      void handleDailyBrainDumpMidnight();
       break;
     case ALARMS.calendarRefresh:
       void refreshCalendar();

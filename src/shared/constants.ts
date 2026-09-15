@@ -53,11 +53,11 @@ export const FOCUS_PRESETS = [25, 50, 90] as const;
 /** Session-rule range reserved for Focus redirects. */
 export const FOCUS_DNR_ID_BASE = 1000;
 export const FOCUS_DNR_ID_LIMIT = 2000;
-/** Persistent daily redirect + session-scoped daily unlock rule. */
+/** The retired daily gate's rules. The feature is gone; these ids survive so
+ *  removeLegacyDailyGateRule can still sweep profiles that carry them. */
 export const DAILY_GATE_DNR_ID = 900;
 export const DAILY_GATE_ALLOW_DNR_ID = 901;
 export const FOCUS_DNR_PRIORITY = 300;
-export const DAILY_BRAIN_DUMP_MIN_VISIBLE_CHARS = 20;
 export const BLOCKED_PAGE_PATH = 'src/pages/blocked/index.html';
 export const HOLD_TO_QUIT_MS = 5000;
 export const FLOWTUNES_URL = 'https://www.flowtunes.app/';
@@ -71,6 +71,29 @@ export const MAX_FLASHCARDS = 2000;
 export const SRS_DAILY_RETENTION_DAYS = 365;
 /** The new-tab dashboard — the "main" extension page the sub-pages link back to */
 export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
+
+/* Job search. The extension has unlimitedStorage, so these caps are about
+   keeping the board scannable and a run bounded, not about quota. */
+export const JOBS_PAGE_PATH = 'src/pages/jobs/index.html';
+export const MAX_JOBS = 1000;
+/** A job description past this is boilerplate — benefits, EEO, office perks */
+export const JOB_DESC_MAX_CHARS = 8000;
+/** Drop postings older than this unless they're shortlisted or applied to */
+export const JOB_STALE_DAYS = 60;
+export const MAX_JOB_RUNS = 20;
+/** One ingestion run's ceilings. Workday is N+1, so requests is the real one. */
+export const JOB_RUN_MAX_REQUESTS = 120;
+export const JOB_RUN_MAX_ERRORS = 8;
+export const JOB_RUN_DEADLINE_MS = 90_000;
+/** Per-host floor between calls. Workday is the undocumented one — go slowest. */
+export const JOB_HOST_MIN_INTERVAL_MS = 1_000;
+export const JOB_WORKDAY_MIN_INTERVAL_MS = 2_000;
+/** How many list hits survive the prefilter into a Workday detail fetch */
+export const JOB_WORKDAY_MAX_DETAILS = 25;
+/* SimplifyJobs ships its whole history in one 12MB file — ~18k rows, of which
+   only ~2.7k are still open. Uncapped, the recent slice alone (~2k) would
+   evict every other source from the board, so each feed gets a share of it. */
+export const JOB_SIMPLIFY_MAX = 150;
 
 /* Research-paper tracker */
 export const MAX_PAPERS = 500;
@@ -394,6 +417,7 @@ export const CAPTURE_WINDOW_DUMP = { width: 440, height: 520 } as const;
 
 export const ALARMS = {
   refreshFeeds: 'refresh-feeds',
+  refreshJobs: 'refresh-jobs',
   taskReminders: 'task-reminders',
   sprintEnd: 'sprint-end',
   nudgePrefix: 'nudge|',
@@ -401,7 +425,6 @@ export const ALARMS = {
   gymReminderSnooze: 'gym-reminder-snooze',
   focusPhaseEnd: 'focus-phase-end',
   focusBadgeTick: 'focus-badge-tick',
-  dailyBrainDumpMidnight: 'daily-brain-dump-midnight',
   calendarRefresh: 'calendar-refresh',
   monitorEvening: 'monitor-evening',
   monitorCalendar: 'monitor-calendar',

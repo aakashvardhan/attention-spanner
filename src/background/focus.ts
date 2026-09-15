@@ -7,7 +7,7 @@ import {
 import { isBlockedHost } from '../shared/focusRules';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
-import { dailyGateCompleteNow, syncSessionAccessRules } from './accessRules';
+import { syncSessionAccessRules } from './accessRules';
 import { createFocusBlock, extendFocusBlock, finishFocusBlock } from './calendar';
 import { updateBadge } from './feeds';
 import { recordEvent } from './gamification';
@@ -17,7 +17,7 @@ import { recordFocusBlock } from './streaks';
  * Focus-mode session engine. Blocking is enforced by declarativeNetRequest
  * session rules, which the browser applies independently of this worker's
  * lifetime. State (storage.local focusSession) remains the source of truth and
- * rules are reconciled on startup alongside the daily brain-dump gate.
+ * rules are reconciled on startup.
  */
 
 function blockedPageUrl(): string {
@@ -25,9 +25,7 @@ function blockedPageUrl(): string {
 }
 
 /** An already-open Netflix tab would defeat the whole point */
-async function redirectOpenBlockedTabs(domains: string[]): Promise<void> {
-  // The morning gate owns every web tab until its dump is complete.
-  if (!(await dailyGateCompleteNow())) return;
+export async function redirectOpenBlockedTabs(domains: string[]): Promise<void> {
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
   for (const tab of tabs) {
     if (tab.id === undefined || !tab.url) continue;

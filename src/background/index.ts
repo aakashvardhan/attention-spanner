@@ -4,10 +4,12 @@ import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import {
+  clearRetiredAlarms,
   handleAlarm,
   setupAutomationAlarms,
   setupCalendarRefreshAlarm,
   setupGmailTriageAlarm,
+  setupJobsAlarm,
   setupMonitorAlarms,
   setupRefreshAlarm,
   setupTaskReminderAlarm,
@@ -16,10 +18,7 @@ import { refreshCalendar } from './calendar';
 import { bookmarkFromContextMenu } from './bookmarks';
 import { openArticle, refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
-import {
-  ensureDailyGateDateForNavigation,
-  reconcileDailyBrainDump,
-} from './dailyBrainDump';
+import { removeLegacyDailyGateRule } from './accessRules';
 import {
   dismissNudgesForArticle,
   isNudgeNotification,
@@ -98,13 +97,15 @@ async function reinjectIntoOpenTabs(): Promise<void> {
 chrome.runtime.onInstalled.addListener(() => {
   void (async () => {
     await migrate();
+    await clearRetiredAlarms();
     await setupRefreshAlarm();
     await setupTaskReminderAlarm();
     await setupCalendarRefreshAlarm();
     await setupMonitorAlarms();
     await setupGmailTriageAlarm();
+    await setupJobsAlarm();
     await setupAutomationAlarms();
-    await reconcileDailyBrainDump();
+    await removeLegacyDailyGateRule();
     await reconcileFocusOnStartup();
     // Extension updates can land mid-gap; recompute so stale streaks don't
     // display until the next browser restart
@@ -150,9 +151,10 @@ chrome.runtime.onStartup.addListener(() => {
   // Re-anchor the daily reminders to the wall clock (bounds DST drift)
   void setupMonitorAlarms();
   void setupGmailTriageAlarm();
+  void setupJobsAlarm();
   void setupAutomationAlarms();
   void (async () => {
-    await reconcileDailyBrainDump();
+    await removeLegacyDailyGateRule();
     await reconcileFocusOnStartup();
   })();
   // A recording in flight died with the browser; settle whatever it transcribed
@@ -267,9 +269,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // PDF navigations bounce into the in-extension reader (unless bypassed).
   // Checked first so the trackers below never run against a soon-gone page.
   if (changeInfo.url) {
-    if (changeInfo.url.startsWith('http://') || changeInfo.url.startsWith('https://')) {
-      void ensureDailyGateDateForNavigation();
-    }
     void maybeInterceptPdf(tabId, changeInfo.url);
   }
   if (changeInfo.status === 'complete' && tab.url) {
@@ -287,9 +286,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Every service-worker instance reasserts the persistent redirect and the
-// session unlock. onStartup does not fire for ordinary MV3 worker restarts.
-void reconcileDailyBrainDump();
+// The daily gate is gone, but rule 900 is a DYNAMIC DNR rule: profiles that
+// ever ran the old browser-wide redirect still carry it, and it survives
+// restarts and updates. Nothing else removes it, and onStartup does not fire
+// for ordinary MV3 worker restarts — so every worker instance sweeps it.
+// Cheap: one getDynamicRules that early-returns when there is nothing to drop.
+void removeLegacyDailyGateRule();
 
 // PDFs served from an extensionless URL (allenai.org/papers/…) look like an
 // ordinary page until the response headers arrive; this is the only way to see

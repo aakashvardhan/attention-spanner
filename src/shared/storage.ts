@@ -5,7 +5,6 @@ import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import { connectedAccounts, GMAIL_DEFAULTS, type GmailState } from './gmail';
 import type { CitationExpansion } from './citations';
 import type { DocCitations } from './docCitations';
-import { gateStateForDate } from './dailyBrainDump';
 import { idleLiveSession, type LiveSession } from './live';
 import type { NotesVault } from './notesVault';
 import { hoursFromTimestamps } from './primeTime';
@@ -20,11 +19,14 @@ import type {
   BookmarkGroup,
   BookmarkLink,
   BrainDumpNote,
-  DailyBrainDumpGateState,
   Deck,
   FeedItem,
   FocusSession,
   Gamification,
+  Job,
+  JobProfile,
+  JobRun,
+  JobSource,
   JournalDay,
   LifetimeCounters,
   Paper,
@@ -44,7 +46,6 @@ export interface LocalSchema {
   settings: Settings;
   tasks: Task[];
   notes: BrainDumpNote[];
-  dailyBrainDumpGate: DailyBrainDumpGateState;
   enabledPacks: EnabledPack[];
   activeIntent: ActiveIntent | null;
   readingProgress: Record<string, AnyProgress>;
@@ -56,6 +57,14 @@ export interface LocalSchema {
   decks: Deck[];
   /** Research papers, grouped into decks (shared with flashcards) */
   papers: Paper[];
+  /** Collected job postings, ranked against `jobProfile`. Device-local. */
+  jobs: Job[];
+  /** Configured places to look for jobs (board tokens, feed URLs) */
+  jobSources: JobSource[];
+  /** Hard filters and preferences every posting is scored against */
+  jobProfile: JobProfile;
+  /** Ingestion run log, newest last, capped at MAX_JOB_RUNS */
+  jobRuns: JobRun[];
   /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey.
    *  Local-only; shaped for future per-record sync. */
   annotations: Annotation[];
@@ -152,6 +161,13 @@ export interface SessionSchema {
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
   /**
+   * Per-host conditional-GET tags and last-call times for the job adapters,
+   * keyed by host. Session rather than module state because the worker is torn
+   * down after ~30s idle: a module-level rate gate comes back empty and the
+   * next run hammers a host it just called.
+   */
+  jobFetchState: Record<string, { etag: string; lastModified: string; lastCallAt: number }>;
+  /**
    * The capture in flight, if any. Session-scoped because a recording cannot
    * outlive the browser anyway — what survives a restart is the transcript in
    * `recordings`, which startup reconciliation settles (see reconcileOrphans).
@@ -234,7 +250,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 20,
+  schemaVersion: 21,
   feeds: [],
   readItems: [],
   cachedItems: [],
@@ -242,7 +258,6 @@ export const DEFAULTS: LocalSchema = {
   settings: DEFAULT_SETTINGS,
   tasks: [],
   notes: [],
-  dailyBrainDumpGate: { date: '', completedAt: null, noteId: null },
   enabledPacks: [],
   activeIntent: null,
   readingProgress: {},
@@ -264,6 +279,21 @@ export const DEFAULTS: LocalSchema = {
   bookmarkGroups: [],
   decks: [],
   papers: [],
+  jobs: [],
+  jobSources: [],
+  jobProfile: {
+    skills: [],
+    roleFamilies: [],
+    kinds: ['new-grad', 'internship', 'research'],
+    locations: [],
+    // A new grad is out of the running well before "5+ years", but postings
+    // routinely overstate; 3 keeps the near-misses visible as blockers.
+    maxYearsRequired: 3,
+    needsSponsorship: false,
+    usCitizen: false,
+    watchlist: [],
+  },
+  jobRuns: [],
   annotations: [],
   recordings: [],
   siteTime: { date: '', hosts: {} },
@@ -293,6 +323,7 @@ export const SESSION_DEFAULTS: SessionSchema = {
   assistantCache: {},
   pendingAutomationRuns: [],
   pdfNativeBypass: [],
+  jobFetchState: {},
   activeRecording: null,
   offscreenHolders: [],
   liveSession: idleLiveSession(),
@@ -413,14 +444,17 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * v15 → v16 (dashboard presets): replace arbitrary columns/order/hide/width
  * settings with one predictable, accessible layout mode. Existing users begin
  * in Focused; their content is untouched.
- * v16 → v17 (daily brain-dump gate): add device-local completion state. A
- * qualifying note already saved today is grandfathered so an upgrade never
- * asks for the same dump twice.
  * v17 → v18 (Attention Relay): add the device-local active intention and
  * parking lot. Research data and connected Google services opt existing users
  * into their matching secondary packs; no retired data is deleted.
  * v18 → v19: add the device-local cache populated from the user's X bookmarks
  * page. It deliberately stays outside cloud-sync collections.
+ * v20 → v21 (daily gate removed): the morning brain-dump gate is gone, so its
+ * device-local completion state goes with it. Notes themselves are untouched —
+ * the capture card and its AI structuring stay; only the interstitial that
+ * stood between the user and the dashboard is removed. The v17 branch that
+ * seeded this key is deleted rather than stubbed: it only ever wrote the key
+ * this migration removes.
  */
 export async function migrate(): Promise<void> {
   const stored = await chrome.storage.local.get([
@@ -432,7 +466,7 @@ export async function migrate(): Promise<void> {
   const version = (stored.schemaVersion as number | undefined) ?? 0;
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 20) return;
+  if (version >= 21) return;
 
   if (version < 1) {
     const settings: Settings = {
@@ -509,15 +543,8 @@ export async function migrate(): Promise<void> {
   if (version < 13) await migrateToV13();
   if (version < 15) await migrateToV15();
   if (version < 16) await migrateToV16();
-  if (version < 17) {
-    const storedGate = await chrome.storage.local.get(['notes', 'dailyBrainDumpGate']);
-    await chrome.storage.local.set({
-      dailyBrainDumpGate: v17DailyBrainDumpGate(
-        (storedGate.notes as BrainDumpNote[] | undefined) ?? [],
-        storedGate.dailyBrainDumpGate as DailyBrainDumpGateState | undefined,
-      ),
-    });
-  }
+  // v17 seeded dailyBrainDumpGate; v21 removes that key, so the branch is gone
+  // rather than stubbed — a profile going v16 → v21 lands in the same state.
   if (version < 18) await migrateToV18();
 
   if (version < 19) {
@@ -525,8 +552,9 @@ export async function migrate(): Promise<void> {
   }
 
   if (version < 20) await migrateToV20();
+  if (version < 21) await migrateToV21();
 
-  await chrome.storage.local.set({ schemaVersion: 20 });
+  await chrome.storage.local.set({ schemaVersion: 21 });
 }
 
 /**
@@ -578,6 +606,13 @@ export function v20StripSettings(
   const next = { ...settings };
   for (const key of V20_DEAD_SETTINGS) delete next[key];
   return next;
+}
+
+/** v21: the daily brain-dump gate is gone. Notes themselves stay. */
+export const V21_DEAD_KEYS = ['dailyBrainDumpGate'];
+
+async function migrateToV21(): Promise<void> {
+  await chrome.storage.local.remove(V21_DEAD_KEYS);
 }
 
 async function migrateToV20(): Promise<void> {
@@ -634,18 +669,6 @@ async function migrateToV18(): Promise<void> {
     activeIntent: null,
     parkingLot: [],
   });
-}
-
-export function v17DailyBrainDumpGate(
-  notes: readonly BrainDumpNote[],
-  state: DailyBrainDumpGateState | undefined,
-  date?: string,
-): DailyBrainDumpGateState {
-  return gateStateForDate(
-    state ?? { date: '', completedAt: null, noteId: null },
-    notes,
-    date,
-  );
 }
 
 /** Pure core of v16: retire layout-builder state without carrying its arbitrary

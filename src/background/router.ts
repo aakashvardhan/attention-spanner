@@ -26,8 +26,14 @@ import {
   moveAnnotation,
   updateAnnotation,
 } from './annotations';
-import { reconcileDailyBrainDump } from './dailyBrainDump';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
+import {
+  deleteJobSource,
+  refreshJobs,
+  saveJobProfile,
+  saveJobSource,
+  setJobStatus,
+} from './jobs';
 import {
   captureNow,
   deleteRecording,
@@ -57,7 +63,17 @@ import { cancelSprint, startSprint } from './streaks';
 import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
 import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
-import { handleVideoProgress, handleVideoReady } from './videoTracking';
+import {
+  catchUpVideo,
+  describeWatching,
+  searchVideoTranscript,
+  transcriptFor,
+} from './videoContext';
+import {
+  focusExistingVideoTab,
+  handleVideoProgress,
+  handleVideoReady,
+} from './videoTracking';
 
 /**
  * Is this message from our own offscreen document? Its sender.url is the
@@ -181,8 +197,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return runAutomation(msg.id, { force: true });
     case 'SAVE_NOTE':
       return { ok: true, ...(await saveNote(msg.rawText)) };
-    case 'DAILY_GATE_STATUS':
-      return { ok: true, ...(await reconcileDailyBrainDump()) };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
     case 'FLASH_RENAME_DECK':
@@ -195,6 +209,16 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return updatePaper(msg.id, msg.patch);
     case 'PAPER_DELETE':
       return deletePaper(msg.id);
+    case 'JOBS_REFRESH':
+      return refreshJobs();
+    case 'JOB_SET_STATUS':
+      return setJobStatus(msg.id, msg.status);
+    case 'JOB_SOURCE_SAVE':
+      return saveJobSource(msg.source);
+    case 'JOB_SOURCE_DELETE':
+      return deleteJobSource(msg.id);
+    case 'JOB_PROFILE_SAVE':
+      return saveJobProfile(msg.patch);
     case 'PAPER_READER_PROGRESS':
       return handleReaderProgress(msg.paperId, {
         pdfUrl: msg.pdfUrl,
@@ -250,6 +274,18 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'VIDEO_PROGRESS':
       await handleVideoProgress(sender, msg);
       return { ok: true };
+    case 'FOCUS_VIDEO_TAB':
+      return { ok: await focusExistingVideoTab(msg.videoId) };
+    case 'VIDEO_TRANSCRIPT': {
+      const res = await transcriptFor(msg.videoId, { alreadyImportedOnly: true });
+      return 'error' in res ? { ok: false, error: res.error } : { ok: true, segments: res.segments };
+    }
+    case 'VIDEO_NOW_WATCHING':
+      return describeWatching();
+    case 'VIDEO_CATCH_UP':
+      return catchUpVideo(msg.minutes);
+    case 'VIDEO_TRANSCRIPT_SEARCH':
+      return searchVideoTranscript(msg.query);
     case 'DOC_CITATIONS_INDEX':
       return indexDocCitations(msg.entry);
     case 'GRAPH_EXPAND_CITATIONS':

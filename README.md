@@ -127,8 +127,14 @@ them any time in **Options → Assistant → Memory**.
   dashboard surfaces a "Continue reading" pick-up point.
 - **Tab-switch nudges** — a gentle reminder fires when you leave an article
   half-read, gated against spam (delay, cooldown, per-article cap, dismiss).
-- **YouTube tracking** — long videos (≥15 min, configurable) are auto-tracked
-  with resume-at-timestamp and abandonment nudges. Watch time accrues even in a
+- **YouTube tracking** — long videos (≥15 min) are auto-tracked with
+  resume-at-timestamp and abandonment nudges. While one is playing the side
+  panel shows a live row — title, position, current chapter — with a **Follow**
+  pane that scrolls the transcript to the block being spoken, and the assistant
+  can answer about it ("what am I watching", "summarize what I just watched",
+  "what did they say about X"). Leaving a video for another one, a Short, or the
+  subscriptions feed re-words the nudge rather than adding a second one.
+  Watch time accrues even in a
   background tab, so podcast-style listening isn't penalized. Shorts and live
   streams are ignored.
 - **Built-in PDF reader** — PDF links (arXiv, DOIs, course readings) open in an

@@ -10,6 +10,7 @@ import { libraryConnector } from './connectors/library';
 import { memoryConnector } from './connectors/memory';
 import { pagesConnector } from './connectors/pages';
 import { liveConnector } from './connectors/live';
+import { videoConnector } from './connectors/video';
 import { papersConnector } from './connectors/papers';
 import { planningConnector } from './connectors/planning';
 import { tasksConnector } from './connectors/tasks';
@@ -33,6 +34,7 @@ export const CONNECTORS: readonly Connector[] = [
   feedsConnector,
   pagesConnector,
   liveConnector,
+  videoConnector,
 ];
 
 /** Tools whose connector is available in this environment */

@@ -818,3 +818,12 @@
     max-width: 90%;
   }
 }
+
+/* The run log under an answer. Quiet by design: it is there to be checked when
+   something looks wrong, not to be read on every turn. */
+.as-diagnostics {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}

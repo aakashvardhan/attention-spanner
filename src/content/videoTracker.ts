@@ -124,6 +124,19 @@ function channelName(): string {
   );
 }
 
+/**
+ * The chapter the playhead is in, straight off the player's own readout.
+ *
+ * Chapters are NOT in the ytInitialPlayerResponse that youtubeCaptions.ts
+ * parses — they live under ytInitialData's multiMarkersPlayerBarRenderer, which
+ * would mean a second MAIN-world injection and another nested schema to chase.
+ * The player already renders and updates this string, so read that instead.
+ * Empty for the majority of videos, which have no chapters at all.
+ */
+function chapterName(): string {
+  return document.querySelector('.ytp-chapter-title-content')?.textContent?.trim() ?? '';
+}
+
 async function startSession(videoId: string): Promise<{ stop: () => void } | null> {
   if (location.pathname.startsWith('/shorts')) return null;
 
@@ -170,6 +183,7 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
         stopped: stoppedFlush,
         title: pageTitle(),
         channel: channelName(),
+        chapter: chapterName(),
       });
     } catch {
       watchedSecondsPending += delta;

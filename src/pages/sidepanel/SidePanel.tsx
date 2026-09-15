@@ -5,6 +5,7 @@ import { LiveCopilot } from '../../shared/components/LiveCopilot';
 import { NotesHistory } from '../../shared/components/NotesHistory';
 import { useActiveTab } from '../../shared/hooks/useActiveTab';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
+import { useNowWatching } from '../../shared/hooks/useNowWatching';
 import { useSessionValue } from '../../shared/hooks/useSessionValue';
 import { useSprint } from '../../shared/hooks/useSprint';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -14,11 +15,12 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { isLiveActive } from '../../shared/live';
 import { DEFAULT_SETTINGS } from '../../shared/storage';
 import { BookmarkPicker } from './components/BookmarkPicker';
+import { NowWatching } from './components/NowWatching';
 import { RecordBar } from './components/RecordBar';
 import { TaskPane } from './components/TaskPane';
 
 type PrimaryTab = 'ask' | 'tasks' | 'notes';
-type View = PrimaryTab | 'live';
+type View = PrimaryTab | 'live' | 'video';
 
 function pageContext(tab: chrome.tabs.Tab | null): { title: string; detail: string } {
   if (!tab) return { title: 'Current page', detail: 'Waiting for the active tab' };
@@ -48,6 +50,7 @@ export function SidePanel() {
   const tasks = useTasks();
   const focus = useFocusSession();
   const sprint = useSprint();
+  const watching = useNowWatching();
   const [storedSettings] = useStorageValue('settings');
   const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
   const liveOn = isLiveActive(live);
@@ -61,6 +64,10 @@ export function SidePanel() {
   useEffect(() => {
     if (!liveOn) setView((current) => (current === 'live' ? 'ask' : current));
   }, [liveOn]);
+
+  useEffect(() => {
+    if (!watching.active) setView((current) => (current === 'video' ? 'ask' : current));
+  }, [watching.active]);
 
   const closeActions = () => {
     actionsRef.current?.removeAttribute('open');
@@ -237,6 +244,24 @@ export function SidePanel() {
             </button>
           </div>
         )}
+        {/* Third instance of the same row focus and sprint use, so it needs no
+            CSS of its own and reads as something already familiar. No
+            aria-live: the clock ticks twice a second and a live region here
+            would talk over everything else in the panel. */}
+        {watching.active && (
+          <div className="active-status-row now-watching">
+            <span>
+              <strong title={watching.video.title}>{watching.video.title}</strong>
+              <small>
+                {watching.position} / {watching.duration}
+                {watching.chapter && ` · ${watching.chapter}`}
+              </small>
+            </span>
+            <button type="button" onClick={() => setView('video')}>
+              Follow
+            </button>
+          </div>
+        )}
         <RecordBar activeOnly onOpenLive={() => setView('live')} />
       </div>
 
@@ -253,6 +278,31 @@ export function SidePanel() {
           <BrainDump source="popup" compact />
           <NotesHistory limit={5} />
         </main>
+      )}
+      {view === 'video' && (
+        <>
+          <div className="secondary-pane-head" id="tab-video">
+            <button type="button" onClick={() => setView('ask')}>
+              ‹ Back
+            </button>
+            <div>
+              <h2>Now watching</h2>
+              <p>Follow along with this video</p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                void sendMessage({
+                  type: 'FOCUS_VIDEO_TAB',
+                  videoId: watching.video?.videoId ?? '',
+                })
+              }
+            >
+              Open tab
+            </button>
+          </div>
+          <NowWatching />
+        </>
       )}
       {view === 'live' && (
         <>

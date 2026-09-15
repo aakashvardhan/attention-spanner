@@ -3,11 +3,11 @@ import {
   v12ReadingProgress,
   v15Skin,
   v16DashboardMode,
-  v17DailyBrainDumpGate,
   v18EnabledPacks,
   v20StripSettings,
   v7Patch,
   V20_DEAD_KEYS,
+  V21_DEAD_KEYS,
 } from './storage';
 
 /**
@@ -229,49 +229,6 @@ describe('v15Skin', () => {
   });
 });
 
-describe('v17DailyBrainDumpGate', () => {
-  it('grandfathers a meaningful note already saved on the migration date', () => {
-    const createdAt = new Date(2026, 6, 29, 9).getTime();
-    expect(
-      v17DailyBrainDumpGate(
-        [
-          {
-            id: 'today',
-            rawText: 'Enough detail to count as a real dump',
-            status: 'raw',
-            bullets: [],
-            proposedTasks: [],
-            createdAt,
-            structuredAt: null,
-          },
-        ],
-        undefined,
-        '2026-07-29',
-      ),
-    ).toEqual({ date: '2026-07-29', completedAt: createdAt, noteId: 'today' });
-  });
-
-  it('starts locked when the only retained note is from yesterday', () => {
-    expect(
-      v17DailyBrainDumpGate(
-        [
-          {
-            id: 'old',
-            rawText: 'A meaningful but stale dump from the prior day',
-            status: 'raw',
-            bullets: [],
-            proposedTasks: [],
-            createdAt: new Date(2026, 6, 28, 9).getTime(),
-            structuredAt: null,
-          },
-        ],
-        undefined,
-        '2026-07-29',
-      ),
-    ).toEqual({ date: '2026-07-29', completedAt: null, noteId: null });
-  });
-});
-
 describe('v18EnabledPacks', () => {
   it('starts a new empty profile with the attention core only', () => {
     expect(v18EnabledPacks({})).toEqual([]);
@@ -377,5 +334,22 @@ describe('v20', () => {
   it('leaves a settings object that carries none of the dead fields alone', () => {
     const clean = { focusMinutes: 25, cloudProvider: 'gemini' };
     expect(v20StripSettings(clean)).toEqual(clean);
+  });
+});
+
+/**
+ * v21 removes the daily brain-dump gate. The delete rule is what needs pinning:
+ * the gate went, but the notes it gated did not, and a migration that took
+ * `notes` or `notesVault` with it would destroy the user's writing along with
+ * their encryption keys.
+ */
+describe('v21', () => {
+  it('retires the gate key', () => {
+    expect(V21_DEAD_KEYS).toEqual(['dailyBrainDumpGate']);
+  });
+
+  it('never touches the notes the gate used to guard', () => {
+    expect(V21_DEAD_KEYS).not.toContain('notes');
+    expect(V21_DEAD_KEYS).not.toContain('notesVault');
   });
 });

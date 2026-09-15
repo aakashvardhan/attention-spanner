@@ -103,26 +103,6 @@
   --warning: #b45309;
   --warning-bg: #fef3c7;
 
-  /* A recording naming a paper. Deliberately not --accent: selection already
-     owns that colour on the graph, and an edge that reads as "selected" when
-     nothing is selected is worse than an edge with no colour of its own. */
-  --gr-mention: #7c6bc4;
-
-  /* How recently and how thoroughly a node was read (see graphModel.heatLevel).
-     The graph cannot reuse --heat-*: that ramp is derived from --accent for the
-     dashboard, and on a node-link map --accent already means "selected" — a
-     paper finished last week came out the same colour as the node the user had
-     just clicked. Amber is the far side of the wheel from every skin's accent,
-     and warmth is what the ramp already meant. Step 0 stays neutral: never
-     opened is an absence, not a cold temperature.
-     Defined here and left alone by the skin blocks below, exactly like
-     --gr-mention — the point is a hue no accent can collide with. */
-  --gr-heat-0: #eceff2;
-  --gr-heat-1: #fde9c8;
-  --gr-heat-2: #fbcf8a;
-  --gr-heat-3: #f0a63c;
-  --gr-heat-4: #c76a06;
-
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.18);
   --shadow-accent: 0 2px 10px rgba(14, 165, 233, 0.15);
@@ -169,32 +149,6 @@
   --heat-3: #38bdf8;
   --heat-4: #0284c7;
   --heat-cell-border: rgba(27, 31, 35, 0.06);
-
-  /* Stroop warm-up ink colors — per-theme hues so every ink stays legible
-     on --bg-surface (purple over classic yellow for the same reason) */
-  --stroop-red: #d32f2f;
-  --stroop-blue: #0284c7;
-  --stroop-green: #2e7d32;
-  --stroop-purple: #8e24aa;
-
-  /* Focus-immersion palette: intentionally dark in BOTH themes.
-     Off-white on near-black (never pure #fff on #000) limits halation for
-     astigmatic eyes. The --focus-again/hard/good/easy + cloze tokens exist
-     because theme-variant tokens (--danger etc.) are illegible on #212121
-     when the light theme is active — use only --focus-* (and bare --accent)
-     inside immersive review. */
-  --focus-bg: #0f0f0f;
-  --focus-panel: #212121;
-  --focus-text: #f1f1f1;
-  --focus-text-secondary: #cfcfcf;
-  --focus-muted: #909090;
-  --focus-border: #3f3f3f;
-  --focus-again: #f28b82;
-  --focus-hard: #fdd663;
-  --focus-good: #81c995;
-  --focus-easy: #4fc3f7;
-  --focus-cloze-bg: rgba(56, 189, 248, 0.18);
-  --focus-cloze-text: #7dd3fc;
 }
 
 :root[data-theme='dark'] {
@@ -227,13 +181,7 @@
   --success-border: #34503c;
   --danger: #f28b82;
   --danger-bg: #332222;
-  --gr-mention: #a89ae0;
   /* Dark→bright, matching how --heat-* runs in this theme. */
-  --gr-heat-0: #2a2a2a;
-  --gr-heat-1: #46320f;
-  --gr-heat-2: #7a5312;
-  --gr-heat-3: #c98d29;
-  --gr-heat-4: #f5c26b;
   --warning: #fbbf24;
   --warning-bg: #332c1a;
 
@@ -268,11 +216,6 @@
   --heat-3: #0ea5e9;
   --heat-4: #7dd3fc;
   --heat-cell-border: rgba(255, 255, 255, 0.05);
-
-  --stroop-red: #f28b82;
-  --stroop-blue: #4fc3f7;
-  --stroop-green: #81c995;
-  --stroop-purple: #ce93d8;
 }
 
 /* One focus ring, everywhere, in the current skin's accent.
@@ -324,8 +267,6 @@
   --heat-2: #a8c7fa;
   --heat-3: #4285f4;
   --heat-4: #0b57d0;
-
-  --stroop-blue: #0b57d0;
 }
 
 :root[data-skin='chrome'][data-theme='dark'] {
@@ -347,8 +288,6 @@
   --heat-2: #0842a0;
   --heat-3: #1a73e8;
   --heat-4: #a8c7fa;
-
-  --stroop-blue: #a8c7fa;
 }
 
 /* Brave — the brand orange from Brave's own Leo tokens (brands/rorange-1).
@@ -377,8 +316,6 @@
   --heat-2: #ffa77a;
   --heat-3: #ff7a3c;
   --heat-4: #d93900;
-
-  --stroop-red: #c73200;
 }
 
 :root[data-skin='brave'][data-theme='dark'] {
@@ -400,8 +337,6 @@
   --heat-2: #a33d0d;
   --heat-3: #ff5601;
   --heat-4: #ffa77a;
-
-  --stroop-red: #ff8a5c;
 }
 
 /* prefers-reduced-transparency is a real accessibility setting and a separate

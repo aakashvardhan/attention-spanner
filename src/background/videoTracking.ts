@@ -79,6 +79,7 @@ export async function handleVideoProgress(
     stopped: boolean;
     title: string;
     channel: string;
+    chapter?: string;
   },
 ): Promise<void> {
   const key = videoKey(msg.videoId);
@@ -109,6 +110,9 @@ export async function handleVideoProgress(
 
   if (msg.title) progress.title = msg.title;
   if (msg.channel) progress.source = msg.channel;
+  // Assigned even when empty: leaving a stale chapter behind after the playhead
+  // moves past the last marked section would be worse than showing none.
+  progress.chapter = msg.chapter ?? '';
   if (sender.tab?.url) progress.url = sender.tab.url;
   progress.durationSeconds = msg.durationSeconds;
   progress.positionSeconds = msg.positionSeconds;

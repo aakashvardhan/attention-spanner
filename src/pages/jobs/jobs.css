@@ -1,0 +1,278 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* The page shell mirrors papers.css. Each page owns its own stylesheet here,
+   so the shell is repeated rather than shared — the convention this repo
+   already follows, and it keeps one page's layout tweak from moving another. */
+
+.fc-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.fc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: 20px;
+}
+
+.fc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fc-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-base);
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.ghost-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.fc-back {
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Toolbar ---------------------------------------------------------------- */
+
+.job-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.job-toolbar .ui-btn {
+  margin-left: auto;
+}
+
+.job-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.job-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  padding: 3px 12px;
+}
+
+.job-chip:hover {
+  background: var(--bg-hover);
+}
+
+.job-chip--on {
+  background: var(--accent-wash);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.job-run {
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-3);
+}
+
+.job-error {
+  color: var(--danger);
+  font-size: var(--text-md);
+  margin-bottom: var(--space-3);
+}
+
+/* Rows ------------------------------------------------------------------- */
+
+.job-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.job-row {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+}
+
+/* Sunk, not hidden: the blockers are regexes over prose someone wrote in a
+   hurry, so a misjudged one has to cost a glance rather than a job. */
+.job-row--blocked {
+  opacity: 0.62;
+}
+
+.job-row--blocked:hover,
+.job-row--blocked:focus-within {
+  opacity: 1;
+}
+
+.job-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.job-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.job-score {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--heat-cell-border);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* The activity calendar's scale, reused so a score reads without a legend. */
+.job-score[data-level='0'] { background: var(--heat-0); }
+.job-score[data-level='1'] { background: var(--heat-1); }
+.job-score[data-level='2'] { background: var(--heat-2); }
+.job-score[data-level='3'] { background: var(--heat-3); }
+.job-score[data-level='4'] { background: var(--heat-4); color: var(--on-accent); }
+
+.job-title {
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.job-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.job-meta {
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  margin-top: 2px;
+}
+
+.job-blockers {
+  color: var(--warning);
+  font-size: var(--text-sm);
+  margin-top: 4px;
+}
+
+.job-status {
+  text-transform: capitalize;
+}
+
+.job-status-new { background: var(--accent-wash); color: var(--accent-text); }
+.job-status-shortlist { background: var(--success-bg); color: var(--success); }
+.job-status-applied { background: var(--accent-soft); color: var(--accent-text); }
+.job-status-dismissed,
+.job-status-rejected { background: var(--bg-subtle); color: var(--text-faint); }
+
+.job-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-2);
+  padding-left: calc(38px + var(--space-3));
+}
+
+/* Score breakdown -------------------------------------------------------- */
+
+.job-detail {
+  margin-top: var(--space-3);
+  padding-left: calc(38px + var(--space-3));
+}
+
+.job-parts {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.job-parts th,
+.job-parts td {
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-md);
+  font-weight: 400;
+  padding: 4px 8px 4px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.job-parts th {
+  color: var(--text-secondary);
+  font-weight: 700;
+  white-space: nowrap;
+  width: 5.5rem;
+}
+
+.job-part-points {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  width: 3.5rem;
+}
+
+.job-part-why {
+  color: var(--text-muted);
+}
+
+.job-description {
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  margin-top: var(--space-3);
+  max-height: 18rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* fc-chip is papers.css's count pill; the board reuses the shape for status. */
+.fc-chip {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: 2px 8px;
+  text-align: center;
+  white-space: nowrap;
+}

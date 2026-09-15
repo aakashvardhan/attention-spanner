@@ -5,6 +5,8 @@ import {
   json3Url,
   parseJson3,
   pickCaptionTrack,
+  searchSegments,
+  segmentAt,
   videoTitle,
   type CaptionTrack,
 } from './youtubeCaptions';
@@ -153,5 +155,56 @@ describe('videoTitle', () => {
   it('returns an empty string when absent', () => {
     expect(videoTitle({})).toBe('');
     expect(videoTitle(null)).toBe('');
+  });
+});
+
+/**
+ * Following a live playhead through an already-parsed transcript. Both pure, so
+ * the UI and the assistant agree on "where are we" without either owning it.
+ */
+describe('segmentAt', () => {
+  const segs = [
+    { startSec: 0, endSec: 60, text: 'intro' },
+    { startSec: 60, endSec: 120, text: 'middle' },
+    { startSec: 120, endSec: 180, text: 'end' },
+  ];
+
+  it('returns -1 when there is nothing to follow', () => {
+    expect(segmentAt([], 10)).toBe(-1);
+  });
+
+  it('finds the block containing the playhead', () => {
+    expect(segmentAt(segs, 30)).toBe(0);
+    expect(segmentAt(segs, 90)).toBe(1);
+    expect(segmentAt(segs, 150)).toBe(2);
+  });
+
+  it('treats a boundary as the start of the next block', () => {
+    expect(segmentAt(segs, 60)).toBe(1);
+    expect(segmentAt(segs, 120)).toBe(2);
+  });
+
+  it('clamps before the first block and past the last', () => {
+    expect(segmentAt([{ startSec: 10, endSec: 70, text: 'a' }], 2)).toBe(0);
+    expect(segmentAt(segs, 9999)).toBe(2);
+  });
+});
+
+describe('searchSegments', () => {
+  const segs = [
+    { startSec: 0, endSec: 60, text: 'We discuss Attention and softmax' },
+    { startSec: 60, endSec: 120, text: 'Then the residual connections' },
+    { startSec: 120, endSec: 180, text: 'attention again, briefly' },
+  ];
+
+  it('matches case-insensitively and keeps timestamps', () => {
+    const hits = searchSegments(segs, 'ATTENTION');
+    expect(hits.map((h) => h.startSec)).toEqual([0, 120]);
+  });
+
+  it('respects the limit and returns [] when nothing matches', () => {
+    expect(searchSegments(segs, 'attention', 1)).toHaveLength(1);
+    expect(searchSegments(segs, 'transformers on ice')).toEqual([]);
+    expect(searchSegments(segs, '   ')).toEqual([]);
   });
 });

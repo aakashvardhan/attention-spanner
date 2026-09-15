@@ -1,8 +1,9 @@
 import { calendarContextLines, todayEvents } from '../calendar';
-import { localDate } from '../format';
+import { formatWatchTime, localDate } from '../format';
 import { getLocal, getSettings } from '../storage';
 import type { LocalSchema } from '../storage';
 import type { AssistantFact, Settings } from '../types';
+import { currentlyWatching, livePositionSeconds } from '../youtube';
 import { hash32 } from './cache';
 import { gatherLibrary, hitToSource } from './connectors/library';
 import { searchLibrary, tokenize, type LibraryHit } from './library';
@@ -11,7 +12,6 @@ import type { SourceRef } from './tools';
 export type EvidenceDomain =
   | 'tasks'
   | 'streak'
-  | 'flashcards'
   | 'calendar'
   | 'memory'
   | 'library'
@@ -70,8 +70,6 @@ const DOMAIN_RULES: Array<[EvidenceDomain, RegExp]> = [
 const QUERY_ALIASES: Record<string, string[]> = {
   advisor: ['supervisor', 'mentor'],
   supervisor: ['advisor', 'mentor'],
-  gym: ['workout', 'lift', 'training'],
-  workout: ['gym', 'lift', 'training'],
   task: ['todo', 'priority'],
   todo: ['task', 'priority'],
   paper: ['article', 'research', 'reading'],
@@ -247,6 +245,20 @@ export function buildEvidenceBundle(
             .map((paper) => `${paper.title} (${paper.progressPercent}%)`)
             .join('; ')}`;
     push({ kind: 'paper', title: 'Reading list', url: reading[0]?.url ?? '', snippet: text }, text);
+
+    // The video playing right now rides the existing 'reading' domain rather
+    // than earning one of its own: that rule already matches "watching" and
+    // "left off", and a new domain would mean a new regex competing with it to
+    // deliver a single sentence.
+    const live = currentlyWatching(data.readingProgress);
+    if (live) {
+      const at = Math.round(livePositionSeconds(live));
+      const chapter = live.chapter ? `, chapter "${live.chapter}"` : '';
+      const line =
+        `Watching right now: "${live.title}" — ${live.source}, at ` +
+        `${formatWatchTime(at)} of ${formatWatchTime(live.durationSeconds)}${chapter}`;
+      push({ kind: 'page', title: live.title, url: live.url, snippet: line }, line);
+    }
   }
 
   if (domains.includes('journal')) {

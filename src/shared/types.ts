@@ -209,14 +209,6 @@ export interface BrainDumpNote extends RecordMeta {
   structuredAt: number | null;
 }
 
-/** Device-local daily browsing gate; completion never syncs across profiles. */
-export interface DailyBrainDumpGateState {
-  /** Active local calendar date in YYYY-MM-DD form. */
-  date: string;
-  completedAt: number | null;
-  noteId: string | null;
-}
-
 export type EnabledPack = 'research' | 'work' | 'assistant';
 
 export interface IntentResumeContext {
@@ -679,6 +671,12 @@ export interface VideoProgress extends ProgressBase {
    * Absent on entries written before this field existed; read with `=== true`.
    */
   playing?: boolean;
+  /**
+   * The player's current chapter title, scraped from the DOM. Decoration only:
+   * YouTube owns that class name, most videos have no chapters at all, and an
+   * absent chapter must render as absence rather than an invented "Chapter 1".
+   */
+  chapter?: string;
 }
 
 export type AnyProgress = ReadingProgress | VideoProgress;
@@ -762,4 +760,138 @@ export interface Streaks {
   daily: Record<string, DayStats>;
   /** Streak-insurance freeze tokens (Phase 15) — read with `?? 0` */
   freezeTokens?: number;
+}
+
+/* Job search. The board, the places it looks, and the profile every posting is
+   scored against. The writing corpus and the assembled documents land with
+   Phase 2 — nothing here writes prose. */
+
+export type JobSourceId =
+  | 'ycombinator'
+  | 'greenhouse'
+  | 'lever'
+  | 'ashby'
+  | 'workday'
+  | 'rss'
+  | 'simplify'
+  | 'capture'
+  | 'instagram';
+
+export type JobKind = 'new-grad' | 'internship' | 'research' | 'other';
+
+export type JobStatus = 'new' | 'shortlist' | 'applied' | 'rejected' | 'dismissed';
+
+/**
+ * One configured place to look. The adapter-specific fields are optional
+ * rather than a discriminated union: only Workday needs three of them, and an
+ * adapter that finds its config missing returns a `{ ok: false }` line in the
+ * run log — which is where a misconfigured source should surface anyway.
+ */
+export interface JobSource {
+  id: string;
+  adapter: JobSourceId;
+  label: string;
+  enabled: boolean;
+  /** Greenhouse/Lever/Ashby board token, or a YC role slug */
+  token: string;
+  /** Workday: the `{tenant}.{host}.myworkdayjobs.com/…/{site}` triple */
+  tenant?: string;
+  host?: string;
+  site?: string;
+  /** RSS: the feed URL */
+  url?: string;
+}
+
+/**
+ * What a posting demands. Sources differ in how much of this they hand over
+ * already parsed — YC gives all of it, Greenhouse gives none — so every field
+ * is nullable and the scorer treats null as "unstated", never as "no".
+ */
+export interface JobRequirements {
+  skills: string[];
+  /** Years of experience demanded; null when the posting doesn't say */
+  minYears: number | null;
+  /** Will the employer sponsor a visa? null when unstated */
+  sponsors: boolean | null;
+  /** The posting requires citizenship or a security clearance */
+  requiresCitizenship: boolean;
+  /** Free-text requirements, for the Phase 2 coverage evaluator */
+  mustHaves: string[];
+}
+
+/**
+ * Why a job ranked where it did. `parts` and `blockers` exist so the board can
+ * always answer that question — an opaque ranking is one you stop trusting.
+ */
+export interface JobScore {
+  /** 0–100, the sum of `parts` */
+  total: number;
+  parts: { label: string; points: number; max: number; why: string }[];
+  /** Hard-filter failures. A blocked job is greyed, never hidden. */
+  blockers: string[];
+  computedAt: number;
+  /** Recompute when the profile changes; see profileHash() */
+  profileHash: string;
+}
+
+export interface Job extends RecordMeta {
+  /** 16 hex chars, hashed from company + title + url — see jobId() */
+  id: string;
+  source: JobSourceId;
+  company: string;
+  title: string;
+  locations: string[];
+  /** null when the posting doesn't say */
+  remote: boolean | null;
+  /** The canonical, readable posting page */
+  url: string;
+  /** Where applying actually starts; may sit behind a login (YC does) */
+  applyUrl: string;
+  /** null until a source or a detail fetch supplies a real date */
+  postedAt: number | null;
+  /** '' when the source carries no body; capped at JOB_DESC_MAX_CHARS */
+  description: string;
+  kind: JobKind;
+  status: JobStatus;
+  requirements: JobRequirements | null;
+  score: JobScore | null;
+  capturedAt: number;
+}
+
+/** Hard filters and preferences every posting is measured against. */
+export interface JobProfile {
+  /** Technologies and skills you can evidence */
+  skills: string[];
+  /** Title fragments you want, e.g. 'machine learning', 'research scientist' */
+  roleFamilies: string[];
+  kinds: JobKind[];
+  /** Cities you'd take; remote postings pass regardless */
+  locations: string[];
+  /** Years of experience a posting may demand before it's out of reach */
+  maxYearsRequired: number;
+  /** You need an employer willing to sponsor */
+  needsSponsorship: boolean;
+  /** You hold US citizenship (clears citizenship/clearance blockers) */
+  usCitizen: boolean;
+  /** Companies worth extra points */
+  watchlist: string[];
+}
+
+export type JobStopReason = 'done' | 'deadline' | 'requests' | 'errors';
+
+/** One ingestion run, for the record. A loop you can't inspect can't be debugged. */
+export interface JobRun {
+  id: string;
+  startedAt: number;
+  finishedAt: number;
+  stopReason: JobStopReason;
+  requests: number;
+  sources: {
+    label: string;
+    adapter: JobSourceId;
+    fetched: number;
+    added: number;
+    /** '' on success; the reason this source contributed nothing otherwise */
+    error: string;
+  }[];
 }

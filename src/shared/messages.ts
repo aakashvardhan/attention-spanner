@@ -2,6 +2,7 @@ import type { CalendarEvent } from './calendar';
 import type { AssistantTurn } from './ai/assistantTypes';
 import type { DocCitations } from './docCitations';
 import type { LiveMode, LivePace } from './live';
+import type { TranscriptSegment } from './recordings';
 import type {
   AgentProposal,
   Annotation,
@@ -16,6 +17,10 @@ import type {
   DayPlan,
   Deck,
   DeckKind,
+  JobProfile,
+  JobRun,
+  JobSource,
+  JobStatus,
   JournalEntry,
   Paper,
   PaperDraft,
@@ -90,7 +95,6 @@ export type Message =
   | { type: 'AUTOMATION_DELETE'; id: string }
   | { type: 'AUTOMATION_RUN_NOW'; id: string }
   | { type: 'SAVE_NOTE'; rawText: string }
-  | { type: 'DAILY_GATE_STATUS' }
   | { type: 'STRUCTURE_NOTE_RESULT'; id: string; bullets: string[]; tasks: string[] }
   | { type: 'NOTE_FAILED'; id: string }
   | { type: 'DELETE_NOTE'; id: string }
@@ -103,6 +107,11 @@ export type Message =
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
   | { type: 'PAPER_DELETE'; id: string }
+  | { type: 'JOBS_REFRESH' }
+  | { type: 'JOB_SET_STATUS'; id: string; status: JobStatus }
+  | { type: 'JOB_SOURCE_SAVE'; source: JobSource }
+  | { type: 'JOB_SOURCE_DELETE'; id: string }
+  | { type: 'JOB_PROFILE_SAVE'; patch: Partial<JobProfile> }
   // PDF reader → service worker (single writer keeps progress monotonic)
   | {
       type: 'PAPER_READER_PROGRESS';
@@ -214,7 +223,14 @@ export type Message =
       stopped: boolean;
       title: string;
       channel: string;
+      /** Player chapter title; '' when the video has no chapters */
+      chapter: string;
     }
+  | { type: 'FOCUS_VIDEO_TAB'; videoId: string }
+  | { type: 'VIDEO_NOW_WATCHING' }
+  | { type: 'VIDEO_TRANSCRIPT'; videoId: string }
+  | { type: 'VIDEO_CATCH_UP'; minutes: number }
+  | { type: 'VIDEO_TRANSCRIPT_SEARCH'; query: string }
   | {
       type: 'PROGRESS_UPDATE';
       percent: number;
@@ -295,8 +311,7 @@ export interface MessageResponses {
   AUTOMATION_UPDATE: { ok: boolean; error?: string };
   AUTOMATION_DELETE: { ok: boolean };
   AUTOMATION_RUN_NOW: { ok: boolean; error?: string };
-  SAVE_NOTE: { ok: boolean; note: BrainDumpNote; dailyGateCompleted: boolean };
-  DAILY_GATE_STATUS: { ok: boolean; complete: boolean };
+  SAVE_NOTE: { ok: boolean; note: BrainDumpNote };
   STRUCTURE_NOTE_RESULT: { ok: boolean };
   NOTE_FAILED: { ok: boolean };
   DELETE_NOTE: { ok: boolean };
@@ -307,6 +322,11 @@ export interface MessageResponses {
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };
   PAPER_DELETE: { ok: boolean; error?: string };
+  JOBS_REFRESH: { ok: boolean; run?: JobRun; error?: string };
+  JOB_SET_STATUS: { ok: boolean; error?: string };
+  JOB_SOURCE_SAVE: { ok: boolean; error?: string };
+  JOB_SOURCE_DELETE: { ok: boolean; error?: string };
+  JOB_PROFILE_SAVE: { ok: boolean; error?: string };
   PAPER_READER_PROGRESS: { ok: boolean; error?: string };
   READER_OPEN_NATIVE: { ok: boolean };
   ANNOT_ADD: { ok: boolean; annotation?: Annotation; error?: string };
@@ -350,6 +370,11 @@ ASSISTANT_BEGIN_TURN: { thread: AssistantTurn[] };
     resume: { positionSeconds: number } | null;
   };
   VIDEO_PROGRESS: { ok: boolean };
+  FOCUS_VIDEO_TAB: { ok: boolean };
+  VIDEO_NOW_WATCHING: { text: string };
+  VIDEO_TRANSCRIPT: { ok: boolean; segments?: TranscriptSegment[]; error?: string };
+  VIDEO_CATCH_UP: { text: string };
+  VIDEO_TRANSCRIPT_SEARCH: { text: string; videoId?: string };
   DOC_CITATIONS_INDEX: { ok: boolean };
   GRAPH_EXPAND_CITATIONS: { ok: boolean; added?: number; note?: string; error?: string };
   GRAPH_ADD_EXTERNAL: { ok: boolean; paperId?: string; error?: string };

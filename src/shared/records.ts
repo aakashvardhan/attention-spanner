@@ -16,6 +16,7 @@ export const RECORD_COLLECTIONS = [
   'bookmarkGroups',
   'decks',
   'papers',
+  'jobs',
 ] as const;
 
 export type RecordCollection = (typeof RECORD_COLLECTIONS)[number];

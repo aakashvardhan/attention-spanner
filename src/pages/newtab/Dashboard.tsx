@@ -6,19 +6,20 @@ import {
   resumeContextFromProgress,
 } from '../../shared/attention';
 import { currentEvent, formatCountdown, nextUpcoming } from '../../shared/calendar';
-import { DailyBrainDumpGate } from '../../shared/components/DailyBrainDumpGate';
 import {
+  JOBS_PAGE_PATH,
   PAPERS_PAGE_PATH,
 } from '../../shared/constants';
-import { isDailyBrainDumpComplete } from '../../shared/dailyBrainDump';
-import { formatTime } from '../../shared/format';
+import { formatTime, formatWatchTime } from '../../shared/format';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTasks } from '../../shared/hooks/useTasks';
+import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import { DEFAULT_SETTINGS, getLocal, setLocal } from '../../shared/storage';
 import type {
+  Job,
   ActiveIntent,
   EnabledPack,
   IntentResumeContext,
@@ -26,36 +27,16 @@ import type {
   Task,
 } from '../../shared/types';
 import { FREEZE_TOKEN_CAP } from '../../shared/streakInsurance';
+import { isWatchingNow, livePositionSeconds } from '../../shared/youtube';
 import { ActivityCalendar } from './ActivityCalendar';
 import { AssistantDock } from './AssistantDock';
 import { BookmarksPanel } from './BookmarksPanel';
 
 export function Dashboard() {
-  const [gate, loaded] = useStorageValue('dailyBrainDumpGate');
-  const complete = isDailyBrainDumpComplete(gate);
-  const [gateFlowActive, setGateFlowActive] = useState(false);
-
-  useEffect(() => {
-    if (loaded && !complete) setGateFlowActive(true);
-  }, [loaded, complete]);
-
-  if (!loaded) {
-    return (
-      <main className="daily-gate daily-gate--center" aria-busy="true">
-        <div className="daily-gate-spinner" />
-        <p>Preparing today’s workspace…</p>
-      </main>
-    );
-  }
-  // Shown when today's dump is missing, but `onContinue` (Skip for today) can
-  // dismiss it — the gate is the first thing on a new tab, not a toll gate.
-  if (gateFlowActive) {
-    return <DailyBrainDumpGate onContinue={() => setGateFlowActive(false)} />;
-  }
-  return <AttentionRelay />;
-}
-
-function AttentionRelay() {
+  // initTheme() in main.tsx only resolves the theme once, at load. Without this
+  // a skin or theme changed in Options never reaches an already-open new tab —
+  // every other page in the extension subscribes.
+  useTheme();
   const [activeIntent] = useStorageValue('activeIntent');
   const [readingProgress] = useStorageValue('readingProgress');
   const [streaks] = useStorageValue('streaks');
@@ -64,6 +45,7 @@ function AttentionRelay() {
   const [gmail] = useStorageValue('gmail');
   const [enabledPacks] = useStorageValue('enabledPacks');
   const [notes] = useStorageValue('notes');
+  const [jobs] = useStorageValue('jobs');
   const [storedSettings] = useStorageValue('settings');
   const tasks = useTasks();
   const focus = useFocusSession();
@@ -93,6 +75,16 @@ function AttentionRelay() {
     () => activeIntent ?? candidateIntent(tasks.openTasks[0] ?? null, recentProgress, recentPaper),
     [activeIntent, tasks.openTasks, recentProgress, recentPaper],
   );
+  // Ticks only while something is actually playing, so an idle new tab does
+  // not re-render twice a second forever.
+  const [watchingNow, setWatchingNow] = useState(() => Date.now());
+  const anyWatching = resumable.some((i) => i.progress && isWatchingNow(i.progress, watchingNow));
+  useEffect(() => {
+    if (!anyWatching) return;
+    const timer = setInterval(() => setWatchingNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [anyWatching]);
+
   const now = new Date();
   const happening = currentEvent(calendar.events, now);
   const upcoming = nextUpcoming(calendar.events, now);
@@ -361,6 +353,15 @@ function AttentionRelay() {
                   }}
                 >
                   {item.title}
+                  {/* A video playing in another tab is context, not the
+                      decision this screen exists to make — so it marks the row
+                      it already occupies rather than earning a card that would
+                      compete with Now. */}
+                  {item.progress && isWatchingNow(item.progress, watchingNow) && (
+                    <small className="relay-watching">
+                      Watching · {formatWatchTime(livePositionSeconds(item.progress, watchingNow))}
+                    </small>
+                  )}
                 </button>
               </li>
             ))}
@@ -381,6 +382,8 @@ function AttentionRelay() {
           </div>
         </details>
       )}
+
+        <JobsStrip jobs={jobs} />
 
         <BookmarksPanel />
 
@@ -478,6 +481,40 @@ async function openSidePanel() {
   if (window.id !== undefined) await chrome.sidePanel.open({ windowId: window.id });
 }
 
+/**
+ * Jobs on the relay. Shown only once the board has something in it — an empty
+ * strip on a one-decision screen is noise, and Settings is where you go to set
+ * a source up in the first place.
+ *
+ * It leads with what deserves attention (unreviewed, unblocked, scoring well)
+ * and falls back to the plain count, so the number on screen is always one you
+ * could act on rather than a total that only ever grows.
+ */
+function JobsStrip({ jobs }: { jobs: Job[] }) {
+  const strong = jobs.filter(
+    (job) => job.status === 'new' && (job.score?.blockers.length ?? 0) === 0 && (job.score?.total ?? 0) >= 60,
+  ).length;
+  const shortlisted = jobs.filter((job) => job.status === 'shortlist').length;
+  if (jobs.length === 0) return null;
+
+  return (
+    <section className="relay-jobs">
+      <div>
+        <h2>Jobs</h2>
+        <p>
+          {strong > 0
+            ? `${strong} new match${strong === 1 ? '' : 'es'} worth a look`
+            : `${jobs.length} tracked, nothing new above the bar`}
+          {shortlisted > 0 && ` · ${shortlisted} shortlisted`}
+        </p>
+      </div>
+      <button onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL(JOBS_PAGE_PATH) })}>
+        Open board
+      </button>
+    </section>
+  );
+}
+
 function Library({
   enabledPacks,
   notes,
@@ -530,6 +567,11 @@ function Library({
           {enabledPacks.includes('research') && (
             <div className="relay-tool-links">
               <button onClick={() => void openPage(PAPERS_PAGE_PATH)}>Papers</button>
+            </div>
+          )}
+          {enabledPacks.includes('work') && (
+            <div className="relay-tool-links">
+              <button onClick={() => void openPage(JOBS_PAGE_PATH)}>Jobs</button>
             </div>
           )}
           {enabledPacks.includes('work') && <p>Calendar timing and actionable mail are enabled.</p>}

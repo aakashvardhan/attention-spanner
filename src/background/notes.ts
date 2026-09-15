@@ -1,10 +1,7 @@
 import { MAX_NOTES } from '../shared/constants';
-import { qualifiesDailyBrainDump } from '../shared/dailyBrainDump';
-import { localDate } from '../shared/format';
 import { seal } from '../shared/notesVault';
 import { getLocal, setLocal } from '../shared/storage';
 import type { BrainDumpNote } from '../shared/types';
-import { syncSessionAccessRules } from './accessRules';
 import { recordEvent } from './gamification';
 import { addTask } from './tasks';
 
@@ -20,9 +17,7 @@ import { addTask } from './tasks';
  * worker never needs the passcode.
  */
 
-export async function saveNote(
-  rawText: string,
-): Promise<{ note: BrainDumpNote; dailyGateCompleted: boolean }> {
+export async function saveNote(rawText: string): Promise<{ note: BrainDumpNote }> {
   const { notes, notesVault } = await getLocal('notes', 'notesVault');
   const id = crypto.randomUUID();
   const trimmed = rawText.trim();
@@ -40,21 +35,8 @@ export async function saveNote(
   };
   notes.unshift(note);
   if (notes.length > MAX_NOTES) notes.length = MAX_NOTES;
-  const dailyGateCompleted = qualifiesDailyBrainDump(trimmed);
-  await setLocal({
-    notes,
-    ...(dailyGateCompleted
-      ? {
-          dailyBrainDumpGate: {
-            date: localDate(new Date(now)),
-            completedAt: now,
-            noteId: id,
-          },
-        }
-      : {}),
-  });
-  if (dailyGateCompleted) await syncSessionAccessRules();
-  return { note, dailyGateCompleted };
+  await setLocal({ notes });
+  return { note };
 }
 
 /**

@@ -6,7 +6,6 @@ import {
   FOCUS_DNR_ID_BASE,
   FOCUS_DNR_ID_LIMIT,
 } from '../shared/constants';
-import { isDailyBrainDumpComplete } from '../shared/dailyBrainDump';
 import { buildFocusRules } from '../shared/focusRules';
 import { getLocal, getSettings } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
@@ -35,8 +34,10 @@ function isOwnedSessionRule(id: number): boolean {
  * creating it would strand anyone who already had it behind a permanently
  * redirected browser, with no code left to unlock it.
  *
- * Called from reconcileDailyBrainDump, which runs on every service-worker
- * start, so the removal cannot be missed.
+ * Called from src/background/index.ts at module scope, so it runs on every
+ * service-worker start and the removal cannot be missed. The gate itself is
+ * gone; this sweep outlives it deliberately and should stay for at least one
+ * release after that removal.
  */
 export async function removeLegacyDailyGateRule(): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -102,9 +103,4 @@ export async function syncSessionAccessRules(): Promise<void> {
       if (attempt === 1) throw error;
     }
   }
-}
-
-export async function dailyGateCompleteNow(): Promise<boolean> {
-  const { dailyBrainDumpGate } = await getLocal('dailyBrainDumpGate');
-  return isDailyBrainDumpComplete(dailyBrainDumpGate);
 }

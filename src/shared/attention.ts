@@ -1,23 +1,5 @@
-import type { ActiveIntent, AnyProgress, IntentResumeContext, Paper } from './types';
+import type { AnyProgress, IntentResumeContext, Paper } from './types';
 import { belongsInContinue, progressKind } from './progress';
-
-export function intentFromRecommendation(
-  text: string,
-  noteId: string,
-  now = Date.now(),
-): ActiveIntent {
-  return {
-    id: crypto.randomUUID(),
-    text: text.trim(),
-    source: 'brainDump',
-    sourceId: noteId,
-    fromTodayBrainDump: true,
-    createdAt: now,
-    startedAt: null,
-    state: 'ready',
-    resumeContext: null,
-  };
-}
 
 export function resumeContextFromProgress(progress: AnyProgress): IntentResumeContext {
   if (progress.kind === 'video') {

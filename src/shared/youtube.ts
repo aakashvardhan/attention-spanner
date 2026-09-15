@@ -54,7 +54,10 @@ export function videoKey(videoId: string): string {
  * `playing` flag says what the last report was, and the staleness window
  * expires the badge when the reports stop arriving at all.
  */
-export function isWatchingNow(progress: AnyProgress, now = Date.now()): boolean {
+export function isWatchingNow(
+  progress: AnyProgress,
+  now = Date.now(),
+): progress is VideoProgress {
   return (
     progress.kind === 'video' &&
     progress.playing === true &&
@@ -68,9 +71,55 @@ export function isWatchingNow(progress: AnyProgress, now = Date.now()): boolean 
  * video that is not playing reports its stored position unchanged.
  */
 export function livePositionSeconds(progress: VideoProgress, now = Date.now()): number {
-  if (!isWatchingNow(progress, now)) return progress.positionSeconds;
-  const elapsed = (now - progress.updatedAt) / 1000;
-  return Math.min(progress.durationSeconds, progress.positionSeconds + elapsed);
+  // Read the fields up front: isWatchingNow narrows to VideoProgress, so inside
+  // the negative branch TS has already subtracted that from VideoProgress and
+  // is left with never.
+  const { positionSeconds, durationSeconds, updatedAt } = progress;
+  if (!isWatchingNow(progress, now)) return positionSeconds;
+  return Math.min(durationSeconds, positionSeconds + (now - updatedAt) / 1000);
+}
+
+/**
+ * The video playing right now, or null. This is the whole live-state layer:
+ * the tracker already writes position, duration, title and channel every five
+ * seconds, so a second copy in session storage would only be a cache to
+ * invalidate.
+ *
+ * Recency settles "which one" when several tabs report as playing — the newest
+ * heartbeat is the best available proxy for the one in front of you, and it
+ * needs no designation protocol. Nothing reads `playing` raw, so a tab that
+ * dies without a pagehide flush ages out through isWatchingNow rather than
+ * needing a sweeper.
+ */
+export function currentlyWatching(
+  progress: Record<string, AnyProgress>,
+  now = Date.now(),
+): VideoProgress | null {
+  let best: VideoProgress | null = null;
+  for (const entry of Object.values(progress)) {
+    if (entry.kind !== 'video' || !isWatchingNow(entry, now)) continue;
+    if (!best || entry.updatedAt > best.updatedAt) best = entry;
+  }
+  return best;
+}
+
+/**
+ * Did the user leave this video and stay on YouTube? That is the rabbit hole —
+ * another video, a Short, or the subscriptions feed — and it reads differently
+ * from closing the tab, which is ordinary abandonment and keeps the existing
+ * nudge copy. Called at nudge fire time against the active tab, so it needs no
+ * state of its own and no second alarm.
+ */
+export function driftedAway(key: string, activeUrl: string | undefined): boolean {
+  if (!activeUrl || !key.startsWith(VIDEO_KEY_PREFIX)) return false;
+  let host: string;
+  try {
+    host = new URL(activeUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const onYouTube = host === 'youtu.be' || YT_HOSTS.has(host);
+  return onYouTube && !keyMatchesUrl(key, activeUrl);
 }
 
 /** Does this tab URL correspond to this progress key (article or video)? */

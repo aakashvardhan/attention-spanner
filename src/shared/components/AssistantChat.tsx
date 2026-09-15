@@ -412,7 +412,37 @@ function traceIcon(status: TraceStep['status']): string {
  * under the answer afterwards, so the work is auditable without the trace
  * competing with the reply for attention.
  */
-function Trace({ steps, live }: { steps: TraceStep[]; live?: boolean }) {
+/**
+ * How the answer was reached: which route, which model, whether it came from
+ * cache, how much evidence it had, how long it took.
+ *
+ * The guardrails around the loop — budgets, the critic pass, fail-closed tool
+ * classification — are only trustworthy if you can see them work. This is the
+ * cheapest possible way to make that checkable: the data was already captured
+ * on every turn and simply never rendered. Content-free by construction, so it
+ * costs no privacy to show.
+ */
+function Diagnostics({ d }: { d: NonNullable<AssistantTurn['diagnostics']> }) {
+  const parts = [
+    d.route,
+    d.provider,
+    d.cacheHit ? 'cached' : null,
+    d.evidenceCount > 0 ? `${d.evidenceCount} source${d.evidenceCount === 1 ? '' : 's'}` : null,
+    `${(d.durationMs / 1000).toFixed(1)}s`,
+    d.firstTokenMs !== undefined ? `first token ${(d.firstTokenMs / 1000).toFixed(1)}s` : null,
+  ].filter(Boolean);
+  return <p className="as-diagnostics">{parts.join(' · ')}</p>;
+}
+
+function Trace({
+  steps,
+  live,
+  diagnostics,
+}: {
+  steps: TraceStep[];
+  live?: boolean;
+  diagnostics?: AssistantTurn['diagnostics'];
+}) {
   if (steps.length === 0) return null;
   const list = (
     <ul className="as-trace">
@@ -431,6 +461,7 @@ function Trace({ steps, live }: { steps: TraceStep[]; live?: boolean }) {
         Worked through {steps.length} step{steps.length === 1 ? '' : 's'}
       </summary>
       {list}
+      {diagnostics && <Diagnostics d={diagnostics} />}
     </details>
   );
 }
@@ -503,7 +534,13 @@ function Bubble({
         turn.text
       )}
       {turn.sources?.length ? <Sources sources={turn.sources} /> : null}
-      {turn.trace && <Trace steps={turn.trace} />}
+      {turn.trace && <Trace steps={turn.trace} diagnostics={turn.diagnostics} />}
+      {!turn.trace?.length && turn.diagnostics && (
+        <details className="as-trace-wrap">
+          <summary>How I got this</summary>
+          <Diagnostics d={turn.diagnostics} />
+        </details>
+      )}
       {turn.grounding === 'insufficient' && <span className="as-badge">limited evidence</span>}
       {turn.source === 'cloud' && <span className="as-badge">cloud</span>}
       {turn.plan && (

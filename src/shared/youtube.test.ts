@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ReadingProgress, VideoProgress } from './types';
 import {
+  currentlyWatching,
+  driftedAway,
   getYouTubeVideoId,
   isWatchingNow,
   isYouTubeWatchUrl,
@@ -157,5 +159,91 @@ describe('keyMatchesUrl', () => {
   it('matches article keys by normalized URL', () => {
     expect(keyMatchesUrl('blog.com/post', 'https://www.blog.com/post?utm_source=x')).toBe(true);
     expect(keyMatchesUrl('blog.com/post', 'https://blog.com/other')).toBe(false);
+  });
+});
+
+/**
+ * The live layer is a selector over the progress map rather than a second copy
+ * of it in session storage. `playing` is never read raw anywhere — always
+ * through isWatchingNow's staleness window — which is why a tab that dies
+ * without a pagehide flush needs no sweeper: it ages out on its own.
+ */
+describe('currentlyWatching', () => {
+  const map = (entries: Record<string, VideoProgress | ReadingProgress>) => entries;
+
+  it('returns null when nothing is playing', () => {
+    expect(currentlyWatching({}, NOW)).toBeNull();
+    expect(currentlyWatching(map({ 'yt:a': videoProgress({ playing: false }) }), NOW)).toBeNull();
+  });
+
+  it('picks the most recent heartbeat when two videos report as playing', () => {
+    const chosen = currentlyWatching(
+      map({
+        'yt:old': videoProgress({ videoId: 'old', updatedAt: NOW - 8000 }),
+        'yt:new': videoProgress({ videoId: 'new', updatedAt: NOW - 1000 }),
+      }),
+      NOW,
+    );
+    expect(chosen?.videoId).toBe('new');
+  });
+
+  it('ignores a record whose playing flag went stale with a dead tab', () => {
+    // The whole no-sweeper argument lives in this assertion.
+    expect(
+      currentlyWatching(map({ 'yt:a': videoProgress({ updatedAt: NOW - 20_000 }) }), NOW),
+    ).toBeNull();
+  });
+
+  it('ignores articles and legacy records written before `playing` existed', () => {
+    expect(
+      currentlyWatching(
+        map({
+          'blog.com/post': {
+            kind: 'article',
+            url: 'https://blog.com/post',
+            title: 'A post',
+            source: 'Blog',
+            maxPercent: 30,
+            activeSeconds: 60,
+            firstOpenedAt: NOW - 1000,
+            updatedAt: NOW,
+            completedAt: null,
+            nudge: { count: 0, lastAt: 0, dismissed: false },
+          } as ReadingProgress,
+          'yt:legacy': videoProgress({ playing: undefined }),
+        }),
+        NOW,
+      ),
+    ).toBeNull();
+  });
+});
+
+/**
+ * Drift is "you left this video and you are still on YouTube" — the rabbit
+ * hole. Leaving for a non-YouTube page is ordinary abandonment and keeps the
+ * existing nudge copy, so it must NOT read as drift.
+ */
+describe('driftedAway', () => {
+  const key = videoKey('dQw4w9WgXcQ');
+
+  it('is true for another video, a Short, and a browse page', () => {
+    expect(driftedAway(key, 'https://www.youtube.com/watch?v=someOther1')).toBe(true);
+    expect(driftedAway(key, 'https://www.youtube.com/shorts/abc123xyz')).toBe(true);
+    expect(driftedAway(key, 'https://www.youtube.com/feed/subscriptions')).toBe(true);
+  });
+
+  it('is false while still on the same video, whatever the URL shape', () => {
+    expect(driftedAway(key, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(false);
+    expect(driftedAway(key, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s')).toBe(false);
+    expect(driftedAway(key, 'https://youtu.be/dQw4w9WgXcQ')).toBe(false);
+  });
+
+  it('is false off YouTube entirely — that is plain abandonment', () => {
+    expect(driftedAway(key, 'https://news.ycombinator.com/')).toBe(false);
+  });
+
+  it('is false for article keys and when the active tab is unknown', () => {
+    expect(driftedAway('blog.com/post', 'https://www.youtube.com/feed/subscriptions')).toBe(false);
+    expect(driftedAway(key, undefined)).toBe(false);
   });
 });
