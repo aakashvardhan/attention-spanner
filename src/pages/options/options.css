@@ -1,3 +1,11 @@
+/* Settings, in the grouped-inset idiom: a section label above a rounded group,
+   hairline dividers between rows inside it, and every control at least 44px
+   tall. Same materials as the other pages (theme.css) — this was the one
+   surface with no glass at all, which made it read as a different app.
+
+   Glass stays in the chrome (the header plate, the sample-feed chips) and the
+   groups carrying labels and values keep a near-opaque --material-regular. */
+
 * {
   margin: 0;
   padding: 0;
@@ -10,38 +18,150 @@ body {
   color: var(--text-primary);
 }
 
-.container {
-  max-width: 600px;
-  margin: 0 auto;
-  padding-bottom: 40px;
+/* Something for the header plate's backdrop-filter to refract — a blur over a
+   flat page is a no-op. Fixed to the viewport so scrolling never re-blurs it. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 40% at 15% 0%, var(--glass-tint), transparent 72%),
+    radial-gradient(60% 40% at 92% 28%, var(--glass-tint-2), transparent 72%);
 }
 
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-block: 0 var(--space-6);
+}
+
+/* Scroll-edge effect: clear over the top of the page, taking its material only
+   once content has scrolled beneath it. A plain sticky header would either sit
+   on an opaque slab from the first paint or never separate from the content. */
 header {
-  padding: 20px 24px;
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 0 0 12px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-5);
+  background: transparent;
+  transition:
+    background var(--transition-base) var(--ease-out),
+    box-shadow var(--transition-base) var(--ease-out);
+}
+
+body[data-scrolled='true'] header {
+  background: var(--material-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 1px 0 var(--border-subtle),
+    0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
 header h1 {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: var(--text-xl);
+  font-weight: 700;
 }
 
+.scroll-sentinel {
+  height: 1px;
+}
+
+/* A group: --radius-xl shell, --space-2 padding, so rows step to --radius-md. */
 .section {
-  background: var(--bg-surface);
-  border-radius: 10px;
-  padding: 20px;
+  background: var(--material-regular);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2) var(--space-4) var(--space-4);
   margin: 0 var(--space-4) var(--space-4);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
 .section h2 {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 14px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+/* ---------- Rows ---------- */
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) 0;
+}
+
+/* Hairlines between rows, never under the last one — a trailing rule reads as
+   a section that got cut off. */
+.setting-row + .setting-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.setting-row label {
+  font-size: var(--text-md);
   color: var(--text-primary);
+}
+
+.setting-row select {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-base);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.setting-row input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.hint-inline {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+/* ---------- Controls ---------- */
+
+button {
+  min-height: 44px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-base) var(--ease-out);
+}
+
+button:hover {
+  background: var(--accent-hover);
 }
 
 .add-feed-form {
@@ -51,36 +171,110 @@ header h1 {
 
 .add-feed-form input {
   flex: 1;
-  padding: 10px 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  font-family: inherit;
   font-size: var(--text-base);
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 .add-feed-form input:focus {
   border-color: var(--accent);
 }
 
-button {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  padding: 10px 18px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-base);
-  cursor: pointer;
-  transition: background var(--transition-base);
+.button-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
-button:hover {
-  background: var(--accent-hover);
+.secondary-btn {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
 }
+
+.secondary-btn:hover {
+  background: var(--border);
+}
+
+/* ---------- Feeds ---------- */
+
+.feeds-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.feed-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+
+.feed-entry-url {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove-feed-btn {
+  min-height: 32px;
+  background: transparent;
+  color: var(--text-faint);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-base);
+}
+
+.remove-feed-btn:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.empty-message {
+  color: var(--text-muted);
+  font-size: var(--text-base);
+}
+
+.sample-feeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sample-feed {
+  background: var(--glass-accent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 1px 0 var(--glass-rim);
+  padding: var(--space-2) var(--space-4);
+}
+
+.sample-feed:hover {
+  background: var(--accent-border);
+}
+
+/* ---------- Feedback ---------- */
 
 .feedback {
-  margin-top: 10px;
+  margin-top: var(--space-2);
   font-size: var(--text-base);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 }
 
 .feedback.success {
@@ -98,210 +292,9 @@ button:hover {
   color: var(--warning);
 }
 
-.feeds-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.feed-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-}
-
-.feed-entry-url {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A connected mailbox: address on one line, whatever is wrong with it below.
-   Not .feed-entry-url — that is a single nowrap line built for a feed URL. */
-.gmail-account {
-  align-items: flex-start;
-}
-
-.gmail-account-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  flex: 1;
-}
-
-.gmail-account-email {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.gmail-account-state {
-  color: var(--text-faint);
-}
-
-.gmail-account-error {
-  font-size: var(--text-sm);
-  color: var(--danger);
-  background: var(--danger-bg);
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-}
-
-.remove-feed-btn {
-  background: transparent;
-  color: var(--text-faint);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-base);
-}
-
-.remove-feed-btn:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-.empty-message {
-  color: var(--text-muted);
-  font-size: var(--text-base);
-}
-
-.setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-}
-
-.setting-row label {
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-}
-
-.setting-row select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-base);
-  background: var(--bg-subtle);
-  cursor: pointer;
-}
-
-.voice-picker {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.voice-picker select {
-  max-width: 260px;
-}
-
-.setting-row input[type='checkbox'] {
-  accent-color: var(--accent);
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.hint-inline {
-  color: var(--text-muted);
-  font-weight: 400;
-  font-size: var(--text-sm);
-}
-
-.button-group {
-  display: flex;
-  gap: 10px;
-}
-
-.secondary-btn {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
-
-.secondary-btn:hover {
-  background: var(--border);
-}
-
-.hint {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  margin-bottom: 10px;
-}
-
-.sample-feeds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.sample-feed {
-  background: var(--bg-surface);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  padding: 8px 14px;
-}
-
-.sample-feed:hover {
-  background: var(--accent-wash);
-}
-
-/* "This browser" support block — see BrowserSupport.tsx */
-.cap-heading {
-  margin: var(--space-4) 0 var(--space-2);
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-}
-
-.cap-list {
-  list-style: none;
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.cap-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-/* Never the only signal: every dot is paired with prose saying the same thing,
-   because colour alone excludes anyone who cannot separate these two hues. */
-.cap-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  transform: translateY(-1px);
-}
-
-.cap-dot.ok {
-  background: var(--success);
-}
-
-.cap-dot.off {
-  background: var(--text-muted);
-}
-
-.cap-label {
-  font-size: var(--text-base);
-  color: var(--text-primary);
-}
-
-.cap-detail {
-  margin: 2px 0 0;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
+@media (prefers-reduced-motion: reduce) {
+  header,
+  button {
+    transition: none;
+  }
 }

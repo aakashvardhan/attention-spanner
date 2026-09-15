@@ -36,7 +36,9 @@ export function SidePanel() {
   const context = pageContext(activeTab);
   const [following, setFollowing] = useState(false);
   const [pickingBookmark, setPickingBookmark] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const actionsRef = useRef<HTMLDetailsElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const focus = useFocusSession();
   const watching = useNowWatching();
@@ -46,6 +48,26 @@ export function SidePanel() {
   useEffect(() => {
     if (!watching.active) setFollowing(false);
   }, [watching.active]);
+
+  /* Scroll-edge effect: the header plate is clear over the top of the content
+     and picks up its material once something scrolls under it. An
+     IntersectionObserver on a zero-height sentinel rather than a scroll
+     listener — no work on frames where nothing crossed the edge. If the
+     sentinel is not mounted (the idle pane does not scroll) the plate simply
+     stays clear, which is the correct look for a pane with nothing under it. */
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) {
+      setScrolled(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setScrolled(!entry.isIntersecting),
+      { threshold: 1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [following, watching.active]);
 
   const closeActions = () => {
     actionsRef.current?.removeAttribute('open');
@@ -68,7 +90,7 @@ export function SidePanel() {
   });
 
   return (
-    <div className="container">
+    <div className="container" data-scrolled={scrolled}>
       <div className="panel-chrome">
         <header className="context-header">
           <div className="context-copy">
@@ -180,7 +202,7 @@ export function SidePanel() {
               Open tab
             </button>
           </div>
-          <NowWatching />
+          <NowWatching topRef={sentinelRef} />
         </>
       ) : (
         <main className="panel-idle">

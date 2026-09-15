@@ -14,7 +14,7 @@ import { segmentAt } from '../../../shared/youtubeCaptions';
  * the player, because the user is watching this video — asking about it must
  * never start playback or flip captions on.
  */
-export function NowWatching() {
+export function NowWatching({ topRef }: { topRef?: React.Ref<HTMLDivElement> }) {
   const watching = useNowWatching();
   const [segments, setSegments] = useState<TranscriptSegment[] | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'none'>('idle');
@@ -65,7 +65,10 @@ export function NowWatching() {
   }
 
   return (
-    <main id="panel-video" role="tabpanel" aria-labelledby="tab-video" className="nw-pane">
+    <main className="nw-pane">
+      {/* Sentinel for the panel's scroll-edge effect: it has to sit inside the
+          scroller, so the pane that scrolls is the one that owns it. */}
+      <div ref={topRef} className="scroll-sentinel" aria-hidden="true" />
       <div className="nw-head">
         <h3>{watching.video.title}</h3>
         <p>

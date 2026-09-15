@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -20,6 +20,7 @@ export function Options() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [notificationsBlocked, setNotificationsBlocked] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
 
@@ -28,6 +29,26 @@ export function Options() {
       setNotificationsBlocked(level === 'denied');
     });
   }, []);
+
+  /* Scroll-edge effect: the header takes its material only once the page has
+     scrolled under it. An IntersectionObserver on a zero-height sentinel rather
+     than a scroll listener, so idle frames cost nothing. The flag lands on
+     <body> because the header is a direct child of the page, not of a pane. */
+  useEffect(() => {
+    // Keyed on settingsLoaded, not []: the page renders null until settings
+    // arrive, so on the first pass the sentinel is not in the DOM yet and an
+    // effect with no deps would attach to nothing and never run again.
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        document.body.dataset.scrolled = String(!entry.isIntersecting);
+      },
+      { threshold: 1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [settingsLoaded]);
 
   const flash = (text: string, kind: 'success' | 'error') => {
     setFeedback({ text, kind });
@@ -101,6 +122,7 @@ export function Options() {
 
   return (
     <div className="container">
+      <div ref={sentinelRef} className="scroll-sentinel" aria-hidden="true" />
       <header>
         <h1>Reader Settings</h1>
       </header>

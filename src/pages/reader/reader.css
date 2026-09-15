@@ -29,9 +29,9 @@ body {
   min-height: 52px;
   padding: 7px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--glass-surface);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   box-shadow: 0 1px 0 var(--glass-rim) inset;
   flex-shrink: 0;
 }
@@ -207,27 +207,6 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.reader-ask-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 11px 0 9px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: var(--text-base);
-  font-weight: 700;
-}
-
-.reader-ask-btn:hover {
-  background: var(--accent-hover);
-  color: var(--on-accent);
-}
-
-.reader-ask-btn.active {
-  box-shadow: 0 0 0 2px var(--accent-border);
-}
-
 .reader-badged-btn {
   overflow: visible;
 }
@@ -305,12 +284,6 @@ body {
   width: 17px;
   height: 17px;
   color: var(--text-secondary);
-}
-
-.reader-menu-check {
-  color: var(--accent-text);
-  font-weight: 700;
-  text-align: center;
 }
 
 .reader-menu-separator {
@@ -497,37 +470,6 @@ body {
   letter-spacing: 0.05em;
   color: var(--text-muted);
   padding: 0 10px 8px;
-}
-
-.reader-outline-tabs {
-  display: flex;
-  gap: 3px;
-  margin: 0 2px var(--space-3);
-  padding: 3px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-page);
-}
-
-.reader-outline-tabs button {
-  flex: 1;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 6px 4px;
-  background: none;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.reader-outline-tabs button:hover { color: var(--text-primary); }
-
-.reader-outline-tabs button.active {
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-sm);
-  color: var(--text-primary);
-  font-weight: 650;
 }
 
 .reader-outline ul {
@@ -900,121 +842,6 @@ body {
   padding: var(--space-3) var(--space-2);
 }
 
-.reader-ai-outline { width: 340px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-surface); padding: var(--space-3) var(--space-2); }
-
-.ai-outline-embedded { min-height: 100%; }
-
-.ai-outline-trust {
-  display: flex;
-  gap: 9px;
-  margin: 0 3px var(--space-3);
-  padding: 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent-wash) 42%, var(--bg-surface));
-  color: var(--accent-text);
-}
-
-.ai-outline-trust > span { padding-top: 1px; font-size: var(--text-sm); }
-.ai-outline-trust p,
-.ai-outline-trust small { display: block; }
-.ai-outline-trust strong { color: var(--text-primary); font-size: var(--text-xs); }
-.ai-outline-trust small { margin-top: 2px; color: var(--text-muted); font-size: 11px; line-height: 1.35; }
-
-.ai-outline-loading {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 72px;
-  padding: 0 10px;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
-.ai-outline-loading .reader-loading-spinner { width: 16px; height: 16px; }
-
-.ai-outline-error {
-  margin: var(--space-3) 3px;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-}
-
-.ai-outline-error button,
-.ai-outline-meta button {
-  border: 0;
-  background: none;
-  color: var(--accent-text);
-  font: inherit;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.ai-outline-error button { margin-top: 8px; padding: 0; }
-
-.ai-outline-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 7px var(--space-2);
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.ai-outline-meta button { padding: 4px; font-size: 11px; }
-.ai-outline-meta button:disabled { cursor: wait; opacity: .65; }
-
-.ai-outline-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ai-outline-list li {
-  margin-left: calc(min(var(--outline-depth), 3) * 9px);
-}
-
-.ai-outline-list button {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  border: 0;
-  border-radius: var(--radius-md);
-  padding: 9px 7px;
-  background: none;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.ai-outline-list button:hover { background: var(--bg-hover); }
-.ai-outline-list button:active { transform: translateY(1px); }
-
-.ai-outline-number {
-  display: grid;
-  flex: 0 0 20px;
-  height: 20px;
-  place-items: center;
-  margin-top: 1px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.ai-outline-copy { min-width: 0; }
-.ai-outline-copy strong,
-.ai-outline-copy span,
-.ai-outline-copy em { display: block; }
-.ai-outline-copy strong { color: var(--text-primary); font-size: var(--text-sm); line-height: 1.35; }
-.ai-outline-copy > span { margin-top: 4px; font-size: 11px; line-height: 1.45; }
-.ai-outline-copy em { margin-top: 5px; color: var(--accent-text); font-size: 10px; font-style: normal; }
-
 .reader-find-input {
   width: 100%;
   margin: var(--space-3) 0 0;
@@ -1045,19 +872,6 @@ body {
   font-weight: 700;
 }
 
-.reader-related-sub {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin: var(--space-4) 0 var(--space-2);
-}
-
-.reader-related-note {
-  font-size: var(--text-xs);
-  color: var(--accent-text);
-  padding: 0 8px var(--space-2);
-}
-
 /* ---------- Builds on ----------
    Grouped by subject, oldest first inside a group. A <details> per group so a
    forty-entry bibliography collapses; the biggest two arrive open. */
@@ -1066,137 +880,9 @@ body {
   border-top: 1px solid var(--border-subtle);
 }
 
-.reader-lineage-group > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  /* Past the 24px minimum target — this is the control that opens the group. */
-  min-height: 34px;
-  padding: 6px 8px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.reader-lineage-group > summary::-webkit-details-marker {
-  display: none;
-}
-
-.reader-lineage-group > summary:hover {
-  background: var(--bg-hover);
-}
-
-.reader-lineage-topic {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.reader-lineage-count {
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.reader-lineage-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding-bottom: var(--space-2);
-}
-
-.reader-lineage-row {
-  display: block;
-  width: 100%;
-  min-height: 34px;
-  text-align: left;
-  padding: 5px 8px 5px 16px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.reader-lineage-row:hover {
-  background: var(--bg-hover);
-}
-
 /* An entry with no link at all: shown, but never dressed as a target. */
 .reader-lineage-row.is-plain {
   cursor: default;
-}
-
-.reader-lineage-row.is-plain:hover {
-  background: none;
-}
-
-.reader-lineage-title {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
-.reader-lineage-meta {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.reader-lineage-mine {
-  color: var(--accent-text);
-}
-
-.reader-related-action {
-  display: block;
-  width: 100%;
-  min-height: 34px;
-  margin-top: var(--space-3);
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.reader-related-action:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.reader-related-action:disabled {
-  color: var(--text-muted);
-  cursor: default;
-}
-
-/* Q&A panel — chat bubbles come from assistant.css (.as-*); this is the shell. */
-.reader-ask {
-  display: flex;
-  flex-direction: column;
-  width: 340px;
-  flex-shrink: 0;
-  min-height: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-surface);
-  padding: 12px 10px;
-}
-
-.reader-ask .as-log {
-  max-height: none;
-  flex: 1;
 }
 
 .reader-notes h2 {
@@ -1344,48 +1030,6 @@ body {
   padding: var(--space-6) var(--space-4);
 }
 
-.recording-actions {
-  position: absolute;
-  z-index: 4;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  width: min(360px, calc(100% - 32px));
-  padding: var(--space-3);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-lg);
-}
-
-.recording-actions-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-.recording-actions h2 {
-  font-size: var(--text-base);
-}
-
-.recording-actions-head span {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
-.recording-action {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 6px 0;
-  border-top: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
 .article-body {
   max-width: 68ch; /* ~66-72 characters is the readable measure */
   margin: 0 auto;
@@ -1482,17 +1126,6 @@ body {
   vertical-align: super;
 }
 
-.annot-make-card {
-  border: none;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  padding: 2px var(--space-2);
-  cursor: pointer;
-}
-
 @media (max-width: 900px) {
   .reader-toolbar {
     grid-template-columns: auto 1fr auto;
@@ -1515,18 +1148,6 @@ body {
 
   .reader-toolbar-left > .reader-icon-btn:first-child {
     display: none;
-  }
-
-  .reader-ask-btn {
-    width: 34px;
-    padding: 0;
-    justify-content: center;
-    font-size: 0;
-  }
-
-  .reader-ask-btn .reader-toolbar-icon {
-    width: 18px;
-    height: 18px;
   }
 
   .reader-zoom-value {
@@ -1556,5 +1177,4 @@ body {
     box-shadow: var(--shadow-lg);
   }
   .reader-find { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; box-shadow: var(--shadow-lg); }
-  .reader-ai-outline { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; box-shadow: var(--shadow-lg); }
 }

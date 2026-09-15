@@ -1,9 +1,8 @@
 /* The side panel is a narrow, full-height column that Chrome sizes and the user
-   drags wider — so nothing here fixes a width or a height the way the popup's
-   400x500 box did. The column takes the viewport, and the scrolling happens in
-   the pane inside it rather than on the page.
+   drags wider — so nothing here fixes a width or a height. The column takes the
+   viewport, and the scrolling happens in the pane inside it.
    ---------------------------------------------------------------------------
-   Liquid glass, on the same tokens the dashboard already uses (theme.css). Two
+   Liquid glass, on the same tokens the dashboard uses (theme.css). Two
    constraints shape how far it goes here:
 
    1. There is nothing behind a side panel. It is a browser-owned view, not an
@@ -14,8 +13,8 @@
    2. This extension is built for low-vision and ADHD readers: Atkinson
       Hyperlegible, high contrast, motion kept off screen. Apple's own rule when
       material and legibility conflict is that legibility wins. So the glass
-      lives in the chrome — the plate, the segmented control, the chips — and
-      body copy keeps a near-opaque surface under it. */
+      lives in the chrome — the plate, the chips — and body copy keeps a
+      near-opaque surface under it. */
 
 * {
   margin: 0;
@@ -28,27 +27,17 @@
 :root {
   /* --text-muted is #909090 globally, which measures 3.2:1 on white — under the
      4.5:1 AA wants at the 11-12px these labels use. Overriding the token here
-     rather than patching the six rules that read it also reaches the muted text
-     inside shared components (brain dump, notes, live copilot) when they render
-     in this panel. Panel-scoped on purpose: panel.css loads in no other
-     document, and the dashboard's wider, larger-typed layout is not this
-     problem. The dark theme already clears AA, so it is left alone below. */
+     rather than patching the rules that read it also reaches muted text inside
+     shared components when they render in this panel. Panel-scoped on purpose:
+     panel.css loads in no other document. The dark theme already clears AA, so
+     it is left alone below. */
   --text-muted: #6f6f6f;
 
-  /* Chrome is deliberately thinner than --glass-surface (0.92): a nav bar is
-     the one place you want to see the backdrop move under the material. */
-  --panel-chrome: rgba(255, 255, 255, 0.62);
-  /* The recess a segmented control's thumb sits in */
-  --panel-track: rgba(0, 0, 0, 0.05);
   --panel-hairline: rgba(0, 0, 0, 0.07);
-  --panel-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 :root[data-theme='dark'] {
-  --panel-chrome: rgba(38, 38, 38, 0.62);
-  --panel-track: rgba(0, 0, 0, 0.28);
   --panel-hairline: rgba(255, 255, 255, 0.08);
-  --panel-thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 body {
@@ -58,8 +47,8 @@ body {
   color: var(--text-primary);
 }
 
-/* The backdrop the chrome refracts. Wide, short, heavily feathered blobs rather
-   than the dashboard's round ones: in a 360px-wide column a circular blob is a
+/* The backdrop the chrome refracts. Wide, short, heavily feathered bands rather
+   than the dashboard's round blobs: in a 360px-wide column a circular blob is a
    visible disc, while a band reads as light falling across the panel. Fixed to
    the viewport so scrolling content never forces the plate to re-blur. */
 body::before {
@@ -82,321 +71,148 @@ body::before {
   min-height: 0;
 }
 
-.panel-fatal {
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-5);
+.container :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-.panel-fatal-eyebrow {
-  color: var(--accent);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
+/* ---------- Chrome ---------- */
 
-.panel-fatal h1 {
-  font-size: var(--text-xl);
-}
-
-.panel-fatal > p:not(.panel-fatal-eyebrow) {
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.panel-fatal > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.panel-fatal button {
-  min-height: 44px;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* The single sheet of glass every piece of chrome sits on. The specular rim on
-   the top inside edge is what actually sells it as material — the blur alone
-   reads as a smudge until something catches light along the bevel. */
+/* Scroll-edge effect: the plate is transparent over the top of the content and
+   gains its material and hairline only once something has scrolled beneath it.
+   `data-scrolled` is set by an IntersectionObserver on a sentinel in the pane
+   (SidePanel.tsx). If the observer never fires the plate simply stays glass,
+   which is the old behaviour — so this degrades rather than breaks. */
 .panel-chrome {
   position: relative;
   z-index: 1;
   flex-shrink: 0;
-  background: var(--panel-chrome);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    background var(--transition-base) var(--ease-out),
+    box-shadow var(--transition-base) var(--ease-out);
+}
+
+.container[data-scrolled='true'] .panel-chrome {
+  background: var(--material-thin);
   backdrop-filter: var(--glass-blur);
-  box-shadow: inset 0 1px 0 var(--glass-rim), 0 1px 0 var(--panel-hairline),
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 1px 0 var(--panel-hairline),
     0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
-/* The title bar used to be a filled --accent slab with white text. A saturated
-   block of colour is the loudest thing on screen and it was spending that on
-   the word "Reader" — deference says the chrome recedes and the content is the
-   hero, so it is now the same glass as everything else and the accent is left
-   for things you can actually act on. */
-header {
+.context-header {
+  min-height: 58px;
+  padding: var(--space-2) var(--space-3);
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-2);
-  color: var(--text-primary);
-  flex-shrink: 0;
+  position: relative;
 }
 
-header h1 {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  /* Optical correction: Atkinson is a wide face and a title set at its default
-     tracking drifts apart at this size. */
-  letter-spacing: -0.01em;
-}
-
-.icon-btn {
-  background: var(--glass-accent);
-  border: none;
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--accent-text);
-  cursor: pointer;
-  padding: 5px var(--space-3);
-  border-radius: var(--radius-pill);
-  transition: background var(--transition-fast) var(--ease-out);
-}
-
-.icon-btn:hover {
-  background: var(--accent-border);
-}
-
-.icon-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* An iOS segmented control: a recessed track with one lit capsule sliding in
-   it, rather than an underline. The underline marked the selection with a 2px
-   line — the capsule marks it with a whole raised surface, which is both the
-   Apple idiom and much easier to find at a glance. */
-.tab-bar {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-  margin: 0 var(--space-3) var(--space-3);
-  padding: 3px;
-  border-radius: var(--radius-pill);
-  background: var(--panel-track);
-  box-shadow: inset 0 1px 2px var(--panel-track);
-}
-
-/* The panel can be dragged down to ~320px with five tabs in it, so the labels
-   have to be allowed to shrink rather than push the bar wider than the panel.
-   --text-base, not --text-md: the track and its padding cost 30px that the flat
-   bar did not, and "Tasks" plus its badge is the widest thing in here. */
-.tab {
-  flex: 1 1 0;
+.context-copy {
   min-width: 0;
-  padding: 7px 2px;
-  background: transparent;
+  flex: 1;
+}
+
+.context-copy h1 {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-copy p {
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Actions ---------- */
+
+.panel-actions-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.panel-actions-menu > summary {
+  min-width: 76px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  display: grid;
+  place-items: center;
   border: none;
   border-radius: var(--radius-pill);
-  font-family: inherit;
+  background: var(--material-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px rgba(0, 0, 0, 0.07);
+  color: var(--text-primary);
   font-size: var(--text-base);
   font-weight: 700;
-  color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-  transition: color var(--transition-fast) var(--ease-out),
-    background var(--transition-fast) var(--ease-out);
+  list-style: none;
 }
 
-.tab:hover:not(.active) {
-  color: var(--text-primary);
+:root[data-theme='dark'] .panel-actions-menu > summary {
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-.tab.active {
-  color: var(--text-primary);
-  background: var(--glass-surface);
-  box-shadow: inset 0 1px 0 var(--glass-rim-strong), var(--panel-thumb-shadow);
+.panel-actions-menu > summary::-webkit-details-marker {
+  display: none;
 }
 
-.tab-count {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  border-radius: var(--radius-pill);
-  padding: 1px 5px;
-  min-width: 16px;
-}
-
-.tab:not(.active) .tab-count {
-  background: var(--disabled);
-}
-
-/* Recording indicator on the Live tab. Steady, not blinking: a pulsing dot in
-   the corner of the eye is exactly the kind of motion this extension exists to
-   keep off screen. */
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--danger);
-  flex-shrink: 0;
-}
-
-main {
-  flex: 1 1 auto;
-  /* Without this a flex item refuses to shrink below its content, and the
-     column overflows the viewport instead of scrolling inside this pane. */
-  min-height: 0;
+/* --radius-xl shell with --space-2 padding, so its buttons take --radius-md. */
+.panel-actions-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+  max-height: calc(100vh - 88px);
   overflow-y: auto;
-  padding: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-xl);
+  background: var(--material-regular);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    var(--shadow-lg);
 }
 
-/* The assistant scrolls its own log, so this pane doesn't scroll — it just
-   hands the leftover height down. */
-.ask-main {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.feed-item {
-  background: var(--bg-surface);
+.panel-actions-popover > button {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) 10px;
+  border: 0;
   border-radius: var(--radius-md);
-  padding: var(--space-3);
-  cursor: pointer;
-  transition: box-shadow var(--transition-base), transform 0.1s;
-  border-left: 3px solid var(--accent);
-}
-
-.feed-item:hover {
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
-}
-
-.feed-item.read {
-  opacity: 0.6;
-  border-left-color: var(--disabled);
-}
-
-.center-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  padding: 20px;
-  gap: var(--space-3);
-  color: var(--text-muted);
-}
-
-.center-state.error {
-  color: var(--danger);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Focus bar (streak + sprint) */
-
-/* Rows inside the chrome plate: no fill of their own, divided by hairlines.
-   Each used to carry its own background (--accent-soft here, plain surface on
-   the record row), which on one sheet of glass read as three different
-   materials stacked. */
-.focus-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  /* Wraps rather than overflows. Capsules with a real touch target cost more
-     width than the old 2px-padded chips did, and six controls do not fit one
-     line at 360px — which is not the narrow end, since the panel drags further
-     down than that. A second row is the graceful version of that. */
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-2) var(--space-3);
   background: transparent;
-  border-top: 1px solid var(--panel-hairline);
-  flex-shrink: 0;
-}
-
-/* Capsules, with a rim instead of a border. A 1px solid border draws a hard
-   ring that fights the material; an inset highlight along the top edge is the
-   same edge definition read as light rather than as ink. */
-.level-chip {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--accent-text);
-  background: var(--glass-accent);
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 3px 10px;
-}
-
-/* `color` was `inherit` here, which the retired blanket button rule turned
-   into white text on a white chip. Always state a chip's colour. */
-.gym-chip {
-  background: var(--glass-accent);
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 4px 10px;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
   cursor: pointer;
-  color: var(--accent-text);
-  transition: background var(--transition-fast) var(--ease-out);
 }
 
-.gym-chip.done {
-  background: var(--success-bg);
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-  color: var(--success);
-  cursor: default;
+.panel-actions-popover > button:hover {
+  background: var(--bg-hover);
 }
 
-/* Was a hardcoded #333 — a dark grey pill that vanished into the dark theme's
-   own chrome. Inverting the text colours gives the same "this is the stop
-   state, it is not the accent any more" in both themes. */
-.sprint-btn.active {
-  background: var(--text-primary);
-  color: var(--bg-surface);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Bookmark picker */
+/* ---------- Bookmark picker ---------- */
 
 .bookmark-picker {
   padding: var(--space-2) var(--space-3);
@@ -442,6 +258,11 @@ main {
   background: var(--accent-border);
 }
 
+.bookmark-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .bookmark-newgroup input {
   width: 110px;
   padding: 4px 10px;
@@ -453,500 +274,7 @@ main {
   color: var(--text-primary);
 }
 
-.continue-title {
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Tasks */
-
-.task-add {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.task-add input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px var(--space-4);
-  background: var(--glass-surface);
-  border: none;
-  box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 2px rgba(0, 0, 0, 0.03);
-  border-radius: var(--radius-pill);
-  font-family: inherit;
-  font-size: var(--text-md);
-  color: var(--text-primary);
-}
-
-.task-add input::placeholder {
-  color: var(--text-muted);
-}
-
-.task-add button {
-  padding: 10px 16px;
-}
-
-.task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Content-layer surfaces. These take --glass-surface and the dashboard's
-   --shadow-card, but deliberately NOT backdrop-filter: at 0.92 opacity a blur
-   under a row is invisible, and a list of thirty rows each compositing its own
-   blurred backdrop is a real cost for an effect nobody can see. The blur is
-   spent where it shows — the chrome plate. */
-.task-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--glass-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: 10px 12px;
-}
-
-.task-row.done {
-  opacity: 0.55;
-}
-
-.task-row input[type='checkbox'] {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.task-drag-handle {
-  cursor: grab;
-  border: none;
-  background: none;
-  font-size: var(--text-md);
-  line-height: 1;
-  color: var(--text-faint);
-  padding: 2px 0;
-  touch-action: none;
-  flex-shrink: 0;
-}
-
-.task-drag-handle:hover {
-  color: var(--accent);
-}
-
-.task-drag-handle:active {
-  cursor: grabbing;
-}
-
-.task-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.task-text {
-  font-size: var(--text-md);
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.task-row.done .task-text {
-  text-decoration: line-through;
-}
-
-.task-date {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.task-delete {
-  background: transparent;
-  border: none;
-  color: var(--text-faint);
-  font-size: var(--text-base);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.task-delete:hover {
-  color: var(--danger);
-  background: var(--danger-bg);
-}
-
-.task-section-label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 10px 0 2px;
-}
-
-.cards-deck-due.zero {
-  color: var(--text-muted);
-}
-
-footer {
-  padding: var(--space-2) var(--space-4);
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  text-align: center;
-  flex-shrink: 0;
-  min-height: 30px;
-}
-
-main::-webkit-scrollbar {
-  width: 6px;
-}
-
-main::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-main::-webkit-scrollbar-thumb {
-  background: var(--disabled);
-  border-radius: 3px;
-}
-
-main::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-}
-
-/* Record bar. Tab capture only works from here — getMediaStreamId needs the
-   extension to have been invoked on the tab being captured. */
-
-.record-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--panel-hairline);
-  flex-shrink: 0;
-}
-
-.record-label {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.record-error {
-  font-size: var(--text-sm);
-  color: var(--danger);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Expanded chooser: label row on top, purpose chips beneath */
-.record-bar--stack {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.record-bar-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.record-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.bookmark-chip:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.record-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--danger);
-  flex-shrink: 0;
-  animation: record-pulse 1.6s ease-in-out infinite;
-}
-
-/* Capture is over; segments are still landing. Still, not gone. */
-.record-dot--paused {
-  animation: none;
-  opacity: 0.4;
-}
-
-@keyframes record-pulse {
-  50% { opacity: 0.25; }
-}
-
-/* Live recording row: dot, timer, source — one glance answers "is it working,
-   for how long, listening to what". */
-.record-live {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.record-timer {
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-
-.record-progress {
-  font-size: var(--text-xs);
-  color: var(--text-faint);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.record-capture {
-  border: none;
-  background: var(--panel-track);
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color var(--transition-fast) var(--ease-out),
-    background var(--transition-fast) var(--ease-out);
-}
-
-/* --text is not a token (theme.css defines --text-primary), so this hover and
-   the .record-timer colour above were both no-ops. */
-.record-capture:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.record-capture:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* ---------------------------------------------------------------------------
-   Accessibility. Apple treats these as part of the material, not as an
-   afterthought bolted on under it: Reduce Transparency, Increase Contrast and
-   Reduce Motion each have a defined fallback, and glass is the first thing to
-   go in all three. */
-
-/* The outline the old rules deleted. `:focus { outline: none }` on the inputs
-   left keyboard users with no visible focus at all. Scoped to outline only —
-   a blanket rule that set colour or background is exactly the popup-era
-   footgun this codebase already retired once. */
-.container :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* theme.css neutralises the shared --glass-* tokens; these four are local, so
-   they need their own fallback. The wash only ever existed to be refracted —
-   with the blur off it is an unexplained tint on the page. */
-@media (prefers-reduced-transparency: reduce) {
-  :root,
-  :root[data-theme='dark'] {
-    --panel-chrome: var(--bg-surface);
-  }
-
-  body::before {
-    display: none;
-  }
-}
-
-/* Increase Contrast: the material goes opaque and every hairline becomes a real
-   edge. Contrast beats material — this is Apple's own ordering, and it is the
-   whole reason this extension picked Atkinson Hyperlegible in the first place. */
-@media (prefers-contrast: more) {
-  :root,
-  :root[data-theme='dark'] {
-    --panel-chrome: var(--bg-surface);
-    --glass-surface: var(--bg-surface);
-    --panel-hairline: var(--border);
-    --glass-blur: none;
-  }
-
-  body::before {
-    display: none;
-  }
-
-  .tab.active {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-  }
-
-  .task-row,
-  .cards-deck-row {
-    outline: 1px solid var(--border);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .record-dot { animation: none; }
-
-  .tab,
-  .icon-btn,
-  .gym-chip,
-  .bookmark-chip,
-  .cards-deck-row,
-  .record-capture {
-    transition: none;
-  }
-
-  .cards-deck-row:hover {
-    transform: none;
-  }
-}
-
-/* --------------------------------------------------------------------------
-   Contextual side-panel chrome
-   -------------------------------------------------------------------------- */
-
-.panel-chrome {
-  background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
-  box-shadow: 0 1px 0 var(--panel-hairline);
-}
-
-.context-header {
-  min-height: 58px;
-  padding: var(--space-2) var(--space-3);
-  position: relative;
-}
-
-.context-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.context-copy h1 {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--text-lg);
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.context-copy p {
-  margin-top: 1px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--text-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.panel-actions-menu {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.panel-actions-menu > summary {
-  min-width: 76px;
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: var(--text-base);
-  font-weight: 700;
-  cursor: pointer;
-  list-style: none;
-}
-
-.panel-actions-menu > summary::-webkit-details-marker {
-  display: none;
-}
-
-.panel-actions-menu[open] > summary {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
-.panel-actions-popover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  width: min(300px, calc(100vw - 24px));
-  max-height: calc(100vh - 88px);
-  overflow-y: auto;
-  padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-lg);
-}
-
-.panel-actions-popover > button {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-md);
-  text-align: left;
-  cursor: pointer;
-}
-
-.panel-actions-popover > button:hover {
-  background: var(--bg-hover);
-}
-
-.panel-actions-popover .record-bar {
-  margin-top: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-}
-
-.tab-bar {
-  min-height: 48px;
-  margin: 0 var(--space-3) var(--space-2);
-}
-
-.tab {
-  min-height: 44px;
-  font-size: var(--text-md);
-}
+/* ---------- Status rows ---------- */
 
 .active-status-row {
   min-height: 52px;
@@ -976,12 +304,19 @@ main::-webkit-scrollbar-thumb:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Focus and sprint label themselves in one or two words and sit on one line
-   beside their clock. A video title does not: shared on one line at panel
-   width it collapsed to "Atte…", which inverts the hierarchy — the title is
-   the thing being identified, the clock is the detail about it.
-   So this row alone stacks. The outer shape (one span, one button) stays
-   identical to the other two, and the span's own children go vertical. */
+.active-status-row button {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .now-watching > span {
   flex-direction: column;
   align-items: flex-start;
@@ -997,37 +332,24 @@ main::-webkit-scrollbar-thumb:hover {
   text-overflow: ellipsis;
 }
 
-.active-status-row button,
-.record-live-open {
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font: inherit;
+/* ---------- Panes ---------- */
+
+.panel-idle {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  text-align: center;
+}
+
+.panel-empty {
+  padding: var(--space-5) var(--space-3);
+  color: var(--text-muted);
   font-size: var(--text-base);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.panel-chrome > .record-bar {
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--panel-hairline);
-}
-
-.panel-chrome > .record-bar .ui-btn,
-.panel-chrome > .record-bar .record-capture,
-.panel-chrome > .record-bar .record-live-open {
-  min-height: 44px;
-}
-
-.record-live-open {
-  width: 100%;
-}
-
-main {
-  padding: var(--space-4);
+  text-align: center;
 }
 
 .secondary-pane-head {
@@ -1037,8 +359,12 @@ main {
   align-items: center;
   gap: var(--space-3);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
+  border-bottom: 1px solid var(--panel-hairline);
+}
+
+.secondary-pane-head > div {
+  flex: 1;
+  min-width: 0;
 }
 
 .secondary-pane-head > button {
@@ -1067,24 +393,21 @@ main {
   font-size: var(--text-base);
 }
 
-@media (max-width: 340px) {
-  .context-header {
-    padding-inline: var(--space-2);
-  }
+/* ---------- Now watching ---------- */
 
-  .tab-bar {
-    margin-inline: var(--space-2);
-  }
-
-  .panel-actions-menu > summary {
-    min-width: 68px;
-    padding-inline: var(--space-2);
-  }
+.nw-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-/* Now-watching follow pane. The transcript is the reason to open this instead
-   of just alt-tabbing to the video, so it gets the room; the header is a fixed
-   plate above it. */
+/* Zero-height marker at the top of a scroller. Once it scrolls out of view the
+   chrome above has content under it and takes its material. */
+.scroll-sentinel {
+  height: 1px;
+  flex: none;
+}
+
 .nw-head {
   padding: var(--space-3);
   border-bottom: 1px solid var(--panel-hairline);
@@ -1154,9 +477,6 @@ main {
   line-height: 1.5;
 }
 
-/* The block being spoken now. Accent rule plus a quiet fill — enough to find
-   at a glance while scrolling past, not so much that the page reads as a wall
-   of highlights. No YouTube red anywhere in here on purpose. */
 .nw-transcript li[aria-current='true'] {
   border-left-color: var(--accent);
   background: var(--bg-subtle);
@@ -1170,7 +490,9 @@ main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nw-meter > span {
+  .panel-chrome,
+  .nw-meter > span,
+  .bookmark-chip {
     transition: none;
   }
 }

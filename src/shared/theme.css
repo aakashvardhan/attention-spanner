@@ -47,9 +47,15 @@
   --space-5: 24px;
   --space-6: 32px;
 
+  /* Concentric radii. Apple's rule is inner = outer − padding, so a card and
+     the controls inside it read as one machined object rather than stickers on
+     a panel. Pick the outer radius first, then step down by the padding you
+     used: --radius-xl shell + --space-2 padding takes --radius-md children. */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
   --radius-pill: 999px;
 
   --text-xs: 11px;
@@ -128,6 +134,13 @@
      flat page a backdrop-filter is a no-op. */
   --glass-surface: rgba(255, 255, 255, 0.92);
   --glass-bar: rgba(255, 255, 255, 0.55);
+  /* Named material stack, so a rule picks by depth instead of by guess.
+     --material-thin is for bars that float over scrolling content,
+     --material-regular for cards and popovers, --material-thick for anything
+     that must fully occlude what is behind it (the blocked interstitial). */
+  --material-thin: rgba(255, 255, 255, 0.55);
+  --material-regular: rgba(255, 255, 255, 0.92);
+  --material-thick: rgba(255, 255, 255, 0.97);
   --glass-accent: rgba(224, 242, 254, 0.72);
   --glass-blur: blur(24px) saturate(180%);
   --glass-rim: rgba(255, 255, 255, 0.9);
@@ -202,6 +215,9 @@
      alpha rather than a grey fill — a grey would go muddy over the wash. */
   --glass-surface: rgba(40, 40, 40, 0.9);
   --glass-bar: rgba(255, 255, 255, 0.05);
+  --material-thin: rgba(30, 30, 30, 0.6);
+  --material-regular: rgba(40, 40, 40, 0.9);
+  --material-thick: rgba(28, 28, 28, 0.97);
   --glass-accent: rgba(56, 189, 248, 0.14);
   --glass-blur: blur(24px) saturate(160%);
   --glass-rim: rgba(255, 255, 255, 0.12);
@@ -355,5 +371,8 @@
     --glass-bar: var(--bg-subtle);
     --glass-accent: var(--accent-wash);
     --glass-blur: none;
+    --material-thin: var(--bg-subtle);
+    --material-regular: var(--bg-surface);
+    --material-thick: var(--bg-surface);
   }
 }
