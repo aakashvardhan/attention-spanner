@@ -6,12 +6,7 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { DEFAULT_SETTINGS, getLocal, patchSettings, setLocal } from '../../shared/storage';
 import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
-import { AssistantSection } from './AssistantSection';
-import { CalendarSection } from './CalendarSection';
-import { GmailSection } from './GmailSection';
-import { JobsSection } from './JobsSection';
 import { PapersSection } from './PapersSection';
-import { PrivacySection } from './PrivacySection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
@@ -27,8 +22,6 @@ export function Options() {
   const [notificationsBlocked, setNotificationsBlocked] = useState(false);
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
-  const [pillInput, setPillInput] = useState('');
-  const [pillFeedback, setPillFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.notifications.getPermissionLevel((level) => {
@@ -59,9 +52,7 @@ export function Options() {
       return;
     }
     // Re-read rather than write back the list this render captured: validation
-    // above is a network round-trip, and cloud sync applies remote feeds
-    // straight to this key (background/sync.ts), so the snapshot can be stale
-    // by now.
+    // above is a network round-trip, so the snapshot can be stale by now.
     const { feeds: live } = await getLocal('feeds');
     if (live.includes(feedUrl)) {
       flash('This feed is already added.', 'error');
@@ -99,24 +90,6 @@ export function Options() {
 
   const removeBlockDomain = (domain: string) =>
     patchSettings({ focusBlocklist: settings.focusBlocklist.filter((d) => d !== domain) });
-
-  const addPillHost = async () => {
-    const domain = normalizeBlockDomain(pillInput);
-    if (!domain) {
-      setPillFeedback('Not a valid domain (e.g. youtube.com).');
-      return;
-    }
-    if (settings.timePillHosts.includes(domain)) {
-      setPillFeedback('Already on the list.');
-      return;
-    }
-    setPillInput('');
-    setPillFeedback(null);
-    await patchSettings({ timePillHosts: [...settings.timePillHosts, domain] });
-  };
-
-  const removePillHost = (domain: string) =>
-    patchSettings({ timePillHosts: settings.timePillHosts.filter((d) => d !== domain) });
 
   const clearReadHistory = async () => {
     if (!window.confirm('Clear all read history? Unread counts will be recalculated.')) return;
@@ -247,23 +220,6 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="task-reminder-interval">Remind me about open tasks:</label>
-            <select
-              id="task-reminder-interval"
-              value={settings.taskReminderIntervalMinutes}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) =>
-                void patchSettings({ taskReminderIntervalMinutes: Number(e.target.value) })
-              }
-            >
-              <option value={0}>Never</option>
-              <option value={60}>Every hour</option>
-              <option value={120}>Every 2 hours</option>
-              <option value={240}>Every 4 hours</option>
-              <option value={480}>Every 8 hours</option>
-            </select>
-          </div>
-          <div className="setting-row">
             <label htmlFor="nudges-enabled">
               Reading nudges{' '}
               <span className="hint-inline">(remind me about half-read articles)</span>
@@ -290,69 +246,6 @@ export function Options() {
               disabled={!settings.notificationsEnabled}
               onChange={(e) => void patchSettings({ hyperfocusEnabled: e.target.checked })}
             />
-          </div>
-          <div className="setting-row">
-            <label htmlFor="monitor-enabled">
-              Jarvis check-ins{' '}
-              <span className="hint-inline">(streak at risk, cards piling up, event starting soon)</span>
-            </label>
-            <input
-              id="monitor-enabled"
-              type="checkbox"
-              checked={settings.assistantMonitorEnabled}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ assistantMonitorEnabled: e.target.checked })}
-            />
-          </div>
-          <div className="setting-row">
-            <label htmlFor="monitor-evening-time">Evening check-in at:</label>
-            <select
-              id="monitor-evening-time"
-              value={settings.monitorEveningTime}
-              disabled={!settings.notificationsEnabled || !settings.assistantMonitorEnabled}
-              onChange={(e) => void patchSettings({ monitorEveningTime: e.target.value })}
-            >
-              <option value="">Off</option>
-              <option value="17:00">5:00 PM</option>
-              <option value="18:00">6:00 PM</option>
-              <option value="19:00">7:00 PM</option>
-              <option value="20:00">8:00 PM</option>
-              <option value="21:00">9:00 PM</option>
-            </select>
-          </div>
-        </section>
-
-        <section className="section">
-          <h2>Gym & Goals</h2>
-          <div className="setting-row">
-            <label htmlFor="gym-weekly-target">Gym sessions per week:</label>
-            <select
-              id="gym-weekly-target"
-              value={settings.gymWeeklyTarget}
-              onChange={(e) => void patchSettings({ gymWeeklyTarget: Number(e.target.value) })}
-            >
-              {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                <option key={n} value={n}>
-                  {n}×
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="gym-reminder-time">Evening gym reminder:</label>
-            <select
-              id="gym-reminder-time"
-              value={settings.gymReminderTime}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ gymReminderTime: e.target.value })}
-            >
-              <option value="">Off</option>
-              <option value="17:00">5:00 PM</option>
-              <option value="18:00">6:00 PM</option>
-              <option value="19:00">7:00 PM</option>
-              <option value="20:00">8:00 PM</option>
-              <option value="21:00">9:00 PM</option>
-            </select>
           </div>
         </section>
 
@@ -383,39 +276,6 @@ export function Options() {
                   className="remove-feed-btn"
                   title="Remove from blocklist"
                   onClick={() => void removeBlockDomain(domain)}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-          <p className="hint" style={{ marginTop: 18 }}>
-            Time pill — show a floating "time on this site today" badge on these sites:
-          </p>
-          <form
-            className="add-feed-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void addPillHost();
-            }}
-          >
-            <input
-              type="text"
-              value={pillInput}
-              onChange={(e) => setPillInput(e.target.value)}
-              placeholder="Add a domain to time (e.g. youtube.com)"
-            />
-            <button type="submit">Add</button>
-          </form>
-          {pillFeedback && <p className="feedback error">{pillFeedback}</p>}
-          <div className="feeds-list" style={{ marginTop: 10 }}>
-            {settings.timePillHosts.map((domain) => (
-              <div className="feed-entry" key={domain}>
-                <span className="feed-entry-url">{domain}</span>
-                <button
-                  className="remove-feed-btn"
-                  title="Remove time pill from this site"
-                  onClick={() => void removePillHost(domain)}
                 >
                   ✕
                 </button>
@@ -463,19 +323,7 @@ export function Options() {
           </div>
         </section>
 
-        <AssistantSection />
-
-        <CalendarSection />
-
-        <GmailSection />
-
-
-        <JobsSection />
-
         <PapersSection />
-
-
-        <PrivacySection />
 
         <section className="section">
           <h2>Data</h2>

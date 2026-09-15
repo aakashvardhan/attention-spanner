@@ -2,11 +2,9 @@ import { VIDEO_MIN_MINUTES } from '../shared/constants';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { recordEvent } from './gamification';
 import { recordEngagement } from './hyperfocus';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
-import { recordWatching } from './streaks';
 
 /**
  * YouTube watch tracking. The SW's only injection job is getting
@@ -123,19 +121,13 @@ export async function handleVideoProgress(
   progress.activeSeconds += Math.max(0, msg.watchedSecondsDelta);
   progress.updatedAt = now;
   progress.playing = !msg.stopped;
-  let finishedNow = false;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
-    finishedNow = true;
   }
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await recordWatching(Math.max(0, msg.watchedSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
-  if (finishedNow) {
-    await recordEvent('video_finished');
-  }
 
   if (msg.stopped) {
     await scheduleNudge(key);

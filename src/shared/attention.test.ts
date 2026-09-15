@@ -27,7 +27,6 @@ describe('attention resume context', () => {
       kind: 'article',
       url: article.url,
       scrollY: 1840,
-      breadcrumb: '',
     });
   });
 
@@ -43,7 +42,6 @@ describe('attention resume context', () => {
     expect(resumeContextFromProgress(video)).toMatchObject({
       kind: 'video',
       positionSeconds: 143,
-      breadcrumb: '',
     });
   });
 

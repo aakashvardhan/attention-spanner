@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNowWatching } from '../../../shared/hooks/useNowWatching';
 import { sendMessage } from '../../../shared/messages';
-import type { TranscriptSegment } from '../../../shared/recordings';
+import type { TranscriptSegment } from '../../../shared/youtubeCaptions';
 import { livePositionSeconds } from '../../../shared/youtube';
 import { segmentAt } from '../../../shared/youtubeCaptions';
 
@@ -9,11 +9,10 @@ import { segmentAt } from '../../../shared/youtubeCaptions';
  * Follow a long video: where you are, which chapter, and the transcript block
  * being spoken now.
  *
- * The transcript is fetched on demand and only if it has already been imported.
- * Importing drives the player — it can switch captions on and call playVideo()
- * (shared/youtubeTabCaptions.ts) — which is fine when the user asks to import a
- * video and unacceptable while they are watching one. So a miss says so and
- * offers the deliberate import instead of quietly reaching into the tab.
+ * The transcript is fetched on demand and cached for the session. It is read
+ * from what the player already loaded (the timedtext tee) rather than driving
+ * the player, because the user is watching this video — asking about it must
+ * never start playback or flip captions on.
  */
 export function NowWatching() {
   const watching = useNowWatching();

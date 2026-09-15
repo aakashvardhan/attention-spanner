@@ -2,105 +2,37 @@ import { describe, expect, it } from 'vitest';
 import {
   v12ReadingProgress,
   v15Skin,
-  v16DashboardMode,
-  v18EnabledPacks,
-  v20StripSettings,
-  v7Patch,
-  V20_DEAD_KEYS,
-  V21_DEAD_KEYS,
+  v22StripSettings,
+  v7Annotations,
+  V22_DEAD_KEYS,
+  V22_DEAD_SETTINGS,
 } from './storage';
 
 /**
- * v6 → v7 collapses the reward layer onto one currency. These cover the
- * shapes a real v6 profile can hold, including the ones that must NOT be
- * touched (a profile already free of the dead keys).
+ * v6 → v7's surviving half: annotations grew an anchor union when the reader
+ * learned to read articles, so every record from before then is a PDF one.
  */
-describe('v7Patch', () => {
-  it('drops xp and quest bookkeeping, keeping badges and counters', () => {
-    const patch = v7Patch({
-      gamification: {
-        xp: 1240,
-        lastQuestCelebratedWeek: '2026-07-06',
-        badges: { 'first-workout': 111 },
-        counters: { workouts: 3, chestsOpened: 7 },
-      },
-    });
-    expect(patch.gamification).toEqual({
-      badges: { 'first-workout': 111 },
-      counters: { workouts: 3, freezesEarned: 7 },
-    });
-  });
-
-  it('leaves freezesEarned alone when there was no chest counter', () => {
-    const patch = v7Patch({
-      gamification: { xp: 0, badges: {}, counters: { workouts: 1 } },
-    });
-    expect(patch.gamification).toEqual({ badges: {}, counters: { workouts: 1 } });
-  });
-
-  it('removes the quest settings and the progress card slot', () => {
-    const patch = v7Patch({
-      settings: {
-        questArticlesPerWeek: 2,
-        questSprintsPerWeek: 5,
-        questVideosPerWeek: 1,
-        questFocusPerWeek: 5,
-        dailyGoalMinutes: 10,
-        dashCardOrder: ['feeds', 'progress', 'tasks'],
-        dashHiddenCards: ['progress'],
-        dashFullWidthCards: [],
-      },
-    });
-    expect(patch.settings).toEqual({
-      dailyGoalMinutes: 10,
-      dashCardOrder: ['feeds', 'tasks'],
-      dashHiddenCards: [],
-      dashFullWidthCards: [],
-    });
-  });
-
-  it('rewrites chest markers to the bare rolled flag', () => {
-    const patch = v7Patch({
-      tasks: [
-        { id: 'a', chest: { bonusXp: 25 } },
-        { id: 'b', chest: { bonusXp: 0 } },
-        { id: 'c' },
-      ],
-    });
-    expect(patch.tasks).toEqual([
-      { id: 'a', chest: { rolled: true } },
-      { id: 'b', chest: { rolled: true } },
-      { id: 'c' },
-    ]);
-  });
-
-  it('skips the task rewrite when every chest is already migrated', () => {
-    const patch = v7Patch({ tasks: [{ id: 'a', chest: { rolled: true } }, { id: 'b' }] });
-    expect(patch.tasks).toBeUndefined();
-  });
-
+describe('v7Annotations', () => {
   it('wraps pdf annotations into the anchor union', () => {
-    const patch = v7Patch({
-      pdfAnnotations: [
-        {
-          id: 'a',
-          docKey: 'k',
-          pdfUrl: 'https://arxiv.org/pdf/1',
-          paperId: 'p1',
-          kind: 'highlight',
-          page: 4,
-          rects: [{ x: 0.1, y: 0.2, w: 0.3, h: 0.04 }],
-          x: 0,
-          y: 0,
-          text: 'quoted',
-          color: 'yellow',
-          note: '',
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ],
-    });
-    expect(patch.annotations).toEqual([
+    const converted = v7Annotations([
+      {
+        id: 'a',
+        docKey: 'k',
+        pdfUrl: 'https://arxiv.org/pdf/1',
+        paperId: 'p1',
+        kind: 'highlight',
+        page: 4,
+        rects: [{ x: 0.1, y: 0.2, w: 0.3, h: 0.04 }],
+        x: 0,
+        y: 0,
+        text: 'quoted',
+        color: 'yellow',
+        note: '',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]);
+    expect(converted).toEqual([
       {
         id: 'a',
         docKey: 'k',
@@ -123,37 +55,12 @@ describe('v7Patch', () => {
     ]);
   });
 
-  it('leaves annotations alone when there were none', () => {
-    expect(v7Patch({ pdfAnnotations: [] }).annotations).toBeUndefined();
-  });
-
-  it('returns nothing for a profile with none of the dead keys', () => {
-    expect(v7Patch({})).toEqual({});
+  it('returns null when there is nothing to convert', () => {
+    expect(v7Annotations([])).toBeNull();
+    expect(v7Annotations(undefined)).toBeNull();
   });
 });
 
-describe('v16DashboardMode', () => {
-  it('replaces arbitrary layout state with the focused preset', () => {
-    expect(
-      v16DashboardMode({
-        theme: 'dark',
-        dashColumns: 4,
-        dashCardOrder: ['feeds', 'tasks'],
-        dashHiddenCards: ['agenda'],
-        dashFullWidthCards: ['feeds'],
-      }),
-    ).toEqual({ theme: 'dark', dashboardMode: 'focused' });
-  });
-
-  it('does not create settings when none were stored', () => {
-    expect(v16DashboardMode(undefined)).toBeNull();
-  });
-});
-
-/**
- * v11 → v12 repairs Continue rows the reader corrupted: entries stamped with
- * the reader page's own title ("Reader") and chrome-extension:// URL.
- */
 describe('v12ReadingProgress', () => {
   const entry = (over: Record<string, unknown>) =>
     ({ title: 'A post', url: 'https://example.com/a', maxPercent: 20, ...over }) as never;
@@ -199,11 +106,6 @@ describe('v12ReadingProgress', () => {
   });
 });
 
-/**
- * v13 → v14 seeds the knowledge graph from whatever reading history survived
- * tracking.prune. Only articles and videos — papers, bookmarks and recordings
- * are reconciled on the first graph open instead.
- */
 /*
  * v14 → v15 flips the default skin to Brave. patchSettings writes the whole
  * settings object, so a profile that ever changed any setting has a stored
@@ -211,9 +113,9 @@ describe('v12ReadingProgress', () => {
  */
 describe('v15Skin', () => {
   it('rewrites a stored auto to the new default', () => {
-    expect(v15Skin({ skin: 'auto', dailyGoalMinutes: 20 })).toEqual({
+    expect(v15Skin({ skin: 'auto', refreshInterval: 20 })).toEqual({
       skin: 'brave',
-      dailyGoalMinutes: 20,
+      refreshInterval: 20,
     });
   });
 
@@ -229,127 +131,79 @@ describe('v15Skin', () => {
   });
 });
 
-describe('v18EnabledPacks', () => {
-  it('starts a new empty profile with the attention core only', () => {
-    expect(v18EnabledPacks({})).toEqual([]);
-  });
-
-  it('enables research for surviving research data', () => {
-    expect(v18EnabledPacks({ papers: [{}] })).toEqual(['research']);
-    expect(v18EnabledPacks({ recordings: [{}] })).toEqual(['research']);
-  });
-
-  it('enables work for a connected calendar or Gmail account', () => {
-    expect(v18EnabledPacks({ calendar: { connected: true } })).toEqual(['work']);
-    expect(
-      v18EnabledPacks({
-        gmail: {
-          clientId: '',
-          clientSecret: '',
-          triaged: [],
-          triagedAt: 0,
-          lastError: '',
-          accounts: [
-            {
-              id: 'mail',
-              email: 'reader@example.com',
-              accessToken: '',
-              refreshToken: '',
-              expiresAt: 0,
-              connected: true,
-              lastError: '',
-            },
-          ],
-        },
-      }),
-    ).toEqual(['work']);
-  });
-
-  it('preserves explicit packs and detects the legacy assistant setting', () => {
-    expect(
-      v18EnabledPacks({
-        enabledPacks: ['work'],
-        settings: { assistantEnabled: true },
-        papers: [{}],
-      }),
-    ).toEqual(['research', 'work', 'assistant']);
-  });
-});
 
 /**
- * v19 → v20 retires every key belonging to a cut feature. The settings half
- * needs its own delete rather than a changed DEFAULT_SETTINGS: patchSettings
- * writes the whole merged object, so a dropped field persists on disk for
- * anyone who has ever opened Settings, and a new default never reaches them.
+ * v21 → v22 is the sweep that follows cutting every feature Notion already
+ * covers. It is cumulative on purpose — it carries the keys v13, v20 and v21
+ * retired too — so a profile jumping straight from an old version lands clean.
  */
-describe('v20', () => {
+describe('v22', () => {
   it('names only keys whose feature is gone, and keeps the ones that are not', () => {
-    // decks survive the flashcards cut — papers live in them
-    expect(V20_DEAD_KEYS).not.toContain('decks');
-    expect(V20_DEAD_KEYS).not.toContain('papers');
-    expect(V20_DEAD_KEYS).not.toContain('recordings');
-    expect(V20_DEAD_KEYS).not.toContain('annotations');
-    expect(V20_DEAD_KEYS).not.toContain('graphCitations');
-    expect(V20_DEAD_KEYS).toEqual(
-      expect.arrayContaining([
-        'sync',
-        'tombstones',
-        'flashCards',
-        'flashNotes',
-        'srsDaily',
-        'graphNodes',
-        'alphaxiv',
-        'gym',
-        'warmup',
-        'parkingLot',
-        'xBookmarks',
-        'assistantBriefing',
-      ]),
-    );
+    for (const dead of ['tasks', 'notes', 'jobs', 'recordings', 'gmail', 'calendar', 'streaks']) {
+      expect(V22_DEAD_KEYS).toContain(dead);
+    }
+    // The surviving collections must never appear here: this list is passed
+    // straight to storage.remove, so a stray entry is silent data loss.
+    for (const alive of [
+      'feeds',
+      'readItems',
+      'cachedItems',
+      'settings',
+      'readingProgress',
+      'bookmarks',
+      'bookmarkGroups',
+      'decks',
+      'papers',
+      'annotations',
+      'focusSession',
+      'schemaVersion',
+    ]) {
+      expect(V22_DEAD_KEYS).not.toContain(alive);
+    }
+  });
+
+  it('carries the keys the earlier sweeps retired, so one pass is enough', () => {
+    for (const legacy of ['notionQueue', 'notionStatus', 'dailyBrainDumpGate', 'flashCards']) {
+      expect(V22_DEAD_KEYS).toContain(legacy);
+    }
   });
 
   it('strips the dead settings and leaves everything else untouched', () => {
-    const stripped = v20StripSettings({
-      focusMinutes: 25,
-      cloudProvider: 'anthropic',
-      geminiApiKey: 'k',
-      dashboardMode: 'focus',
-      gymWeeklyTarget: 3,
-      gymReminderTime: '18:00',
-      assistantWakeWordEnabled: true,
-      ollamaBaseUrl: 'http://localhost:11434',
-      ollamaModel: 'llama3',
+    const next = v22StripSettings({
+      theme: 'dark',
+      focusMinutes: 50,
+      geminiApiKey: 'secret',
+      assistantEnabled: true,
+      taskReminderIntervalMinutes: 60,
+      timePillHosts: ['youtube.com'],
+      gmailTriageTime: '08:30',
     });
-    expect(stripped).toEqual({
-      focusMinutes: 25,
-      cloudProvider: 'anthropic',
-      geminiApiKey: 'k',
-    });
+    expect(next).toEqual({ theme: 'dark', focusMinutes: 50 });
+  });
+
+  it('never names a setting the extension still reads', () => {
+    for (const alive of [
+      'theme',
+      'skin',
+      'refreshInterval',
+      'notificationsEnabled',
+      'nudgesEnabled',
+      'hyperfocusEnabled',
+      'focusBlocklist',
+      'focusMinutes',
+      'focusBreakMinutes',
+      'focusMusicEnabled',
+      'semanticScholarApiKey',
+    ]) {
+      expect(V22_DEAD_SETTINGS).not.toContain(alive);
+    }
   });
 
   it('is a no-op on a profile that never stored settings', () => {
-    expect(v20StripSettings(undefined)).toBeNull();
+    expect(v22StripSettings(undefined)).toBeNull();
   });
 
   it('leaves a settings object that carries none of the dead fields alone', () => {
-    const clean = { focusMinutes: 25, cloudProvider: 'gemini' };
-    expect(v20StripSettings(clean)).toEqual(clean);
-  });
-});
-
-/**
- * v21 removes the daily brain-dump gate. The delete rule is what needs pinning:
- * the gate went, but the notes it gated did not, and a migration that took
- * `notes` or `notesVault` with it would destroy the user's writing along with
- * their encryption keys.
- */
-describe('v21', () => {
-  it('retires the gate key', () => {
-    expect(V21_DEAD_KEYS).toEqual(['dailyBrainDumpGate']);
-  });
-
-  it('never touches the notes the gate used to guard', () => {
-    expect(V21_DEAD_KEYS).not.toContain('notes');
-    expect(V21_DEAD_KEYS).not.toContain('notesVault');
+    expect(v22StripSettings({ theme: 'light' })).toEqual({ theme: 'light' });
   });
 });

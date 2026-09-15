@@ -1,14 +1,13 @@
-import type { AnyProgress, IntentResumeContext, Paper } from './types';
+import type { AnyProgress, ResumeTarget, Paper } from './types';
 import { belongsInContinue, progressKind } from './progress';
 
-export function resumeContextFromProgress(progress: AnyProgress): IntentResumeContext {
+export function resumeContextFromProgress(progress: AnyProgress): ResumeTarget {
   if (progress.kind === 'video') {
     return {
       kind: 'video',
       url: progress.url,
       title: progress.title || progress.url,
       positionSeconds: progress.positionSeconds,
-      breadcrumb: '',
     };
   }
   return {
@@ -16,7 +15,6 @@ export function resumeContextFromProgress(progress: AnyProgress): IntentResumeCo
     url: progress.url,
     title: progress.title || progress.url,
     scrollY: progress.scrollY,
-    breadcrumb: '',
   };
 }
 

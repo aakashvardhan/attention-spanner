@@ -1,17 +1,6 @@
 import type { Message } from '../shared/messages';
-import { OFFSCREEN_PAGE_PATH } from '../shared/constants';
-import { appendTurn } from '../shared/ai/assistantTypes';
-import { getSession, setSession } from '../shared/storage';
-import { calSignIn, calSignOut, createCalendarEvent, listEvents, refreshCalendar } from './calendar';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
-import {
-  applyStructureResult,
-  confirmNoteTasks,
-  deleteNote,
-  markNoteFailed,
-  saveNote,
-} from './notes';
 import {
   addBookmark,
   addBookmarkGroup,
@@ -20,105 +9,28 @@ import {
   moveBookmark,
 } from './bookmarks';
 import { addDeck, deleteDeck, renameDeck } from './flashcards';
-import {
-  addAnnotation,
-  deleteAnnotation,
-  moveAnnotation,
-  updateAnnotation,
-} from './annotations';
+import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
-import {
-  deleteJobSource,
-  refreshJobs,
-  saveJobProfile,
-  saveJobSource,
-  setJobStatus,
-} from './jobs';
-import {
-  captureNow,
-  deleteRecording,
-  handleCaptureEnded,
-  handleSegmentReady,
-  handleVisualReady,
-  importYouTubeCaptions,
-  renameRecording,
-  startRecording,
-  stopRecording,
-  summarizeRecording,
-} from './recordings';
-import { askLive, catchMeUp, pinSkill, setMode, setPace, suggestNow } from './live';
 import { openNativePdf } from './pdfIntercept';
 import { startFocus, stopFocus } from './focus';
-import { archiveMessage, labelMessage, listLabels } from './gmail';
-import { connect as gmailConnect, disconnect as gmailDisconnect } from './gmailAuth';
-import { dropFromTriage, runTriage } from './gmailTriage';
-import { patchDayPlan, recordEntry, savePlan } from './journal';
-import { addFact, deleteFact } from './memory';
-import { addSkill, deleteSkill, updateSkill } from './skills';
-import { applyProposals } from './agentRuns';
-import { addAutomation, deleteAutomation, runAutomation, updateAutomation } from './automations';
-import { addExternalPaper, applyCitedTags, expandCitations } from './citations';
-import { indexDocCitations } from './docCitations';
-import { cancelSprint, startSprint } from './streaks';
-import { addTask, deleteTask, editTask, moveTask, snoozeTask, toggleTask } from './tasks';
-import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
-import {
-  catchUpVideo,
-  describeWatching,
-  searchVideoTranscript,
-  transcriptFor,
-} from './videoContext';
-import {
-  focusExistingVideoTab,
-  handleVideoProgress,
-  handleVideoReady,
-} from './videoTracking';
-
-/**
- * Is this message from our own offscreen document? Its sender.url is the
- * extension-origin offscreen page; content scripts report the page's URL and
- * other extension surfaces report their own page, so neither can pass. The
- * in-process dispatcher passes an empty sender ({} — see setLocalDispatcher),
- * which also fails, and correctly: the worker has chrome.storage itself and
- * never proxies.
- */
-function isOffscreenSender(sender: chrome.runtime.MessageSender): boolean {
-  return sender.url === chrome.runtime.getURL(OFFSCREEN_PAGE_PATH);
-}
+import { transcriptFor } from './videoContext';
+import { focusExistingVideoTab, handleVideoProgress, handleVideoReady } from './videoTracking';
 
 /** Exported so the SW can register itself as the in-process message dispatcher */
-export async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
+export async function dispatch(
+  msg: Message,
+  sender: chrome.runtime.MessageSender,
+): Promise<unknown> {
   switch (msg.type) {
     case 'REFRESH_FEEDS':
       return refreshFeeds();
     case 'OPEN_ARTICLE':
       return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true);
-    case 'ADD_TASK':
-      return { ok: true, task: await addTask(msg.text, msg.source) };
-    case 'TOGGLE_TASK':
-      await toggleTask(msg.id);
-      return { ok: true };
-    case 'DELETE_TASK':
-      await deleteTask(msg.id);
-      return { ok: true };
-    case 'EDIT_TASK':
-      await editTask(msg.id, msg.text);
-      return { ok: true };
-    case 'MOVE_TASK':
-      await moveTask(msg.id, msg.toIndex);
-      return { ok: true };
     case 'MARK_ALL_READ':
       return markAllRead();
     case 'VALIDATE_FEED':
       return { ok: true, ...(await validateFeed(msg.url)) };
-    case 'SNOOZE_TASK':
-      await snoozeTask(msg.id, msg.minutes);
-      return { ok: true };
-    case 'START_SPRINT':
-      return startSprint();
-    case 'CANCEL_SPRINT':
-      return cancelSprint();
     case 'START_FOCUS':
       return startFocus(msg);
     case 'STOP_FOCUS':
@@ -136,67 +48,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'DELETE_BOOKMARK_GROUP':
       await deleteBookmarkGroup(msg.id);
       return { ok: true };
-    case 'MEMORY_ADD':
-      return addFact(msg.text);
-    case 'MEMORY_DELETE':
-      await deleteFact(msg.id);
-      return { ok: true };
-    case 'SKILL_ADD':
-      return addSkill({ name: msg.name, keywords: msg.keywords, body: msg.body });
-    case 'SKILL_UPDATE':
-      return updateSkill(msg.id, msg.patch);
-    case 'SKILL_DELETE':
-      await deleteSkill(msg.id);
-      return { ok: true };
-    case 'GMAIL_CONNECT':
-      return gmailConnect();
-    case 'GMAIL_DISCONNECT':
-      return gmailDisconnect(msg.accountId);
-    case 'GMAIL_TRIAGE':
-      return runTriage({ force: msg.force });
-    case 'GMAIL_ARCHIVE':
-      try {
-        await archiveMessage(msg.accountId, msg.messageId);
-        await dropFromTriage(msg.messageId);
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: (err as Error).message };
-      }
-    case 'GMAIL_LABEL':
-      try {
-        await labelMessage(msg.accountId, msg.messageId, msg.labelId);
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: (err as Error).message };
-      }
-    case 'GMAIL_LIST_LABELS':
-      try {
-        return { ok: true, labels: await listLabels(msg.accountId) };
-      } catch (err) {
-        return { ok: false, labels: [], error: (err as Error).message };
-      }
-    case 'JOURNAL_APPEND':
-      await recordEntry(msg.kind, msg.text);
-      return { ok: true };
-    case 'JOURNAL_SAVE_PLAN':
-      await savePlan(msg.plan);
-      return { ok: true };
-    case 'JOURNAL_PATCH_PLAN':
-      await patchDayPlan(msg.date, msg.patch);
-      return { ok: true };
-    case 'AGENT_APPLY_PROPOSALS':
-      return applyProposals(msg.proposals);
-    case 'AUTOMATION_ADD':
-      return addAutomation({ name: msg.name, prompt: msg.prompt, schedule: msg.schedule });
-    case 'AUTOMATION_UPDATE':
-      return updateAutomation(msg.id, msg.patch);
-    case 'AUTOMATION_DELETE':
-      await deleteAutomation(msg.id);
-      return { ok: true };
-    case 'AUTOMATION_RUN_NOW':
-      return runAutomation(msg.id, { force: true });
-    case 'SAVE_NOTE':
-      return { ok: true, ...(await saveNote(msg.rawText)) };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
     case 'FLASH_RENAME_DECK':
@@ -209,16 +60,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       return updatePaper(msg.id, msg.patch);
     case 'PAPER_DELETE':
       return deletePaper(msg.id);
-    case 'JOBS_REFRESH':
-      return refreshJobs();
-    case 'JOB_SET_STATUS':
-      return setJobStatus(msg.id, msg.status);
-    case 'JOB_SOURCE_SAVE':
-      return saveJobSource(msg.source);
-    case 'JOB_SOURCE_DELETE':
-      return deleteJobSource(msg.id);
-    case 'JOB_PROFILE_SAVE':
-      return saveJobProfile(msg.patch);
     case 'PAPER_READER_PROGRESS':
       return handleReaderProgress(msg.paperId, {
         pdfUrl: msg.pdfUrl,
@@ -240,27 +81,6 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
       if (tabId === undefined) return { ok: false };
       return openNativePdf(tabId, msg.url);
     }
-    case 'CAL_SIGN_IN':
-      return calSignIn();
-    case 'CAL_SIGN_OUT':
-      return calSignOut();
-    case 'CAL_REFRESH':
-      return refreshCalendar();
-    case 'CAL_CREATE_EVENT':
-      return createCalendarEvent(msg.title, msg.startMs, msg.endMs);
-    case 'CAL_LIST_EVENTS':
-      return listEvents(msg.startMs, msg.endMs);
-    case 'STRUCTURE_NOTE_RESULT':
-      await applyStructureResult(msg.id, msg.bullets, msg.tasks);
-      return { ok: true };
-    case 'NOTE_FAILED':
-      await markNoteFailed(msg.id);
-      return { ok: true };
-    case 'DELETE_NOTE':
-      await deleteNote(msg.id);
-      return { ok: true };
-    case 'CONFIRM_NOTE_TASKS':
-      return { ok: true, ...(await confirmNoteTasks(msg.id, msg.tasks)) };
     case 'TRACKER_READY':
       return {
         ok: true,
@@ -277,107 +97,9 @@ export async function dispatch(msg: Message, sender: chrome.runtime.MessageSende
     case 'FOCUS_VIDEO_TAB':
       return { ok: await focusExistingVideoTab(msg.videoId) };
     case 'VIDEO_TRANSCRIPT': {
-      const res = await transcriptFor(msg.videoId, { alreadyImportedOnly: true });
+      const res = await transcriptFor(msg.videoId);
       return 'error' in res ? { ok: false, error: res.error } : { ok: true, segments: res.segments };
     }
-    case 'VIDEO_NOW_WATCHING':
-      return describeWatching();
-    case 'VIDEO_CATCH_UP':
-      return catchUpVideo(msg.minutes);
-    case 'VIDEO_TRANSCRIPT_SEARCH':
-      return searchVideoTranscript(msg.query);
-    case 'DOC_CITATIONS_INDEX':
-      return indexDocCitations(msg.entry);
-    case 'GRAPH_EXPAND_CITATIONS':
-      return expandCitations(msg.paperId, msg.force ?? false);
-    case 'GRAPH_ADD_EXTERNAL':
-      return addExternalPaper(msg.nodeId);
-    case 'GRAPH_SET_CITED_TAGS':
-      return applyCitedTags(msg.assignments);
-    case 'TIME_PILL_READY':
-      return handleTimePillReady(msg.host);
-    case 'TIME_PILL_TICK':
-      return handleTimePillTick(msg.host, msg.seconds);
-    // Offscreen wake-word listener (no chrome.storage/tabs there — SW does it).
-    // This is an unrestricted read/write of everything in storage: `get([])`
-    // hands back the API keys, the Google client secret and the refresh
-    // tokens. The offscreen document is the only context that needs it (every
-    // other one has chrome.storage directly), so nothing else may ask — a
-    // content script on a hostile page shares this same message channel.
-    case 'PROXY_STORAGE': {
-      if (!isOffscreenSender(sender)) {
-        console.warn('[router] PROXY_STORAGE from an unexpected sender:', sender.url);
-        return { ok: false };
-      }
-      if (msg.op === 'get') return chrome.storage[msg.area].get(msg.keys ?? []);
-      await chrome.storage[msg.area].set(msg.items ?? {});
-      return {};
-    }
-    case 'ASSISTANT_APPEND_TURN': {
-      // Read-modify-write is safe here: the single SW context serializes it
-      const { assistantThread } = await getSession('assistantThread');
-      await setSession({ assistantThread: appendTurn(assistantThread, msg.turn) });
-      return { ok: true };
-    }
-    case 'ASSISTANT_BEGIN_TURN': {
-      // Append the user turn and hand back the PRIOR thread in one round
-      // trip — saves the offscreen doc a getSession hop per wake turn
-      const { assistantThread } = await getSession('assistantThread');
-      await setSession({ assistantThread: appendTurn(assistantThread, msg.turn) });
-      return { thread: assistantThread };
-    }
-    case 'ASSISTANT_PATCH_TURN': {
-      const { assistantThread } = await getSession('assistantThread');
-      await setSession({
-        assistantThread: assistantThread.map((t) => (t.id === msg.id ? { ...t, ...msg.patch } : t)),
-      });
-      return { ok: true };
-    }
-    case 'REC_BEGIN':
-    case 'REC_GRAB_FRAME':
-      // Addressed to the offscreen doc, which listens on the same broadcast
-      return { ok: true };
-    case 'REC_START':
-      return startRecording(msg.mode, msg.tabId, msg.title, msg.purpose);
-    case 'REC_STOP':
-      // The offscreen recorder stops itself off the same broadcast
-      return stopRecording();
-    case 'REC_SEGMENT_READY':
-      await handleSegmentReady(msg);
-      return { ok: true };
-    case 'REC_VISUAL_READY':
-      await handleVisualReady(msg);
-      return { ok: true };
-    case 'REC_CAPTURE_ENDED':
-      await handleCaptureEnded(msg);
-      return { ok: true };
-    case 'LIVE_SET_MODE':
-      await setMode(msg.mode);
-      return { ok: true };
-    case 'LIVE_SET_PACE':
-      await setPace(msg.pace);
-      return { ok: true };
-    case 'LIVE_PIN_SKILL':
-      await pinSkill(msg.skillId);
-      return { ok: true };
-    case 'LIVE_SUGGEST':
-      await suggestNow();
-      return { ok: true };
-    case 'LIVE_ASK':
-      await askLive(msg.question);
-      return { ok: true };
-    case 'LIVE_CATCH_UP':
-      return { text: await catchMeUp(msg.minutes) };
-    case 'REC_DELETE':
-      return deleteRecording(msg.id);
-    case 'REC_RENAME':
-      return renameRecording(msg.id, msg.title);
-    case 'REC_SUMMARIZE':
-      return summarizeRecording(msg.id);
-    case 'REC_CAPTURE_NOW':
-      return captureNow();
-    case 'REC_YOUTUBE_IMPORT':
-      return importYouTubeCaptions(msg.url);
   }
 }
 

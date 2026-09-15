@@ -3,10 +3,8 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { recordEvent } from './gamification';
 import { recordEngagement } from './hyperfocus';
 import { scheduleNudge, cancelNudge } from './nudges';
-import { recordReading } from './streaks';
 
 /**
  * Reading-progress tracking. The tracker content script is injected
@@ -191,21 +189,13 @@ export async function handleProgressUpdate(
   progress.pageHeight = update.pageHeight;
   progress.activeSeconds += Math.max(0, update.activeSecondsDelta);
   progress.updatedAt = now;
-  let finishedNow = false;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
-    finishedNow = true;
   }
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  // prune() above is why this exists: the graph node outlives the entry it was
-  // built from, and its feed categories outlive cachedItems.
-  await recordReading(Math.max(0, update.activeSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
-  if (finishedNow) {
-    await recordEvent('article_finished'); // latches once per article via completedAt
-  }
 
   if (update.hidden) {
     await scheduleNudge(key);

@@ -1,7 +1,7 @@
 import { ACCENT_COLOR, MAX_CACHED_ITEMS, MAX_READ_ITEMS } from '../shared/constants';
 import { articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
 import { belongsInContinue } from '../shared/progress';
-import { getLocal, getSession, setLocal } from '../shared/storage';
+import { getLocal, setLocal } from '../shared/storage';
 import type { FeedItem } from '../shared/types';
 import { getYouTubeVideoId } from '../shared/youtube';
 import { fetchFeed } from './rssParser';
@@ -92,17 +92,6 @@ export async function refreshFeeds(): Promise<RefreshResult> {
 }
 
 export async function updateBadge(): Promise<void> {
-  // A live recording outranks everything: it is the one state the user must
-  // not forget about.
-  // Read from session storage here (not recordings.ts) so the focus alarm's
-  // periodic tick can't stomp the badge back to a countdown.
-  const { activeRecording } = await getSession('activeRecording');
-  if (activeRecording) {
-    await chrome.action.setBadgeText({ text: 'REC' });
-    await chrome.action.setBadgeBackgroundColor({ color: '#d70015' });
-    return;
-  }
-
   // During a focus session the badge belongs to the countdown, not unread
   // counts. Read focusSession straight from storage — no focus.ts import,
   // so no module cycle.

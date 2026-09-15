@@ -1,19 +1,23 @@
-import type { TranscriptSegment } from './recordings';
-
 /**
- * YouTube's own caption track, parsed into the same TranscriptSegment shape the
- * recorder produces. Pure — the fetching lives in background/recordings.ts.
+ * YouTube's own caption track, parsed into timed blocks. Pure — the fetching
+ * lives in background/videoContext.ts.
  *
- * Pulling captions costs nothing and is exactly timed, so it always beats
- * transcribing the audio of a video that already has them. It is also the most
+ * Pulling captions costs nothing and is exactly timed. It is also the most
  * fragile path here: YouTube has been progressively gating `timedtext`, and a
  * caption track can be absent, auto-translated, or served empty. Every function
- * below returns null/[] rather than throwing so the caller can fall back to
- * recording the tab audio instead.
+ * below returns null/[] rather than throwing, so a video without usable
+ * captions simply shows no transcript instead of breaking the panel.
  */
 
 /** Caption events are grouped into blocks of about this long, for readable paragraphs. */
 export const CAPTION_GROUP_SECONDS = 60;
+
+/** One block of caption text, with the wall-clock window it covers. */
+export interface TranscriptSegment {
+  startSec: number;
+  endSec: number;
+  text: string;
+}
 
 export interface CaptionTrack {
   baseUrl: string;

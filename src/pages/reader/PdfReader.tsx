@@ -8,18 +8,14 @@ import { isPdfAnchored } from '../../shared/types';
 import { headingForPage } from '../../shared/pdfOutline';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { usePdfDocument } from './usePdfDocument';
-import { refKeysFrom } from '../../shared/docCitations';
 import { indexKnownRefs } from './citationLinks';
-import { extractReferences, getPdfPageTexts, getPdfText, type ReferenceIndex } from './references';
+import { extractReferences, getPdfPageTexts, type ReferenceIndex } from './references';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
-import { AskPanel } from './components/AskPanel';
 import { OutlineSidebar } from './components/OutlineSidebar';
-import { RelatedPanel } from './components/RelatedPanel';
 import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { TrackPrompt, type PaperSeed } from './components/TrackPrompt';
 import { PdfFindPanel } from './components/PdfFindPanel';
-import { AiOutlinePanel } from './components/AiOutlinePanel';
 
 /** One progress write at most every 5s; position changes in between are dropped. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -58,15 +54,11 @@ export function PdfReader({ src }: { src: string }) {
   const pageAnnotations = useMemo(() => docAnnotations.filter(isPdfAnchored), [docAnnotations]);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
-  const [panel, setPanel] = useState<'none' | 'notes' | 'ask' | 'related' | 'find'>('none');
+  const [panel, setPanel] = useState<'none' | 'notes' | 'find'>('none');
   // Lead with the generated research outline; the PDF's native bookmarks stay
   // one tab away and the generated result begins immediately on open.
-  const [leftMode, setLeftMode] = useState<'outline' | 'ai'>('ai');
   const notesOpen = panel === 'notes';
-  const askOpen = panel === 'ask';
-  const relatedOpen = panel === 'related';
   const findOpen = panel === 'find';
-  const aiOutlineOpen = outlineOpen && leftMode === 'ai';
 
   useEffect(() => {
     if (!noteMode) return;
@@ -111,29 +103,10 @@ export function PdfReader({ src }: { src: string }) {
     return () => { alive = false; };
   }, [doc]);
 
-  // Record what this document cites, so other documents can ask "who links
-  // here". One write per open, keyed by docKey — the parse above already
-  // happened, so this costs a message and nothing else.
-  const docTitle = ready ? state.title : '';
-  useEffect(() => {
-    if (!references) return;
-    void sendMessage({
-      type: 'DOC_CITATIONS_INDEX',
-      entry: {
-        docKey,
-        docUrl: src,
-        title: docTitle || src,
-        refKeys: refKeysFrom(references),
-        indexedAt: Date.now(),
-      },
-    });
-  }, [references, docKey, src, docTitle]);
-
   // Which of this document's citations point at something already in the
   // library. Rebuilt when either side changes, so tracking a paper lights up
   // its citations across every open reader without a reload.
-  const [docCitations] = useStorageValue('docCitations');
-  const knownRefs = useMemo(() => indexKnownRefs(papers, docCitations), [papers, docCitations]);
+  const knownRefs = useMemo(() => indexKnownRefs(papers), [papers]);
 
   const leftOffFor = useCallback(
     (page: number) => headingForPage(outline, page) ?? `Page ${page} of ${pageCount}`,
@@ -254,12 +227,6 @@ export function PdfReader({ src }: { src: string }) {
     };
   }, [sendProgress]);
 
-  // Stable identity so AskPanel's loader effect doesn't refire each render
-  const getPdfTextForAsk = useCallback(
-    async () => (ready ? getPdfText(state.doc) : ''),
-    [ready, ready ? state.doc : null],
-  );
-
   const getSeed = useCallback((): PaperSeed => {
     const l = live.current;
     const pdf = { url: src, page: l.position.page, pageCount: l.pageCount, offset: l.position.offset };
@@ -292,21 +259,8 @@ export function PdfReader({ src }: { src: string }) {
         notesOpen={notesOpen}
         annotationCount={docAnnotations.length}
         onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
-        askOpen={askOpen}
-        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
-        relatedOpen={relatedOpen}
-        onToggleRelated={() => setPanel((current) => (current === 'related' ? 'none' : 'related'))}
         findOpen={findOpen}
         onToggleFind={() => setPanel((current) => (current === 'find' ? 'none' : 'find'))}
-        aiOutlineOpen={aiOutlineOpen}
-        onToggleAiOutline={() => {
-          if (leftMode === 'ai' && outlineOpen) {
-            setOutlineOpen(false);
-          } else {
-            setLeftMode('ai');
-            setOutlineOpen(true);
-          }
-        }}
       />
       {ready && papersLoaded && !paper && (
         <TrackPrompt src={src} suggestedTitle={state.title} getSeed={getSeed} />
@@ -324,14 +278,11 @@ export function PdfReader({ src }: { src: string }) {
         </div>
       )}
       <div className="reader-body">
-        {ready && outlineOpen && (outline.length > 0 || leftMode === 'ai') && (
+        {ready && outlineOpen && outline.length > 0 && (
           <OutlineSidebar
             outline={outline}
             currentPage={position.page}
             onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
-            activeTab={leftMode}
-            onTabChange={setLeftMode}
-            aiOutline={<AiOutlinePanel embedded title={title} pageTexts={pageTexts} bookmarks={outline} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} />}
           />
         )}
         {state.status === 'loading' && (
@@ -382,25 +333,7 @@ export function PdfReader({ src }: { src: string }) {
             onDelete={deleteAnnotation}
           />
         )}
-        {ready && relatedOpen && (
-          <RelatedPanel
-            docKey={docKey}
-            paper={paper}
-            references={references}
-            known={knownRefs}
-            onClose={() => setPanel('none')}
-          />
-        )}
         {ready && findOpen && <PdfFindPanel pages={pageTexts} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} onClose={() => setPanel('none')} />}
-        {ready && askOpen && (
-          <AskPanel
-            getText={getPdfTextForAsk}
-            title={title}
-            position={position.page}
-            total={pageCount}
-            noun="paper"
-          />
-        )}
       </div>
     </div>
   );

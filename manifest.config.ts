@@ -4,12 +4,8 @@ import { loadEnv } from 'vite';
 // The reading tracker is injected dynamically via chrome.scripting (no static
 // content_scripts); it's bundled separately by `npm run build:content`.
 //
-// Nothing here is OAuth-aware. Google Calendar signs in with the user's own
-// client id and secret, entered in Settings and driven through
-// launchWebAuthFlow (docs/google-calendar-setup.md) — no manifest `oauth2`
-// block, and no build that has to know a client id. `key` stays optional: set
-// VITE_CRX_PUBLIC_KEY to pin the extension id (and with it the OAuth redirect
-// URL) across reloads from different paths.
+// `key` stays optional: set VITE_CRX_PUBLIC_KEY to pin the extension id across
+// reloads from different paths.
 export default defineManifest(async (env) => {
   const vars = loadEnv(env.mode, process.cwd(), '');
   const crxKey = (vars.VITE_CRX_PUBLIC_KEY ?? '').trim();
@@ -18,7 +14,7 @@ export default defineManifest(async (env) => {
     manifest_version: 3,
     name: 'Reader',
     description:
-      'RSS reader built for attention-challenged brains: finish what you start, capture tasks before they vanish.',
+      'An RSS reader and document reader that tracks what you start, brings you back to it, and blocks what pulls you away.',
     version: '1.0.0',
     ...(crxKey ? { key: crxKey } : {}),
     icons: {
@@ -41,10 +37,8 @@ export default defineManifest(async (env) => {
     chrome_url_overrides: {
       newtab: 'src/pages/newtab/index.html',
     },
-    // The extension's main surface: beside the page you're on, rather than over
-    // it. Opened by clicking the toolbar icon, or from the toggle-copilot
-    // command; sidePanel.open needs a user gesture and a commands handler
-    // counts as one.
+    // Acts on the page you're on, beside it rather than over it. Opened by
+    // clicking the toolbar icon (sidePanel.setPanelBehavior in the worker).
     side_panel: {
       default_path: 'src/pages/sidepanel/index.html',
     },
@@ -61,14 +55,6 @@ export default defineManifest(async (env) => {
       // Read-only: response headers, to spot PDFs served from extensionless URLs
       'webRequest',
       'contextMenus',
-      'identity',
-      'offscreen',
-      // Audio capture from a tab (meetings, videos) for transcription
-      'tabCapture',
-      // Transcripts are the largest records here — an hour of speech is ~60KB of
-      // text, which does not fit alongside feeds/cards/papers in the 10MB default
-      'unlimitedStorage',
-      // The live copilot docks beside the tab you're in a meeting on
       'sidePanel',
     ],
     host_permissions: ['<all_urls>'],
@@ -81,44 +67,8 @@ export default defineManifest(async (env) => {
         resources: ['src/pages/blocked/index.html'],
         matches: ['http://*/*', 'https://*/*'],
       },
-      {
-        // The floating overlay is this page in an iframe, so the page has to be
-        // loadable from a web origin.
-        //
-        // Only the document is listed. web_accessible_resources gates loads
-        // *initiated by* a web origin — the host page starts the iframe, but
-        // the chunks and fonts inside it are then fetched by the overlay
-        // document itself, which is already on the extension origin. Listing
-        // assets/* as well would publish every built chunk to every site, and
-        // with it a reliable "is this extension installed" probe.
-        resources: ['src/pages/overlay/index.html'],
-        matches: ['http://*/*', 'https://*/*'],
-      },
     ],
     commands: {
-      'quick-capture-task': {
-        suggested_key: {
-          default: 'Ctrl+Shift+Y',
-          mac: 'Command+Shift+Y',
-        },
-        description: 'Quick-capture a task',
-      },
-      // Not Shift+J, which is devtools on Windows and Linux.
-      'toggle-copilot': {
-        suggested_key: {
-          default: 'Ctrl+Shift+K',
-          mac: 'Command+Shift+K',
-        },
-        description: 'Open Jarvis beside this page',
-      },
-      'toggle-overlay': {
-        suggested_key: {
-          default: 'Ctrl+Shift+O',
-          mac: 'Command+Shift+O',
-        },
-        description: 'Float Jarvis over this page',
-      },
-      // Chrome binds at most four suggested keys, and this is the fourth.
       // Shift+E is unclaimed in both Chrome and Brave; on an update the key
       // only binds if the user has not customised their shortcuts, so it is
       // worth checking chrome://extensions/shortcuts after installing.

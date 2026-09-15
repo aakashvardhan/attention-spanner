@@ -1,7 +1,6 @@
 import type { Reference } from '../../shared/bibliography';
-import type { DocCitations } from '../../shared/docCitations';
 import { paperMatchKey } from '../../shared/papers';
-import { articleReaderPath, paperPdfSource, readerPagePath } from '../../shared/pdf';
+import { paperPdfSource, readerPagePath } from '../../shared/pdf';
 import type { Paper } from '../../shared/types';
 
 /**
@@ -14,8 +13,7 @@ import type { Paper } from '../../shared/types';
  */
 
 export interface KnownTarget {
-  /** 'paper' — tracked, with status and progress; 'read' — opened at least once */
-  kind: 'paper' | 'read';
+  kind: 'paper';
   title: string;
   /**
    * Extension-relative path, not an absolute URL: `chrome.runtime.getURL` is
@@ -36,28 +34,9 @@ export function refMatchKey(ref: Reference): string | null {
   return ref.link ? paperMatchKey(ref.link) : null;
 }
 
-/**
- * Index everything the reader owns by match key.
- *
- * Tracked papers are written last and therefore win: a paper carries status,
- * progress and a deck, where a merely-opened document carries only the fact
- * that it was opened once. When both describe the same work, the richer one is
- * the one worth linking to.
- */
-export function indexKnownRefs(
-  papers: readonly Paper[],
-  docs: Record<string, DocCitations>,
-): Map<string, KnownTarget> {
+/** Index the tracked papers by match key, so a citation can point at your copy. */
+export function indexKnownRefs(papers: readonly Paper[]): Map<string, KnownTarget> {
   const known = new Map<string, KnownTarget>();
-
-  for (const doc of Object.values(docs)) {
-    known.set(doc.docKey, {
-      kind: 'read',
-      title: doc.title,
-      path: articleReaderPath(doc.docUrl),
-      externalUrl: doc.docUrl,
-    });
-  }
 
   for (const paper of papers) {
     const key = paperMatchKey(paper.url) ?? (paper.pdf ? paperMatchKey(paper.pdf.url) : null);

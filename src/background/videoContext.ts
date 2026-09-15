@@ -1,140 +1,198 @@
-import { newTurn } from '../shared/ai/assistantTypes';
-import { cloudProviderFor, hasCloudKey } from '../shared/ai/cloud';
-import { recentWindow } from '../shared/ai/liveTriggers';
-import type { TranscriptSegment } from '../shared/recordings';
-import { getLocal, getSettings } from '../shared/storage';
-import { currentlyWatching, livePositionSeconds } from '../shared/youtube';
-import { searchSegments } from '../shared/youtubeCaptions';
-import { importYouTubeCaptions } from './recordings';
+import { FETCH_TIMEOUT_MS } from '../shared/constants';
+import { getSession, setSession } from '../shared/storage';
+import { getYouTubeVideoId } from '../shared/youtube';
+import {
+  captionTracks,
+  extractPlayerResponse,
+  json3Url,
+  parseJson3,
+  pickCaptionTrack,
+  type TranscriptSegment,
+} from '../shared/youtubeCaptions';
+import { captureCaptionsFromPlayer, type TabCaptionResult } from '../shared/youtubeTabCaptions';
 
 /**
- * The video playing right now, as assistant context.
+ * The transcript of the video playing right now, for the side panel's Follow
+ * pane. Fetched lazily and cached for the session — nothing here may fetch
+ * speculatively, because the panel asks the moment a video starts playing and
+ * most videos are never followed.
  *
- * Transcripts are fetched lazily and cached in `recordings`, which already
- * dedupes by videoId and already feeds Library search — a second store would
- * duplicate it. The cost of that reuse is MAX_RECORDINGS: heavy YouTube use can
- * push meeting transcripts out of a 50-slot list sorted by recency. Laziness is
- * what buys it off, so nothing here may fetch speculatively.
+ * Session rather than local storage: a transcript is only interesting while the
+ * video is on screen, and caching them to disk would grow without a bound
+ * nobody is watching.
  */
 
-const CATCH_UP_MIN_MINUTES = 1;
-const CATCH_UP_MAX_MINUTES = 15;
-
-export interface WatchingNow {
-  videoId: string;
-  title: string;
-  channel: string;
-  positionSeconds: number;
-  durationSeconds: number;
-  chapter: string;
-}
-
-/** The live video, or null. Read-only and free — no network, no player. */
-export async function watchingNow(): Promise<WatchingNow | null> {
-  const { readingProgress } = await getLocal('readingProgress');
-  const video = currentlyWatching(readingProgress);
-  if (!video) return null;
-  return {
-    videoId: video.videoId,
-    title: video.title,
-    channel: video.source,
-    positionSeconds: Math.round(livePositionSeconds(video)),
-    durationSeconds: video.durationSeconds,
-    chapter: video.chapter ?? '',
-  };
+/**
+ * Register the timedtext tee (content/timedtextTee.js) for YouTube pages.
+ * document_start + MAIN world are both load-bearing: the player binds its
+ * fetch/XHR references at boot, so a later or isolated-world injection sees
+ * nothing. Idempotent — safe from both onInstalled and onStartup.
+ */
+export async function registerTimedtextTee(): Promise<void> {
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['yt-timedtext-tee'] });
+  if (existing.length > 0) return;
+  await chrome.scripting.registerContentScripts([
+    {
+      id: 'yt-timedtext-tee',
+      matches: ['*://www.youtube.com/*', '*://m.youtube.com/*'],
+      js: ['content/timedtextTee.js'],
+      runAt: 'document_start',
+      world: 'MAIN',
+    },
+  ]);
 }
 
 /**
- * The transcript for a video, importing it once if we do not have it.
+ * Re-inject the timedtext tee into YouTube tabs that are already open.
  *
- * `importYouTubeCaptions` may drive the player as a last resort — it can turn
- * captions on and call playVideo() (see shared/youtubeTabCaptions.ts). That is
- * acceptable when the user explicitly asks to import a video, and NOT
- * acceptable here, where they are watching it: a question must never start
- * playback. Callers that are on the live path pass `alreadyImportedOnly` so a
- * cache miss reports back instead of touching the tab.
+ * `registerContentScripts` only covers future navigations, and injecting into a
+ * loaded page is too late for the caption request it already made — but it does
+ * put a live tee back for the SPA navigations that follow.
+ */
+export async function refreshTimedtextTees(): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: ['*://www.youtube.com/*', '*://m.youtube.com/*'] });
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      const target = { tabId: tab.id };
+      try {
+        await chrome.scripting.executeScript({
+          target,
+          world: 'MAIN',
+          func: () => window.__readerTimedtextStop?.(),
+        });
+        await chrome.scripting.executeScript({
+          target,
+          world: 'MAIN',
+          files: ['content/timedtextTee.js'],
+        });
+      } catch {
+        // Tab closed or navigating — the registered script covers its next load
+      }
+    }),
+  );
+}
+
+/**
+ * The transcript for a video, fetching it once if we do not have it.
+ *
+ * Never drives the player: the user is *watching* this video, and a question
+ * about it must not start playback or flip captions on. That is why the tab
+ * path here reads only what the tee already stashed.
  */
 export async function transcriptFor(
   videoId: string,
-  opts: { alreadyImportedOnly?: boolean } = {},
 ): Promise<{ segments: TranscriptSegment[] } | { error: string }> {
-  const { recordings } = await getLocal('recordings');
-  const prior = recordings.find(
-    (r) => r.source.kind === 'youtube' && r.source.videoId === videoId && r.status === 'ready',
-  );
-  if (prior?.segments.length) return { segments: prior.segments };
-  if (opts.alreadyImportedOnly) {
-    return { error: 'No transcript for this video yet — import it from the panel first.' };
+  const { videoTranscripts } = await getSession('videoTranscripts');
+  const cached = videoTranscripts[videoId];
+  if (cached) return { segments: cached };
+
+  let player: unknown;
+  try {
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return { error: `YouTube returned HTTP ${res.status}.` };
+    player = extractPlayerResponse(await res.text());
+  } catch {
+    return { error: 'Could not reach YouTube.' };
   }
 
-  const res = await importYouTubeCaptions(`https://www.youtube.com/watch?v=${videoId}`);
-  if (!res.ok || !res.id) return { error: res.error ?? 'Could not read this video’s captions.' };
-  const { recordings: after } = await getLocal('recordings');
-  const saved = after.find((r) => r.id === res.id);
-  return saved?.segments.length
-    ? { segments: saved.segments }
-    : { error: 'That video’s transcript came back empty.' };
-}
+  const track = pickCaptionTrack(captionTracks(player), navigator.languages ?? ['en']);
+  if (!track) return { error: 'This video has no captions.' };
 
-/** Summarize the minutes just watched, from the transcript before the playhead. */
-export async function catchUpVideo(minutes: number): Promise<{ text: string }> {
-  const live = await watchingNow();
-  if (!live) return { text: 'Nothing is playing right now.' };
-
-  const window = Math.max(CATCH_UP_MIN_MINUTES, Math.min(CATCH_UP_MAX_MINUTES, Math.round(minutes)));
-  const transcript = await transcriptFor(live.videoId, { alreadyImportedOnly: true });
-  if ('error' in transcript) return { text: transcript.error };
-
-  // Everything up to the playhead — summarizing speech they have not reached
-  // yet would be a spoiler, not a recap.
-  const heard = transcript.segments.filter((s) => s.startSec <= live.positionSeconds);
-  const text = recentWindow(heard, live.positionSeconds, window * 60);
-  if (!text) return { text: 'Nothing has been said in that window yet.' };
-
-  const settings = await getSettings();
-  if (!hasCloudKey(settings)) {
-    return { text: 'Add a cloud API key in Settings → Assistant to summarize a video.' };
+  // Direct fetch first: one cheap request, and it just works if YouTube ever
+  // relaxes the gating. Today it returns 200 with an EMPTY body — timedtext
+  // requires a proof-of-origin token minted by the player, single-use — so the
+  // real path is captionsViaTab, which reads the player's own request.
+  let segments: TranscriptSegment[] = [];
+  try {
+    const res = await fetch(json3Url(track.baseUrl), {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (res.ok) segments = parseJson3(await res.json());
+  } catch {
+    // expected: empty body fails res.json(); fall through to the tab path
   }
-  const reply = await cloudProviderFor(settings).generate({
-    system:
-      'Summarize what was said in this excerpt of a video the user is watching. ' +
-      'Lead with the answer, 2-4 short bullets, no preamble. Never invent content.',
-    turns: [newTurn('user', `Video: "${live.title}"\n\n${text}`)],
-  });
-  return { text: reply.text };
+
+  if (segments.length === 0) {
+    const viaTab = await captionsViaTab(videoId);
+    if ('error' in viaTab) return { error: viaTab.error };
+    segments = viaTab.segments;
+  }
+  if (segments.length === 0) return { error: 'YouTube served an empty caption track.' };
+
+  const { videoTranscripts: latest } = await getSession('videoTranscripts');
+  await setSession({ videoTranscripts: { ...latest, [videoId]: segments } });
+  return { segments };
 }
 
-/** Find a phrase in the live video's transcript, with clickable timestamps. */
-export async function searchVideoTranscript(
-  query: string,
-): Promise<{ text: string; videoId?: string }> {
-  const live = await watchingNow();
-  if (!live) return { text: 'Nothing is playing right now.' };
-  const transcript = await transcriptFor(live.videoId, { alreadyImportedOnly: true });
-  if ('error' in transcript) return { text: transcript.error };
+/** Injection errors worth retrying: the player just hasn't booted yet. */
+const RETRYABLE = new Set(['no-player', 'player-api']);
 
-  const hits = searchSegments(transcript.segments, query);
-  if (hits.length === 0) return { text: `Nothing in "${live.title}" mentions that.`, videoId: live.videoId };
-  const lines = hits.map((h) => `- ${formatStamp(h.startSec)} — ${h.text.trim()}`);
-  return { text: lines.join('\n'), videoId: live.videoId };
+const TAB_CAPTION_ERRORS: Record<string, string> = {
+  'no-player': 'The video player never appeared — is the tab still loading?',
+  'no-tracks': 'This video has no caption tracks.',
+  'no-request': 'Could not read the captions the player loaded.',
+  'player-api': 'Could not read this video’s captions.',
+  'tee-missing': 'Reload the video tab once to follow along.',
+};
+
+/**
+ * Read the caption track from inside the video's own tab. The tee content
+ * script stashed the body of the player's own timedtext request — the one
+ * request YouTube cannot gate, since the player mints the proof-of-origin token
+ * it demands.
+ */
+async function captionsViaTab(
+  videoId: string,
+): Promise<{ segments: TranscriptSegment[] } | { error: string }> {
+  const tabId = await findVideoTab(videoId);
+  if (tabId === null) return { error: 'That video is not open in a tab.' };
+
+  let lastError = 'no-player';
+  let reloaded = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2000));
+    let result: TabCaptionResult | undefined;
+    try {
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: captureCaptionsFromPlayer,
+        args: [videoId],
+      });
+      result = injection?.result as TabCaptionResult | undefined;
+    } catch (error) {
+      return { error: (error as Error)?.message ?? 'Could not reach the video tab.' };
+    }
+    if (!result) return { error: 'The video tab did not respond.' };
+
+    if (result.ok && result.body) {
+      try {
+        return { segments: parseJson3(JSON.parse(result.body)) };
+      } catch {
+        return { error: 'The player used an unexpected caption format.' };
+      }
+    }
+    lastError = result.error ?? 'no-request';
+
+    // Tab predates the tee registration (extension just updated): one reload
+    // injects it at document_start, and the flow self-heals.
+    if (lastError === 'tee-missing' && !reloaded) {
+      reloaded = true;
+      await chrome.tabs.reload(tabId);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      continue;
+    }
+    // A still-loading tab reports no-player; anything else is final
+    if (!RETRYABLE.has(lastError)) break;
+  }
+  return { error: TAB_CAPTION_ERRORS[lastError] ?? 'Could not read the captions.' };
 }
 
-function formatStamp(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = String(s % 60).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
-}
-
-/** One-line status for the assistant: what is playing and how far in. */
-export async function describeWatching(): Promise<{ text: string }> {
-  const live = await watchingNow();
-  if (!live) return { text: 'No video is playing right now.' };
-  const chapter = live.chapter ? ` (chapter: ${live.chapter})` : '';
-  return {
-    text:
-      `Watching "${live.title}" by ${live.channel || 'an unknown channel'} — ` +
-      `at ${formatStamp(live.positionSeconds)} of ${formatStamp(live.durationSeconds)}${chapter}.`,
-  };
+/** The video's tab, if it is open. */
+async function findVideoTab(videoId: string): Promise<number | null> {
+  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
+  return tabs.find((tab) => tab.url && getYouTubeVideoId(tab.url) === videoId)?.id ?? null;
 }

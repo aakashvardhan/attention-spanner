@@ -47,14 +47,8 @@ export function ReaderToolbar({
   notesOpen,
   annotationCount,
   onToggleNotes,
-  askOpen,
-  onToggleAsk,
-  relatedOpen,
-  onToggleRelated,
   findOpen,
   onToggleFind,
-  aiOutlineOpen,
-  onToggleAiOutline,
   actionItemsCount,
   actionsOpen,
   onToggleActions,
@@ -80,15 +74,9 @@ export function ReaderToolbar({
   notesOpen: boolean;
   annotationCount: number;
   onToggleNotes: () => void;
-  askOpen: boolean;
-  onToggleAsk: () => void;
   /** Absent for documents with no reference list to relate (a recording) */
-  relatedOpen?: boolean;
-  onToggleRelated?: () => void;
   findOpen?: boolean;
   onToggleFind?: () => void;
-  aiOutlineOpen?: boolean;
-  onToggleAiOutline?: () => void;
   /** Recording-only action item popup. */
   actionItemsCount?: number;
   actionsOpen?: boolean;
@@ -334,20 +322,6 @@ export function ReaderToolbar({
             <span className="reader-toolbar-badge">{actionItemsCount}</span>
           </button>
         )}
-        <button
-          className={askOpen ? 'reader-ask-btn active' : 'reader-ask-btn'}
-          aria-pressed={askOpen}
-          title="Ask questions about this document"
-          onClick={onToggleAsk}
-        >
-          <ToolbarIcon>
-            <path d="m12 3 .75 2.25L15 6l-2.25.75L12 9l-.75-2.25L9 6l2.25-.75L12 3Z" />
-            <path d="m18 11 .55 1.45L20 13l-1.45.55L18 15l-.55-1.45L16 13l1.45-.55L18 11Z" />
-            <path d="M4 9.5h3M4 13h7M4 16.5h9" />
-          </ToolbarIcon>
-          Ask
-        </button>
-
         <div className="reader-more" ref={moreRef}>
           <button
             className={moreOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
@@ -365,38 +339,6 @@ export function ReaderToolbar({
           </button>
           {moreOpen && (
             <div className="reader-more-menu" role="menu">
-              {onToggleRelated && (
-                <button
-                  className={relatedOpen ? 'active' : ''}
-                  role="menuitemcheckbox"
-                  aria-checked={relatedOpen}
-                  onClick={() => closeAfter(onToggleRelated)}
-                >
-                  <ToolbarIcon>
-                    <circle cx="7" cy="12" r="3" />
-                    <circle cx="17" cy="7" r="3" />
-                    <circle cx="17" cy="17" r="3" />
-                    <path d="m9.7 10.6 4.6-2.2M9.7 13.4l4.6 2.2" />
-                  </ToolbarIcon>
-                  <span>Related papers</span>
-                  {relatedOpen && <span className="reader-menu-check">✓</span>}
-                </button>
-              )}
-              {onToggleAiOutline && (
-                <button
-                  className={aiOutlineOpen ? 'active' : ''}
-                  role="menuitemcheckbox"
-                  aria-checked={aiOutlineOpen}
-                  onClick={() => closeAfter(onToggleAiOutline)}
-                >
-                  <ToolbarIcon>
-                    <path d="M4 7h10M4 12h16M4 17h12" />
-                    <path d="m18 3 .45 1.55L20 5l-1.55.45L18 7l-.45-1.55L16 5l1.55-.45L18 3Z" />
-                  </ToolbarIcon>
-                  <span>AI outline</span>
-                  {aiOutlineOpen && <span className="reader-menu-check">✓</span>}
-                </button>
-              )}
               <button
                 role="menuitem"
                 onClick={() =>

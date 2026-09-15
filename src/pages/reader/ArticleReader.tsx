@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { annotationDocKey, sortAnnotations } from '../../shared/annotations';
-import { articleText } from '../../shared/articleExtract';
 import { DEFAULT_ANNOTATION_COLOR } from '../../shared/annotations';
 import { sendMessage } from '../../shared/messages';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import type { TextAnchor } from '../../shared/textAnchor';
 import type { AnnotationColor } from '../../shared/types';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
-import { AskPanel } from './components/AskPanel';
 import { ArticleViewport, type ArticleViewportHandle } from './components/ArticleViewport';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderToolbar } from './components/ReaderToolbar';
@@ -36,7 +34,6 @@ export function ArticleReader({ url }: { url: string }) {
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [panel, setPanel] = useState<'none' | 'notes' | 'ask'>('none');
   const notesOpen = panel === 'notes';
-  const askOpen = panel === 'ask';
   const [blockIndex, setBlockIndex] = useState(0);
   const viewportRef = useRef<ArticleViewportHandle>(null);
 
@@ -135,8 +132,6 @@ export function ArticleReader({ url }: { url: string }) {
     setActiveId((current) => (current === id ? null : current));
   }, []);
 
-  const getText = useCallback(async () => articleText(blocks), [blocks]);
-
   return (
     <div className="reader-root">
       <ReaderToolbar
@@ -154,8 +149,6 @@ export function ArticleReader({ url }: { url: string }) {
         notesOpen={notesOpen}
         annotationCount={docAnnotations.length}
         onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
-        askOpen={askOpen}
-        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
       />
       <div className="reader-body">
         {ready && state.outline.length > 0 && outlineOpen && (
@@ -192,9 +185,6 @@ export function ArticleReader({ url }: { url: string }) {
             onJump={(seq) => viewportRef.current?.scrollToBlock(seq)}
             onDelete={deleteAnnotation}
           />
-        )}
-        {ready && askOpen && (
-          <AskPanel getText={getText} title={title} position={blockIndex + 1} total={blocks.length} noun="article" />
         )}
       </div>
     </div>

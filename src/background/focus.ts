@@ -8,10 +8,7 @@ import { isBlockedHost } from '../shared/focusRules';
 import { getLocal, getSettings, setLocal } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
 import { syncSessionAccessRules } from './accessRules';
-import { createFocusBlock, extendFocusBlock, finishFocusBlock } from './calendar';
 import { updateBadge } from './feeds';
-import { recordEvent } from './gamification';
-import { recordFocusBlock } from './streaks';
 
 /**
  * Focus-mode session engine. Blocking is enforced by declarativeNetRequest
@@ -51,11 +48,6 @@ function notifyPhase(title: string, message: string, notificationsEnabled: boole
   });
 }
 
-async function awardFocusBlock(): Promise<void> {
-  await recordFocusBlock();
-  await recordEvent('focus_block');
-}
-
 /** Open Flowtunes pinned and unfocused; reuse an existing tab (never steal focus) */
 async function openFocusMusic(): Promise<void> {
   const existing = await chrome.tabs.query({ url: '*://*.flowtunes.app/*' });
@@ -67,11 +59,8 @@ export async function startFocus(config: {
   mode: 'oneshot' | 'pomodoro';
   focusMinutes: number;
   breakMinutes: number;
-  taskId?: string;
-  intent?: string;
 }): Promise<{ ok: boolean }> {
-  // Floor of 2 allows ignition micro-sprints; regular UI never goes below 5
-  const focusMinutes = Math.min(240, Math.max(2, Math.round(config.focusMinutes)));
+  const focusMinutes = Math.min(240, Math.max(5, Math.round(config.focusMinutes)));
   const breakMinutes = Math.min(60, Math.max(1, Math.round(config.breakMinutes || 10)));
   const now = Date.now();
 
@@ -83,8 +72,6 @@ export async function startFocus(config: {
     focusMinutes,
     breakMinutes,
     completedBlocks: 0,
-    ...(config.taskId && { taskId: config.taskId }),
-    ...(config.intent && { intent: config.intent.slice(0, 140) }),
   };
   await setLocal({ focusSession: session });
 
@@ -96,24 +83,15 @@ export async function startFocus(config: {
   if (settings.focusMusicEnabled) {
     await openFocusMusic();
   }
-  // Fire-and-forget: a calendar failure must never break starting focus
-  void createFocusBlock(session);
   await updateBadge();
   return { ok: true };
 }
 
 export async function stopFocus(_early: boolean): Promise<{ ok: boolean }> {
-  // No award on any manual stop: completed pomodoro blocks were already
-  // awarded at each phase end; only the in-flight block is forfeited.
-  const { focusSession: session } = await getLocal('focusSession');
   await chrome.alarms.clear(ALARMS.focusPhaseEnd);
   await chrome.alarms.clear(ALARMS.focusBadgeTick);
   await setLocal({ focusSession: null });
   await syncSessionAccessRules();
-  if (session?.calendarEventId) {
-    // Trim the calendar block to the time actually served (fire-and-forget)
-    void finishFocusBlock(session.calendarEventId, session.startedAt, session.phaseEndsAt);
-  }
   await updateBadge();
   return { ok: true };
 }
@@ -130,8 +108,6 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   const now = Date.now();
 
   if (session.phase === 'focus') {
-    await awardFocusBlock();
-
     if (session.mode === 'oneshot') {
       await chrome.alarms.clear(ALARMS.focusBadgeTick);
       await setLocal({ focusSession: null });
@@ -165,10 +141,6 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   session.phase = 'focus';
   session.phaseEndsAt = now + session.focusMinutes * 60_000;
   await setLocal({ focusSession: session });
-  if (session.calendarEventId) {
-    // One event spans the whole pomodoro session, breaks included
-    void extendFocusBlock(session.calendarEventId, session.phaseEndsAt);
-  }
   await syncSessionAccessRules();
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   await redirectOpenBlockedTabs(settings.focusBlocklist);
@@ -195,9 +167,6 @@ export async function reconcileFocusOnStartup(): Promise<void> {
   }
 
   if (session.phaseEndsAt <= Date.now()) {
-    if (session.phase === 'focus') {
-      await awardFocusBlock();
-    }
     await chrome.alarms.clear(ALARMS.focusBadgeTick);
     await setLocal({ focusSession: null });
     await syncSessionAccessRules();
