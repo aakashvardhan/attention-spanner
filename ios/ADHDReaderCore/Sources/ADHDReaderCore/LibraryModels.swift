@@ -28,18 +28,17 @@ public struct BrainDumpNote: SyncRecord, Sendable {
     public var proposedTasks: [ProposedTask]
     public var createdAt: Millis
     public var structuredAt: Millis?
-    public var notionPushedAt: Millis?
     public var updatedAt: Millis?
     public var deletedAt: Millis?
 
     public init(
         id: String, rawText: String, status: BrainDumpStatus = .raw, bullets: [String] = [],
         proposedTasks: [ProposedTask] = [], createdAt: Millis, structuredAt: Millis? = nil,
-        notionPushedAt: Millis? = nil, updatedAt: Millis? = nil, deletedAt: Millis? = nil
+        updatedAt: Millis? = nil, deletedAt: Millis? = nil
     ) {
         self.id = id; self.rawText = rawText; self.status = status; self.bullets = bullets
         self.proposedTasks = proposedTasks; self.createdAt = createdAt
-        self.structuredAt = structuredAt; self.notionPushedAt = notionPushedAt
+        self.structuredAt = structuredAt
         self.updatedAt = updatedAt; self.deletedAt = deletedAt
     }
 }

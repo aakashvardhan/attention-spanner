@@ -133,71 +133,36 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
 }
 
 /**
- * v0 (legacy vanilla extension) → v1: fold the bare `refreshInterval` key into
- * the settings object. feeds/readItems/cachedItems carry over unchanged.
- * v1 → v2 (Phase 6): backfill counters.videosFinished. Old DayStats entries
- * keep missing videosFinished — read sites use `?? 0` instead of a rewrite.
- * v2 → v3 (Phase 7): backfill counters.focusBlocks (DayStats.focusBlocks
- * likewise stays optional, read with `?? 0`).
- * v3 → v4 (Phase 13): backfill counters.cardsReviewed. The flashcards
- * collections themselves need no migration — getLocal falls back to DEFAULTS.
- * v4 → v5 (papers): decks became typed. Backfill Deck.kind — a deck with
- * cards/notes is 'flashcards', one with only papers is 'papers', empty decks
- * default to 'flashcards' (their historical purpose).
- * v5 → v6 (cloud sync): backfill SyncMeta.updatedAt on records that lack it
- * (tasks, notes, decks, flashCards, bookmarks, bookmarkGroups) from createdAt,
- * so last-write-wins merge has a stable timestamp. FlashNote/Paper already
- * carry updatedAt; deletedAt stays unset (== null) until a real delete.
- * v6 → v7 (one reward currency + one reader): the XP economy, level curve and
- * weekly quest are gone, so drop `gamification.xp` / `lastQuestCelebratedWeek`
- * and the four quest* settings. `counters.chestsOpened` becomes
- * `freezesEarned` (chests now drop streak freezes), `Task.chest.bonusXp`
- * becomes a bare `rolled` marker, and the merged 'progress' card leaves
- * dashCardOrder. The reader also gained a second document kind, so
+ * Schema history, as it still exists in code.
+ *
+ * Most of the chain has been collapsed. A migration whose only job was to seed
+ * a key that a later version removes is deleted rather than stubbed — v22's
+ * sweep lands such a profile in exactly the same state, and a branch that
+ * writes a key nothing reads is just a slower way to arrive there. What
+ * survives below is only the migrations that repair data a LIVE feature reads.
+ *
+ * v4 → v5 (papers): decks became typed. Backfill Deck.kind — a deck holding
+ * papers is 'papers', anything else keeps the historical 'flashcards'.
+ * v5 → v6: backfill `updatedAt` from `createdAt` on decks, bookmarks and
+ * bookmark groups, so every record carries a stable timestamp.
+ * v6 → v7 (one reader): the reader gained a second document kind, so
  * `pdfAnnotations` becomes `annotations` with its page/rect fields wrapped in
  * a discriminated `anchor` (see types.AnnotationAnchor).
- * v7 → v8 (prime time): seed `DayStats.hours` from the timestamps already kept
- * on tasks, notes, bookmarks, annotations, flash notes, papers and reading
- * progress, so the punchcard opens with real history. `hours` itself stays
- * optional — days with neither evidence nor live credit simply lack it.
- * v8 → v9 (encrypted notes): the passcode became a real key rather than a
- * render gate, so `settings.notesPasscodeHash` goes away — the vault in
- * `notesVault` authenticates by unwrapping, and nothing derived from the
- * passcode is stored. Existing notes stay plain text until the user turns
- * encryption on in Options, which seals them in place.
- * v9 → v10 (bring-your-own calendar client): Google Calendar stopped using
- * chrome.identity.getAuthToken, so the old connection is a token Chrome holds
- * and this extension can no longer ask for. Reset the slice — the user pastes
- * their own OAuth client in Settings and reconnects.
+ * v10 → v11: feed item ids were truncated to 24 bytes of input, so every
+ * article on a site shared one and the stored read state marked whole sites
+ * read. The old ids are unmappable, so read state starts over.
  * v11 → v12 (reader progress): repair reading entries that took the reader
  * page's own title and URL, which left Continue rows called "Reader" linking to
  * the extension instead of the article. See v12ReadingProgress.
- * v12 → v13 (Notion removed): the one-way push and the meeting-notes pull are
- * gone, so drop the notion* settings (one of which held an integration token),
- * the push queue/status, and the meeting-notes cache.
- * v13 → v14 (knowledge graph): seed `graphNodes` from the reading history that
- * still exists. Only articles and videos — papers, bookmarks and recordings
- * are reconciled on the first graph open, which also covers a device that
- * pulls them via sync after this migration has already run.
  * v14 → v15 (Brave accent by default): the default skin moved from 'auto' to
  * 'brave', but patchSettings persists the whole settings object, so anyone who
  * ever changed any setting has a stored 'auto' shadowing the new default.
  * Rewrite that one value. An explicit 'chrome'/'default' is a real choice and
  * is left alone — only 'auto' means "never picked".
- * v15 → v16 (dashboard presets): replace arbitrary columns/order/hide/width
- * settings with one predictable, accessible layout mode. Existing users begin
- * in Focused; their content is untouched.
- * v17 → v18 (Attention Relay): add the device-local active intention and
- * parking lot. Research data and connected Google services opt existing users
- * into their matching secondary packs; no retired data is deleted.
- * v18 → v19: add the device-local cache populated from the user's X bookmarks
- * page. It deliberately stays outside cloud-sync collections.
- * v20 → v21 (daily gate removed): the morning brain-dump gate is gone, so its
- * device-local completion state goes with it. Notes themselves are untouched —
- * the capture card and its AI structuring stay; only the interstitial that
- * stood between the user and the dashboard is removed. The v17 branch that
- * seeded this key is deleted rather than stubbed: it only ever wrote the key
- * this migration removes.
+ * v21 → v22 (complement Notion, don't duplicate it): notes, tasks, meeting
+ * notes, job tracking, the assistant, Google, and the habit layer are all
+ * gone. Their keys and settings are swept in one cumulative pass that also
+ * carries what v13, v20 and v21 retired — see V22_DEAD_KEYS.
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');

@@ -32,18 +32,17 @@ public struct TaskItem: SyncRecord, Sendable {
     public var completedAt: Millis?
     public var snoozedUntil: Millis?
     public var source: TaskSource
-    public var notionPageId: String?
     public var updatedAt: Millis?
     public var deletedAt: Millis?
 
     public init(
         id: String, text: String, createdAt: Millis, completedAt: Millis? = nil,
-        snoozedUntil: Millis? = nil, source: TaskSource = .popup, notionPageId: String? = nil,
+        snoozedUntil: Millis? = nil, source: TaskSource = .popup,
         updatedAt: Millis? = nil, deletedAt: Millis? = nil
     ) {
         self.id = id; self.text = text; self.createdAt = createdAt
         self.completedAt = completedAt; self.snoozedUntil = snoozedUntil
-        self.source = source; self.notionPageId = notionPageId
+        self.source = source
         self.updatedAt = updatedAt; self.deletedAt = deletedAt
     }
 }
