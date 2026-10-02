@@ -9,7 +9,7 @@ import { sourceForUrl } from '../../shared/llm/route';
 import { fetchPaperMeta, paperMatchKey } from '../../shared/papers';
 import { type PdfPosition } from '../../shared/pdf';
 import { isPdfAnchored } from '../../shared/types';
-import { headingForPage } from '../../shared/pdfOutline';
+import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutline';
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { useChromeAwake } from './useChromeAwake';
@@ -19,6 +19,7 @@ import { findFigureCaptions, type FigureKey } from './figures';
 import { extractReferences, getPdfPageTexts, type ReferenceIndex } from './references';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskSheet } from './components/AskSheet';
+import { OutlineRail, useSectionToast } from './components/OutlineRail';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
 import { ReaderCapsule } from './components/ReaderCapsule';
@@ -58,7 +59,8 @@ export function PdfReader({ src }: { src: string }) {
 
   const [position, setPosition] = useState<PdfPosition>({ page: 1, offset: 0 });
   const [zoom, setZoom] = useState(1);
-  const [outlineOpen, setOutlineOpen] = useState(true);
+  // Closed by default: the rail on the left edge is the outline at rest.
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const viewportRef = useRef<PdfViewportHandle>(null);
 
   // Annotations (highlights + sticky notes) for this document.
@@ -289,6 +291,10 @@ export function PdfReader({ src }: { src: string }) {
     .filter(Boolean)
     .join(' · ');
   const progress = pageCount > 0 ? (position.page - 1 + position.offset) / pageCount : 0;
+  // Top-level sections only: the rail is for orientation, not navigation depth.
+  const sections = useMemo(() => topLevel(outline), [outline]);
+  const sectionIndex = sectionIndexAt(sections, position.page);
+  const sectionToast = useSectionToast(sections, sectionIndex);
   const awake = useChromeAwake(panel !== 'none' || noteMode || outlineOpen);
 
   return (
@@ -390,8 +396,16 @@ export function PdfReader({ src }: { src: string }) {
                 <kbd>Esc</kbd>
               </div>
             )}
+            {!outlineOpen && (
+              <OutlineRail
+                sections={sections}
+                current={sectionIndex}
+                onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
+              />
+            )}
             <ReaderCapsule
               label={capsuleLabel}
+              message={sectionToast}
               progress={progress}
               page={position.page}
               pageCount={pageCount}

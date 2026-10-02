@@ -7,11 +7,13 @@ import { RecapCard } from '../../shared/components/RecapCard';
 import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import type { TextAnchor } from '../../shared/textAnchor';
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
+import { sectionIndexAt, topLevel } from '../../shared/pdfOutline';
 import { normalizeUrl } from '../../shared/urlNormalize';
 import type { AnnotationColor } from '../../shared/types';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskSheet } from './components/AskSheet';
 import { ArticleViewport, type ArticleViewportHandle } from './components/ArticleViewport';
+import { OutlineRail, useSectionToast } from './components/OutlineRail';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
@@ -38,7 +40,8 @@ export function ArticleReader({ url }: { url: string }) {
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [outlineOpen, setOutlineOpen] = useState(true);
+  // Closed by default: the rail on the left edge is the outline at rest.
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [panel, setPanel] = useState<'none' | 'notes' | 'ask'>('none');
   const notesOpen = panel === 'notes';
   const [blockIndex, setBlockIndex] = useState(0);
@@ -164,6 +167,10 @@ export function ArticleReader({ url }: { url: string }) {
   const capsuleLabel = [`${Math.round(percent)}%`, timeLeftLabel(minutesLeft(counts, blockIndex, 0))]
     .filter(Boolean)
     .join(' · ');
+  // Top-level headings only; an article outline's `page` is a block index.
+  const sections = useMemo(() => (state.status === 'ready' ? topLevel(state.outline) : []), [state]);
+  const sectionIndex = sectionIndexAt(sections, blockIndex);
+  const sectionToast = useSectionToast(sections, sectionIndex);
   const awake = useChromeAwake(panel !== 'none' || outlineOpen);
 
   return (
@@ -222,8 +229,16 @@ export function ArticleReader({ url }: { url: string }) {
               />
             )}
             <RelatedHighlight docKey={docKey} />
+            {!outlineOpen && (
+              <OutlineRail
+                sections={sections}
+                current={sectionIndex}
+                onJump={(block) => viewportRef.current?.scrollToBlock(block)}
+              />
+            )}
             <ReaderCapsule
               label={capsuleLabel}
+              message={sectionToast}
               progress={percent / 100}
               page={blockIndex + 1}
               pageCount={blocks.length}

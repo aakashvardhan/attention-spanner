@@ -56,3 +56,12 @@ export function sectionIndexAt(flat: FlatOutlineItem[], page: number): number {
   }
   return best;
 }
+
+/**
+ * The outermost sections. PDF outlines start at level 0; article outlines
+ * carry HTML heading levels (h2 = 2), so "top" is the shallowest level present.
+ */
+export function topLevel(flat: FlatOutlineItem[]): FlatOutlineItem[] {
+  const top = Math.min(...flat.map((item) => item.level));
+  return flat.filter((item) => item.level === top);
+}

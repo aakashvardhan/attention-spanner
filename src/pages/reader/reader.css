@@ -1473,3 +1473,60 @@ body {
     animation: none;
   }
 }
+
+/* The outline at rest: one tick per top-level section on the left edge. */
+.reader-rail {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+.reader-rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.reader-rail-tick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+.reader-rail-tick::before {
+  content: '';
+  width: 16px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: width var(--transition-base) var(--ease-out), background var(--transition-base);
+}
+.reader-rail-tick[data-state='done']::before {
+  background: var(--text-muted);
+}
+.reader-rail-tick[data-state='current']::before {
+  width: 28px;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+}
+.reader-rail-label {
+  opacity: 0;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--transition-base);
+}
+.reader-rail:hover .reader-rail-label,
+.reader-rail-tick:focus-visible .reader-rail-label {
+  opacity: 1;
+}

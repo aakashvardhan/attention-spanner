@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flattenOutline, headingForPage, type RawOutlineItem, sectionIndexAt } from './pdfOutline';
+import { flattenOutline, headingForPage, type RawOutlineItem, sectionIndexAt, topLevel } from './pdfOutline';
 
 const pages = new Map<unknown, number>([
   ['intro', 1],
@@ -76,5 +76,27 @@ describe('sectionIndexAt', () => {
   it('is -1 before the first heading and for an empty outline', () => {
     expect(sectionIndexAt([{ title: 'Late', level: 0, page: 2 }], 1)).toBe(-1);
     expect(sectionIndexAt([], 5)).toBe(-1);
+  });
+});
+
+describe('topLevel', () => {
+  it('keeps the shallowest level present, whatever number it starts at', () => {
+    const pdf = [
+      { title: 'Intro', level: 0, page: 1 },
+      { title: 'Detail', level: 1, page: 2 },
+      { title: 'Results', level: 0, page: 5 },
+    ];
+    expect(topLevel(pdf).map((s) => s.title)).toEqual(['Intro', 'Results']);
+    // Article outlines carry HTML heading levels: h2 is the top.
+    const article = [
+      { title: 'History', level: 2, page: 3 },
+      { title: 'Early work', level: 3, page: 4 },
+      { title: 'Variants', level: 2, page: 9 },
+    ];
+    expect(topLevel(article).map((s) => s.title)).toEqual(['History', 'Variants']);
+  });
+
+  it('is empty for an empty outline', () => {
+    expect(topLevel([])).toEqual([]);
   });
 });
