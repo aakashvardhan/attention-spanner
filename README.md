@@ -3,13 +3,32 @@
 **An RSS and document reader that tracks what you start, brings you back to it,
 and blocks what pulls you away.**
 
-Everything runs locally. Nothing is sent anywhere, because there is nowhere for
-it to be sent — no accounts, no API keys, no network calls except fetching the
-feeds and documents you asked for.
+Everything runs locally. No accounts, and no network calls except fetching the
+feeds and documents you asked for — plus, only if you set them up, your own
+Ollama server and (for public sources only) Claude with your own key.
 
 Built on Manifest V3 with React 19, Vite, and TypeScript.
 
-![Reader dashboard](docs/screenshots/dashboard.png)
+![The new tab: today's edition](docs/screenshots/newtab-light.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/reader-pdf-dark.png" alt="Reading a paper: the toolbar has slept, leaving the page, a progress line, the section rail and a status capsule"></td>
+    <td><img src="docs/screenshots/reader-focus-line.png" alt="The focus line: every paragraph but the current one dimmed"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Reading a paper — the chrome sleeps, the page stays</sub></td>
+    <td align="center"><sub>The focus line (press F)</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/newtab-dark.png" alt="The new tab in dark mode"></td>
+    <td><img src="docs/screenshots/papers.png" alt="The papers library"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The evening edition, in warm ink</sub></td>
+    <td align="center"><sub>The papers library</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -25,12 +44,31 @@ already have open in the next tab — so it was removed rather than maintained
 half-heartedly. Reader is meant to sit alongside Notion (or whatever you use),
 not compete with it.
 
-There is also no AI. No on-device model, no API key, no assistant. That is what
-keeps the permission list short and the behaviour predictable.
+There is no assistant either. The AI that is here serves the reading: a recap of
+where you left off, a feed ranked by what you actually finish, questions answered
+from the document in front of you, and search over your own highlights. It runs
+on your machine through [Ollama](https://ollama.com) and is off until you pick a
+model. Claude can take over for public sources (feeds, arXiv/DOI papers, YouTube)
+if you add your own key; a web page you opened, a local PDF or your highlights
+never leave the machine, whatever the settings say.
 
 ---
 
 ## Features
+
+### The new tab — today's edition
+
+The new tab is laid out like the front page of a newspaper, so opening the
+browser is a reason to start, not a list to manage:
+
+- **The masthead is the greeting** — *The Morning Edition*, *Afternoon*,
+  *Evening*, or *The Late Edition* before 5am — with the date, time and weather.
+- **The lead story is the one thing you left unfinished**: a paper ("Page 4 of
+  19 · Section 4 — the compute-optimal frontier"), an article or a video, with
+  one primary button. Enter opens it; J and K walk every story on the page.
+- **From your feeds** — five unread items ranked against what you finish, each
+  with the reason it is there.
+- **The index** along the bottom: favorites, Papers, Settings and a focus block.
 
 ### Reading
 
@@ -49,6 +87,20 @@ PDF links (arXiv, DOIs, course readings) open in an in-extension reader instead
 of Chrome's bare viewer, the way Google Scholar's PDF reader works — with a
 one-click "Open in Chrome's viewer" escape hatch that's remembered for the
 session. Web articles can be opened the same way with `⌘/Ctrl+Shift+E`.
+
+The reader is built so you don't drift off mid-paper:
+
+- **The chrome sleeps.** The toolbar fades a moment after you start reading and
+  comes back at the top edge, on scroll-up, or when it has keyboard focus.
+- **Status without noise.** A thin clay line across the top shows how far
+  through you are; a capsule under the page shows the page and minutes left.
+  Click it for page jump and zoom.
+- **Section rail.** The outline rests as tick marks on the left edge, the
+  current section lit; finishing one says so — "Section 3 done · 2 left".
+- **Focus line.** Press F and everything but the passage you are reading dims
+  (a soft reading band on PDFs). Text stays selectable through it.
+- **Drift nudge.** Three quiet minutes, or coming back after two minutes in
+  another tab, and the capsule offers "You were at 3.2 Attention · Back".
 
 - **Highlights and sticky notes** — four colours and free-floating notes, with a
   sidebar to jump between them. Annotations are keyed to the document, so they
@@ -70,8 +122,9 @@ me" note, and a status (to-read → reading → read).
 The part that earns its place: opening a tracked paper in the reader
 **advances it automatically**. The percentage only ratchets up, the status flips
 to "reading" on first open, and a "left off at Section 4.2" note records the
-heading you last reached. New PDFs get a slim track prompt that prefetches
-metadata (arXiv URLs resolve via Semantic Scholar) into a short form.
+heading you last reached. An untracked PDF shows a small "Not tracked · Track"
+chip in the capsule; it prefetches metadata (arXiv URLs resolve via Semantic
+Scholar) into a short form.
 
 ### YouTube
 
@@ -83,7 +136,7 @@ podcast-style listening isn't penalised. Shorts and live streams are ignored.
 
 ### Focus
 
-- **Focus Mode** — one-shot blocks or pomodoro cycles that block a configurable
+- **Focus Mode** — timed blocks that block a configurable
   site list via `declarativeNetRequest`, so enforcement is browser-level and
   survives service-worker restarts and browser relaunches. Ending early requires
   a 5-second hold.
@@ -93,16 +146,14 @@ podcast-style listening isn't penalised. Shorts and live streams are ignored.
 
 ### Elsewhere
 
-- **New-tab dashboard** — the only surface, and where the toolbar icon lands.
-  A clock and greeting, one focus for the day, a quote and the local weather;
-  then Continue reading, the Now watching card, and a speed dial of bookmarks
-  and link groups (independent of Chrome's own bookmarks, addable inline or by
-  right-clicking a page). Starting a focus block, Papers and Settings are here
-  too. Reading or bookmarking the page you're on is the keyboard shortcut and
-  the right-click menu, which work from the page itself.
-- **Theming** — light / dark / system, with an accent that can match Chrome or
-  Brave. Type is Atkinson Hyperlegible throughout, chosen for low-vision
-  legibility; translucency is honoured or dropped according to your system's
+- **The new tab is the only surface**, and where the toolbar icon lands.
+  Favorites are independent of Chrome's own bookmarks (addable inline or by
+  right-clicking a page). Reading or bookmarking the page you're on is the
+  keyboard shortcut and the right-click menu, which work from the page itself.
+- **Design** — paper and ink in light mode, warm ink in dark, one clay accent.
+  Headlines are set in the system serif; body text is Atkinson Hyperlegible,
+  chosen for low-vision legibility, never thinner than 12px and never pure white
+  on black. Translucency is honoured or dropped according to your system's
   Reduce Transparency setting.
 
 ---
@@ -153,8 +204,23 @@ Then `chrome://extensions` → Developer mode → Load unpacked → `dist/`.
 npm run dev        # dev server with HMR (@crxjs/vite-plugin)
 npm run build      # typecheck + production build
 npm run typecheck  # tsc --noEmit
-npm test           # vitest unit tests
+npm test           # vitest unit tests (includes the design-system lint)
 ```
+
+CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on every push
+and pull request.
+
+### The design system
+
+Every visual decision is a token in `src/shared/theme.css`: colours for both
+themes, a type scale with paired line heights on a 4px baseline, spacing in 4px
+steps, radii, and a 12-column grid (`.grid`) that every page lays itself out on.
+`src/shared/designSystem.test.ts` reads every stylesheet and fails the build on
+a raw colour outside `theme.css`, spacing off the 4px grid, a font size or line
+height off the scale, a font weight other than 400/700, or a radius that is not
+a token. `theme.test.ts` checks that light and dark define the same tokens and
+that text clears WCAG contrast (4.5:1) in both. A rare, justified exception
+carries a `/* ds-exempt: reason */` comment.
 
 ---
 
@@ -199,10 +265,11 @@ src/
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `webRequest` | Read-only: response headers, to spot PDFs served from extensionless URLs |
 | `contextMenus` | "Read in Reader" and "Bookmark this page" |
-| `<all_urls>` | Trackers are injected into whatever page you're reading |
+| `<all_urls>` | Trackers are injected into whatever page you're reading; also reaches your Ollama server |
 
-No `identity`, no `tabCapture`, no `offscreen`. The extension has no account and
-makes no authenticated request to anyone.
+No `identity`, no `tabCapture`, no `offscreen`. The extension has no account.
+The only authenticated request it can make is to Claude, with a key you added,
+for public sources you allowed.
 
 ---
 
