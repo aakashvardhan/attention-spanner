@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { fetchPaperMeta } from '../../shared/papers';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
+import { patchSettings } from '../../shared/storage';
 
 // A well-known paper (Attention Is All You Need) used only to validate the key.
 const TEST_REF = 'https://arxiv.org/abs/1706.03762';
@@ -9,8 +9,7 @@ const TEST_REF = 'https://arxiv.org/abs/1706.03762';
 type Test = { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'error'; message: string };
 
 export function PapersSection() {
-  const [stored] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...stored };
+  const [settings] = useSettings();
   const hasKey = settings.semanticScholarApiKey.length > 0;
   const [keyInput, setKeyInput] = useState('');
   const [saved, setSaved] = useState(false);
@@ -41,7 +40,7 @@ export function PapersSection() {
   };
 
   return (
-    <section className="section">
+    <section className="section" id="research-papers">
       <h2>Research Papers</h2>
       <p className="hint">
         The paper tracker fetches metadata (title, authors, venue, citations, abstract) from the
@@ -92,7 +91,7 @@ export function PapersSection() {
       )}
 
       {test.state === 'testing' && <p className="feedback loading">Checking the key…</p>}
-      {test.state === 'ok' && <p className="feedback success">Key works ✔ — lookups are authenticated.</p>}
+      {test.state === 'ok' && <p className="feedback success">Key works — lookups are authenticated.</p>}
       {test.state === 'error' && <p className="feedback error">{test.message}</p>}
     </section>
   );

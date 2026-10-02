@@ -1,4 +1,4 @@
-import { FOCUS_DNR_ID_BASE } from './constants';
+import { FOCUS_DNR_ID_BASE, FOCUS_DNR_PRIORITY } from './constants';
 
 /**
  * Focus-mode blocking rules, pure and unit-testable. Blocking uses
@@ -41,7 +41,7 @@ export function buildFocusRules(
 ): chrome.declarativeNetRequest.Rule[] {
   return domains.map((domain, i) => ({
     id: FOCUS_DNR_ID_BASE + i,
-    priority: 1,
+    priority: FOCUS_DNR_PRIORITY,
     action: {
       type: 'redirect' as chrome.declarativeNetRequest.RuleActionType,
       redirect: { regexSubstitution: `${redirectBase}#\\0` },

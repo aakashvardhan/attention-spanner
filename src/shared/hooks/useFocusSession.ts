@@ -25,12 +25,9 @@ export function useFocusSession() {
   return {
     session,
     active: session !== null,
-    phase: session?.phase ?? null,
     remainingSeconds,
     countdown: `${minutes}:${seconds}`,
-    completedBlocks: session?.completedBlocks ?? 0,
-    start: (config: { mode: 'oneshot' | 'pomodoro'; focusMinutes: number; breakMinutes: number }) =>
-      sendMessage({ type: 'START_FOCUS', ...config }),
+    start: (focusMinutes: number) => sendMessage({ type: 'START_FOCUS', focusMinutes }),
     stop: (early: boolean) => sendMessage({ type: 'STOP_FOCUS', early }),
   };
 }

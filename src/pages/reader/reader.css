@@ -1,0 +1,1595 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.reader-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Toolbar */
+
+/* The toolbar floats over the page and sleeps while you read (useChromeAwake):
+   it wakes at the top edge, on scroll-up, or while it holds focus. */
+.reader-toolbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: 0 1px 0 var(--glass-rim) inset;
+  transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+}
+
+.reader-root[data-chrome='asleep'] .reader-toolbar:not(:focus-within):not(:hover) {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.reader-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reader-document-title {
+  min-width: 0;
+  margin-left: 8px;
+}
+
+.reader-document-title h1 {
+  max-width: min(34vw, 420px);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-document-title span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+.reader-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.reader-toolbar-right {
+  justify-content: flex-end;
+}
+
+.reader-toolbar-group {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  box-shadow: 0 1px 0 var(--glass-rim) inset;
+}
+
+.reader-toolbar-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.reader-icon-btn,
+.reader-zoom-value,
+.reader-ask-btn {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast) var(--ease-out),
+    color var(--transition-fast) var(--ease-out),
+    transform var(--transition-fast) var(--ease-out);
+}
+
+.reader-icon-btn {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 34px;
+}
+
+.reader-toolbar-group .reader-icon-btn {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+}
+
+.reader-icon-btn:hover:not(:disabled),
+.reader-zoom-value:hover,
+.reader-ask-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.reader-icon-btn:active:not(:disabled),
+.reader-zoom-value:active,
+.reader-ask-btn:active {
+  transform: scale(0.96);
+}
+
+.reader-icon-btn.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+.reader-icon-btn:disabled {
+  background: transparent;
+  color: var(--disabled);
+  cursor: default;
+}
+
+.reader-icon-btn:focus-visible,
+.reader-zoom-value:focus-visible,
+.reader-ask-btn:focus-visible,
+.reader-more-menu button:focus-visible,
+.reader-page-jump input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reader-pageno {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-page-jump {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 78px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-page-jump input {
+  width: 30px;
+  padding: 4px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reader-page-jump input:hover,
+.reader-page-jump input:focus {
+  background: var(--bg-surface);
+}
+
+.reader-zoom-value {
+  min-width: 48px;
+  height: 28px;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-badged-btn {
+  overflow: visible;
+}
+
+.reader-toolbar-badge {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  place-items: center;
+  border: 2px solid var(--bg-surface);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-more {
+  position: relative;
+}
+
+.reader-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 224px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-surface);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg), 0 1px 0 var(--glass-rim) inset;
+  transform-origin: top right;
+  animation: reader-menu-in var(--transition-fast) var(--ease-spring);
+}
+
+@keyframes reader-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.reader-more-menu button {
+  display: grid;
+  grid-template-columns: 20px 1fr 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.reader-more-menu button:hover,
+.reader-more-menu button.active {
+  background: var(--bg-hover);
+}
+
+.reader-more-menu .reader-toolbar-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--text-secondary);
+}
+
+.reader-menu-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+
+.ghost-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.ghost-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.ghost-btn:disabled {
+  color: var(--disabled);
+  cursor: default;
+  background: transparent;
+}
+
+.fc-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+/* Track-this-paper: a chip in the capsule that opens this form above it. */
+.reader-track-chip {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.reader-track-chip:hover,
+.reader-track-chip[aria-expanded='true'] {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+.reader-track-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.reader-track-popover {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - var(--space-6)));
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--material-thick);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  /* The capsule it hangs from is nowrap; a form must wrap. */
+  white-space: normal;
+}
+
+/* Notices float above the capsule instead of pushing the page down. */
+.reader-toast {
+  position: absolute;
+  bottom: calc(var(--space-5) + var(--space-7));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(560px, calc(100% - var(--space-6)));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: center;
+}
+
+.reader-scan-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+.reader-scan-toast button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-mode-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--accent-text);
+}
+
+.reader-mode-banner button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-mode-banner button:hover {
+  text-decoration: underline;
+}
+
+.reader-mode-banner kbd {
+  padding: 0 4px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  box-shadow: 0 1px 0 var(--accent-border);
+}
+
+.reader-track-fields {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.reader-track-fields input,
+.reader-track-fields select {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  padding: 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.reader-track-year {
+  flex: 0 1 70px;
+}
+
+.reader-track-msg {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.reader-track-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Body: outline sidebar + page viewport */
+
+.reader-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* Side panels are sheets over the page, not columns beside it: opening one
+   never reflows or rescales the document you are reading. */
+.reader-outline,
+.reader-notes,
+.reader-find {
+  position: absolute;
+  top: var(--space-8);
+  bottom: var(--space-3);
+  z-index: 15;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-xl);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+}
+
+.reader-outline {
+  left: var(--space-3);
+  width: 280px;
+}
+
+.reader-outline h2 {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0 12px 8px;
+}
+
+.reader-outline ul {
+  list-style: none;
+}
+
+.reader-outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-outline-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.reader-outline-item.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+.reader-outline-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 8px 8px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+.reader-outline-tabs button {
+  flex: 1;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-outline-tabs button[aria-selected='true'] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Generated bullets wrap; contents entries stay one line. */
+.reader-ai-outline {
+  list-style: none;
+}
+
+.reader-ai-outline .reader-outline-item {
+  white-space: normal;
+  line-height: var(--leading-sm);
+  padding-block: 8px;
+}
+
+.reader-ai-outline .reader-outline-item:disabled {
+  cursor: default;
+  background: transparent;
+}
+
+/* Where the outline ran, under the bullets it describes. */
+.reader-ai-outline + .ai-note-chip {
+  display: block;
+  padding: 8px 12px 0;
+}
+
+.reader-ai-outline-page {
+  margin-left: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The document column. Holds the viewport plus the cards that float over it
+   (recap, related highlight), so they never cover the outline or a side panel. */
+.reader-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.reader-viewport {
+  flex: 1;
+  overflow: auto;
+  min-width: 0;
+  /* Clears the floating toolbar at the top and the capsule at the bottom. */
+  padding-block: var(--space-8);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-page) 88%, var(--text-primary)) 0%, var(--bg-page) 220px);
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* The viewport takes focus on load so the arrow keys scroll it; that is not a
+   selection, and a ring around the whole document pulled the eye off the page. */
+.reader-viewport:focus {
+  outline: none;
+}
+
+.reader-viewport:focus-visible:not([data-autofocused]) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.reader-page-list {
+  position: relative;
+}
+
+.reader-page {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Pages are white regardless of theme — the PDF's own background */
+  background: var(--pdf-page);
+  outline: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  box-shadow: var(--pdf-shadow);
+  /* Only the text layer's spans are selectable */
+  user-select: none;
+  /* pdf.js layer-sizing vars; --scale-factor is set inline per page */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+
+.reader-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* A page fades in when its first paint lands instead of popping in. */
+  opacity: 0;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+
+.reader-canvas[data-ready] {
+  opacity: 1;
+}
+
+/* Side panels slide in from the edge they live on, like a Finder sidebar. */
+.reader-outline {
+  animation: reader-panel-in-left var(--transition-base) var(--ease-out);
+}
+
+.reader-notes,
+.reader-find {
+  animation: reader-panel-in-right var(--transition-base) var(--ease-out);
+}
+
+@keyframes reader-panel-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes reader-panel-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* Text layer — minimal subset of pdf.js web/pdf_viewer.css `.textLayer` rules.
+   Transparent glyphs positioned over the canvas so native selection works. */
+
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 2;
+  color-scheme: only light;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--total-scale-factor) * var(--min-font-size) * var(--font-height)); /* ds-exempt: pdf.js text-layer contract */
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(calc(1 / var(--min-font-size)));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer ::selection {
+  background: var(--selection);
+}
+
+/* Annotations: highlights, sticky pins, popover */
+
+.annot-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.annot-layer.note-mode {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.annot-highlight {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  border-radius: var(--radius-sm);
+}
+
+.annot-highlight.annot-has-note::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.annot-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 0;
+  background: var(--warning);
+  border: 2px solid var(--pdf-page);
+  box-shadow: var(--shadow-sm);
+}
+
+.annot-popover {
+  position: absolute;
+  z-index: 4;
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 320px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  user-select: text;
+  cursor: auto;
+}
+
+.annot-popover-snippet {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border-left: 3px solid var(--border);
+  padding-left: var(--space-2);
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.annot-popover textarea {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 8px;
+  resize: vertical;
+  min-height: 56px;
+}
+
+.annot-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annot-popover-actions .annot-delete {
+  margin-left: auto;
+  color: var(--danger);
+}
+
+.annot-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.annot-swatch.active {
+  border-color: var(--text-primary);
+}
+
+/* Floating pill shown over an active text selection */
+
+.annot-selection-menu {
+  position: fixed;
+  z-index: 10;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lg);
+  padding: 8px 12px;
+}
+
+/* Figure/table mentions jump to their caption; Back returns to the reading spot. */
+
+.textLayer .fig-ref {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.textLayer .fig-ref:hover {
+  background: var(--cite-hover);
+}
+
+.reader-back-btn {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-back-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Night: the chrome is already dark (theme), and the pages follow. Inverting
+   then rotating hue keeps figure colours recognisable. */
+:root[data-theme='dark'] .reader-root[data-night] .reader-page {
+  background: var(--pdf-page-night);
+}
+
+:root[data-theme='dark'] .reader-root[data-night] .reader-canvas {
+  filter: invert(0.92) hue-rotate(180deg);
+}
+
+/* Citation hover markers + preview tooltip */
+
+.textLayer .cite-marker {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.textLayer .cite-marker:hover {
+  background: var(--cite-hover);
+}
+
+/* A citation pointing at something already in the library. Underlined rather
+   than recoloured: the text layer sits over rendered glyphs whose colour we do
+   not control, so a hue would be unreliable and often invisible. This is the
+   distinction between a link that goes somewhere and one that does not. */
+.textLayer .cite-marker[data-known='true'] {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--accent);
+}
+
+.cite-tooltip {
+  position: fixed;
+  z-index: 10;
+  transform: translate(-50%, -100%);
+  width: max-content;
+  max-width: 360px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  user-select: text;
+  cursor: auto;
+}
+
+.cite-tooltip-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cite-tooltip-entry + .cite-tooltip-entry {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.cite-tooltip-text {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-primary);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.cite-tooltip-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-right: var(--space-1);
+}
+
+.cite-tooltip-link {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cite-tooltip-link:hover {
+  text-decoration: underline;
+}
+
+/* "You already have this" — the provenance line and the inward Open, side by
+   side so the claim and the action read as one thing. */
+.cite-tooltip-mine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.cite-tooltip-have {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.cite-tooltip-text strong,
+.cite-tooltip-byline,
+.cite-tooltip-summary {
+  display: block;
+}
+
+.cite-tooltip-byline {
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.cite-tooltip-summary {
+  margin-top: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.cite-tooltip-save {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cite-tooltip-save:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+/* Annotations sidebar (right rail) */
+
+.reader-notes {
+  right: var(--space-3);
+  width: 320px;
+}
+
+/* Related rail: what this cites, what cites it, and the map around it. Same
+   shell as the notes rail so the two read as siblings. */
+.reader-related {
+  width: 320px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: var(--space-3) var(--space-2);
+}
+
+.reader-find {
+  right: var(--space-3);
+  width: 360px;
+}
+
+.reader-find-input {
+  width: 100%;
+  margin: var(--space-3) 0 0;
+  padding: 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.reader-find-results { list-style: none; }
+
+/* Ask: the find rail's shell, holding one question and its sourced answer. */
+.reader-ask-form { margin-bottom: var(--space-2); }
+.reader-ask-question {
+  margin: var(--space-3) 0 0;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.reader-find-results button { width: 100%; border: 0; border-radius: var(--radius-sm); padding: 8px; background: none; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.reader-find-results button:hover { background: var(--bg-hover); }
+.reader-find-results strong, .reader-find-results span { display: block; }
+.reader-find-results strong { color: var(--accent-text); font-size: var(--text-xs); }
+.reader-find-results span { margin-top: 4px; font-size: var(--text-xs); line-height: var(--leading-xs); }
+
+.reader-related-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.reader-related-head h2 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* ---------- Builds on ----------
+   Grouped by subject, oldest first inside a group. A <details> per group so a
+   forty-entry bibliography collapses; the biggest two arrive open. */
+
+.reader-lineage-group {
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* An entry with no link at all: shown, but never dressed as a target. */
+.reader-lineage-row.is-plain {
+  cursor: default;
+}
+
+.reader-notes h2 {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0 12px 8px;
+}
+
+.reader-notes h3 {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 8px 12px 4px;
+}
+
+.annot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.annot-row:hover {
+  background: var(--bg-hover);
+}
+
+.annot-row-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.annot-row-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.annot-row-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.annot-row-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annot-row-delete {
+  visibility: hidden;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.annot-row:hover .annot-row-delete {
+  visibility: visible;
+}
+
+.annot-row-delete:hover {
+  color: var(--danger);
+}
+
+.reader-notes-empty {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  padding: 8px 12px;
+}
+
+.ghost-btn.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+/* Loading / error states */
+
+.reader-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  padding: 40px;
+  text-align: center;
+}
+
+.reader-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: reader-spin 0.8s linear infinite;
+}
+
+@keyframes reader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-more-menu,
+  .reader-outline,
+  .reader-notes,
+  .reader-find {
+    animation: none;
+  }
+
+  .reader-canvas {
+    transition: none;
+  }
+
+  .reader-loading-spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+/* Article mode — the reflowing half of the reader. No canvas, no zoom: a
+   measured column the browser lays out, with highlights painted as <mark>
+   spans so they survive any reflow. */
+
+.article-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+.article-body {
+  max-width: 68ch; /* ~66-72 characters is the readable measure */
+  margin: 0 auto;
+  font-size: var(--text-md);
+  line-height: var(--leading-read);
+  color: var(--text-primary);
+}
+
+.article-block {
+  margin-bottom: var(--space-4);
+}
+
+.article-heading {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: var(--leading-xl);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-xl);
+}
+
+/* Markdown wraps source text in paragraphs; the article block already owns
+   vertical rhythm, so avoid a second margin around rendered transcript lines. */
+.article-rich-text .md > p {
+  margin: 0;
+}
+
+.article-rich-text .katex-display {
+  max-width: 100%;
+}
+
+.article-timestamp {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.article-timestamp:hover {
+  color: var(--accent);
+}
+
+.article-quote {
+  border-left: 3px solid var(--accent);
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.article-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.article-list {
+  margin-left: var(--space-5);
+  list-style: disc;
+  display: list-item;
+}
+
+.article-mark {
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: inherit;
+}
+
+.article-mark.has-note {
+  border-bottom: 2px dotted var(--text-secondary);
+}
+
+.article-mark.active {
+  outline: 2px solid var(--accent);
+}
+
+.article-sticky {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  vertical-align: super;
+}
+
+@media (max-width: 900px) {
+  .reader-document-title {
+    display: none;
+  }
+}
+
+@media (max-width: 650px) {
+  .reader-toolbar {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+
+  .reader-toolbar-left > .reader-icon-btn:first-child {
+    display: none;
+  }
+
+  .reader-zoom-value {
+    min-width: 42px;
+  }
+
+  .reader-page-jump {
+    min-width: 70px;
+  }
+}
+
+/* On laptop-width windows the utility rail becomes a drawer, preserving the
+   document's reading measure instead of taking a third of it. */
+@media (max-width: 1100px) {
+  .reader-outline {
+    width: 220px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Observatory status: a glowing line for how far through, and a capsule for
+   where you are and how long is left. Both float; neither takes layout.
+   --------------------------------------------------------------------------- */
+
+.reader-progress-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+  pointer-events: none;
+}
+
+.reader-capsule {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100% - var(--space-6));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reader-capsule[data-open] {
+  padding-block: var(--space-1);
+}
+
+.reader-capsule-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.reader-capsule-summary:hover {
+  color: var(--text-primary);
+}
+
+.reader-capsule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+}
+
+.reader-capsule-message:empty {
+  display: none;
+}
+
+.reader-capsule[data-message] {
+  color: var(--text-primary);
+  animation: reader-capsule-pulse 600ms var(--ease-out) 1;
+}
+
+@keyframes reader-capsule-pulse {
+  50% {
+    box-shadow: var(--shadow-card), 0 0 0 4px var(--accent-wash);
+  }
+}
+
+.reader-capsule-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-capsule-action:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-toolbar,
+  .reader-progress-line {
+    transition: none;
+  }
+
+  .reader-capsule[data-message] {
+    animation: none;
+  }
+}
+
+/* The outline at rest: one tick per top-level section on the left edge. */
+.reader-rail {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+.reader-rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.reader-rail-tick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 16px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+.reader-rail-tick::before {
+  content: '';
+  width: 16px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: width var(--transition-base) var(--ease-out), background var(--transition-base);
+}
+.reader-rail-tick[data-state='done']::before {
+  background: var(--text-muted);
+}
+.reader-rail-tick[data-state='current']::before {
+  width: 28px;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+}
+/* Labels float beside the ticks rather than widening them, and stay hidden and
+   unclickable until the rail is hovered or focused: invisible labels over the
+   page's left margin used to swallow clicks and text selection. */
+.reader-rail-label {
+  position: absolute;
+  left: calc(100% + var(--space-2));
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 220px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--material-regular);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-base);
+}
+.reader-rail:hover .reader-rail-label,
+.reader-rail:focus-within .reader-rail-label {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.reader-root[data-focus-line] .article-block:not([data-current]) {
+  opacity: 0.4;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+.reader-focus-band {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--reading-dim) 0,
+    var(--reading-dim) calc(40% - 64px),
+    transparent calc(40% - 32px),
+    transparent calc(40% + 32px),
+    var(--reading-dim) calc(40% + 64px),
+    var(--reading-dim) 100%
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-root[data-focus-line] .article-block:not([data-current]) {
+    transition: none;
+  }
+}

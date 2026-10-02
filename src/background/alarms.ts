@@ -1,35 +1,41 @@
 import { ALARMS } from '../shared/constants';
 import { getSettings } from '../shared/storage';
-import { nextDailyOccurrence } from '../shared/week';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
-import { fireGymReminder } from './gym';
 import { fireNudge, isNudgeAlarm } from './nudges';
-import { finishSprint } from './streaks';
-import { showTaskDigest } from './tasks';
+
+/**
+ * Alarms belonging to features that have been cut. An alarm outlives the code
+ * that created it — it survives updates and keeps waking the service worker to
+ * hit a `switch` with no matching case. Clearing by literal name on purpose:
+ * the constants these used to reference are gone.
+ */
+const RETIRED_ALARMS = [
+  'daily-brain-dump-midnight',
+  'refresh-jobs',
+  'task-reminders',
+  'sprint-end',
+  'gym-reminder',
+  'gym-reminder-snooze',
+  'calendar-refresh',
+  'monitor-evening',
+  'monitor-calendar',
+  'gmail-triage',
+];
+
+export async function clearRetiredAlarms(): Promise<void> {
+  for (const name of RETIRED_ALARMS) await chrome.alarms.clear(name);
+  // Automations were one alarm per rule, named by id — clear the whole family.
+  const existing = await chrome.alarms.getAll();
+  await Promise.all(
+    existing.filter((a) => a.name.startsWith('automation|')).map((a) => chrome.alarms.clear(a.name)),
+  );
+}
 
 export async function setupRefreshAlarm(intervalMinutes?: number): Promise<void> {
   await chrome.alarms.clear(ALARMS.refreshFeeds);
   const minutes = intervalMinutes ?? (await getSettings()).refreshInterval;
   chrome.alarms.create(ALARMS.refreshFeeds, { periodInMinutes: minutes });
-}
-
-export async function setupTaskReminderAlarm(intervalMinutes?: number): Promise<void> {
-  await chrome.alarms.clear(ALARMS.taskReminders);
-  const minutes = intervalMinutes ?? (await getSettings()).taskReminderIntervalMinutes;
-  if (minutes > 0) {
-    chrome.alarms.create(ALARMS.taskReminders, { periodInMinutes: minutes });
-  }
-}
-
-export async function setupGymReminderAlarm(time?: string): Promise<void> {
-  await chrome.alarms.clear(ALARMS.gymReminder);
-  const hhmm = time ?? (await getSettings()).gymReminderTime;
-  if (hhmm === '') return;
-  chrome.alarms.create(ALARMS.gymReminder, {
-    when: nextDailyOccurrence(hhmm),
-    periodInMinutes: 24 * 60,
-  });
 }
 
 export function handleAlarm(alarm: chrome.alarms.Alarm): void {
@@ -40,16 +46,6 @@ export function handleAlarm(alarm: chrome.alarms.Alarm): void {
   switch (alarm.name) {
     case ALARMS.refreshFeeds:
       void refreshFeeds();
-      break;
-    case ALARMS.taskReminders:
-      void showTaskDigest();
-      break;
-    case ALARMS.sprintEnd:
-      void finishSprint();
-      break;
-    case ALARMS.gymReminder:
-    case ALARMS.gymReminderSnooze:
-      void fireGymReminder();
       break;
     case ALARMS.focusPhaseEnd:
       void handleFocusPhaseEnd();

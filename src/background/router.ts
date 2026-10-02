@@ -2,70 +2,35 @@ import type { Message } from '../shared/messages';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
 import {
-  applyStructureResult,
-  confirmNoteTasks,
-  deleteNote,
-  markNoteFailed,
-  saveNote,
-} from './notes';
-import {
   addBookmark,
   addBookmarkGroup,
   deleteBookmark,
   deleteBookmarkGroup,
   moveBookmark,
 } from './bookmarks';
-import {
-  addDeck,
-  addNote,
-  answerCard,
-  deleteDeck,
-  deleteNote as deleteFlashNote,
-  renameDeck,
-  resetCard,
-  updateNote,
-} from './flashcards';
-import { addPaper, deletePaper, updatePaper } from './papers';
+import { addDeck, deleteDeck } from './flashcards';
+import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
+import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
+import { openNativePdf } from './pdfIntercept';
 import { startFocus, stopFocus } from './focus';
-import { gymCheckin, gymUndo } from './gym';
-import { cancelSprint, startSprint } from './streaks';
-import { addTask, deleteTask, moveTask, snoozeTask, toggleTask } from './tasks';
-import { handleTimePillReady, handleTimePillTick } from './timePill';
 import { getResumeTarget, handleProgressUpdate } from './tracking';
-import { handleVideoProgress, handleVideoReady } from './videoTracking';
+import { transcriptFor } from './videoContext';
+import { focusExistingVideoTab, handleVideoProgress, handleVideoReady } from './videoTracking';
 
-async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
+/** Exported so the SW can register itself as the in-process message dispatcher */
+export async function dispatch(
+  msg: Message,
+  sender: chrome.runtime.MessageSender,
+): Promise<unknown> {
   switch (msg.type) {
     case 'REFRESH_FEEDS':
       return refreshFeeds();
     case 'OPEN_ARTICLE':
-      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false);
-    case 'ADD_TASK':
-      return { ok: true, task: await addTask(msg.text, msg.source) };
-    case 'TOGGLE_TASK':
-      await toggleTask(msg.id);
-      return { ok: true };
-    case 'DELETE_TASK':
-      await deleteTask(msg.id);
-      return { ok: true };
-    case 'MOVE_TASK':
-      await moveTask(msg.id, msg.toIndex);
-      return { ok: true };
+      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true, msg.original ?? false);
     case 'MARK_ALL_READ':
       return markAllRead();
     case 'VALIDATE_FEED':
       return { ok: true, ...(await validateFeed(msg.url)) };
-    case 'SNOOZE_TASK':
-      await snoozeTask(msg.id, msg.minutes);
-      return { ok: true };
-    case 'START_SPRINT':
-      return startSprint();
-    case 'CANCEL_SPRINT':
-      return cancelSprint();
-    case 'GYM_CHECKIN':
-      return gymCheckin();
-    case 'GYM_UNDO':
-      return gymUndo();
     case 'START_FOCUS':
       return startFocus(msg);
     case 'STOP_FOCUS':
@@ -83,41 +48,37 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
     case 'DELETE_BOOKMARK_GROUP':
       await deleteBookmarkGroup(msg.id);
       return { ok: true };
-    case 'SAVE_NOTE':
-      return { ok: true, note: await saveNote(msg.rawText, msg.willStructure) };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
-    case 'FLASH_RENAME_DECK':
-      return renameDeck(msg.id, msg.name);
     case 'FLASH_DELETE_DECK':
       return deleteDeck(msg.id);
-    case 'FLASH_ADD_NOTE':
-      return addNote(msg.deckId, msg.noteType, msg.front, msg.back, msg.reversed);
-    case 'FLASH_UPDATE_NOTE':
-      return updateNote(msg.id, { front: msg.front, back: msg.back, reversed: msg.reversed });
-    case 'FLASH_DELETE_NOTE':
-      return deleteFlashNote(msg.id);
-    case 'FLASH_ANSWER_CARD':
-      return answerCard(msg.cardId, msg.rating);
-    case 'FLASH_RESET_CARD':
-      return resetCard(msg.cardId);
     case 'PAPER_ADD':
       return addPaper(msg.draft);
     case 'PAPER_UPDATE':
       return updatePaper(msg.id, msg.patch);
     case 'PAPER_DELETE':
       return deletePaper(msg.id);
-    case 'STRUCTURE_NOTE_RESULT':
-      await applyStructureResult(msg.id, msg.bullets, msg.tasks);
-      return { ok: true };
-    case 'NOTE_FAILED':
-      await markNoteFailed(msg.id);
-      return { ok: true };
-    case 'DELETE_NOTE':
-      await deleteNote(msg.id);
-      return { ok: true };
-    case 'CONFIRM_NOTE_TASKS':
-      return { ok: true, ...(await confirmNoteTasks(msg.id, msg.taskIndexes)) };
+    case 'PAPER_READER_PROGRESS':
+      return handleReaderProgress(msg.paperId, {
+        pdfUrl: msg.pdfUrl,
+        page: msg.page,
+        pageCount: msg.pageCount,
+        offset: msg.offset,
+        leftOff: msg.leftOff,
+      });
+    case 'ANNOT_ADD':
+      return addAnnotation(msg.draft);
+    case 'ANNOT_UPDATE':
+      return updateAnnotation(msg.id, msg.patch);
+    case 'ANNOT_MOVE':
+      return moveAnnotation(msg.id, msg.x, msg.y);
+    case 'ANNOT_DELETE':
+      return deleteAnnotation(msg.id);
+    case 'READER_OPEN_NATIVE': {
+      const tabId = sender.tab?.id;
+      if (tabId === undefined) return { ok: false };
+      return openNativePdf(tabId, msg.url);
+    }
     case 'TRACKER_READY':
       return {
         ok: true,
@@ -131,10 +92,12 @@ async function dispatch(msg: Message, sender: chrome.runtime.MessageSender): Pro
     case 'VIDEO_PROGRESS':
       await handleVideoProgress(sender, msg);
       return { ok: true };
-    case 'TIME_PILL_READY':
-      return handleTimePillReady(msg.host);
-    case 'TIME_PILL_TICK':
-      return handleTimePillTick(msg.host, msg.seconds);
+    case 'FOCUS_VIDEO_TAB':
+      return { ok: await focusExistingVideoTab(msg.videoId) };
+    case 'VIDEO_TRANSCRIPT': {
+      const res = await transcriptFor(msg.videoId);
+      return 'error' in res ? { ok: false, error: res.error } : { ok: true, segments: res.segments };
+    }
   }
 }
 

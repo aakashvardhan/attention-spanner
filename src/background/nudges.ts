@@ -1,7 +1,13 @@
-import { ALARMS, NOTIFICATION_IDS } from '../shared/constants';
+import {
+  ALARMS,
+  NOTIFICATION_IDS,
+  NUDGE_COOLDOWN_MINUTES,
+  NUDGE_DELAY_MINUTES,
+  NUDGE_MAX_PER_ARTICLE,
+} from '../shared/constants';
 import { getLocal, getSession, getSettings, setLocal, setSession } from '../shared/storage';
 import { normalizeUrl } from '../shared/urlNormalize';
-import { keyMatchesUrl } from '../shared/youtube';
+import { driftedAway, keyMatchesUrl } from '../shared/youtube';
 
 /**
  * Tab-switch nudges. Anti-spam is the whole design: a nudge only fires after
@@ -23,7 +29,7 @@ export async function scheduleNudge(key: string): Promise<void> {
   const settings = await getSettings();
   if (!settings.notificationsEnabled || !settings.nudgesEnabled) return;
   chrome.alarms.create(alarmName(key), {
-    delayInMinutes: Math.max(0.5, settings.nudgeDelayMinutes),
+    delayInMinutes: NUDGE_DELAY_MINUTES,
   });
 }
 
@@ -55,8 +61,8 @@ export async function fireNudge(alarmNameFired: string): Promise<void> {
     progress.completedAt === null &&
     progress.activeSeconds >= MIN_ACTIVE_SECONDS &&
     !progress.nudge.dismissed &&
-    progress.nudge.count < settings.nudgeMaxPerArticle &&
-    now - progress.nudge.lastAt > settings.nudgeCooldownMinutes * 60 * 1000 &&
+    progress.nudge.count < NUDGE_MAX_PER_ARTICLE &&
+    now - progress.nudge.lastAt > NUDGE_COOLDOWN_MINUTES * 60 * 1000 &&
     now - lastGlobalNudgeAt > GLOBAL_NUDGE_GAP_MS;
   if (!eligible) return;
 
@@ -71,13 +77,19 @@ export async function fireNudge(alarmNameFired: string): Promise<void> {
   await setSession({ lastGlobalNudgeAt: now });
 
   const isVideo = progress.kind === 'video';
+  // Drift — left the video but stayed on YouTube — is a different situation
+  // from closing the tab, and only the wording changes. Every gate above still
+  // applies, so this cannot become a second, chattier notification channel.
+  const drifted = driftedAway(key, activeTab?.url);
   chrome.notifications.create(notificationName(key), {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: 'Pick it back up?',
-    message: isVideo
-      ? `You're ${progress.maxPercent}% into "${progress.title}" — pick up where you left off?`
-      : `You were ${progress.maxPercent}% through "${progress.title}"`,
+    title: drifted ? 'Still on YouTube?' : 'Pick it back up?',
+    message: drifted
+      ? `You left "${progress.title}" at ${progress.maxPercent}% and moved on.`
+      : isVideo
+        ? `You're ${progress.maxPercent}% into "${progress.title}" — pick up where you left off?`
+        : `You were ${progress.maxPercent}% through "${progress.title}"`,
     contextMessage: progress.source || undefined,
     buttons: [
       { title: 'Resume' },

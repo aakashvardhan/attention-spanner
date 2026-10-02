@@ -5,14 +5,27 @@ release/
 *.local
 .claude/settings.local.json
 
-# Local env / Firebase web config (never commit secrets or keys)
+# Local env (never commit secrets or keys)
 .env
 .env.*
 !.env.example
 
-# Google Calendar OAuth signing key (see docs/google-calendar-setup.md)
+# Firebase Functions build output + emulator state; the bridge is gone, but keep
+# these so a copy from another branch is never committed.
+functions/lib/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Stale Google Calendar OAuth signing key; the integration is gone, but keep
+# the rule so an existing copy is never committed.
 gcal-key.pem
 
+# iOS Swift package build artifacts
+ios/**/.build/
 demo/.profile/
 demo/.profile-probe/
 demo/out/
+
+# Brainstorm mockups from the visual companion.
+.superpowers/

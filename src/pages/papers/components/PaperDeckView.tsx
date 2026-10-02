@@ -16,6 +16,7 @@ export function PaperDeckView({ deck }: { deck: Deck }) {
 
   return (
     <main className="fc-main">
+      <h2 className="library-deck-name">{deck.name}</h2>
       {adding ? (
         <div className="panel">
           <h2>Add a paper</h2>

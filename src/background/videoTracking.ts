@@ -1,11 +1,10 @@
-import { getLocal, getSession, getSettings, setLocal, setSession } from '../shared/storage';
+import { VIDEO_MIN_MINUTES } from '../shared/constants';
+import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { awardXp } from './gamification';
 import { recordEngagement } from './hyperfocus';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
-import { recordWatching } from './streaks';
 
 /**
  * YouTube watch tracking. The SW's only injection job is getting
@@ -29,15 +28,14 @@ export async function maybeInjectVideoTracker(tabId: number, url: string): Promi
   }
 }
 
-/** Gate + resume handshake. The duration threshold lives here — settings stay SW-owned. */
+/** Gate + resume handshake. VIDEO_MIN_MINUTES is the tracking threshold. */
 export async function handleVideoReady(
   sender: chrome.runtime.MessageSender,
   msg: { videoId: string; durationSeconds: number },
 ): Promise<{ ok: boolean; track: boolean; resume: { positionSeconds: number } | null }> {
-  const settings = await getSettings();
   const longEnough =
     Number.isFinite(msg.durationSeconds) &&
-    msg.durationSeconds >= settings.videoMinMinutes * 60;
+    msg.durationSeconds >= VIDEO_MIN_MINUTES * 60;
   if (!longEnough) return { ok: true, track: false, resume: null };
 
   // Prefer an explicit pending resume (tab opened from Continue Watching / nudge)
@@ -79,6 +77,7 @@ export async function handleVideoProgress(
     stopped: boolean;
     title: string;
     channel: string;
+    chapter?: string;
   },
 ): Promise<void> {
   const key = videoKey(msg.videoId);
@@ -109,6 +108,9 @@ export async function handleVideoProgress(
 
   if (msg.title) progress.title = msg.title;
   if (msg.channel) progress.source = msg.channel;
+  // Assigned even when empty: leaving a stale chapter behind after the playhead
+  // moves past the last marked section would be worse than showing none.
+  progress.chapter = msg.chapter ?? '';
   if (sender.tab?.url) progress.url = sender.tab.url;
   progress.durationSeconds = msg.durationSeconds;
   progress.positionSeconds = msg.positionSeconds;
@@ -118,19 +120,14 @@ export async function handleVideoProgress(
   );
   progress.activeSeconds += Math.max(0, msg.watchedSecondsDelta);
   progress.updatedAt = now;
-  let finishedNow = false;
+  progress.playing = !msg.stopped;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
-    finishedNow = true;
   }
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await recordWatching(Math.max(0, msg.watchedSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
-  if (finishedNow) {
-    await awardXp('video_finished');
-  }
 
   if (msg.stopped) {
     await scheduleNudge(key);
@@ -139,19 +136,26 @@ export async function handleVideoProgress(
   }
 }
 
+/**
+ * Focuses an already-open tab playing this video, if there is one. Reopening
+ * instead would leave two trackers reporting for one video, and the copy you
+ * were actually watching muted behind the new tab.
+ */
+export async function focusExistingVideoTab(videoId: string): Promise<boolean> {
+  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
+  const existing = tabs.find((tab) => tab.url && getYouTubeVideoId(tab.url) === videoId);
+  if (existing?.id === undefined) return false;
+
+  await chrome.tabs.update(existing.id, { active: true });
+  if (existing.windowId !== undefined) {
+    await chrome.windows.update(existing.windowId, { focused: true });
+  }
+  return true;
+}
+
 /** Nudge-resume path: focus an open tab with this video, else reopen at &t= */
 export async function resumeVideo(progress: VideoProgress): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
-  const existing = tabs.find(
-    (tab) => tab.url && getYouTubeVideoId(tab.url) === progress.videoId,
-  );
-  if (existing?.id !== undefined) {
-    await chrome.tabs.update(existing.id, { active: true });
-    if (existing.windowId !== undefined) {
-      await chrome.windows.update(existing.windowId, { focused: true });
-    }
-    return;
-  }
+  if (await focusExistingVideoTab(progress.videoId)) return;
 
   const t = Math.max(0, Math.floor(progress.positionSeconds));
   const tab = await chrome.tabs.create({

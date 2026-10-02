@@ -1,12 +1,11 @@
 import type { ResumeTarget } from '../shared/messages';
+import { progressKeyFor } from '../shared/progress';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
-import type { AnyProgress, ReadingProgress } from '../shared/types';
+import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
-import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { awardXp } from './gamification';
+import { isYouTubeWatchUrl } from '../shared/youtube';
 import { recordEngagement } from './hyperfocus';
 import { scheduleNudge, cancelNudge } from './nudges';
-import { recordReading } from './streaks';
 
 /**
  * Reading-progress tracking. The tracker content script is injected
@@ -29,8 +28,7 @@ export async function registerOpenedTab(
   url: string,
   resume: boolean,
 ): Promise<void> {
-  const ytId = getYouTubeVideoId(url);
-  const key = ytId ? videoKey(ytId) : normalizeUrl(url);
+  const key = progressKeyFor(url);
   const { trackedTabs, pendingResume } = await getSession('trackedTabs', 'pendingResume');
   trackedTabs[tabId] = { normalizedUrl: key, injectedAt: 0 };
 
@@ -46,7 +44,26 @@ export async function registerOpenedTab(
   await setSession({ trackedTabs, pendingResume });
 }
 
-/** tabs.onUpdated(status === 'complete'): inject the tracker if this is a known article */
+/**
+ * Pages worth injecting the tracker into: anything already being tracked, any
+ * feed item, and any saved link. Bookmarks are in the list so a link opened
+ * from the Links panel — or typed, or restored with the session — earns reading
+ * progress and can be resumed, the same as a feed article.
+ */
+export function isKnownUrl(
+  normalized: string,
+  known: {
+    readingProgress: Record<string, AnyProgress>;
+    cachedItems: FeedItem[];
+    bookmarks: BookmarkLink[];
+  },
+): boolean {
+  if (known.readingProgress[normalized]) return true;
+  if (known.cachedItems.some((item) => item.normalizedLink === normalized)) return true;
+  return known.bookmarks.some((link) => normalizeUrl(link.url) === normalized);
+}
+
+/** tabs.onUpdated(status === 'complete'): inject the tracker if this is a known page */
 export async function maybeInjectTracker(tabId: number, url: string): Promise<void> {
   if (!/^https?:/.test(url)) return;
   // YouTube watch pages get the video tracker; scroll percent is meaningless there
@@ -57,11 +74,9 @@ export async function maybeInjectTracker(tabId: number, url: string): Promise<vo
   let key: string | null = trackedTabs[tabId]?.normalizedUrl ?? null;
 
   if (!key) {
-    // Organically opened tab — is it a known article?
-    const { cachedItems, readingProgress } = await getLocal('cachedItems', 'readingProgress');
-    if (readingProgress[tabNorm] || cachedItems.some((item) => item.normalizedLink === tabNorm)) {
-      key = tabNorm;
-    }
+    // Organically opened tab — is it a page we know about?
+    const known = await getLocal('cachedItems', 'readingProgress', 'bookmarks');
+    if (isKnownUrl(tabNorm, known)) key = tabNorm;
   }
   if (!key) return;
 
@@ -120,12 +135,20 @@ export async function handleProgressUpdate(
     pageHeight: number;
     activeSecondsDelta: number;
     hidden: boolean;
+    doc?: { url: string; title: string };
   },
 ): Promise<void> {
   const tab = sender.tab;
   if (!tab?.id) return;
-  const key = await keyForTab(tab.id, tab.url);
+
+  // A tab the extension opened keeps the key of the link that was clicked, even
+  // when the reader names a different URL for the same document — a site that
+  // redirects would otherwise split one article into two Continue entries. The
+  // reader names its document for the tabs we didn't open (typed, restored).
+  const key = (await keyForTab(tab.id, tab.url)) ?? (update.doc ? normalizeUrl(update.doc.url) : null);
   if (!key) return;
+  const docUrl = update.doc?.url ?? tab.url ?? '';
+  const docTitle = update.doc?.title ?? tab.title ?? '';
 
   const { readingProgress, cachedItems } = await getLocal('readingProgress', 'cachedItems');
   const now = Date.now();
@@ -136,9 +159,9 @@ export async function handleProgressUpdate(
   if (!progress) {
     const feedItem = cachedItems.find((item) => item.normalizedLink === key);
     progress = {
-      url: tab.url ?? feedItem?.link ?? '',
+      url: docUrl || feedItem?.link || '',
       feedItemId: feedItem?.id ?? null,
-      title: tab.title ?? feedItem?.title ?? '',
+      title: docTitle || feedItem?.title || '',
       source: feedItem?.source ?? '',
       maxPercent: 0,
       scrollY: 0,
@@ -151,26 +174,28 @@ export async function handleProgressUpdate(
     };
   }
 
-  if (tab.title) progress.title = tab.title;
-  if (tab.url) progress.url = tab.url;
+  // A content script speaks from inside the page, so its tab is the freshest
+  // truth. The reader is not that tab: it is titled "Reader" and lives at a
+  // chrome-extension:// URL, which would land in the Continue list as a row
+  // called "Reader" pointing at the extension instead of the article.
+  if (update.doc) {
+    if (update.doc.title) progress.title = update.doc.title;
+  } else {
+    if (tab.title) progress.title = tab.title;
+    if (tab.url) progress.url = tab.url;
+  }
   progress.maxPercent = Math.max(progress.maxPercent, Math.round(update.percent));
   progress.scrollY = update.scrollY;
   progress.pageHeight = update.pageHeight;
   progress.activeSeconds += Math.max(0, update.activeSecondsDelta);
   progress.updatedAt = now;
-  let finishedNow = false;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
-    finishedNow = true;
   }
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await recordReading(Math.max(0, update.activeSecondsDelta), finishedNow);
   await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
-  if (finishedNow) {
-    await awardXp('article_finished'); // latches once per article via completedAt
-  }
 
   if (update.hidden) {
     await scheduleNudge(key);

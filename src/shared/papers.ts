@@ -5,7 +5,11 @@ import type { Paper } from './types';
 export type PaperMeta = Pick<
   Paper,
   'title' | 'authors' | 'venue' | 'year' | 'citations' | 'abstract'
-> & { url: string };
+> & {
+  url: string;
+  /** An open-access PDF Semantic Scholar knows of; '' when none */
+  pdfUrl: string;
+};
 
 /** Result of a lookup — a specific message on failure so the user can act on it. */
 export type FetchMetaResult = { ok: true; meta: PaperMeta } | { ok: false; message: string };
@@ -20,9 +24,10 @@ export function parsePaperRef(input: string): string | null {
   const raw = input.trim();
   if (!raw) return null;
 
-  // arXiv: bare id, or inside an arxiv.org/abs|pdf URL. Strip a trailing
+  // arXiv: bare id, or inside an arxiv.org/abs|pdf URL or an alphaxiv.org
+  // abs|overview|pdf URL (alphaXiv pages are keyed by arXiv id). Strip a trailing
   // version and a `.pdf` suffix so abs/pdf/versioned links all resolve alike.
-  const arxivUrl = raw.match(/arxiv\.org\/(?:abs|pdf)\/([^\s?#]+)/i);
+  const arxivUrl = raw.match(/(?:arxiv|alphaxiv)\.org\/(?:abs|pdf|overview)\/([^\s?#]+)/i);
   const candidate = (arxivUrl ? arxivUrl[1] : raw).replace(/\.pdf$/i, '');
   const newStyle = candidate.match(/^(\d{4}\.\d{4,5})(v\d+)?$/i);
   const oldStyle = candidate.match(/^([a-z-]+(?:\.[A-Z]{2})?\/\d{7})(v\d+)?$/i);
@@ -56,6 +61,19 @@ export function paperMatchKey(url: string): string | null {
   }
 }
 
+/**
+ * Title comparison key for duplicate detection: URLs for the same paper don't
+ * always collapse (project page vs arXiv vs DOI), but the title does.
+ */
+export function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Turn an alphaXiv search result into a to-read Paper draft. Mirrors the fields
+ * TrackPrompt seeds a paper with (venue/relevance/leftOff empty, no citations —
+ * those are edited later); the caller supplies the deck. Pure so it's testable.
+ */
 interface S2Response {
   title?: string | null;
   abstract?: string | null;
@@ -63,6 +81,7 @@ interface S2Response {
   year?: number | null;
   citationCount?: number | null;
   authors?: { name: string }[] | null;
+  openAccessPdf?: { url?: string | null } | null;
 }
 
 /**
@@ -81,7 +100,7 @@ export async function fetchPaperMeta(input: string, apiKey = ''): Promise<FetchM
     };
   }
 
-  const fields = 'title,authors,venue,year,citationCount,abstract';
+  const fields = 'title,authors,venue,year,citationCount,abstract,openAccessPdf';
   // Keep the `arXiv:`/`DOI:` prefix colon literal (Semantic Scholar matches it in
   // the path); only a raw URL ref needs its reserved characters encoded.
   const pathRef = ref.startsWith('URL:') ? `URL:${encodeURIComponent(ref.slice(4))}` : ref;
@@ -126,6 +145,9 @@ export async function fetchPaperMeta(input: string, apiKey = ''): Promise<FetchM
         url: ref.startsWith('arXiv:')
           ? `https://arxiv.org/abs/${ref.slice('arXiv:'.length)}`
           : input.trim(),
+        pdfUrl: ref.startsWith('arXiv:')
+          ? `https://arxiv.org/pdf/${ref.slice('arXiv:'.length)}`
+          : (data.openAccessPdf?.url ?? ''),
       },
     };
   } catch {

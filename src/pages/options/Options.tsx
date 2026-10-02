@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { SAMPLE_FEEDS } from '../../shared/constants';
+import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
 import { normalizeBlockDomain } from '../../shared/focusRules';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
-import { DEFAULT_SETTINGS, patchSettings, setLocal } from '../../shared/storage';
-import type { Settings, ThemeSetting } from '../../shared/types';
-import { AssistantSection } from './AssistantSection';
+import { getLocal, patchSettings, setLocal } from '../../shared/storage';
+import type { ThemeSetting } from '../../shared/types';
+import { LocalAiSection } from './LocalAiSection';
+import { NewTabSection } from './NewTabSection';
+import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
@@ -14,8 +17,7 @@ type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 export function Options() {
   useTheme();
   const [feeds] = useStorageValue('feeds');
-  const [storedSettings, settingsLoaded] = useStorageValue('settings');
-  const settings: Settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  const [settings, settingsLoaded] = useSettings();
 
   const [url, setUrl] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -23,8 +25,6 @@ export function Options() {
   const [notificationsBlocked, setNotificationsBlocked] = useState(false);
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
-  const [pillInput, setPillInput] = useState('');
-  const [pillFeedback, setPillFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.notifications.getPermissionLevel((level) => {
@@ -54,13 +54,21 @@ export function Options() {
       flash('Could not fetch feed. Please check the URL.', 'error');
       return;
     }
-    await setLocal({ feeds: [...feeds, feedUrl] });
+    // Re-read rather than write back the list this render captured: validation
+    // above is a network round-trip, so the snapshot can be stale by now.
+    const { feeds: live } = await getLocal('feeds');
+    if (live.includes(feedUrl)) {
+      flash('This feed is already added.', 'error');
+      return;
+    }
+    await setLocal({ feeds: [...live, feedUrl] });
     flash(res.title ? `Added "${res.title}"!` : 'Feed added successfully!', 'success');
     void sendMessage({ type: 'REFRESH_FEEDS' });
   };
 
   const removeFeed = async (feedUrl: string) => {
-    await setLocal({ feeds: feeds.filter((f) => f !== feedUrl) });
+    const { feeds: live } = await getLocal('feeds');
+    await setLocal({ feeds: live.filter((f) => f !== feedUrl) });
   };
 
   const markAllRead = async () => {
@@ -86,24 +94,6 @@ export function Options() {
   const removeBlockDomain = (domain: string) =>
     patchSettings({ focusBlocklist: settings.focusBlocklist.filter((d) => d !== domain) });
 
-  const addPillHost = async () => {
-    const domain = normalizeBlockDomain(pillInput);
-    if (!domain) {
-      setPillFeedback('Not a valid domain (e.g. youtube.com).');
-      return;
-    }
-    if (settings.timePillHosts.includes(domain)) {
-      setPillFeedback('Already on the list.');
-      return;
-    }
-    setPillInput('');
-    setPillFeedback(null);
-    await patchSettings({ timePillHosts: [...settings.timePillHosts, domain] });
-  };
-
-  const removePillHost = (domain: string) =>
-    patchSettings({ timePillHosts: settings.timePillHosts.filter((d) => d !== domain) });
-
   const clearReadHistory = async () => {
     if (!window.confirm('Clear all read history? Unread counts will be recalculated.')) return;
     await setLocal({ readItems: [] });
@@ -113,13 +103,15 @@ export function Options() {
   if (!settingsLoaded) return null;
 
   return (
-    <div className="container">
-      <header>
-        <h1>⚙️ Reader Settings</h1>
+    <div className="colophon grid">
+      <header className="colophon-masthead">
+        <h1>Settings</h1>
       </header>
 
-      <main>
-        <section className="section">
+      <SectionIndex />
+
+      <main className="colophon-main">
+        <section className="section" id="appearance">
           <h2>Appearance</h2>
           <div className="setting-row">
             <label htmlFor="theme-select">Theme</label>
@@ -135,7 +127,27 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="reader">
+          <h2>Reader</h2>
+          <div className="setting-row">
+            <label htmlFor="focus-line">
+              Focus line{' '}
+              <span className="hint-inline">(dim everything but the passage you are reading; F toggles it)</span>
+            </label>
+            <input
+              id="focus-line"
+              type="checkbox"
+              checked={settings.readerFocusLine}
+              onChange={(e) => void patchSettings({ readerFocusLine: e.target.checked })}
+            />
+          </div>
+        </section>
+
+        <NewTabSection settings={settings} />
+
+        <LocalAiSection settings={settings} />
+
+        <section className="section" id="add-new-feed">
           <h2>Add New Feed</h2>
           <form
             className="add-feed-form"
@@ -159,7 +171,7 @@ export function Options() {
           {feedback && <p className={`feedback ${feedback.kind}`}>{feedback.text}</p>}
         </section>
 
-        <section className="section">
+        <section className="section" id="your-feeds">
           <h2>Your Feeds</h2>
           <div className="feeds-list">
             {feeds.length === 0 ? (
@@ -181,7 +193,7 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="refresh-interval">
           <h2>Refresh Interval</h2>
           <div className="setting-row">
             <label htmlFor="refresh-interval">Auto-refresh every:</label>
@@ -199,7 +211,7 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="notifications-focus">
           <h2>Notifications & Focus</h2>
           {notificationsBlocked && (
             <p className="feedback error">
@@ -217,23 +229,6 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="task-reminder-interval">Remind me about open tasks:</label>
-            <select
-              id="task-reminder-interval"
-              value={settings.taskReminderIntervalMinutes}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) =>
-                void patchSettings({ taskReminderIntervalMinutes: Number(e.target.value) })
-              }
-            >
-              <option value={0}>Never</option>
-              <option value={60}>Every hour</option>
-              <option value={120}>Every 2 hours</option>
-              <option value={240}>Every 4 hours</option>
-              <option value={480}>Every 8 hours</option>
-            </select>
-          </div>
-          <div className="setting-row">
             <label htmlFor="nudges-enabled">
               Reading nudges{' '}
               <span className="hint-inline">(remind me about half-read articles)</span>
@@ -247,137 +242,23 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="nudge-delay">Nudge me after I've been away for:</label>
-            <select
-              id="nudge-delay"
-              value={settings.nudgeDelayMinutes}
-              disabled={!settings.notificationsEnabled || !settings.nudgesEnabled}
-              onChange={(e) => void patchSettings({ nudgeDelayMinutes: Number(e.target.value) })}
-            >
-              <option value={1}>1 minute</option>
-              <option value={3}>3 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="hyperfocus-minutes">
+            <label htmlFor="hyperfocus-enabled">
               Hyperfocus check-in{' '}
-              <span className="hint-inline">(break reminder after unbroken reading/watching)</span>
+              <span className="hint-inline">
+                (break reminder after {HYPERFOCUS_MINUTES} min unbroken reading/watching)
+              </span>
             </label>
-            <select
-              id="hyperfocus-minutes"
-              value={settings.hyperfocusMinutes}
+            <input
+              id="hyperfocus-enabled"
+              type="checkbox"
+              checked={settings.hyperfocusEnabled}
               disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ hyperfocusMinutes: Number(e.target.value) })}
-            >
-              <option value={0}>Off</option>
-              <option value={45}>After 45 min</option>
-              <option value={60}>After 1 hour</option>
-              <option value={90}>After 90 min</option>
-              <option value={120}>After 2 hours</option>
-            </select>
+              onChange={(e) => void patchSettings({ hyperfocusEnabled: e.target.checked })}
+            />
           </div>
         </section>
 
-        <section className="section">
-          <h2>Gym & Goals</h2>
-          <div className="setting-row">
-            <label htmlFor="gym-weekly-target">Gym sessions per week:</label>
-            <select
-              id="gym-weekly-target"
-              value={settings.gymWeeklyTarget}
-              onChange={(e) => void patchSettings({ gymWeeklyTarget: Number(e.target.value) })}
-            >
-              {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                <option key={n} value={n}>
-                  {n}×
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="gym-reminder-time">Evening gym reminder:</label>
-            <select
-              id="gym-reminder-time"
-              value={settings.gymReminderTime}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ gymReminderTime: e.target.value })}
-            >
-              <option value="">Off</option>
-              <option value="17:00">5:00 PM</option>
-              <option value="18:00">6:00 PM</option>
-              <option value="19:00">7:00 PM</option>
-              <option value="20:00">8:00 PM</option>
-              <option value="21:00">9:00 PM</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-articles">Weekly quest — articles to finish:</label>
-            <select
-              id="quest-articles"
-              value={settings.questArticlesPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questArticlesPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="video-min-minutes">Track YouTube videos longer than:</label>
-            <select
-              id="video-min-minutes"
-              value={settings.videoMinMinutes}
-              onChange={(e) => void patchSettings({ videoMinMinutes: Number(e.target.value) })}
-            >
-              {[1, 5, 10, 15, 20, 30].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-videos">Weekly quest — videos to finish:</label>
-            <select
-              id="quest-videos"
-              value={settings.questVideosPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questVideosPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-sprints">Weekly quest — sprints to complete:</label>
-            <select
-              id="quest-sprints"
-              value={settings.questSprintsPerWeek}
-              onChange={(e) =>
-                void patchSettings({ questSprintsPerWeek: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2, 3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        <section className="section">
+        <section className="section" id="focus-mode">
           <h2>Focus Mode</h2>
           <p className="hint">Sites blocked during focus sessions:</p>
           <form
@@ -410,42 +291,9 @@ export function Options() {
               </div>
             ))}
           </div>
-          <p className="hint" style={{ marginTop: 18 }}>
-            ⏱ Time pill — show a floating "time on this site today" badge on these sites:
-          </p>
-          <form
-            className="add-feed-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void addPillHost();
-            }}
-          >
-            <input
-              type="text"
-              value={pillInput}
-              onChange={(e) => setPillInput(e.target.value)}
-              placeholder="Add a domain to time (e.g. youtube.com)"
-            />
-            <button type="submit">Add</button>
-          </form>
-          {pillFeedback && <p className="feedback error">{pillFeedback}</p>}
-          <div className="feeds-list" style={{ marginTop: 10 }}>
-            {settings.timePillHosts.map((domain) => (
-              <div className="feed-entry" key={domain}>
-                <span className="feed-entry-url">{domain}</span>
-                <button
-                  className="remove-feed-btn"
-                  title="Remove time pill from this site"
-                  onClick={() => void removePillHost(domain)}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
           <div className="setting-row">
             <label htmlFor="focus-music">
-              🎵 Open Flowtunes focus music when a session starts
+              Open Flowtunes focus music when a session starts
             </label>
             <input
               id="focus-music"
@@ -455,7 +303,7 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="focus-minutes">Pomodoro focus length:</label>
+            <label htmlFor="focus-minutes">Focus length:</label>
             <select
               id="focus-minutes"
               value={settings.focusMinutes}
@@ -468,41 +316,11 @@ export function Options() {
               ))}
             </select>
           </div>
-          <div className="setting-row">
-            <label htmlFor="focus-break-minutes">Pomodoro break length:</label>
-            <select
-              id="focus-break-minutes"
-              value={settings.focusBreakMinutes}
-              onChange={(e) => void patchSettings({ focusBreakMinutes: Number(e.target.value) })}
-            >
-              {[5, 10, 15, 20].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="quest-focus">Weekly quest — focus blocks:</label>
-            <select
-              id="quest-focus"
-              value={settings.questFocusPerWeek}
-              onChange={(e) => void patchSettings({ questFocusPerWeek: Number(e.target.value) })}
-            >
-              {[0, 3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? 'Off' : n}
-                </option>
-              ))}
-            </select>
-          </div>
         </section>
-
-        <AssistantSection />
 
         <PapersSection />
 
-        <section className="section">
+        <section className="section" id="data">
           <h2>Data</h2>
           <div className="button-group">
             <button type="button" className="secondary-btn" onClick={() => void markAllRead()}>
@@ -519,7 +337,7 @@ export function Options() {
           {dataMessage && <p className="feedback success">{dataMessage}</p>}
         </section>
 
-        <section className="section">
+        <section className="section" id="sample-feeds">
           <h2>Sample Feeds</h2>
           <p className="hint">Click to add popular feeds:</p>
           <div className="sample-feeds">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paperMatchKey, parsePaperRef } from './papers';
+import { normalizeTitle, paperMatchKey, parsePaperRef } from './papers';
 
 describe('parsePaperRef', () => {
   it('recognizes arXiv abs/pdf/versioned/.pdf as the same id', () => {
@@ -11,6 +11,17 @@ describe('parsePaperRef', () => {
       '2006.11239',
     ]) {
       expect(parsePaperRef(input)).toBe('arXiv:2006.11239');
+    }
+  });
+
+  it('recognizes an alphaXiv link as its arXiv id', () => {
+    for (const input of [
+      'https://www.alphaxiv.org/abs/2605.02881',
+      'https://www.alphaxiv.org/abs/2605.02881v2',
+      'https://www.alphaxiv.org/overview/2605.02881',
+      'alphaxiv.org/pdf/2605.02881',
+    ]) {
+      expect(parsePaperRef(input)).toBe('arXiv:2605.02881');
     }
   });
 
@@ -43,5 +54,20 @@ describe('paperMatchKey', () => {
 
   it('returns null for unmatchable input', () => {
     expect(paperMatchKey('not a url')).toBeNull();
+  });
+});
+
+describe('normalizeTitle', () => {
+  it('collapses case, punctuation, and whitespace', () => {
+    expect(normalizeTitle('Learning Fine-Grained  Bimanual Manipulation')).toBe(
+      normalizeTitle('learning fine grained bimanual manipulation'),
+    );
+    expect(normalizeTitle('ALOHA: A Low-cost System')).toBe('aloha a low cost system');
+  });
+
+  it('keeps distinct titles distinct', () => {
+    expect(normalizeTitle('Attention Is All You Need')).not.toBe(
+      normalizeTitle('Attention Is Not All You Need'),
+    );
   });
 });

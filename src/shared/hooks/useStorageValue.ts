@@ -13,11 +13,13 @@ export function useStorageValue<K extends keyof LocalSchema>(key: K): [LocalSche
   useEffect(() => {
     let alive = true;
 
-    chrome.storage.local.get(key).then((stored) => {
-      if (!alive) return;
-      setValue((stored[key] as LocalSchema[K]) ?? structuredClone(DEFAULTS[key]));
-      setLoaded(true);
-    });
+    const load = () =>
+      chrome.storage.local.get(key).then((stored) => {
+        if (!alive) return;
+        setValue((stored[key] as LocalSchema[K]) ?? structuredClone(DEFAULTS[key]));
+        setLoaded(true);
+      });
+    void load();
 
     const listener = (
       changes: { [name: string]: chrome.storage.StorageChange },
@@ -29,9 +31,19 @@ export function useStorageValue<K extends keyof LocalSchema>(key: K): [LocalSche
     };
     chrome.storage.onChanged.addListener(listener);
 
+    // Chrome freezes long-backgrounded tabs, and change events that fire while
+    // a tab is frozen are never delivered — a dashboard left open in another
+    // tab would otherwise come back showing whatever it last saw. Re-read on
+    // every return to visible.
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       alive = false;
       chrome.storage.onChanged.removeListener(listener);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [key]);
 

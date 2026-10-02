@@ -2,103 +2,355 @@
  * Theme tokens shared by every extension page. Import from main.tsx before the
  * page stylesheet. The resolved theme lands on <html data-theme="light|dark">
  * (see theme.ts); page CSS uses only these tokens for colors.
+ *
+ * Typeface: Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — license
+ * ships at /fonts/OFL.txt). Bundled locally; extension pages load their own
+ * resources so no web_accessible_resources entry is needed. Only 400/700
+ * exist — never use font-weight 800+, Chrome would synthesize a faux-bold.
  */
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Regular.woff2) format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Bold.woff2) format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url(/fonts/AtkinsonHyperlegible-Italic.woff2) format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
 
-  --bg-page: #f5f2ef;
-  --bg-surface: #ffffff;
-  --bg-subtle: #fafafa;
-  --bg-hover: #f0f0f0;
+  --font-sans: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  /* Mastheads, headlines and reader headings only. System serifs, so nothing is
+     bundled; body copy stays Atkinson for legibility. */
+  --font-display: ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
 
-  --text-primary: #333;
-  --text-secondary: #555;
-  --text-muted: #999;
-  --text-faint: #b3b3b3;
+  /* The grid coordinate system. Theme-invariant: everything snaps to a 4px
+     unit, and page layouts place their blocks on the 12-column .grid below.
+     designSystem.test.ts holds every stylesheet to these scales. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
 
-  --border: #ddd;
-  --border-subtle: #eee;
-  --disabled: #ccc;
+  --grid-cols: 12;
+  --grid-gutter: 24px;
+  --grid-margin: 32px;
+  --grid-max: 1200px;
 
-  --accent: #ff6b35;
-  --accent-hover: #e55a2b;
-  --accent-soft: #fff8f4;
-  --accent-wash: #fff0e8;
-  --accent-border: #ffd9c7;
-  --accent-track: #ffe3d5;
-  --accent-text: #b45a2e;
-  --on-accent: #fff;
+  /* Concentric radii. Apple's rule is inner = outer − padding, so a card and
+     the controls inside it read as one machined object rather than stickers on
+     a panel. Pick the outer radius first, then step down by the padding you
+     used: --radius-xl shell + --space-2 padding takes --radius-md children. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+
+  /* Type scale, each size paired with a leading on the 4px baseline. */
+  --text-xs: 12px;
+  --leading-xs: 16px;
+  --text-sm: 14px;
+  --leading-sm: 20px;
+  --text-md: 16px;
+  --leading-md: 24px;
+  --text-lg: 20px;
+  --leading-lg: 28px;
+  --text-xl: 24px;
+  --leading-xl: 32px;
+  --text-2xl: 32px;
+  --leading-2xl: 40px;
+  --text-3xl: 40px;
+  --leading-3xl: 48px;
+  /* The article measure: 16px type on a 28px line, for long reading. */
+  --leading-read: 28px;
+
+  --transition-fast: 0.15s;
+  --transition-base: 0.2s;
+
+  /* Decelerating curves: motion arrives fast and settles, rather than easing
+     symmetrically in and out. --ease-spring overshoots slightly and is only
+     for things that appear (disclosures), never for things that move away. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
+  /* Paper and ink. */
+  --bg-page: #f5f0e6;
+  --bg-surface: #fbf8f2;
+  --bg-subtle: #ece5d7;
+  --bg-hover: #e4dccd;
+
+  --text-primary: #2b2520;
+  --text-secondary: #5a5048;
+  /* Clears 4.5:1 on page, surface and subtle: it carries small supporting copy. */
+  --text-muted: #6b6158;
+  /* Decorative only (rules, glyphs) — never carries words. */
+  --text-faint: #8a7f74;
+
+  /* The ink of the masthead's double rule and of the primary buttons. */
+  --rule: #2b2520;
+  --border: #d9cfbf;
+  --border-subtle: #e4dccd;
+  --disabled: #c9bfb0;
+
+  /* Clay. #b4552f rather than the brighter #c96442 so white labels on it clear 4.5:1. */
+  --accent: #b4552f;
+  --accent-hover: #9a4528;
+  --accent-soft: #f7ece4;
+  --accent-wash: #f1ddd0;
+  --accent-border: #e2b9a3;
+  --accent-track: #ecd2c3;
+  --accent-text: #a8502f;
+  --on-accent: #ffffff;
 
   --success: #2e7d32;
-  --success-bg: #e8f5e9;
-  --success-border: #c8e6c9;
-  --danger: #d32f2f;
-  --danger-bg: #fdecea;
-  --warning: #e65100;
-  --warning-bg: #fff3e0;
+  --success-bg: #e8f1e4;
+  --success-border: #c5dcbf;
+  --danger: #b3261e;
+  --danger-bg: #f9e3df;
+  --danger-wash: rgba(179, 38, 30, 0.18);
+  --warning: #8a5300;
+  --warning-bg: #f6ead2;
 
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.18);
-  --shadow-accent: 0 2px 10px rgba(255, 107, 53, 0.15);
+  /* Focus line: what everything outside the current passage is washed with. */
+  --reading-dim: rgba(245, 240, 230, 0.72);
 
-  /* Activity-calendar heat scale (GitHub greens); inset border keeps the
-     faint steps legible against the panel surface */
-  --heat-0: #ebedf0;
-  --heat-1: #9be9a8;
-  --heat-2: #40c463;
-  --heat-3: #30a14e;
-  --heat-4: #216e39;
-  --heat-cell-border: rgba(27, 31, 35, 0.06);
+  /* The PDF page itself: white in both themes, because it is the document's
+     own paper; night mode swaps it for black and inverts the rendering. */
+  --pdf-page: #ffffff;
+  --pdf-page-night: #000000;
+  --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 8px 24px rgba(60, 40, 20, 0.08);
+  --selection: rgba(180, 85, 47, 0.3);
+  --cite-hover: rgba(180, 85, 47, 0.2);
 
-  /* Focus-immersion palette: intentionally dark in BOTH themes */
-  --focus-bg: #1e1a17;
-  --focus-panel: #292420;
-  --focus-text: #f5f2ef;
-  --focus-muted: #8d8279;
-  --focus-border: #4a423c;
+  --shadow-sm: 0 1px 4px rgba(60, 40, 20, 0.08);
+  --shadow-lg: 0 8px 24px rgba(60, 40, 20, 0.16);
+  --shadow-accent: 0 2px 10px rgba(180, 85, 47, 0.18);
+
+  /* Card surface. Four layers: a specular rim on the top inside edge, a
+     hairline ring, a contact shadow, and an ambient one. The ring is a shadow
+     rather than a border so it never adds to a box's size on the grid, and
+     animates in the same property as the rest of the hover lift. */
+  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(60, 40, 20, 0.045),
+    0 1px 2px rgba(60, 40, 20, 0.04), 0 4px 12px rgba(60, 40, 20, 0.05);
+  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
+    0 0 0 1px rgba(60, 40, 20, 0.07), 0 2px 4px rgba(60, 40, 20, 0.05),
+    0 12px 28px rgba(60, 40, 20, 0.1);
+
+  /* Glass. --glass-surface stays near-opaque: this typeface and palette were
+     chosen for low-vision legibility, and body copy on a see-through panel
+     gives up the contrast that pass bought. The glass lives in the chrome —
+     the reader toolbar, the capsule, sheets — while text keeps a solid ground. */
+  --glass-surface: rgba(251, 248, 242, 0.92);
+  --glass-bar: rgba(251, 248, 242, 0.6);
+  /* Named material stack, so a rule picks by depth instead of by guess.
+     --material-thin is for bars that float over scrolling content,
+     --material-regular for cards and popovers, --material-thick for anything
+     that must fully occlude what is behind it. */
+  --material-thin: rgba(251, 248, 242, 0.6);
+  --material-regular: rgba(251, 248, 242, 0.92);
+  --material-thick: rgba(251, 248, 242, 0.97);
+  --glass-accent: rgba(241, 221, 208, 0.72);
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-rim: rgba(255, 255, 255, 0.9);
+  --glass-rim-strong: rgba(255, 255, 255, 1);
+
+  /* Two feathered washes behind a page, in the clay family. */
+  --glass-tint: rgba(180, 85, 47, 0.08);
+  --glass-tint-2: rgba(201, 100, 66, 0.06);
+
+  /* The focus world (the blocked page): always warm ink, whatever the theme,
+     because hitting a blocked site mid-session should feel like the same
+     quiet room every time. Theme-invariant, so the dark block does not repeat them. */
+  --focus-bg: #0e0c0b;
+  --focus-text: #ece4d8;
+  --focus-text-secondary: #a89c8f;
+  --focus-faint: #7d7268;
+  --focus-rule: #3a332d;
+  --focus-accent: #e3906e;
+  --focus-accent-wash: rgba(227, 144, 110, 0.12);
+  --focus-danger: #f2a39b;
+
+  /* Heat scale, derived from the accent so magnitude reads as one colour system. */
+  --heat-0: #ece5d7;
+  --heat-1: #f1ddd0;
+  --heat-2: #e2b9a3;
+  --heat-3: #c96442;
+  --heat-4: #9a4528;
+  --heat-cell-border: rgba(60, 40, 20, 0.06);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg-page: #1b1815;
-  --bg-surface: #262220;
-  --bg-subtle: #2e2926;
-  --bg-hover: #38322e;
+  /* Warm ink. Never pure black under body copy, never pure white text:
+     halation is the low-vision cost of both. */
+  --bg-page: #0e0c0b;
+  --bg-surface: #191512;
+  --bg-subtle: #221d1a;
+  --bg-hover: #2c2622;
 
-  --text-primary: #ece7e2;
-  --text-secondary: #c2bab3;
-  --text-muted: #8d8279;
-  --text-faint: #6b625b;
+  --text-primary: #ece4d8;
+  --text-secondary: #c4b8aa;
+  --text-muted: #a89c8f;
+  --text-faint: #7d7268;
 
-  --border: #453e39;
-  --border-subtle: #332e2a;
-  --disabled: #55504b;
+  --rule: #ece4d8;
+  --border: #3a332d;
+  --border-subtle: #2c2622;
+  --disabled: #4a423b;
 
-  --accent: #ff7a45;
-  --accent-hover: #ff8f61;
-  --accent-soft: #2e2520;
-  --accent-wash: #3a2b21;
-  --accent-border: #5c3d2a;
-  --accent-track: #4a2f1f;
-  --accent-text: #ffb397;
+  --accent: #e3906e;
+  --accent-hover: #f0b79a;
+  --accent-soft: #241912;
+  --accent-wash: #2e2018;
+  --accent-border: #5a3a2a;
+  --accent-track: #3d2a1f;
+  --accent-text: #f0b79a;
+  /* 7.59:1 — a light clay cannot carry white labels */
+  --on-accent: #1a0f0a;
 
-  --success: #81c784;
-  --success-bg: #1f2f23;
-  --success-border: #3a5a40;
-  --danger: #ef9a9a;
-  --danger-bg: #3a2426;
-  --warning: #ffb74d;
-  --warning-bg: #3a2f1d;
+  --success: #8fc79a;
+  --success-bg: #18241b;
+  --success-border: #2f4a35;
+  --danger: #f2a39b;
+  --danger-bg: #2e1a17;
+  --danger-wash: rgba(242, 163, 155, 0.18);
+  --warning: #e8c27a;
+  --warning-bg: #2b2416;
 
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.45);
+  --reading-dim: rgba(14, 12, 11, 0.72);
+
+  --pdf-page: #ffffff;
+  --pdf-page-night: #000000;
+  --pdf-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --selection: rgba(227, 144, 110, 0.35);
+  --cite-hover: rgba(227, 144, 110, 0.25);
+
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-accent: 0 2px 10px rgba(0, 0, 0, 0.5);
+  /* In the dark the accent glows rather than casts. */
+  --shadow-accent: 0 0 12px rgba(227, 144, 110, 0.35);
 
-  --heat-0: #2e2926;
-  --heat-1: #0e4429;
-  --heat-2: #006d32;
-  --heat-3: #26a641;
-  --heat-4: #39d353;
-  --heat-cell-border: rgba(255, 255, 255, 0.05);
+  /* The hairline flips to a light edge — a dark ring is invisible on a dark
+     page, and the card needs an edge to read as a separate surface. */
+  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(236, 228, 216, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
+    0 0 0 1px rgba(236, 228, 216, 0.1), 0 2px 4px rgba(0, 0, 0, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.55);
+
+  --glass-surface: rgba(25, 21, 18, 0.9);
+  --glass-bar: rgba(236, 228, 216, 0.05);
+  --material-thin: rgba(20, 17, 15, 0.6);
+  --material-regular: rgba(25, 21, 18, 0.9);
+  --material-thick: rgba(20, 17, 15, 0.97);
+  --glass-accent: rgba(227, 144, 110, 0.14);
+  --glass-blur: blur(24px) saturate(160%);
+  --glass-rim: rgba(236, 228, 216, 0.1);
+  --glass-rim-strong: rgba(236, 228, 216, 0.2);
+
+  --glass-tint: rgba(227, 144, 110, 0.08);
+  --glass-tint-2: rgba(201, 100, 66, 0.06);
+
+  --heat-0: #221d1a;
+  --heat-1: #3d2a1f;
+  --heat-2: #7a4630;
+  --heat-3: #c96442;
+  --heat-4: #f0b79a;
+  --heat-cell-border: rgba(236, 228, 216, 0.05);
+}
+
+/* One focus ring, everywhere, in the accent.
+   :focus-visible rather than :focus, so it appears for keyboard and assistive
+   navigation and never on a mouse click. The offset is what makes it legible
+   on a filled control — an inset ring on an accent button disappears into it.
+   A handful of inputs override this with a border-colour affordance instead
+   (options.css); those are more specific and still keep a visible state. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The page grid. Every page's top-level layout is a .grid and places its
+   blocks with grid-column spans, so all pages share one set of column lines. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
+  column-gap: var(--grid-gutter);
+  max-width: var(--grid-max);
+  margin-inline: auto;
+  padding-inline: var(--grid-margin);
+  box-sizing: border-box;
+  width: 100%;
+}
+@media (max-width: 720px) {
+  :root {
+    --grid-margin: 16px;
+  }
+}
+
+/* The one primary button, shared by every page: ink, turning clay on hover.
+   Lives here rather than in a page sheet because theme.css is the only
+   stylesheet every page loads. */
+.fc-primary-btn {
+  background: var(--rule);
+  color: var(--bg-page);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+.fc-primary-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.fc-primary-btn:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* prefers-reduced-transparency is a real accessibility setting and a separate
+   one from reduced motion — someone can want the glass gone and the hover lift
+   kept. Neutralising the tokens is the whole fallback: every glass rule reads
+   them, so no rule downstream needs one of its own. The rims stay; a specular
+   edge is a highlight, not something you see through. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root[data-theme='dark'] {
+    --glass-surface: var(--bg-surface);
+    --glass-bar: var(--bg-subtle);
+    --glass-accent: var(--accent-wash);
+    --glass-blur: none;
+    --material-thin: var(--bg-subtle);
+    --material-regular: var(--bg-surface);
+    --material-thick: var(--bg-surface);
+  }
 }

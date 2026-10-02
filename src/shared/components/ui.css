@@ -1,0 +1,185 @@
+/*
+ * Shared UI primitives. Every extension page imports this once; the page
+ * stylesheets keep only what is genuinely page-specific.
+ *
+ * These exist because the same five shapes were hand-rolled per page —
+ * `ghost-btn` x46, `panel-empty` x13, `streak-stat` x11, `dash-bar` x10, and
+ * `sprint-start` x8, a class named for reading sprints that was also doing
+ * duty as "Open Settings" and "Connect Google Calendar". The popup went
+ * further and styled bare `button` with a growing :not() exclusion list,
+ * which silently painted any new button accent-on-white.
+ */
+
+.ui-btn {
+  font-family: inherit;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.ui-btn:disabled {
+  cursor: default;
+}
+
+/* Primary — the one obvious action in a panel. At most one per panel. */
+.ui-btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ui-btn--primary:disabled {
+  background: var(--disabled);
+}
+
+/* Tinted — full-weight but unfilled. For the block button that only *navigates*
+   ("Open Papers", "Play again"): it has to be as easy to hit as a primary, but
+   a page of six solid accent bars has no primary at all. */
+.ui-btn--tinted {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.ui-btn--tinted:hover:not(:disabled) {
+  background: var(--accent-border);
+}
+
+.ui-btn--tinted:disabled {
+  opacity: 0.5;
+}
+
+/* Ghost — secondary and icon-adjacent controls; recedes until hovered. */
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.ui-btn--ghost:disabled {
+  opacity: 0.5;
+}
+
+/* Danger — destructive, and only where the action really is destructive. */
+.ui-btn--danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.ui-btn--block {
+  width: 100%;
+}
+
+/* Panel — a dashboard card, or any titled block.
+   `height: 100%` makes grid items fill their row so the layout stays even,
+   without the old `min-height: 320px` floor that padded every short card
+   with a block of dead space. */
+.ui-panel {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+}
+
+/* See the note in newtab.css: macOS draws its large surfaces as superellipses.
+   The dashboard overrides this radius to 16px and re-declares the same thing
+   for its own selector; this covers every other .ui-panel (options, papers,
+   flashcards) at --radius-lg. */
+@supports (corner-shape: squircle) {
+  .ui-panel {
+    corner-shape: squircle;
+  }
+}
+
+.ui-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ui-panel-head h2 {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.ui-empty {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-4) var(--space-2);
+}
+
+/* Stat row — the streak/gym/warm-up number strips. */
+.ui-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: var(--space-2);
+}
+
+.ui-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Ink, not accent: a stat is something you read, not something you can press.
+   Reserving the accent for controls is what lets it mean anything. */
+.ui-stat-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+/* Progress bar — reading progress, paper progress. */
+.ui-bar {
+  height: 6px;
+  background: var(--accent-track);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.ui-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn,
+  .ui-bar-fill {
+    transition: none;
+  }
+}

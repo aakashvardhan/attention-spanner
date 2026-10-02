@@ -1,4 +1,6 @@
-/* Deliberately always dark (focus immersion) — exempt from the light/dark theme system */
+/* Deliberately always dark (focus immersion): the --focus-* tokens are
+   theme-invariant, so a blocked site feels like the same quiet room in either
+   theme. Centered on the shared grid, columns 4–9. */
 
 * {
   margin: 0;
@@ -7,103 +9,82 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: #1e1a17;
-  color: #f5f2ef;
+  font-family: var(--font-sans);
+  background: var(--focus-bg);
+  color: var(--focus-text);
   min-height: 100vh;
 }
 
 .blocked {
   min-height: 100vh;
+  align-content: center;
+}
+
+.blocked-inner {
+  grid-column: 4 / span 6;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 40px 24px;
+  gap: var(--space-4);
+  padding-block: var(--space-7);
   text-align: center;
 }
 
-.blocked-emoji {
-  font-size: 56px;
-}
-
 .blocked h1 {
-  font-size: 28px;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
   font-weight: 700;
 }
 
 .blocked-sub {
-  font-size: 15px;
-  color: #b8aea6;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--focus-text-secondary);
 }
 
+/* The one display-size number in the extension: a countdown read from across
+   the room. */
 .blocked-countdown {
-  font-size: 88px;
-  font-weight: 800;
-  color: #ff6b35;
+  font-size: 88px; /* ds-exempt: countdown display figure */
+  font-weight: 700;
+  color: var(--focus-accent);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
-.blocked-tasks {
-  margin-top: 18px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 107, 53, 0.35);
-  border-radius: 12px;
-  padding: 16px 24px;
-  max-width: 480px;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.blocked-tasks-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #ff6b35;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-
-.blocked-task {
-  font-size: 14px;
-  color: #e8e2dc;
-}
-
-.blocked-intent-text {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ffd9c9;
-}
-
 .blocked-quit {
-  margin-top: 28px;
+  margin-top: var(--space-6);
 }
 
 .blocked-quit .hold-to-quit {
-  border-color: #4a423c;
-  color: #8d8279;
+  border-color: var(--focus-rule);
+  color: var(--focus-faint);
 }
 
 .blocked-quit .hold-to-quit:hover {
-  border-color: #d32f2f;
-  color: #ef9a9a;
+  border-color: var(--focus-danger);
+  color: var(--focus-danger);
 }
 
 .blocked-continue {
-  font-size: 16px;
-  color: #ff6b35;
-  font-weight: 600;
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--focus-accent);
+  border-radius: var(--radius-pill);
+  color: var(--focus-accent);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: 700;
   text-decoration: none;
-  border: 1px solid #ff6b35;
-  border-radius: 8px;
-  padding: 12px 24px;
-  margin-top: 10px;
 }
 
 .blocked-continue:hover {
-  background: rgba(255, 107, 53, 0.12);
+  background: var(--focus-accent-wash);
+}
+
+@media (max-width: 720px) {
+  .blocked-inner {
+    grid-column: 1 / -1;
+  }
 }

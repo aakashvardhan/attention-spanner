@@ -1,15 +1,21 @@
 /**
- * Modification metadata on user-authored records. Optional so pre-v6
- * (schemaVersion < 6) records typecheck; the v6 migration backfills
- * `updatedAt` from createdAt. `deletedAt` is reserved for soft deletes.
+ * Versioning metadata on every user-authored record.
+ *
+ * This arrived for cloud sync, which is gone, but it did not leave with it:
+ * agentRuns.ts reads `updatedAt` to detect a record that changed under a
+ * pending agent proposal, and `deletedAt` to detect one that was removed. That
+ * is optimistic concurrency, not bookkeeping for a transport.
+ *
+ * Optional so pre-v6 records still typecheck; the v6 migration backfilled
+ * `updatedAt` from createdAt and left `deletedAt` unset.
  */
-export interface SyncMeta {
+export interface RecordMeta {
   updatedAt?: number;
   deletedAt?: number | null;
 }
 
 export interface FeedItem {
-  /** btoa(encodeURIComponent(link + title)).slice(0, 32) — same scheme as the legacy extension */
+  /** 16 hex chars, hashed from link + title — see generateItemId */
   id: string;
   title: string;
   link: string;
@@ -20,106 +26,102 @@ export interface FeedItem {
   snippet: string;
   /** Feed (channel) title */
   source: string;
+  /** Feed-declared category/tag labels; absent on pre-category cached items */
+  categories?: string[];
 }
 
-export interface Task extends SyncMeta {
-  id: string;
-  text: string;
-  createdAt: number;
-  completedAt: number | null;
-  /** Excluded from reminder digests until this timestamp */
-  snoozedUntil: number | null;
-  source: 'capture' | 'popup' | 'newtab' | 'braindump';
-  /**
-   * Mystery-chest roll for this task, made once on first completion
-   * (bonusXp 0 = rolled and missed). Present ⇒ never re-roll, so
-   * toggle-farming can't fish for a drop.
-   */
-  chest?: { bonusXp: number };
-}
-
-export interface BrainDumpNote extends SyncMeta {
-  id: string;
-  rawText: string;
-  /** 'raw' = saved but not yet structured (AI unavailable or interrupted) */
-  status: 'raw' | 'structured' | 'failed';
-  bullets: string[];
-  /** addedTaskId links a proposed task to the real Task it became (null = not added) */
-  proposedTasks: { text: string; addedTaskId: string | null }[];
-  createdAt: number;
-  structuredAt: number | null;
+export interface ResumeTarget {
+  kind: 'article' | 'video';
+  url: string;
+  title: string;
+  /** Reading position fields are optional because each medium uses a different one. */
+  scrollY?: number;
+  positionSeconds?: number;
 }
 
 /** UI color theme; 'system' follows the OS prefers-color-scheme */
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
-export const DASH_CARD_IDS = [
-  'assistant',
-  'links',
-  'tasks',
-  'continue',
-  'streak',
-  'gym',
-  'progress',
-  'braindump',
-  'flashcards',
-  'papers',
-] as const;
-export type DashCardId = (typeof DASH_CARD_IDS)[number];
-
 export interface Settings {
   theme: ThemeSetting;
+  /** PDF reader night mode: dark chrome with the pages themselves inverted */
+  readerNight: boolean;
+  /** Reader focus line: dim everything but the passage being read (key F) */
+  readerFocusLine: boolean;
   /** Feed refresh interval in minutes (15–360) */
   refreshInterval: number;
   notificationsEnabled: boolean;
   nudgesEnabled: boolean;
-  /** Minutes away from a partially-read article before a nudge fires */
-  nudgeDelayMinutes: number;
-  /** Per-article cooldown between nudges, minutes */
-  nudgeCooldownMinutes: number;
-  nudgeMaxPerArticle: number;
-  /** 0 = reminders off */
-  taskReminderIntervalMinutes: number;
-  sprintMinutes: number;
-  /** Minutes of active reading for a day to count toward the streak */
-  dailyGoalMinutes: number;
-  /** Gym sessions per week to keep the gym streak (1–7) */
-  gymWeeklyTarget: number;
-  /** Local 'HH:MM' for the daily gym reminder; '' = off */
-  gymReminderTime: string;
-  /** Weekly quest targets; 0 excludes the line from the quest */
-  questArticlesPerWeek: number;
-  questSprintsPerWeek: number;
-  questVideosPerWeek: number;
-  /** Only auto-track YouTube videos at least this long */
-  videoMinMinutes: number;
-  /** Unbroken engagement minutes before the hyperfocus break nudge; 0 = off */
-  hyperfocusMinutes: number;
-  /** Domains that get the floating time-on-site pill */
-  timePillHosts: string[];
+  /** Warn after a long unbroken reading/watching run (HYPERFOCUS_MINUTES) */
+  hyperfocusEnabled: boolean;
   /** Domains blocked during focus sessions */
   focusBlocklist: string[];
   focusMinutes: number;
-  focusBreakMinutes: number;
-  questFocusPerWeek: number;
   /** Auto-open Flowtunes in a pinned tab when a focus session starts */
   focusMusicEnabled: boolean;
-  /** Dashboard grid columns (1–4); narrow viewports still collapse responsively */
-  dashColumns: 1 | 2 | 3 | 4;
-  /** Dashboard card order, source of truth for grid flow */
-  dashCardOrder: DashCardId[];
-  dashHiddenCards: DashCardId[];
-  dashFullWidthCards: DashCardId[];
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
-  /** The Jarvis assistant (dashboard card, popup tab, command palette) */
-  assistantEnabled: boolean;
-  /** Gemini API key for cloud fallback on long/hard queries; '' = on-device only */
-  geminiApiKey: string;
-  /** Speak assistant replies aloud (TTS) */
-  assistantVoiceEnabled: boolean;
-  /** speechSynthesis voice name; '' = system default */
-  assistantTtsVoice: string;
+  /** Name in the new tab greeting; '' = greet without one */
+  displayName: string;
+  /** City for the new tab weather, geocoded on first use; '' = no weather */
+  weatherLocation: string;
+  /** Local Ollama server; every on-device AI call goes here */
+  ollamaUrl: string;
+  /** Picked from the server's /api/tags; '' = none yet, so generation stays off */
+  ollamaChatModel: string;
+  ollamaEmbedModel: string;
+  /**
+   * When public content (RSS, arXiv/DOI papers, YouTube) may go to Claude:
+   * never, after a per-request confirm, or whenever the local model cannot
+   * take it. Private content never goes, whatever this says (llm/route.ts).
+   */
+  cloudMode: CloudMode;
+  /** User's own Anthropic API key; '' = no cloud */
+  claudeKey: string;
+}
+
+export type CloudMode = 'off' | 'ask' | 'public';
+
+/** Per-feature counters and latency samples. Never leaves the device. */
+export interface AiStats {
+  /** 'feature.counter' → count, e.g. 'recap.shown' */
+  counts: Record<string, number>;
+  /** Newest last, capped (AI_STATS_MAX_SAMPLES) */
+  latencies: { task: string; target: string; ms: number }[];
+  /**
+   * A resume waiting to be scored: did the item advance AI_RESUME_ADVANCE
+   * points after it was reopened, with or without a recap shown?
+   */
+  probes: {
+    key: string;
+    startPercent: number;
+    recap: boolean;
+    at: number;
+    /** A feed pick opened from triage: scored on finishing, not on advancing */
+    kind?: 'triage';
+  }[];
+}
+
+export interface AiCacheEntry {
+  text: string;
+  target: string;
+  model: string;
+  at: number;
+}
+
+/** Last weather reading, kept so a new tab paints before the network answers. */
+export interface WeatherCache {
+  /** The settings.weatherLocation this was geocoded from — a change invalidates it */
+  query: string;
+  /** Resolved place name from the geocoder, which is tidier than what was typed */
+  name: string;
+  lat: number;
+  lon: number;
+  /** Always Celsius; the display unit is decided at render */
+  tempC: number;
+  /** WMO weather code — see weatherLabel */
+  code: number;
+  fetchedAt: number;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
@@ -129,7 +131,7 @@ export interface Settings {
 /** A deck is dedicated to one purpose — flashcards or research papers. */
 export type DeckKind = 'flashcards' | 'papers';
 
-export interface Deck extends SyncMeta {
+export interface Deck extends RecordMeta {
   id: string;
   name: string;
   createdAt: number;
@@ -137,63 +139,9 @@ export interface Deck extends SyncMeta {
   kind: DeckKind;
 }
 
-export type FlashNoteType = 'basic' | 'cloze';
-
-export interface FlashNote extends SyncMeta {
-  id: string;
-  deckId: string;
-  type: FlashNoteType;
-  /** Basic: front text. Cloze: the {{c1::...}}-marked text. */
-  front: string;
-  /** Basic: back text. Cloze: optional extra info shown on the back. */
-  back: string;
-  /** Basic only: also generate a Back→Front card */
-  reversed: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export type CardPhase = 'new' | 'learning' | 'review' | 'relearning';
-export type Rating = 'again' | 'hard' | 'good' | 'easy';
-
-export interface FlashCard extends SyncMeta {
-  /** `${noteId}#${variant}` — deterministic, survives note edits */
-  id: string;
-  noteId: string;
-  /** Denormalized so queue building needs no join */
-  deckId: string;
-  /** Basic: 0 = front→back, 1 = back→front. Cloze: the cloze index (1..N). */
-  variant: number;
-  phase: CardPhase;
-  /** Position within learning/relearning steps */
-  stepIndex: number;
-  /** Ease factor; starts 2.5, floor 1.3 */
-  ease: number;
-  /** 0 while new/learning; days once in review */
-  intervalDays: number;
-  /** ms epoch when the card next comes due */
-  dueAt: number;
-  lapses: number;
-  reps: number;
-  createdAt: number;
-}
-
-/** Per-local-day review aggregates (stats chart + the 20-new-per-day limit) */
-export interface SrsDayStats {
-  /** deckId → cards answered that day */
-  reviews: Record<string, number>;
-  /** deckId → new cards introduced that day */
-  newIntroduced: Record<string, number>;
-}
-
-/* Research papers. Each paper belongs to a Deck (shared with flashcards), so a
-   deck holds both the papers you read and the cards you make from them. Reading
-   progress is tracked manually (papers usually open in the PDF viewer, where
-   scroll tracking can't reach). */
-
 export type PaperStatus = 'to-read' | 'reading' | 'read';
 
-export interface Paper extends SyncMeta {
+export interface Paper extends RecordMeta {
   id: string;
   /** Reuses Deck.id — the same decks as flashcards */
   deckId: string;
@@ -212,10 +160,20 @@ export interface Paper extends SyncMeta {
   /** Free text: why this paper matters to me */
   relevance: string;
   status: PaperStatus;
-  /** 0–100, set manually */
+  /** 0–100; auto-ratcheted by the PDF reader, editable by hand */
   progressPercent: number;
   /** "Where I left off" note, e.g. "Section 4.2 — ablations" */
   leftOff: string;
+  /** Set by the in-extension PDF reader; absent until the paper is opened there */
+  pdf?: {
+    /** The PDF URL the reader loaded (`url` above is often the abs/DOI page) */
+    url: string;
+    /** 1-based page the user was last on */
+    page: number;
+    pageCount: number;
+    /** Scroll position within `page`, 0–1 */
+    offset: number;
+  };
   addedAt: number;
   updatedAt: number;
   /** Bumped whenever status/progress changes while reading */
@@ -225,13 +183,98 @@ export interface Paper extends SyncMeta {
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
 export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
 
-export interface BookmarkGroup extends SyncMeta {
+/* Reader annotations: text highlights and free-floating sticky notes made in
+   src/pages/reader/. Keyed by docKey (not paperId) so they work on untracked
+   documents and survive arXiv abs/pdf URL variants.
+
+   The anchor is a discriminated union because the reader handles two document
+   kinds with incompatible coordinate systems. A PDF page is a fixed box, so a
+   highlight is a set of 0-1 rects on a page. An article reflows, so the same
+   rects would be meaningless the moment the window resizes — text anchors are
+   a W3C TextQuoteSelector (quote plus surrounding context) resolved against
+   the extracted blocks at load time.
+
+   Local-only, id-addressable and versioned like every other record. */
+
+export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink';
+
+/** One box on a page; all fields 0-1 fractions of the page size (y-down). */
+export interface AnnotationRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type AnnotationAnchor =
+  | {
+      kind: 'pdf';
+      /** 1-based */
+      page: number;
+      /** highlight: merged per-line boxes; sticky: [] */
+      rects: AnnotationRect[];
+      /** Sticky pin anchor, 0-1 of the page box; 0 for highlights */
+      x: number;
+      y: number;
+    }
+  | {
+      kind: 'text';
+      /** Index of the extracted block the quote starts in — the search hint */
+      blockIndex: number;
+      /** The exact selected text */
+      quote: string;
+      /** Up to TEXT_ANCHOR_CONTEXT_CHARS either side, to disambiguate repeats */
+      prefix: string;
+      suffix: string;
+    };
+
+export interface Annotation extends RecordMeta {
+  id: string;
+  /** Stable doc identity: paperMatchKey(url) ?? normalized url */
+  docKey: string;
+  /** The exact document URL the annotation was made on */
+  docUrl: string;
+  /** Tracked paper at creation time; null for untracked documents */
+  paperId: string | null;
+  kind: 'highlight' | 'sticky';
+  anchor: AnnotationAnchor;
+  /** Selected text snippet (highlights, capped) or '' */
+  text: string;
+  color: AnnotationColor;
+  /** The attached note; '' = none */
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Draft from the reader; the service worker fills id/timestamps. */
+export type AnnotationDraft = Omit<Annotation, 'id' | 'createdAt' | 'updatedAt'>;
+
+/** An annotation the PDF viewport can position — narrowed for those components. */
+export type PdfAnchoredAnnotation = Annotation & {
+  anchor: Extract<AnnotationAnchor, { kind: 'pdf' }>;
+};
+
+export function isPdfAnchored(a: Annotation): a is PdfAnchoredAnnotation {
+  return a.anchor.kind === 'pdf';
+}
+
+/** An annotation anchored in reflowing text. */
+export type TextAnchoredAnnotation = Annotation & {
+  anchor: Extract<AnnotationAnchor, { kind: 'text' }>;
+};
+
+export function isTextAnchored(a: Annotation): a is TextAnchoredAnnotation {
+  return a.anchor.kind === 'text';
+}
+
+export interface BookmarkGroup extends RecordMeta {
   id: string;
   name: string;
   createdAt: number;
 }
 
-export interface BookmarkLink extends SyncMeta {
+export interface BookmarkLink extends RecordMeta {
   id: string;
   url: string;
   title: string;
@@ -241,51 +284,9 @@ export interface BookmarkLink extends SyncMeta {
 }
 
 export interface FocusSession {
-  mode: 'oneshot' | 'pomodoro';
-  phase: 'focus' | 'break';
   startedAt: number;
   phaseEndsAt: number;
   focusMinutes: number;
-  breakMinutes: number;
-  /** Pomodoro focus blocks completed so far this session */
-  completedBlocks: number;
-  /** Ignition mode: the task this micro-sprint is scoped to */
-  taskId?: string;
-  /** Ignition mode: the tiny first action shown in the banner and blocked page */
-  intent?: string;
-}
-
-export interface GymState {
-  /** Local date 'YYYY-MM-DD' → check-in timestamp; max one per day */
-  checkins: Record<string, number>;
-  /** Consecutive weeks hitting the weekly target */
-  currentWeekStreak: number;
-  longestWeekStreak: number;
-  /** weekKey (Monday) of the most recent qualified week; '' = none */
-  lastQualifiedWeek: string;
-}
-
-/** Survive pruning of readingProgress/streaks.daily/gym.checkins — badge math uses these */
-export interface LifetimeCounters {
-  workouts: number;
-  articlesFinished: number;
-  videosFinished: number;
-  sprints: number;
-  tasksCompleted: number;
-  brainDumps: number;
-  focusBlocks: number;
-  cardsReviewed: number;
-  /** Added in Phase 15 (mystery chests) — read with `?? 0` */
-  chestsOpened?: number;
-}
-
-export interface Gamification {
-  xp: number;
-  /** badgeId → unlockedAt (ms). Badges are never revoked. */
-  badges: Record<string, number>;
-  /** weekKey of the last week whose quest-complete celebration fired */
-  lastQuestCelebratedWeek: string;
-  counters: LifetimeCounters;
 }
 
 interface ProgressBase {
@@ -322,29 +323,19 @@ export interface VideoProgress extends ProgressBase {
   videoId: string;
   durationSeconds: number;
   positionSeconds: number;
+  /**
+   * Whether the last tracker report was a heartbeat rather than a stop flush.
+   * A hint, not a fact — a tab that dies mid-playback leaves it stuck true, so
+   * always pair it with the staleness check in `isWatchingNow`.
+   * Absent on entries written before this field existed; read with `=== true`.
+   */
+  playing?: boolean;
+  /**
+   * The player's current chapter title, scraped from the DOM. Decoration only:
+   * YouTube owns that class name, most videos have no chapters at all, and an
+   * absent chapter must render as absence rather than an invented "Chapter 1".
+   */
+  chapter?: string;
 }
 
 export type AnyProgress = ReadingProgress | VideoProgress;
-
-export interface DayStats {
-  minutes: number;
-  sprints: number;
-  articlesFinished: number;
-  /** Added in Phase 6 — read with `?? 0`, pre-existing days lack it */
-  videosFinished?: number;
-  /** Added in Phase 7 — read with `?? 0` */
-  focusBlocks?: number;
-  /** Added in Phase 14 (activity calendar) — read with `?? 0` */
-  tasksCompleted?: number;
-}
-
-export interface Streaks {
-  currentStreak: number;
-  longestStreak: number;
-  /** Local date 'YYYY-MM-DD' */
-  lastQualifiedDate: string;
-  /** Keyed by local date 'YYYY-MM-DD', pruned to a 365-day window */
-  daily: Record<string, DayStats>;
-  /** Streak-insurance freeze tokens (Phase 15) — read with `?? 0` */
-  freezeTokens?: number;
-}
