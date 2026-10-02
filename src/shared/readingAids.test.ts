@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blockAtLine,
   crossedSection,
   DRIFT_AWAY_MS,
   DRIFT_IDLE_MS,
@@ -89,5 +90,25 @@ describe('driftStep', () => {
 
   it('does not nudge for a short tab switch, and does not count idle time while hidden', () => {
     expect(run([['hidden', 1000], ['tick', 1000 + DRIFT_IDLE_MS], ['visible', 1000 + DRIFT_AWAY_MS - 1]])).toEqual([false, false, false]);
+  });
+});
+
+describe('blockAtLine', () => {
+  // Block bottoms in viewport coordinates, top to bottom.
+  const bottoms = [-200, 120, 380, 700, 1100];
+
+  it('is the first block whose bottom reaches the reading line', () => {
+    expect(blockAtLine(bottoms, 360)).toBe(2);
+    expect(blockAtLine(bottoms, 380)).toBe(2);
+    expect(blockAtLine(bottoms, 381)).toBe(3);
+  });
+
+  it('skips blocks scrolled away above the line', () => {
+    expect(blockAtLine(bottoms, 0)).toBe(1);
+  });
+
+  it('falls back to the last block below the end, and 0 for nothing', () => {
+    expect(blockAtLine(bottoms, 5000)).toBe(4);
+    expect(blockAtLine([], 100)).toBe(0);
   });
 });

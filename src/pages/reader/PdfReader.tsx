@@ -13,6 +13,7 @@ import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutlin
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { useChromeAwake } from './useChromeAwake';
+import { useFocusLineKey } from './useFocusLineKey';
 import { usePdfDocument } from './usePdfDocument';
 import { indexKnownRefs } from './citationLinks';
 import { findFigureCaptions, type FigureKey } from './figures';
@@ -295,6 +296,7 @@ export function PdfReader({ src }: { src: string }) {
   const sections = useMemo(() => topLevel(outline), [outline]);
   const sectionIndex = sectionIndexAt(sections, position.page);
   const sectionToast = useSectionToast(sections, sectionIndex);
+  const focusLine = useFocusLineKey();
   const awake = useChromeAwake(panel !== 'none' || noteMode || outlineOpen);
 
   return (
@@ -302,6 +304,7 @@ export function PdfReader({ src }: { src: string }) {
       className="reader-root"
       data-night={settings.readerNight || undefined}
       data-chrome={awake ? 'awake' : 'asleep'}
+      data-focus-line={focusLine || undefined}
     >
       <ReaderToolbar
         title={title}
@@ -396,6 +399,7 @@ export function PdfReader({ src }: { src: string }) {
                 <kbd>Esc</kbd>
               </div>
             )}
+            {focusLine && <div className="reader-focus-band" aria-hidden="true" />}
             {!outlineOpen && (
               <OutlineRail
                 sections={sections}

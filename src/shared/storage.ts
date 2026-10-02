@@ -62,6 +62,7 @@ export interface SessionSchema {
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   readerNight: false,
+  readerFocusLine: false,
   refreshInterval: 30,
   notificationsEnabled: true,
   nudgesEnabled: false,

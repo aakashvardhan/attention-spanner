@@ -1530,3 +1530,28 @@ body {
 .reader-rail-tick:focus-visible .reader-rail-label {
   opacity: 1;
 }
+
+.reader-root[data-focus-line] .article-block:not([data-current]) {
+  opacity: 0.4;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+.reader-focus-band {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--reading-dim) 0,
+    var(--reading-dim) calc(40% - 64px),
+    transparent calc(40% - 32px),
+    transparent calc(40% + 32px),
+    var(--reading-dim) calc(40% + 64px),
+    var(--reading-dim) 100%
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-root[data-focus-line] .article-block:not([data-current]) {
+    transition: none;
+  }
+}

@@ -18,6 +18,7 @@ import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { useChromeAwake } from './useChromeAwake';
+import { useFocusLineKey } from './useFocusLineKey';
 import { blockTexts, useArticleDocument } from './useArticleDocument';
 
 /** One progress write at most every 5s, matching the PDF reader. */
@@ -171,10 +172,15 @@ export function ArticleReader({ url }: { url: string }) {
   const sections = useMemo(() => (state.status === 'ready' ? topLevel(state.outline) : []), [state]);
   const sectionIndex = sectionIndexAt(sections, blockIndex);
   const sectionToast = useSectionToast(sections, sectionIndex);
+  const focusLine = useFocusLineKey();
   const awake = useChromeAwake(panel !== 'none' || outlineOpen);
 
   return (
-    <div className="reader-root" data-chrome={awake ? 'awake' : 'asleep'}>
+    <div
+      className="reader-root"
+      data-chrome={awake ? 'awake' : 'asleep'}
+      data-focus-line={focusLine || undefined}
+    >
       <ReaderToolbar
         title={title}
         pageNoun="block"
@@ -218,6 +224,7 @@ export function ArticleReader({ url }: { url: string }) {
               onActivate={setActiveId}
               onCreateHighlight={createHighlight}
               onProgress={onProgress}
+              focusBlock={blockIndex}
               handleRef={viewportRef}
             />
             {openedAtPercent !== null && (

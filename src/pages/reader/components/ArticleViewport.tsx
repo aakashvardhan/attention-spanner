@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ANNOTATION_COLORS } from '../../../shared/annotations';
 import type { ArticleBlock } from '../../../shared/articleExtract';
+import { blockAtLine, READING_LINE } from '../../../shared/readingAids';
 import { findTextAnchor, makeTextAnchor, type TextAnchor } from '../../../shared/textAnchor';
 import type { Annotation, AnnotationColor } from '../../../shared/types';
 import { isTextAnchored } from '../../../shared/types';
@@ -64,6 +65,7 @@ export function ArticleViewport({
   onCreateHighlight,
   onProgress,
   handleRef,
+  focusBlock,
   onTimestampClick,
 }: {
   blocks: ArticleBlock[];
@@ -73,6 +75,8 @@ export function ArticleViewport({
   onCreateHighlight: (anchor: TextAnchor, text: string, color: AnnotationColor) => void;
   /** Reading percent 0-100 and the block currently at the top */
   onProgress: (percent: number, blockIndex: number) => void;
+  /** The block the focus line keeps lit; the rest dim when it is on */
+  focusBlock?: number;
   handleRef?: React.RefObject<ArticleViewportHandle | null>;
   /** Recording readers can make their timestamp headings reopen the source. */
   onTimestampClick?: (timestamp: string) => void;
@@ -127,17 +131,15 @@ export function ArticleViewport({
     const scrollable = el.scrollHeight - el.clientHeight;
     const percent = scrollable <= 0 ? 100 : Math.round((el.scrollTop / scrollable) * 100);
 
-    // The topmost block still intersecting the viewport is "where I am"
-    const top = el.getBoundingClientRect().top;
-    let current = 0;
-    for (let i = 0; i < blockRefs.current.length; i++) {
-      const node = blockRefs.current[i];
-      if (!node) continue;
-      if (node.getBoundingClientRect().bottom >= top) {
-        current = i;
-        break;
-      }
-    }
+    // "Where I am" is the block under the reading line, not the one half
+    // scrolled off the top (which sits behind the floating toolbar). The
+    // focus line, the outline rail and resume all read this one index.
+    const box = el.getBoundingClientRect();
+    const line = box.top + box.height * READING_LINE;
+    const current = blockAtLine(
+      blockRefs.current.map((node) => node?.getBoundingClientRect().bottom ?? -Infinity),
+      line,
+    );
     onProgress(Math.max(0, Math.min(100, percent)), current);
   }, [onProgress]);
 
@@ -217,6 +219,7 @@ export function ArticleViewport({
           <div
             key={i}
             data-block-index={i}
+            data-current={i === focusBlock || undefined}
             // Semantics come from role/aria; a computed tag name explodes into
             // a union TypeScript refuses to represent.
             role={block.kind === 'heading' ? 'heading' : undefined}

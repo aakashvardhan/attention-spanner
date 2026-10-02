@@ -46,6 +46,8 @@ export interface Settings {
   theme: ThemeSetting;
   /** PDF reader night mode: dark chrome with the pages themselves inverted */
   readerNight: boolean;
+  /** Reader focus line: dim everything but the passage being read (key F) */
+  readerFocusLine: boolean;
   /** Feed refresh interval in minutes (15–360) */
   refreshInterval: number;
   notificationsEnabled: boolean;

@@ -6,6 +6,18 @@
 
 const WORDS_PER_MINUTE = 230;
 
+/** How far down the view the reading line sits: the focus band and "current block" agree on it. */
+export const READING_LINE = 0.4;
+
+/**
+ * The block under the reading line: the first whose bottom edge reaches it.
+ * Past the last block (a short final page), the last block; none at all, 0.
+ */
+export function blockAtLine(bottoms: readonly number[], line: number): number {
+  const i = bottoms.findIndex((bottom) => bottom >= line);
+  return i === -1 ? Math.max(0, bottoms.length - 1) : i;
+}
+
 export function wordCounts(passages: readonly string[]): number[] {
   return passages.map((p) => p.split(/\s+/).filter(Boolean).length);
 }

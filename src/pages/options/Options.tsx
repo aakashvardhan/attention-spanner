@@ -146,6 +146,22 @@ export function Options() {
           </div>
         </section>
 
+        <section className="section" id="reader">
+          <h2>Reader</h2>
+          <div className="setting-row">
+            <label htmlFor="focus-line">
+              Focus line{' '}
+              <span className="hint-inline">(dim everything but the passage you are reading; F toggles it)</span>
+            </label>
+            <input
+              id="focus-line"
+              type="checkbox"
+              checked={settings.readerFocusLine}
+              onChange={(e) => void patchSettings({ readerFocusLine: e.target.checked })}
+            />
+          </div>
+        </section>
+
         <NewTabSection settings={settings} />
 
         <LocalAiSection settings={settings} />
