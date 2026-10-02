@@ -13,6 +13,7 @@ import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutlin
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { useChromeAwake } from './useChromeAwake';
+import { useDriftNudge } from './useDriftNudge';
 import { useFocusLineKey } from './useFocusLineKey';
 import { usePdfDocument } from './usePdfDocument';
 import { indexKnownRefs } from './citationLinks';
@@ -297,6 +298,11 @@ export function PdfReader({ src }: { src: string }) {
   const sectionIndex = sectionIndexAt(sections, position.page);
   const sectionToast = useSectionToast(sections, sectionIndex);
   const focusLine = useFocusLineKey();
+  const drift = useDriftNudge(
+    position,
+    (p) => headingForPage(outline, p.page) ?? `page ${p.page}`,
+    (p) => viewportRef.current?.scrollToPosition(p.page, p.offset),
+  );
   const awake = useChromeAwake(panel !== 'none' || noteMode || outlineOpen);
 
   return (
@@ -409,7 +415,8 @@ export function PdfReader({ src }: { src: string }) {
             )}
             <ReaderCapsule
               label={capsuleLabel}
-              message={sectionToast}
+              message={sectionToast ?? drift?.message ?? null}
+              action={drift && !sectionToast ? { label: 'Back', run: drift.back } : null}
               progress={progress}
               page={position.page}
               pageCount={pageCount}
