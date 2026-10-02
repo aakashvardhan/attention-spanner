@@ -35,7 +35,7 @@ import { TriageCard } from './TriageCard';
  */
 export function Dashboard() {
   // initTheme() in main.tsx only resolves the theme once, at load. Without this
-  // a skin or theme changed in Options never reaches an already-open new tab —
+  // a theme changed in Options never reaches an already-open new tab —
   // every other page in the extension subscribes.
   useTheme();
   const [readingProgress, progressLoaded] = useStorageValue('readingProgress');

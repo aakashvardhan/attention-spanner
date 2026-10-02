@@ -62,9 +62,6 @@ export interface SessionSchema {
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   readerNight: false,
-  /* Not 'auto': auto means "match the host browser", which in Chrome is the
-     blue skin. The Brave orange is the wanted look regardless of host. */
-  skin: 'brave',
   refreshInterval: 30,
   notificationsEnabled: true,
   nudgesEnabled: false,
@@ -179,11 +176,8 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * v11 → v12 (reader progress): repair reading entries that took the reader
  * page's own title and URL, which left Continue rows called "Reader" linking to
  * the extension instead of the article. See v12ReadingProgress.
- * v14 → v15 (Brave accent by default): the default skin moved from 'auto' to
- * 'brave', but patchSettings persists the whole settings object, so anyone who
- * ever changed any setting has a stored 'auto' shadowing the new default.
- * Rewrite that one value. An explicit 'chrome'/'default' is a real choice and
- * is left alone — only 'auto' means "never picked".
+ * v14 → v15 rewrote a stored skin 'auto' to 'brave'. Skins were retired in the
+ * Edition redesign (2026-10), so the step is gone; the version number stays.
  * v21 → v22 (complement Notion, don't duplicate it): notes, tasks, meeting
  * notes, job tracking, the assistant, Google, and the habit layer are all
  * gone. Their keys and settings are swept in one cumulative pass that also
@@ -213,7 +207,6 @@ export async function migrate(): Promise<void> {
   // worse than none, so start over. Everything shows unread once.
   if (version < 11) await chrome.storage.local.set({ readItems: [] });
   if (version < 12) await migrateToV12();
-  if (version < 15) await migrateToV15();
   await migrateToV22();
 
   await chrome.storage.local.set({ schemaVersion: 23 });
@@ -404,17 +397,6 @@ async function migrateToV7(): Promise<void> {
   const converted = v7Annotations(pdfAnnotations);
   if (converted) await chrome.storage.local.set({ annotations: converted });
   if (pdfAnnotations !== undefined) await chrome.storage.local.remove('pdfAnnotations');
-}
-
-export function v15Skin(settings: Partial<Settings> | undefined): Partial<Settings> | null {
-  if (settings?.skin !== 'auto') return null;
-  return { ...settings, skin: DEFAULT_SETTINGS.skin };
-}
-
-async function migrateToV15(): Promise<void> {
-  const { settings } = await chrome.storage.local.get('settings');
-  const patched = v15Skin(settings as Partial<Settings> | undefined);
-  if (patched) await chrome.storage.local.set({ settings: patched });
 }
 
 /** The document a reader-page URL was showing, or null if this isn't one. */

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   v12ReadingProgress,
-  v15Skin,
   v22StripSettings,
   v7Annotations,
   V22_DEAD_KEYS,
   V22_DEAD_SETTINGS,
 } from './storage';
+import type { Settings } from './types';
 
 /**
  * v6 → v7's surviving half: annotations grew an anchor union when the reader
@@ -108,27 +108,14 @@ describe('v12ReadingProgress', () => {
 });
 
 /*
- * v14 → v15 flips the default skin to Brave. patchSettings writes the whole
- * settings object, so a profile that ever changed any setting has a stored
- * 'auto' that would shadow the new default forever.
+ * The skin setting is gone, but patchSettings persisted whole settings
+ * objects for months, so real profiles still carry `skin`. It must be inert.
  */
-describe('v15Skin', () => {
-  it('rewrites a stored auto to the new default', () => {
-    expect(v15Skin({ skin: 'auto', refreshInterval: 20 })).toEqual({
-      skin: 'brave',
-      refreshInterval: 20,
-    });
-  });
-
-  it('leaves an explicit skin alone — that is a real choice', () => {
-    expect(v15Skin({ skin: 'chrome' })).toBeNull();
-    expect(v15Skin({ skin: 'default' })).toBeNull();
-    expect(v15Skin({ skin: 'brave' })).toBeNull();
-  });
-
-  it('touches nothing when no settings are stored', () => {
-    expect(v15Skin(undefined)).toBeNull();
-    expect(v15Skin({})).toBeNull();
+describe('a stored settings object from before the skins were retired', () => {
+  it('merges over the defaults without resurrecting skin as a known field', () => {
+    const merged = { ...DEFAULT_SETTINGS, ...({ skin: 'alert', focusMinutes: 25 } as Partial<Settings>) };
+    expect(merged.focusMinutes).toBe(25);
+    expect('skin' in DEFAULT_SETTINGS).toBe(false);
   });
 });
 

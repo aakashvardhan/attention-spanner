@@ -42,22 +42,10 @@ export interface ResumeTarget {
 /** UI color theme; 'system' follows the OS prefers-color-scheme */
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
-/**
- * Which visual language the UI borrows. Cosmetic — it never changes what a
- * surface can do. 'auto' resolves to the browser actually running the extension.
- *
- * 'alert' is the one skin that is not accent-only: its dark half also raises
- * surface and text contrast, because its whole job is to keep you awake. Every
- * other skin retints the accent family and glass and stops there.
- */
-export type SkinSetting = 'auto' | 'default' | 'chrome' | 'brave' | 'alert';
-
 export interface Settings {
   theme: ThemeSetting;
   /** PDF reader night mode: dark chrome with the pages themselves inverted */
   readerNight: boolean;
-  /** Match the host browser's visual language; 'auto' follows the browser it runs in */
-  skin: SkinSetting;
   /** Feed refresh interval in minutes (15–360) */
   refreshInterval: number;
   notificationsEnabled: boolean;

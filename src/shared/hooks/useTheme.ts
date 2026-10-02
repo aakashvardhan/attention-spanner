@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { patchSettings } from '../storage';
-import { applySkin, applyTheme, type ResolvedTheme } from '../theme';
+import { applyTheme, type ResolvedTheme } from '../theme';
 import type { ThemeSetting } from '../types';
 import { useSettings } from './useSettings';
 
@@ -16,7 +16,6 @@ export function useTheme(): {
 } {
   const [settings, loaded] = useSettings();
   const mode = settings.theme;
-  const skin = settings.skin;
   const [resolved, setResolved] = useState<ResolvedTheme>(() =>
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   );
@@ -33,13 +32,6 @@ export function useTheme(): {
     return () => media.removeEventListener('change', onChange);
   }, [mode, loaded]);
 
-  // Skin is independent of the OS scheme, so it needs no media listener — but
-  // it needs the same "wait for storage" guard, or initTheme()'s mirrored skin
-  // flashes away to the default on every page load.
-  useEffect(() => {
-    if (!loaded) return;
-    applySkin(skin);
-  }, [skin, loaded]);
 
   return { mode, resolved, setMode: (t) => void patchSettings({ theme: t }) };
 }

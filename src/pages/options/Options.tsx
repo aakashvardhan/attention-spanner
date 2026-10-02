@@ -6,7 +6,7 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
 import { getLocal, patchSettings, setLocal } from '../../shared/storage';
-import type { SkinSetting, ThemeSetting } from '../../shared/types';
+import type { ThemeSetting } from '../../shared/types';
 import { LocalAiSection } from './LocalAiSection';
 import { NewTabSection } from './NewTabSection';
 import { PapersSection } from './PapersSection';
@@ -144,24 +144,6 @@ export function Options() {
               <option value="dark">Dark</option>
             </select>
           </div>
-          <div className="setting-row">
-            <label htmlFor="skin-select">Accent</label>
-            <select
-              id="skin-select"
-              value={settings.skin}
-              onChange={(e) => void patchSettings({ skin: e.target.value as SkinSetting })}
-            >
-              <option value="auto">Match this browser</option>
-              <option value="chrome">Chrome blue</option>
-              <option value="brave">Brave orange</option>
-              <option value="default">Reader sky</option>
-              <option value="alert">Alert cyan</option>
-            </select>
-          </div>
-          <p className="hint">
-            Colour only — text stays Atkinson Hyperlegible at the same size on every setting.
-            Alert cyan also raises contrast in dark mode, for working at night on purpose.
-          </p>
         </section>
 
         <NewTabSection settings={settings} />
