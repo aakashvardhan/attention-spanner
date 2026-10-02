@@ -28,7 +28,7 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
   const origin = `chrome-extension://${chrome.runtime.id}`;
 
   return (
-    <section className="section">
+    <section className="section" id="local-ai">
       <h2>Local AI</h2>
       <p className="hint">
         Recaps, feed triage, document questions and highlight search run on your own machine

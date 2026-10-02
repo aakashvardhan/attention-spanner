@@ -1,10 +1,6 @@
-/* Settings, in the grouped-inset idiom: a section label above a rounded group,
-   hairline dividers between rows inside it, and every control at least 44px
-   tall. Same materials as the other pages (theme.css) — this was the one
-   surface with no glass at all, which made it read as a different app.
-
-   Glass stays in the chrome (the header plate, the sample-feed chips) and the
-   groups carrying labels and values keep a near-opaque --material-regular. */
+/* Settings as a colophon: a sticky index of sections on the left, the
+   settings themselves as ruled rows on the shared 12-column grid. Same paper,
+   ink and masthead as the new tab and the library. */
 
 * {
   margin: 0;
@@ -18,77 +14,85 @@ body {
   color: var(--text-primary);
 }
 
-/* Something for the header plate's backdrop-filter to refract — a blur over a
-   flat page is a no-op. Fixed to the viewport so scrolling never re-blurs it. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(70% 40% at 15% 0%, var(--glass-tint), transparent 72%),
-    radial-gradient(60% 40% at 92% 28%, var(--glass-tint-2), transparent 72%);
+.colophon {
+  row-gap: var(--space-5);
+  padding-block: var(--space-6) var(--space-7);
+  align-content: start;
 }
 
-.container {
-  max-width: 640px;
-  margin: 0 auto;
-  padding-block: 0 var(--space-6);
+.colophon-masthead {
+  grid-column: 1 / -1;
+  padding-bottom: var(--space-2);
+  border-bottom: 3px double var(--rule);
 }
 
-/* Scroll-edge effect: clear over the top of the page, taking its material only
-   once content has scrolled beneath it. A plain sticky header would either sit
-   on an opaque slab from the first paint or never separate from the content. */
-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: var(--space-4) var(--space-5);
-  margin-bottom: var(--space-5);
-  background: transparent;
-  transition:
-    background var(--transition-base) var(--ease-out),
-    box-shadow var(--transition-base) var(--ease-out);
-}
-
-body[data-scrolled='true'] header {
-  background: var(--material-thin);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow:
-    inset 0 1px 0 var(--glass-rim),
-    0 1px 0 var(--border-subtle),
-    0 6px 18px rgba(0, 0, 0, 0.05);
-}
-
-header h1 {
-  font-size: var(--text-lg);
+.colophon-masthead h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
   font-weight: 700;
 }
 
-.scroll-sentinel {
-  height: 1px;
+.colophon-index {
+  grid-column: 1 / span 3;
+  position: sticky;
+  top: var(--space-6);
+  align-self: start;
+}
+
+.colophon-index ol {
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.colophon-index a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.colophon-index a:hover {
+  color: var(--text-primary);
+}
+
+.colophon-index a[aria-current] {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.colophon-main {
+  grid-column: 4 / span 7;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .colophon-index {
+    display: none;
+  }
+
+  .colophon-main {
+    grid-column: 1 / -1;
+  }
 }
 
 /* A group: --radius-xl shell, --space-2 padding, so rows step to --radius-md. */
+/* A section is a ruled block, not a card: heading, rows, one hairline under it. */
 .section {
-  background: var(--material-regular);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-radius: var(--radius-xl);
-  padding: var(--space-2) var(--space-4) var(--space-4);
-  margin: 0 var(--space-4) var(--space-4);
-  box-shadow: var(--shadow-card);
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: var(--space-6);
 }
 
 .section h2 {
-  font-size: var(--text-xs);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: var(--space-3) 0 var(--space-2);
+  color: var(--text-primary);
+  padding-bottom: var(--space-2);
 }
 
 /* ---------- Rows ---------- */
@@ -165,13 +169,14 @@ header h1 {
 
 /* ---------- Controls ---------- */
 
+/* Ink, like every primary button; clay on hover. */
 button {
   min-height: 44px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--rule);
+  color: var(--bg-page);
   border: none;
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 700;
@@ -180,7 +185,8 @@ button {
 }
 
 button:hover {
-  background: var(--accent-hover);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .add-feed-form {

@@ -10,7 +10,7 @@ import type { Settings } from '../../shared/types';
  */
 export function NewTabSection({ settings }: { settings: Settings }) {
   return (
-    <section className="section">
+    <section className="section" id="new-tab">
       <h2>New Tab</h2>
       <TextRow
         id="display-name"

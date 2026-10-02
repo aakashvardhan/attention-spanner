@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
@@ -9,6 +9,7 @@ import { getLocal, patchSettings, setLocal } from '../../shared/storage';
 import type { ThemeSetting } from '../../shared/types';
 import { LocalAiSection } from './LocalAiSection';
 import { NewTabSection } from './NewTabSection';
+import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
@@ -22,7 +23,6 @@ export function Options() {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [notificationsBlocked, setNotificationsBlocked] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
 
@@ -31,26 +31,6 @@ export function Options() {
       setNotificationsBlocked(level === 'denied');
     });
   }, []);
-
-  /* Scroll-edge effect: the header takes its material only once the page has
-     scrolled under it. An IntersectionObserver on a zero-height sentinel rather
-     than a scroll listener, so idle frames cost nothing. The flag lands on
-     <body> because the header is a direct child of the page, not of a pane. */
-  useEffect(() => {
-    // Keyed on settingsLoaded, not []: the page renders null until settings
-    // arrive, so on the first pass the sentinel is not in the DOM yet and an
-    // effect with no deps would attach to nothing and never run again.
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        document.body.dataset.scrolled = String(!entry.isIntersecting);
-      },
-      { threshold: 1 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [settingsLoaded]);
 
   const flash = (text: string, kind: 'success' | 'error') => {
     setFeedback({ text, kind });
@@ -123,14 +103,15 @@ export function Options() {
   if (!settingsLoaded) return null;
 
   return (
-    <div className="container">
-      <div ref={sentinelRef} className="scroll-sentinel" aria-hidden="true" />
-      <header>
-        <h1>Reader Settings</h1>
+    <div className="colophon grid">
+      <header className="colophon-masthead">
+        <h1>Settings</h1>
       </header>
 
-      <main>
-        <section className="section">
+      <SectionIndex />
+
+      <main className="colophon-main">
+        <section className="section" id="appearance">
           <h2>Appearance</h2>
           <div className="setting-row">
             <label htmlFor="theme-select">Theme</label>
@@ -166,7 +147,7 @@ export function Options() {
 
         <LocalAiSection settings={settings} />
 
-        <section className="section">
+        <section className="section" id="add-new-feed">
           <h2>Add New Feed</h2>
           <form
             className="add-feed-form"
@@ -190,7 +171,7 @@ export function Options() {
           {feedback && <p className={`feedback ${feedback.kind}`}>{feedback.text}</p>}
         </section>
 
-        <section className="section">
+        <section className="section" id="your-feeds">
           <h2>Your Feeds</h2>
           <div className="feeds-list">
             {feeds.length === 0 ? (
@@ -212,7 +193,7 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="refresh-interval">
           <h2>Refresh Interval</h2>
           <div className="setting-row">
             <label htmlFor="refresh-interval">Auto-refresh every:</label>
@@ -230,7 +211,7 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="notifications-focus">
           <h2>Notifications & Focus</h2>
           {notificationsBlocked && (
             <p className="feedback error">
@@ -277,7 +258,7 @@ export function Options() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" id="focus-mode">
           <h2>Focus Mode</h2>
           <p className="hint">Sites blocked during focus sessions:</p>
           <form
@@ -339,7 +320,7 @@ export function Options() {
 
         <PapersSection />
 
-        <section className="section">
+        <section className="section" id="data">
           <h2>Data</h2>
           <div className="button-group">
             <button type="button" className="secondary-btn" onClick={() => void markAllRead()}>
@@ -356,7 +337,7 @@ export function Options() {
           {dataMessage && <p className="feedback success">{dataMessage}</p>}
         </section>
 
-        <section className="section">
+        <section className="section" id="sample-feeds">
           <h2>Sample Feeds</h2>
           <p className="hint">Click to add popular feeds:</p>
           <div className="sample-feeds">

@@ -40,7 +40,7 @@ export function PapersSection() {
   };
 
   return (
-    <section className="section">
+    <section className="section" id="research-papers">
       <h2>Research Papers</h2>
       <p className="hint">
         The paper tracker fetches metadata (title, authors, venue, citations, abstract) from the
