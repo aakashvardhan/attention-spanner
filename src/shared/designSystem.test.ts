@@ -20,10 +20,6 @@ const ROOT = join(__dirname, '..', '..');
 const THEME = 'src/shared/theme.css';
 const MAX_EXEMPTIONS = 12;
 
-/** Files not yet moved onto the system. Each page task deletes its entry. */
-const PENDING = new Set<string>([
-]);
-
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
 const NAMED_COLOR = /\b(white|black|red|green|blue|orange|gray|grey|yellow|purple|pink)\b/;
 const COLOR_PROPS = /^(color|background(-color)?|border(-[a-z]+)*|outline(-color)?|fill|stroke|box-shadow|text-decoration-color|caret-color|accent-color)$/;
@@ -134,11 +130,7 @@ describe('lintCss', () => {
 describe('every stylesheet', () => {
   const files = cssFiles(join(ROOT, 'src'));
 
-  it('lists only real files as pending', () => {
-    for (const file of PENDING) expect(files).toContain(file);
-  });
-
-  it.each(files.filter((f) => !PENDING.has(f)))('%s stays on the design system', (file) => {
+  it.each(files)('%s stays on the design system', (file) => {
     const violations = lintCss(readFileSync(join(ROOT, file), 'utf8'), file);
     expect(violations.map((v) => `${v.file}:${v.line} ${v.rule} ${v.value}`)).toEqual([]);
   });

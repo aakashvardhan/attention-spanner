@@ -49,13 +49,23 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- Dashboard renders: `.relay` is the page, `.relay-hero` the top band, and the
-  cards are `.relay-continue` / `.relay-watching-card` / `.relay-bookmarks`.
-  Wait ~1.5s for storage.
-- Actions live in `.relay-commands` (Start focus / Papers / Settings). Starting
-  focus swaps that button for `.relay-focus-row`, which carries the countdown
-  and Stop — a good end-to-end check of the UI → message → worker → storage →
-  re-render loop.
+- New tab (the Edition): `.edition` is the page (a `.grid`), `.edition-masthead`
+  the top band (h1 is the edition name), `.edition-lead` the lead story, and
+  every openable story carries `[data-story]` (J/K walk them, Enter opens the
+  lead). Favorites, Papers, Settings and focus live in `.edition-index`;
+  starting focus swaps the `.edition-pill` for `.edition-focus-live` with the
+  countdown and Stop. Wait ~1.5s for storage. Seed `readingProgress` with real
+  fields (`maxPercent`, `updatedAt`, `completedAt: null`, `nudge`) or the
+  lead stays empty.
+- Reader (the Observatory): `.reader-root[data-chrome]` is `awake`/`asleep`
+  (sleeps 2.5s after load with no panel open; `mouse.move(x, 10)` wakes it);
+  status is `.reader-capsule` (click `.reader-capsule-summary` for page jump and
+  zoom, Escape folds it); announcements land in `.reader-capsule-message`; the
+  outline at rest is `.reader-rail` with one `[data-state="current"]` tick; F
+  sets `[data-focus-line]`. The drift nudge needs `page.clock.install()` before
+  `goto` — sample in 5s steps, the message hides after 10s.
+- Retired settings must stay inert: seed `settings.skin` with an old value and
+  expect no errors.
 - The Now watching card only mounts while a video is playing. Seed a
   `readingProgress` entry with `kind: 'video'`, `playing: true` and a fresh
   `updatedAt` (liveness is `now - updatedAt < VIDEO_WATCHING_STALE_MS`).
