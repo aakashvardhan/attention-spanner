@@ -22,7 +22,6 @@ const MAX_EXEMPTIONS = 12;
 
 /** Files not yet moved onto the system. Each page task deletes its entry. */
 const PENDING = new Set<string>([
-  'src/pages/blocked/blocked.css',
 ]);
 
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;

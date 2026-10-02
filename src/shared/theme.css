@@ -179,6 +179,18 @@
   --glass-tint: rgba(180, 85, 47, 0.08);
   --glass-tint-2: rgba(201, 100, 66, 0.06);
 
+  /* The focus world (the blocked page): always warm ink, whatever the theme,
+     because hitting a blocked site mid-session should feel like the same
+     quiet room every time. Theme-invariant, so the dark block does not repeat them. */
+  --focus-bg: #0e0c0b;
+  --focus-text: #ece4d8;
+  --focus-text-secondary: #a89c8f;
+  --focus-faint: #7d7268;
+  --focus-rule: #3a332d;
+  --focus-accent: #e3906e;
+  --focus-accent-wash: rgba(227, 144, 110, 0.12);
+  --focus-danger: #f2a39b;
+
   /* Heat scale, derived from the accent so magnitude reads as one colour system. */
   --heat-0: #ece5d7;
   --heat-1: #f1ddd0;

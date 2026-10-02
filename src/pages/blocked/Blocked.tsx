@@ -29,31 +29,31 @@ export function Blocked() {
 
   if (!focus.active) {
     return (
-      <div className="blocked">
-        
-        <h1>Focus session over</h1>
-        {blockedUrl ? (
-          <a className="blocked-continue" href={blockedUrl.href}>
-            Continue to {host} →
-          </a>
-        ) : (
-          <p className="blocked-sub">You're free to browse.</p>
-        )}
+      <div className="blocked grid">
+        <div className="blocked-inner">
+          <h1>Focus session over</h1>
+          {blockedUrl ? (
+            <a className="blocked-continue" href={blockedUrl.href}>
+              Continue to {host} →
+            </a>
+          ) : (
+            <p className="blocked-sub">You're free to browse.</p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="blocked">
-      
-      <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
-      <p className="blocked-sub">
-        Focus mode — back off in
-      </p>
-      <p className="blocked-countdown">{focus.countdown}</p>
+    <div className="blocked grid">
+      <div className="blocked-inner">
+        <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
+        <p className="blocked-sub">Focus mode — back off in</p>
+        <p className="blocked-countdown">{focus.countdown}</p>
 
-      <div className="blocked-quit">
-        <HoldToQuit label="Hold 5s to end focus early" onConfirm={() => void focus.stop(true)} />
+        <div className="blocked-quit">
+          <HoldToQuit label="Hold 5s to end focus early" onConfirm={() => void focus.stop(true)} />
+        </div>
       </div>
     </div>
   );
