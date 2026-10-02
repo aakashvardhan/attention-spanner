@@ -257,6 +257,10 @@ export function PdfViewport({
     const el = containerRef.current!;
     setContainerWidth(el.clientWidth);
     // Arrow keys and Space scroll the document from the first moment, as in Preview.
+    // That load-time focus is not a selection, so it draws no ring; the first
+    // time focus leaves, the marker goes and keyboard focus shows normally.
+    el.dataset.autofocused = '';
+    el.addEventListener('blur', () => delete el.dataset.autofocused, { once: true });
     el.focus({ preventScroll: true });
     const observer = new ResizeObserver(() => setContainerWidth(el.clientWidth));
     observer.observe(el);

@@ -387,6 +387,24 @@ body {
   text-align: center;
 }
 
+.reader-scan-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+.reader-scan-toast button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .reader-mode-banner {
   display: flex;
   align-items: center;
@@ -606,6 +624,11 @@ body {
    selection, and a ring around the whole document pulled the eye off the page. */
 .reader-viewport:focus {
   outline: none;
+}
+
+.reader-viewport:focus-visible:not([data-autofocused]) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .reader-page-list {
@@ -1490,9 +1513,10 @@ body {
   gap: var(--space-3);
 }
 .reader-rail-tick {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  min-height: 16px;
   background: none;
   border: 0;
   padding: 0;
@@ -1518,17 +1542,31 @@ body {
   background: var(--accent);
   box-shadow: var(--shadow-accent);
 }
+/* Labels float beside the ticks rather than widening them, and stay hidden and
+   unclickable until the rail is hovered or focused: invisible labels over the
+   page's left margin used to swallow clicks and text selection. */
 .reader-rail-label {
-  opacity: 0;
+  position: absolute;
+  left: calc(100% + var(--space-2));
+  top: 50%;
+  transform: translateY(-50%);
   max-width: 220px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--material-regular);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity var(--transition-base);
 }
 .reader-rail:hover .reader-rail-label,
-.reader-rail-tick:focus-visible .reader-rail-label {
+.reader-rail:focus-within .reader-rail-label {
+  visibility: visible;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .reader-root[data-focus-line] .article-block:not([data-current]) {

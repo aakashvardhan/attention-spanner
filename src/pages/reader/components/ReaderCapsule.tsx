@@ -40,6 +40,9 @@ export function ReaderCapsule({
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // While the controls are open, announcements wait: swapping them in would
+  // unmount the button under keyboard focus.
+  const shown = open ? null : message;
   const ref = useRef<HTMLDivElement>(null);
   const [pageDraft, setPageDraft] = useState(String(page));
 
@@ -83,13 +86,13 @@ export function ReaderCapsule({
         ref={ref}
         className="reader-capsule"
         data-open={open || undefined}
-        data-message={message ? '' : undefined}
+        data-message={shown ? '' : undefined}
       >
         {/* Always mounted, so a message arriving later is announced. */}
         <span className="reader-capsule-message" role="status" aria-live="polite">
-          {message ?? ''}
+          {shown ?? ''}
         </span>
-        {message ? (
+        {shown ? (
           <>
             {action && (
               <button type="button" className="reader-capsule-action" onClick={action.run}>

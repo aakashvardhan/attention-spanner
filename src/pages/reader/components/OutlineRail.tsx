@@ -50,8 +50,14 @@ export function useSectionToast(sections: FlatOutlineItem[], current: number): s
     // reading. Thread the readers' restore flag through if 3s ever misfires.
     if (finished === null || Date.now() - mountedAt.current < 3000) return;
     setToast(sectionDoneLabel(finished, sections.length));
+  }, [current, sections.length]);
+
+  // The toast owns its own timer. Hung off the crossing effect, a scroll back
+  // within 3s cleared the timer and left the message up for good.
+  useEffect(() => {
+    if (!toast) return;
     const timer = self.setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(timer);
-  }, [current, sections.length]);
+  }, [toast]);
   return toast;
 }

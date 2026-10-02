@@ -282,6 +282,8 @@ export function PdfReader({ src }: { src: string }) {
     const res = await fetchPaperMeta(src, apiKey);
     return res.ok ? res.meta : { title, authors: '', venue: '', year: null, url: src };
   }, [src, apiKey, title]);
+  // A notice over the page has to be closable; this one says something once.
+  const [scanDismissed, setScanDismissed] = useState(false);
   const looksScanned = pageTexts !== null && pageTexts.join('').replace(/\s/g, '').length < 200;
 
   // Status for the capsule: page, and minutes left from the words still ahead.
@@ -391,9 +393,15 @@ export function PdfReader({ src }: { src: string }) {
               />
             )}
             <RelatedHighlight docKey={docKey} />
-            {looksScanned && (
-              <div className="reader-toast" role="status">
-                This looks like a scanned PDF. Search, highlighting, and document Q&A may be limited until it has OCR text.
+            {looksScanned && !scanDismissed && (
+              <div className="reader-toast reader-scan-toast" role="status">
+                <span>
+                  This looks like a scanned PDF. Search, highlighting, and document Q&A may be limited until it has OCR
+                  text.
+                </span>
+                <button type="button" onClick={() => setScanDismissed(true)}>
+                  Dismiss
+                </button>
               </div>
             )}
             {noteMode && (
