@@ -33,7 +33,7 @@ body {
 }
 
 .fc-header h1 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -45,7 +45,7 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   padding: 4px 6px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -58,13 +58,13 @@ body {
 }
 
 .fc-back {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .fc-theme-toggle {
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
 }
 
 .fc-main {
@@ -89,7 +89,7 @@ body {
 
 .row-label {
   display: block;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -98,13 +98,13 @@ body {
 }
 
 .fc-empty p {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
 }
 
 .fc-error {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--danger);
   background: var(--danger-bg);
   padding: 8px 10px;
@@ -117,7 +117,7 @@ body {
   border: none;
   padding: 10px 18px;
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: background var(--transition-base);
@@ -153,7 +153,7 @@ body {
   background: none;
   border: none;
   text-align: left;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
@@ -172,7 +172,7 @@ body {
 }
 
 .fc-chip {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   border-radius: var(--radius-md);
@@ -208,7 +208,7 @@ body {
   border: none;
   padding: 7px 16px;
   border-radius: var(--radius-md);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -227,7 +227,7 @@ body {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 
 .fc-add-deck input:focus {
@@ -275,11 +275,11 @@ body {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 
 .pp-fetch-msg {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -292,7 +292,7 @@ body {
 }
 
 .pp-field > span {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -304,7 +304,7 @@ body {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-family: inherit;
   background: var(--bg-surface);
   color: var(--text-primary);
@@ -376,20 +376,20 @@ a.pp-row-title:hover {
 }
 
 .pp-row-authors {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin-top: 2px;
 }
 
 .pp-row-meta {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-top: 2px;
 }
 
 .pp-status {
   flex-shrink: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   padding: 3px 10px;
   border-radius: var(--radius-pill);
@@ -428,7 +428,7 @@ a.pp-row-title:hover {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   background: var(--bg-surface);
   color: var(--text-primary);
 }
@@ -437,7 +437,7 @@ a.pp-row-title:hover {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -459,7 +459,7 @@ a.pp-row-title:hover {
 }
 
 .pp-detail {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
   white-space: pre-wrap;
@@ -473,7 +473,7 @@ a.pp-row-title:hover {
 }
 
 .pp-updated {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -551,7 +551,7 @@ a.pp-row-title:hover {
 .recall-results small,
 .recall-hint {
   color: var(--text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 
 .recall-hint {

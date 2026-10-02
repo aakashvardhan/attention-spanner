@@ -9,7 +9,7 @@
   flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-2);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -19,7 +19,7 @@
 
 .ai-note--quiet {
   color: var(--text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 
 .ai-note-ask {
@@ -86,7 +86,7 @@
   background: var(--bg-subtle);
   color: var(--accent-text);
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   cursor: pointer;
 }
@@ -155,7 +155,7 @@
 }
 
 .recap-card-head h2 {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -167,7 +167,7 @@
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   cursor: pointer;
 }
 
@@ -180,7 +180,7 @@
 .related-quote {
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

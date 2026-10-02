@@ -12,7 +12,7 @@
 
 .ui-btn {
   font-family: inherit;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-4);
   cursor: pointer;
@@ -59,7 +59,7 @@
 .ui-btn--ghost {
   background: transparent;
   color: var(--text-muted);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   padding: var(--space-1) var(--space-2);
 }
 
@@ -120,12 +120,12 @@
 }
 
 .ui-panel-head h2 {
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 700;
 }
 
 .ui-empty {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-align: center;
   padding: var(--space-4) var(--space-2);
@@ -148,7 +148,7 @@
 /* Ink, not accent: a stat is something you read, not something you can press.
    Reserving the accent for controls is what lets it mean anything. */
 .ui-stat-value {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
