@@ -44,9 +44,15 @@ export function flattenOutline(
  * wins. Null before the first heading — the caller falls back to "Page N of M".
  */
 export function headingForPage(flat: FlatOutlineItem[], page: number): string | null {
-  let best: FlatOutlineItem | null = null;
-  for (const item of flat) {
-    if (item.page <= page && (best === null || item.page >= best.page)) best = item;
+  const i = sectionIndexAt(flat, page);
+  return i === -1 ? null : flat[i].title;
+}
+
+/** Index of the heading the reader is "in" on `page`; -1 before the first heading. */
+export function sectionIndexAt(flat: FlatOutlineItem[], page: number): number {
+  let best = -1;
+  for (let i = 0; i < flat.length; i++) {
+    if (flat[i].page <= page && (best === -1 || flat[i].page >= flat[best].page)) best = i;
   }
-  return best?.title ?? null;
+  return best;
 }

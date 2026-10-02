@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flattenOutline, headingForPage, type RawOutlineItem } from './pdfOutline';
+import { flattenOutline, headingForPage, type RawOutlineItem, sectionIndexAt } from './pdfOutline';
 
 const pages = new Map<unknown, number>([
   ['intro', 1],
@@ -56,5 +56,25 @@ describe('headingForPage', () => {
     const late = flattenOutline([{ title: 'Appendix', dest: 'results' }], lookup);
     expect(headingForPage(late, 2)).toBeNull();
     expect(headingForPage([], 1)).toBeNull();
+  });
+});
+
+describe('sectionIndexAt', () => {
+  const flat = [
+    { title: 'Intro', level: 0, page: 1 },
+    { title: 'Method', level: 0, page: 3 },
+    { title: 'Ablations', level: 1, page: 3 },
+    { title: 'Results', level: 0, page: 6 },
+  ];
+
+  it('is the last heading at or before the page', () => {
+    expect(sectionIndexAt(flat, 1)).toBe(0);
+    expect(sectionIndexAt(flat, 4)).toBe(2);
+    expect(sectionIndexAt(flat, 9)).toBe(3);
+  });
+
+  it('is -1 before the first heading and for an empty outline', () => {
+    expect(sectionIndexAt([{ title: 'Late', level: 0, page: 2 }], 1)).toBe(-1);
+    expect(sectionIndexAt([], 5)).toBe(-1);
   });
 });

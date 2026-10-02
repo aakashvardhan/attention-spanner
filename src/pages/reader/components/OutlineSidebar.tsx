@@ -3,16 +3,7 @@ import { AiNote } from '../../../shared/components/AiNote';
 import { useAi } from '../../../shared/hooks/useAi';
 import { outlineRequest, parseOutline } from '../../../shared/llm/outline';
 import type { AiSource } from '../../../shared/llm/route';
-import type { FlatOutlineItem } from '../../../shared/pdfOutline';
-
-/** Index of the heading the reader is currently "in" (mirrors headingForPage). */
-function activeIndex(outline: FlatOutlineItem[], page: number): number {
-  let best = -1;
-  for (let i = 0; i < outline.length; i++) {
-    if (outline[i].page <= page && (best === -1 || outline[i].page >= outline[best].page)) best = i;
-  }
-  return best;
-}
+import { sectionIndexAt, type FlatOutlineItem } from '../../../shared/pdfOutline';
 
 /** What the AI outline needs; absent on surfaces without one (articles). */
 export interface AiOutlineSource {
@@ -34,7 +25,7 @@ export function OutlineSidebar({
   onJump: (page: number) => void;
   ai?: AiOutlineSource;
 }) {
-  const active = activeIndex(outline, currentPage);
+  const active = sectionIndexAt(outline, currentPage);
   const [tab, setTab] = useState<'ai' | 'contents'>(ai ? 'ai' : 'contents');
   const showTabs = ai && outline.length > 0;
 
