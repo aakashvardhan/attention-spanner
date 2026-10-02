@@ -22,10 +22,6 @@ const MAX_EXEMPTIONS = 12;
 
 /** Files not yet moved onto the system. Each page task deletes its entry. */
 const PENDING = new Set<string>([
-  'src/shared/components/ui.css',
-  'src/shared/components/aiNote.css',
-  'src/shared/components/markdown.css',
-  'src/shared/components/holdToQuit.css',
   'src/pages/newtab/newtab.css',
   'src/pages/reader/reader.css',
   'src/pages/papers/papers.css',

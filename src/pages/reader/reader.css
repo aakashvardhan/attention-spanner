@@ -314,27 +314,6 @@ body {
   background: transparent;
 }
 
-.fc-primary-btn {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 6px 14px;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.fc-primary-btn:hover {
-  background: var(--accent-hover);
-}
-
-.fc-primary-btn:disabled {
-  background: var(--disabled);
-  cursor: default;
-}
-
 .fc-error {
   color: var(--danger);
   font-size: var(--text-sm);

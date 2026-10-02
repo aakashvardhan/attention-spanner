@@ -126,6 +126,7 @@
   --success-border: #c5dcbf;
   --danger: #b3261e;
   --danger-bg: #f9e3df;
+  --danger-wash: rgba(179, 38, 30, 0.18);
   --warning: #8a5300;
   --warning-bg: #f6ead2;
 
@@ -212,6 +213,7 @@
   --success-border: #2f4a35;
   --danger: #f2a39b;
   --danger-bg: #2e1a17;
+  --danger-wash: rgba(242, 163, 155, 0.18);
   --warning: #e8c27a;
   --warning-bg: #2b2416;
 
@@ -278,6 +280,33 @@
   :root {
     --grid-margin: 16px;
   }
+}
+
+/* The one primary button, shared by every page: ink, turning clay on hover.
+   Lives here rather than in a page sheet because theme.css is the only
+   stylesheet every page loads. */
+.fc-primary-btn {
+  background: var(--rule);
+  color: var(--bg-page);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+.fc-primary-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.fc-primary-btn:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: default;
 }
 
 /* prefers-reduced-transparency is a real accessibility setting and a separate

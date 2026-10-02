@@ -111,27 +111,6 @@ body {
   border-radius: var(--radius-sm);
 }
 
-.fc-primary-btn {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  padding: 10px 18px;
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-base);
-}
-
-.fc-primary-btn:hover {
-  background: var(--accent-hover);
-}
-
-.fc-primary-btn:disabled {
-  background: var(--disabled);
-  cursor: default;
-}
-
 /* Deck list (shared look with flashcards) */
 
 .fc-deck-list {
