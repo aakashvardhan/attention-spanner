@@ -14,6 +14,17 @@ describe('parsePaperRef', () => {
     }
   });
 
+  it('recognizes an alphaXiv link as its arXiv id', () => {
+    for (const input of [
+      'https://www.alphaxiv.org/abs/2605.02881',
+      'https://www.alphaxiv.org/abs/2605.02881v2',
+      'https://www.alphaxiv.org/overview/2605.02881',
+      'alphaxiv.org/pdf/2605.02881',
+    ]) {
+      expect(parsePaperRef(input)).toBe('arXiv:2605.02881');
+    }
+  });
+
   it('recognizes legacy arXiv ids and DOIs', () => {
     expect(parsePaperRef('hep-th/9901001')).toBe('arXiv:hep-th/9901001');
     expect(parsePaperRef('https://doi.org/10.1145/3292500.3330701')).toBe(

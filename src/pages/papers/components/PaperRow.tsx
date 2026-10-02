@@ -10,6 +10,13 @@ const STATUS_LABEL: Record<PaperStatus, string> = {
   read: 'Read',
 };
 
+/** Alt/Option-click opens the reader instead of alphaXiv (and stops Chrome's Alt-click download). */
+function openInReaderOnAlt(e: React.MouseEvent, paper: Paper) {
+  if (!e.altKey) return;
+  e.preventDefault();
+  void chrome.tabs.create({ url: paperOpenUrl(paper, true) });
+}
+
 export function PaperRow({
   paper,
   decks,
@@ -66,7 +73,14 @@ export function PaperRow({
       <div className="pp-row-head">
         <div className="pp-row-title-wrap">
           {paper.url ? (
-            <a className="pp-row-title" href={paperOpenUrl(paper)} target="_blank" rel="noreferrer">
+            <a
+              className="pp-row-title"
+              href={paperOpenUrl(paper)}
+              target="_blank"
+              rel="noreferrer"
+              title="Option/Alt-click to open in the reader"
+              onClick={(e) => openInReaderOnAlt(e, paper)}
+            >
               {paper.title}
             </a>
           ) : (
@@ -154,7 +168,14 @@ export function PaperRow({
             </button>
           )}
           {paper.url && (
-            <a className="ghost-btn" href={paperOpenUrl(paper)} target="_blank" rel="noreferrer">
+            <a
+              className="ghost-btn"
+              href={paperOpenUrl(paper)}
+              target="_blank"
+              rel="noreferrer"
+              title="Option/Alt-click to open in the reader"
+              onClick={(e) => openInReaderOnAlt(e, paper)}
+            >
               Open ↗
             </a>
           )}

@@ -1,118 +1,174 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resumableItems, resumeContextFromProgress } from '../../shared/attention';
 import { PAPERS_PAGE_PATH } from '../../shared/constants';
-import { formatWatchTime } from '../../shared/format';
+import { useFocusSession } from '../../shared/hooks/useFocusSession';
+import { useNowWatching } from '../../shared/hooks/useNowWatching';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
+import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
 import { sendMessage } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import type { ResumeTarget } from '../../shared/types';
-import { isWatchingNow, livePositionSeconds } from '../../shared/youtube';
 import { BookmarksPanel } from './BookmarksPanel';
+import { ContinueRow } from './ContinueRow';
+import { Hero } from './Hero';
+import { CardTitle, Icon } from './Icon';
+import { NowWatching } from './NowWatching';
+import { TriageCard } from './TriageCard';
 
 /**
- * The new tab: what you left unfinished, and the links you keep going back to.
+ * The new tab: where you are right now, what you left unfinished, and the links
+ * you keep going back to.
  *
- * Deliberately two sections. Notes, tasks and planning live in Notion — this
- * page answers the one question the browser is actually in a position to
- * answer, which is "what did I start and not finish in here".
+ * The cards answer the one question the browser is actually in a position to
+ * answer — "what did I start and not finish in here". The hero above them does
+ * not try to be a second answer: it is a clock, a greeting, one sentence you
+ * wrote this morning and a line to read. Notes, tasks and planning still live
+ * in Notion, and nothing here keeps a list.
+ *
+ * This is now the only surface. The side panel used to hold the actions and the
+ * Follow pane; both moved here when it went. Two of its actions did not come
+ * with them — "read this page" and "bookmark this page" acted on the active
+ * tab, and from a new tab the active tab is this page. The keyboard shortcut
+ * and the two right-click items still do that job from the page it belongs on.
  */
 export function Dashboard() {
   // initTheme() in main.tsx only resolves the theme once, at load. Without this
   // a skin or theme changed in Options never reaches an already-open new tab —
   // every other page in the extension subscribes.
   useTheme();
-  const [readingProgress] = useStorageValue('readingProgress');
-  const [papers] = useStorageValue('papers');
+  const [readingProgress, progressLoaded] = useStorageValue('readingProgress');
+  const [papers, papersLoaded] = useStorageValue('papers');
+  const [settings] = useSettings();
+  const focus = useFocusSession();
+  const [showAll, setShowAll] = useState(false);
+
+  // Score resume and triage probes whose outcome is now known (llm/store.ts).
+  // Once per new tab: the counts behind Settings' "what it has done" rows.
+  const settled = useRef(false);
+  useEffect(() => {
+    if (settled.current || !progressLoaded || !papersLoaded) return;
+    settled.current = true;
+    const percentOf = probePercent(readingProgress, papers);
+    void updateStats((stats) => {
+      const next = settleProbes(stats, percentOf, Date.now());
+      return next.probes.length === stats.probes.length ? null : next;
+    });
+  }, [progressLoaded, papersLoaded, readingProgress, papers]);
 
   const resumable = useMemo(
     () => resumableItems(readingProgress, papers),
     [readingProgress, papers],
   );
 
-  // Ticks only while something is actually playing, so an idle new tab does
-  // not re-render twice a second forever.
-  const [watchingNow, setWatchingNow] = useState(() => Date.now());
-  const anyWatching = resumable.some((i) => i.progress && isWatchingNow(i.progress, watchingNow));
-  useEffect(() => {
-    if (!anyWatching) return;
-    const timer = setInterval(() => setWatchingNow(Date.now()), 500);
-    return () => clearInterval(timer);
-  }, [anyWatching]);
+  // One clock for the page. useNowWatching already ticks at 500ms while a video
+  // is playing and stands still otherwise, so the Continue rows read their `now`
+  // off it rather than starting a second interval against the same state.
+  const watching = useNowWatching();
+  const watchingNow = watching.now;
 
   return (
     <main className="relay">
-      <header className="relay-header">
-        <div>
-          <p className="relay-eyebrow">Reader</p>
-          <h1>Pick something back up</h1>
+      <Hero />
+
+      {focus.active && (
+        <div className="relay-focus-row">
+          <span>
+            <strong>Focus</strong>
+            <small>{focus.countdown}</small>
+          </span>
+          <button className="relay-command" onClick={() => void focus.stop(true)}>
+            Stop
+          </button>
         </div>
-        <div className="relay-header-right">
+      )}
+
+      <div className="relay-commands">
+        {/* Only the Start button is swapped out by a running session — Papers
+            and Settings have nothing to do with focus and stay put. */}
+        {!focus.active && (
           <button
             className="relay-command"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) })}
+            onClick={() => void focus.start(settings.focusMinutes)}
           >
-            Papers
+            <Icon name="timer" />
+            Start {settings.focusMinutes}-minute focus
           </button>
-          <button className="relay-command" onClick={() => void openSidePanel()}>
-            Open panel
-          </button>
-        </div>
-      </header>
+        )}
+        <button
+          className="relay-command"
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) })}
+        >
+          <Icon name="papers" />
+          Papers
+        </button>
+        <button className="relay-command" onClick={() => void chrome.runtime.openOptionsPage()}>
+          <Icon name="settings" />
+          Settings
+        </button>
+      </div>
 
-      <section className="relay-continue" aria-labelledby="continue-title">
-        <h2 id="continue-title">Continue reading</h2>
-        {resumable.length === 0 ? (
-          <p className="relay-empty">
-            Nothing open right now. Press ⌘/Ctrl+Shift+E on any page to read it here.
-          </p>
-        ) : (
-          <ul>
-            {resumable.map((item) => (
-              <li key={item.key}>
-                <button
-                  onClick={() => {
+      {/* Favorites first, as on Safari's start page: the one-click part of the
+          page belongs above the lists you have to read to use. */}
+      <BookmarksPanel />
+
+      {watching.active && <NowWatching watching={watching} />}
+
+      <div className="relay-columns">
+        <section className="relay-continue" aria-labelledby="continue-title">
+          {/* The old page put "Pick something back up" in an h1 above this card.
+              The greeting is the h1 now, and this heading already said it. */}
+          <CardTitle id="continue-title" icon="history">Pick something back up</CardTitle>
+          {resumable.length === 0 ? (
+            <p className="relay-empty">
+              Nothing open right now. Press ⌘/Ctrl+Shift+E on any page to read it here.
+            </p>
+          ) : (
+            <ul>
+              {(showAll ? resumable : resumable.slice(0, RESUME_VISIBLE)).map((item) => (
+                <ContinueRow
+                  key={item.key}
+                  item={item}
+                  now={watchingNow}
+                  onOpen={(alt) => {
                     if (item.paper) {
-                      void chrome.tabs.create({ url: paperOpenUrl(item.paper) });
+                      void chrome.tabs.create({ url: paperOpenUrl(item.paper, alt) });
                     } else if (item.progress) {
                       void openResume(resumeContextFromProgress(item.progress));
                     }
                   }}
-                >
-                  {item.title}
-                  {/* A video playing in another tab is context, so it marks the
-                      row it already occupies rather than earning a card. */}
-                  {item.progress && isWatchingNow(item.progress, watchingNow) && (
-                    <small className="relay-watching">
-                      Watching · {formatWatchTime(livePositionSeconds(item.progress, watchingNow))}
-                    </small>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                />
+              ))}
+            </ul>
+          )}
+          {resumable.length > RESUME_VISIBLE && (
+            <button
+              type="button"
+              className="relay-recap-toggle relay-more"
+              aria-expanded={showAll}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? 'Show fewer' : `Show all ${resumable.length}`}
+            </button>
+          )}
+        </section>
 
-      <BookmarksPanel />
+        <TriageCard />
+      </div>
     </main>
   );
 }
 
+/** Rows shown before "Show all": enough to choose from, few enough to scan. */
+const RESUME_VISIBLE = 6;
+
 async function openResume(context: ResumeTarget) {
-  if (context.kind === 'pdf' || context.kind === 'web') {
-    await chrome.tabs.create({ url: context.url });
-    return;
-  }
   await sendMessage({
     type: 'OPEN_ARTICLE',
     url: context.url,
     feedItemId: null,
     resume: true,
+    readerView: false,
   });
-}
-
-async function openSidePanel() {
-  const window = await chrome.windows.getCurrent();
-  if (window.id !== undefined) await chrome.sidePanel.open({ windowId: window.id });
 }

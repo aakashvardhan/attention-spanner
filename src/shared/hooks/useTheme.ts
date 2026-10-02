@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_SETTINGS, patchSettings } from '../storage';
+import { patchSettings } from '../storage';
 import { applySkin, applyTheme, type ResolvedTheme } from '../theme';
 import type { ThemeSetting } from '../types';
-import { useStorageValue } from './useStorageValue';
+import { useSettings } from './useSettings';
 
 /**
  * Applies settings.theme to the page and keeps it applied: re-runs when the
@@ -14,11 +14,9 @@ export function useTheme(): {
   resolved: ResolvedTheme;
   setMode: (mode: ThemeSetting) => void;
 } {
-  const [settings, loaded] = useStorageValue('settings');
-  // Stored settings written before these fields existed lack them
-  const merged = { ...DEFAULT_SETTINGS, ...settings };
-  const mode = merged.theme;
-  const skin = merged.skin;
+  const [settings, loaded] = useSettings();
+  const mode = settings.theme;
+  const skin = settings.skin;
   const [resolved, setResolved] = useState<ResolvedTheme>(() =>
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   );

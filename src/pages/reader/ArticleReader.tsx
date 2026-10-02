@@ -3,13 +3,17 @@ import { annotationDocKey, sortAnnotations } from '../../shared/annotations';
 import { DEFAULT_ANNOTATION_COLOR } from '../../shared/annotations';
 import { sendMessage } from '../../shared/messages';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { RecapCard } from '../../shared/components/RecapCard';
+import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import type { TextAnchor } from '../../shared/textAnchor';
+import { normalizeUrl } from '../../shared/urlNormalize';
 import type { AnnotationColor } from '../../shared/types';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
+import { AskSheet } from './components/AskSheet';
 import { ArticleViewport, type ArticleViewportHandle } from './components/ArticleViewport';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderToolbar } from './components/ReaderToolbar';
-import { useArticleDocument } from './useArticleDocument';
+import { blockTexts, useArticleDocument } from './useArticleDocument';
 
 /** One progress write at most every 5s, matching the PDF reader. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -40,6 +44,24 @@ export function ArticleReader({ url }: { url: string }) {
   const ready = state.status === 'ready';
   const blocks = ready ? state.blocks : [];
   const title = ready ? state.title : url;
+  const passages = useMemo(() => (state.status === 'ready' ? blockTexts(state.blocks) : null), [state]);
+
+  // How far this article had been read before this open. Taken once: the live
+  // value climbs as you scroll, and the recap is about the earlier session.
+  const progressKey = useMemo(() => normalizeUrl(url), [url]);
+  const [readingProgress, progressLoaded] = useStorageValue('readingProgress');
+  // An article that came in through a feed is public; any other page might be
+  // behind a login, so it is treated as private (llm/route.ts).
+  const [cachedItems] = useStorageValue('cachedItems');
+  const fromFeed = useMemo(
+    () => cachedItems.some((item) => item.normalizedLink === progressKey),
+    [cachedItems, progressKey],
+  );
+  const [openedAtPercent, setOpenedAtPercent] = useState<number | null>(null);
+  if (openedAtPercent === null && progressLoaded) {
+    const entry = readingProgress[progressKey];
+    setOpenedAtPercent(entry && entry.completedAt === null ? entry.maxPercent : 0);
+  }
 
   const progress = useRef({ lastSentAt: 0, percent: 0, title: '' });
   // While loading, `title` is the URL — a fine placeholder on screen, but stored
@@ -149,6 +171,8 @@ export function ArticleReader({ url }: { url: string }) {
         notesOpen={notesOpen}
         annotationCount={docAnnotations.length}
         onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
+        askOpen={panel === 'ask'}
+        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
       />
       <div className="reader-body">
         {ready && state.outline.length > 0 && outlineOpen && (
@@ -168,14 +192,35 @@ export function ArticleReader({ url }: { url: string }) {
           </div>
         )}
         {ready && (
-          <ArticleViewport
-            blocks={blocks}
-            annotations={docAnnotations}
-            activeId={activeId}
-            onActivate={setActiveId}
-            onCreateHighlight={createHighlight}
-            onProgress={onProgress}
-            handleRef={viewportRef}
+          // The cards float over the text column only, never over a side panel.
+          <div className="reader-main">
+            <ArticleViewport
+              blocks={blocks}
+              annotations={docAnnotations}
+              activeId={activeId}
+              onActivate={setActiveId}
+              onCreateHighlight={createHighlight}
+              onProgress={onProgress}
+              handleRef={viewportRef}
+            />
+            {openedAtPercent !== null && (
+              <RecapCard
+                progressKey={progressKey}
+                percent={openedAtPercent}
+                passages={passages}
+                source="web"
+              />
+            )}
+            <RelatedHighlight docKey={docKey} />
+          </div>
+        )}
+        {panel === 'ask' && (
+          <AskSheet
+            passages={passages}
+            source={fromFeed ? 'rss' : 'web'}
+            passageNoun="passage"
+            onJump={(index) => viewportRef.current?.scrollToBlock(index)}
+            onClose={() => setPanel('none')}
           />
         )}
         {ready && notesOpen && (

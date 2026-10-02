@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
 import { normalizeBlockDomain } from '../../shared/focusRules';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { sendMessage } from '../../shared/messages';
-import { DEFAULT_SETTINGS, getLocal, patchSettings, setLocal } from '../../shared/storage';
-import type { Settings, SkinSetting, ThemeSetting } from '../../shared/types';
+import { getLocal, patchSettings, setLocal } from '../../shared/storage';
+import type { SkinSetting, ThemeSetting } from '../../shared/types';
+import { LocalAiSection } from './LocalAiSection';
+import { NewTabSection } from './NewTabSection';
 import { PapersSection } from './PapersSection';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
@@ -13,8 +16,7 @@ type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 export function Options() {
   useTheme();
   const [feeds] = useStorageValue('feeds');
-  const [storedSettings, settingsLoaded] = useStorageValue('settings');
-  const settings: Settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  const [settings, settingsLoaded] = useSettings();
 
   const [url, setUrl] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -153,12 +155,18 @@ export function Options() {
               <option value="chrome">Chrome blue</option>
               <option value="brave">Brave orange</option>
               <option value="default">Reader sky</option>
+              <option value="alert">Alert cyan</option>
             </select>
           </div>
           <p className="hint">
             Colour only — text stays Atkinson Hyperlegible at the same size on every setting.
+            Alert cyan also raises contrast in dark mode, for working at night on purpose.
           </p>
         </section>
+
+        <NewTabSection settings={settings} />
+
+        <LocalAiSection settings={settings} />
 
         <section className="section">
           <h2>Add New Feed</h2>
@@ -316,27 +324,13 @@ export function Options() {
             />
           </div>
           <div className="setting-row">
-            <label htmlFor="focus-minutes">Pomodoro focus length:</label>
+            <label htmlFor="focus-minutes">Focus length:</label>
             <select
               id="focus-minutes"
               value={settings.focusMinutes}
               onChange={(e) => void patchSettings({ focusMinutes: Number(e.target.value) })}
             >
               {[25, 45, 50, 60, 90].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="focus-break-minutes">Pomodoro break length:</label>
-            <select
-              id="focus-break-minutes"
-              value={settings.focusBreakMinutes}
-              onChange={(e) => void patchSettings({ focusBreakMinutes: Number(e.target.value) })}
-            >
-              {[5, 10, 15, 20].map((n) => (
                 <option key={n} value={n}>
                   {n} min
                 </option>

@@ -21,6 +21,8 @@ describe('resolveSkin', () => {
     expect(resolveSkin('chrome', true)).toBe('chrome');
     expect(resolveSkin('default', true)).toBe('default');
     expect(resolveSkin('default', false)).toBe('default');
+    expect(resolveSkin('alert', true)).toBe('alert');
+    expect(resolveSkin('alert', false)).toBe('alert');
   });
 
   it('auto follows the host browser', () => {
@@ -29,7 +31,7 @@ describe('resolveSkin', () => {
   });
 
   it('never resolves to auto — the attribute is always a concrete skin', () => {
-    const modes = ['auto', 'default', 'chrome', 'brave'] as const;
+    const modes = ['auto', 'default', 'chrome', 'brave', 'alert'] as const;
     for (const mode of modes) {
       for (const isBrave of [true, false]) {
         expect(resolveSkin(mode, isBrave)).not.toBe('auto');

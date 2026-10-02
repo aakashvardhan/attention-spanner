@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useStorageValue } from '../../../shared/hooks/useStorageValue';
+import { useSettings } from '../../../shared/hooks/useSettings';
 import { fetchPaperMeta } from '../../../shared/papers';
-import { DEFAULT_SETTINGS } from '../../../shared/storage';
 import type { Deck, PaperDraft, PaperStatus } from '../../../shared/types';
 
 export function emptyPaperDraft(deckId: string): PaperDraft {
@@ -45,8 +44,8 @@ export function PaperForm({
   onSubmit: (draft: PaperDraft) => Promise<{ ok: boolean; error?: string }>;
   onCancel: () => void;
 }) {
-  const [storedSettings] = useStorageValue('settings');
-  const apiKey = { ...DEFAULT_SETTINGS, ...storedSettings }.semanticScholarApiKey;
+  const [settings] = useSettings();
+  const apiKey = settings.semanticScholarApiKey;
   const [draft, setDraft] = useState<PaperDraft>(initial);
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);

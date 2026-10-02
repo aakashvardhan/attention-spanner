@@ -4,8 +4,8 @@ import { useFocusSession } from '../../shared/hooks/useFocusSession';
 
 /**
  * Shown when a blocked site is hit during focus. Zero SW dependency —
- * everything renders from storage, and when the session ends or flips to a
- * break the page live-updates to a "continue" link (blocked tabs
+ * everything renders from storage, and when the session ends the page
+ * live-updates to a "continue" link (blocked tabs
  * self-release; no tab bookkeeping in the worker).
  */
 export function Blocked() {
@@ -27,13 +27,11 @@ export function Blocked() {
   }, []);
   const host = blockedUrl?.hostname.replace(/^www\./, '');
 
-  const blocking = focus.active && focus.phase === 'focus';
-
-  if (!blocking) {
+  if (!focus.active) {
     return (
       <div className="blocked">
         
-        <h1>{focus.active ? 'Break time' : 'Focus session over'}</h1>
+        <h1>Focus session over</h1>
         {blockedUrl ? (
           <a className="blocked-continue" href={blockedUrl.href}>
             Continue to {host} →
@@ -50,8 +48,7 @@ export function Blocked() {
       
       <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
       <p className="blocked-sub">
-        Focus mode{focus.session?.mode === 'pomodoro' ? ` · block ${focus.completedBlocks + 1}` : ''}
-        {' — back off in'}
+        Focus mode — back off in
       </p>
       <p className="blocked-countdown">{focus.countdown}</p>
 

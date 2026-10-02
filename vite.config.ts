@@ -17,7 +17,6 @@ export default defineConfig({
         blocked: 'src/pages/blocked/index.html',
         papers: 'src/pages/papers/index.html',
         reader: 'src/pages/reader/index.html',
-        sidepanel: 'src/pages/sidepanel/index.html',
       },
     },
   },

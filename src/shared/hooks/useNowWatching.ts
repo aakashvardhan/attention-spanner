@@ -29,6 +29,9 @@ export function useNowWatching() {
     return {
       active: false as const,
       video: null,
+      // Exposed so a page showing both this readout and its own live rows ticks
+      // off one timer instead of starting a second one at the same interval.
+      now,
       position: '',
       duration: '',
       remainingSeconds: 0,
@@ -41,6 +44,7 @@ export function useNowWatching() {
   return {
     active: true as const,
     video,
+    now,
     position: formatWatchTime(positionSeconds),
     duration: formatWatchTime(video.durationSeconds),
     remainingSeconds: Math.max(0, Math.round(video.durationSeconds - positionSeconds)),

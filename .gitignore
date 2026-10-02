@@ -10,6 +10,13 @@ release/
 .env.*
 !.env.example
 
+# Firebase Functions build output + emulator state; the bridge is gone, but keep
+# these so a copy from another branch is never committed.
+functions/lib/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
 # Stale Google Calendar OAuth signing key; the integration is gone, but keep
 # the rule so an existing copy is never committed.
 gcal-key.pem
@@ -19,3 +26,6 @@ ios/**/.build/
 demo/.profile/
 demo/.profile-probe/
 demo/out/
+
+# Brainstorm mockups from the visual companion.
+.superpowers/

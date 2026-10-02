@@ -24,15 +24,12 @@ export type Message =
       resume?: boolean;
       /** false opens the page as itself instead of in the reader — saved links */
       readerView?: boolean;
+      /** true opens PDFs as themselves too, skipping the PDF reader — Worth reading */
+      original?: boolean;
     }
   | { type: 'MARK_ALL_READ' }
   | { type: 'VALIDATE_FEED'; url: string }
-  | {
-      type: 'START_FOCUS';
-      mode: 'oneshot' | 'pomodoro';
-      focusMinutes: number;
-      breakMinutes: number;
-    }
+  | { type: 'START_FOCUS'; focusMinutes: number }
   | { type: 'STOP_FOCUS'; early: boolean }
   | { type: 'ADD_BOOKMARK'; url: string; title: string; groupId: string | null }
   | { type: 'DELETE_BOOKMARK'; id: string }
@@ -43,7 +40,6 @@ export type Message =
      live in decks, and renaming would touch every caller for no behaviour
      change. */
   | { type: 'FLASH_ADD_DECK'; name: string; kind: DeckKind }
-  | { type: 'FLASH_RENAME_DECK'; id: string; name: string }
   | { type: 'FLASH_DELETE_DECK'; id: string }
   | { type: 'PAPER_ADD'; draft: PaperDraft }
   | { type: 'PAPER_UPDATE'; id: string; patch: Partial<PaperDraft> }
@@ -88,7 +84,7 @@ export type Message =
       chapter: string;
     }
   | { type: 'FOCUS_VIDEO_TAB'; videoId: string }
-  /** Captions for the side panel's Follow pane. */
+  /** Captions for the new tab's Follow pane. */
   | { type: 'VIDEO_TRANSCRIPT'; videoId: string }
   | {
       type: 'PROGRESS_UPDATE';
@@ -119,7 +115,6 @@ export interface MessageResponses {
   ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
   DELETE_BOOKMARK_GROUP: { ok: boolean };
   FLASH_ADD_DECK: { ok: boolean; deck?: Deck; error?: string };
-  FLASH_RENAME_DECK: { ok: boolean; error?: string };
   FLASH_DELETE_DECK: { ok: boolean; error?: string };
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };
   PAPER_UPDATE: { ok: boolean; error?: string };

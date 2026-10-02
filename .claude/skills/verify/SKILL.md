@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Build the extension and drive it end-to-end in Chromium via Playwright — load dist/ unpacked, open newtab/sidepanel/options pages, interact, screenshot.
+description: Build the extension and drive it end-to-end in Chromium via Playwright — load dist/ unpacked, open the newtab/options/papers/reader pages, interact, screenshot.
 ---
 
 # Verifying this Chrome extension
@@ -33,41 +33,49 @@ const extId = new URL(sw.url()).host;
 
 Pages to open directly (no need to trigger chrome UI):
 - `chrome-extension://${extId}/src/pages/newtab/index.html` — dashboard
-- `chrome-extension://${extId}/src/pages/sidepanel/index.html` — side panel
 - `chrome-extension://${extId}/src/pages/options/index.html` — options
+- `chrome-extension://${extId}/src/pages/papers/index.html` — papers
+- `chrome-extension://${extId}/src/pages/reader/index.html?article=<encoded url>`
+  — the reader (`?src=` for a PDF; no param renders the fallback copy)
 
-There is no popup. The side panel is the toolbar surface, opened by
-`sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` in the worker —
-which Playwright cannot click, so open the page directly instead. Give it a
-narrow viewport (`setViewportSize({ width: 360, height: 700 })`) so the layout
-you see is the layout Chrome docks.
+There is no popup and, since the side panel was removed, no docked surface
+either. The toolbar icon runs `chrome.action.onClicked` in the worker and opens
+the dashboard. Playwright cannot click the icon, but it can fire the listener
+from the worker target:
+
+```js
+await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
+```
 
 ## Flows worth driving
 
-- Dashboard renders (`.dashboard`, `section.ui-panel` cards — the class is
-  `ui-panel`, not `panel`); wait ~2s for storage.
-- Command palette: `Control+k`, type, Enter. Fast-path commands (start focus,
-  add task) run with no AI — best end-to-end check of the RPC → background →
-  storage → re-render loop. Focus start shows `.focus-banner` with countdown.
+- Dashboard renders: `.relay` is the page, `.relay-hero` the top band, and the
+  cards are `.relay-continue` / `.relay-watching-card` / `.relay-bookmarks`.
+  Wait ~1.5s for storage.
+- Actions live in `.relay-commands` (Start focus / Papers / Settings). Starting
+  focus swaps that button for `.relay-focus-row`, which carries the countdown
+  and Stop — a good end-to-end check of the UI → message → worker → storage →
+  re-render loop.
+- The Now watching card only mounts while a video is playing. Seed a
+  `readingProgress` entry with `kind: 'video'`, `playing: true` and a fresh
+  `updatedAt` (liveness is `now - updatedAt < VIDEO_WATCHING_STALE_MS`).
 - Read storage from a page: `page.evaluate(() => chrome.storage.local.get(...))`.
 - Collect `console`/`pageerror` events — a clean run has zero.
 
 ## Gotchas
 
-- **Gemini Nano is unavailable in test Chromium** — assistant AI replies can't
-  be exercised; the degraded paths (hints, disabled input, template briefing)
-  are what you can observe. Cloud-key paths need a real key.
+- **Local AI runs on Ollama** (`src/shared/llm/`). Drive it with a mock: a node
+  `http` server answering `GET /api/tags`, `POST /api/show`, `POST /api/chat`
+  (NDJSON lines `{"message":{"content":…}}` then `{"done":true}`) and
+  `POST /api/embed` (`{"embeddings":[…]}`), with `settings.ollamaUrl` pointed
+  at it. To mimic real Ollama's origin check, 403 any `/api/*` request whose
+  Origin is `chrome-extension://…` until "allowed" — note Chrome sends no Origin
+  on an extension page's GET, only on POST. Intercept
+  `https://api.anthropic.com/**` with `ctx.route` and assert zero hits for
+  private sources (web pages, local PDFs, highlights).
 - Settings checkboxes are controlled via an async chrome.storage round-trip:
   Playwright's `check()/uncheck()` post-click assertion races it. Use
   `click({ force: true })` + `waitForFunction` on the storage value.
-- Side panel tab locator: `hasText: 'Ask'` also matches "T**ask**s". The tabs
-  used to carry emoji to disambiguate; they are plain text now, so match exactly
-  (`getByRole('button', { name: 'Ask', exact: true })`).
-- The panel's Live tab is only in the DOM while a recording runs. To exercise
-  it, seed `chrome.storage.session` with a `liveSession` whose `recordingId` is
-  non-empty; clearing it back to `''` should drop you on Ask, not a blank pane.
-- The panel's tabs are a real tablist. Locate them with
-  `getByRole('tab', { name: /Tasks/ })`, not `getByRole('button')`.
 - **Headless Chromium reports `prefers-reduced-transparency: reduce`**, so the
   glass is off by default and you are looking at the accessibility fallback, not
   what a user sees. Playwright has no option for this feature; force it over

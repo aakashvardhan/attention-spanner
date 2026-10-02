@@ -486,3 +486,74 @@ a.pp-row-title:hover {
 .pp-row-editing {
   gap: 0;
 }
+
+/* ---------- Search your highlights ---------- */
+
+.recall {
+  margin-bottom: var(--space-4);
+}
+
+.recall-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.recall-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.recall-form input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.recall-results {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.recall-results button {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recall-results button:hover {
+  background: var(--bg-hover);
+}
+
+.recall-quote {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recall-results small,
+.recall-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.recall-hint {
+  margin: var(--space-2) 0 0;
+}

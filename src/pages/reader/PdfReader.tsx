@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { annotationDocKey, DEFAULT_ANNOTATION_COLOR, sortAnnotations } from '../../shared/annotations';
+import { RecapCard } from '../../shared/components/RecapCard';
+import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import { sendMessage } from '../../shared/messages';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
-import { paperMatchKey } from '../../shared/papers';
+import { sourceForUrl } from '../../shared/llm/route';
+import { fetchPaperMeta, paperMatchKey } from '../../shared/papers';
 import { type PdfPosition } from '../../shared/pdf';
 import { isPdfAnchored } from '../../shared/types';
 import { headingForPage } from '../../shared/pdfOutline';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
 import { usePdfDocument } from './usePdfDocument';
 import { indexKnownRefs } from './citationLinks';
+import { findFigureCaptions, type FigureKey } from './figures';
 import { extractReferences, getPdfPageTexts, type ReferenceIndex } from './references';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
+import { AskSheet } from './components/AskSheet';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
 import { ReaderToolbar } from './components/ReaderToolbar';
@@ -35,6 +41,17 @@ export function PdfReader({ src }: { src: string }) {
   const state = usePdfDocument(src);
   const [papers, papersLoaded] = useStorageValue('papers');
   const paper = findPaper(papers, src);
+  const [settings] = useSettings();
+
+  // The paper's progress before this open, captured once (see ArticleReader).
+  const [openedAt, setOpenedAt] = useState<{ key: string; percent: number } | null>(null);
+  if (openedAt === null && papersLoaded) {
+    setOpenedAt(
+      paper && paper.status !== 'read'
+        ? { key: `paper:${paper.id}`, percent: paper.progressPercent }
+        : { key: '', percent: 0 },
+    );
+  }
 
   const [position, setPosition] = useState<PdfPosition>({ page: 1, offset: 0 });
   const [zoom, setZoom] = useState(1);
@@ -54,7 +71,7 @@ export function PdfReader({ src }: { src: string }) {
   const pageAnnotations = useMemo(() => docAnnotations.filter(isPdfAnchored), [docAnnotations]);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
-  const [panel, setPanel] = useState<'none' | 'notes' | 'find'>('none');
+  const [panel, setPanel] = useState<'none' | 'notes' | 'find' | 'ask'>('none');
   // Lead with the generated research outline; the PDF's native bookmarks stay
   // one tab away and the generated result begins immediately on open.
   const notesOpen = panel === 'notes';
@@ -93,6 +110,16 @@ export function PdfReader({ src }: { src: string }) {
     return () => {
       alive = false;
     };
+  }, [doc]);
+
+  // Figure/table captions, so in-text mentions can jump to them.
+  const [figures, setFigures] = useState<Map<FigureKey, PdfPosition> | null>(null);
+  useEffect(() => {
+    if (!doc) return;
+    let alive = true;
+    setFigures(null);
+    void findFigureCaptions(doc).then((found) => alive && setFigures(found)).catch(() => undefined);
+    return () => { alive = false; };
   }, [doc]);
 
   useEffect(() => {
@@ -239,10 +266,19 @@ export function PdfReader({ src }: { src: string }) {
 
   const title =
     paper?.title || (ready ? state.title : '') || decodeURIComponent(src.split('/').pop() ?? 'PDF');
+
+  // A tracked paper cites from its record; otherwise look the PDF up, since
+  // its own metadata rarely has more than a title (often not even that).
+  const apiKey = settings.semanticScholarApiKey;
+  const getCitation = useCallback(async () => {
+    if (live.current.paper) return live.current.paper;
+    const res = await fetchPaperMeta(src, apiKey);
+    return res.ok ? res.meta : { title, authors: '', venue: '', year: null, url: src };
+  }, [src, apiKey, title]);
   const looksScanned = pageTexts !== null && pageTexts.join('').replace(/\s/g, '').length < 200;
 
   return (
-    <div className="reader-root">
+    <div className="reader-root" data-night={settings.readerNight || undefined}>
       <ReaderToolbar
         title={title}
         page={position.page}
@@ -261,6 +297,9 @@ export function PdfReader({ src }: { src: string }) {
         onToggleNotes={() => setPanel((current) => (current === 'notes' ? 'none' : 'notes'))}
         findOpen={findOpen}
         onToggleFind={() => setPanel((current) => (current === 'find' ? 'none' : 'find'))}
+        askOpen={panel === 'ask'}
+        onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
+        citation={getCitation}
       />
       {ready && papersLoaded && !paper && (
         <TrackPrompt src={src} suggestedTitle={state.title} getSeed={getSeed} />
@@ -278,11 +317,12 @@ export function PdfReader({ src }: { src: string }) {
         </div>
       )}
       <div className="reader-body">
-        {ready && outlineOpen && outline.length > 0 && (
+        {ready && outlineOpen && (
           <OutlineSidebar
             outline={outline}
             currentPage={position.page}
             onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
+            ai={{ cacheKey: `outline:${docKey}`, passages: pageTexts, source: sourceForUrl(src) }}
           />
         )}
         {state.status === 'loading' && (
@@ -303,26 +343,40 @@ export function PdfReader({ src }: { src: string }) {
           </div>
         )}
         {ready && papersLoaded && (
-          <PdfViewport
-            doc={state.doc}
-            pageSizes={state.pageSizes}
-            zoom={zoom}
-            initialPosition={paper?.pdf ? { page: paper.pdf.page, offset: paper.pdf.offset } : null}
-            onRestored={onRestored}
-            onPosition={onPosition}
-            handleRef={viewportRef}
-            annotations={pageAnnotations}
-            activeId={activeAnnotationId}
-            onActivate={setActiveAnnotationId}
-            noteMode={noteMode}
-            onCreateHighlight={createHighlight}
-            onPlaceSticky={(page, x, y) => void placeSticky(page, x, y)}
-            onUpdateNote={updateAnnotationNote}
-            onUpdateColor={updateAnnotationColor}
-            onDeleteAnnotation={deleteAnnotation}
-            references={references}
-            known={knownRefs}
-          />
+          // The cards float over the page column only, never over a side panel.
+          <div className="reader-main">
+            <PdfViewport
+              doc={state.doc}
+              pageSizes={state.pageSizes}
+              zoom={zoom}
+              onZoom={setZoom}
+              initialPosition={paper?.pdf ? { page: paper.pdf.page, offset: paper.pdf.offset } : null}
+              onRestored={onRestored}
+              onPosition={onPosition}
+              handleRef={viewportRef}
+              annotations={pageAnnotations}
+              activeId={activeAnnotationId}
+              onActivate={setActiveAnnotationId}
+              noteMode={noteMode}
+              onCreateHighlight={createHighlight}
+              onPlaceSticky={(page, x, y) => void placeSticky(page, x, y)}
+              onUpdateNote={updateAnnotationNote}
+              onUpdateColor={updateAnnotationColor}
+              onDeleteAnnotation={deleteAnnotation}
+              references={references}
+              known={knownRefs}
+              figures={figures}
+            />
+            {openedAt?.key && (
+              <RecapCard
+                progressKey={openedAt.key}
+                percent={openedAt.percent}
+                passages={pageTexts}
+                source={sourceForUrl(src)}
+              />
+            )}
+            <RelatedHighlight docKey={docKey} />
+          </div>
         )}
         {ready && papersLoaded && notesOpen && (
           <AnnotationsSidebar
@@ -331,6 +385,15 @@ export function PdfReader({ src }: { src: string }) {
             emptyHint="Select text in the PDF to highlight it."
             onJump={jumpToAnnotation}
             onDelete={deleteAnnotation}
+          />
+        )}
+        {ready && panel === 'ask' && (
+          <AskSheet
+            passages={pageTexts}
+            source={sourceForUrl(src)}
+            passageNoun="page"
+            onJump={(index) => viewportRef.current?.scrollToPosition(index + 1, 0)}
+            onClose={() => setPanel('none')}
           />
         )}
         {ready && findOpen && <PdfFindPanel pages={pageTexts} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} onClose={() => setPanel('none')} />}

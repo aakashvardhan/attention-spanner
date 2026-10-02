@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from './storage';
 import type { SkinSetting, ThemeSetting } from './types';
 
 export type ResolvedTheme = 'light' | 'dark';
-export type ResolvedSkin = 'default' | 'chrome' | 'brave';
+export type ResolvedSkin = 'default' | 'chrome' | 'brave' | 'alert';
 
 /**
  * localStorage mirror of settings.theme. chrome.storage is async, so first
@@ -47,7 +47,11 @@ export function applySkin(mode: SkinSetting): ResolvedSkin {
 
 function storedSkin(): SkinSetting {
   const raw = localStorage.getItem(SKIN_MIRROR_KEY);
-  return raw === 'default' || raw === 'chrome' || raw === 'brave' || raw === 'auto'
+  return raw === 'default' ||
+    raw === 'chrome' ||
+    raw === 'brave' ||
+    raw === 'alert' ||
+    raw === 'auto'
     ? raw
     : DEFAULT_SETTINGS.skin;
 }

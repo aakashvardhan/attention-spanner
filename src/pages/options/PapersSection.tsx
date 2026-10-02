@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { useSettings } from '../../shared/hooks/useSettings';
 import { fetchPaperMeta } from '../../shared/papers';
-import { DEFAULT_SETTINGS, patchSettings } from '../../shared/storage';
+import { patchSettings } from '../../shared/storage';
 
 // A well-known paper (Attention Is All You Need) used only to validate the key.
 const TEST_REF = 'https://arxiv.org/abs/1706.03762';
@@ -9,8 +9,7 @@ const TEST_REF = 'https://arxiv.org/abs/1706.03762';
 type Test = { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'error'; message: string };
 
 export function PapersSection() {
-  const [stored] = useStorageValue('settings');
-  const settings = { ...DEFAULT_SETTINGS, ...stored };
+  const [settings] = useSettings();
   const hasKey = settings.semanticScholarApiKey.length > 0;
   const [keyInput, setKeyInput] = useState('');
   const [saved, setSaved] = useState(false);

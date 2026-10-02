@@ -55,23 +55,14 @@ async function openFocusMusic(): Promise<void> {
   await chrome.tabs.create({ url: FLOWTUNES_URL, pinned: true, active: false });
 }
 
-export async function startFocus(config: {
-  mode: 'oneshot' | 'pomodoro';
-  focusMinutes: number;
-  breakMinutes: number;
-}): Promise<{ ok: boolean }> {
+export async function startFocus(config: { focusMinutes: number }): Promise<{ ok: boolean }> {
   const focusMinutes = Math.min(240, Math.max(5, Math.round(config.focusMinutes)));
-  const breakMinutes = Math.min(60, Math.max(1, Math.round(config.breakMinutes || 10)));
   const now = Date.now();
 
   const session: FocusSession = {
-    mode: config.mode,
-    phase: 'focus',
     startedAt: now,
     phaseEndsAt: now + focusMinutes * 60_000,
     focusMinutes,
-    breakMinutes,
-    completedBlocks: 0,
   };
   await setLocal({ focusSession: session });
 
@@ -105,49 +96,13 @@ export async function handleFocusPhaseEnd(): Promise<void> {
     return;
   }
   const settings = await getSettings();
-  const now = Date.now();
-
-  if (session.phase === 'focus') {
-    if (session.mode === 'oneshot') {
-      await chrome.alarms.clear(ALARMS.focusBadgeTick);
-      await setLocal({ focusSession: null });
-      await syncSessionAccessRules();
-      await updateBadge();
-      notifyPhase(
-        'Focus complete',
-        `${session.focusMinutes} minutes banked. Sites are open again.`,
-        settings.notificationsEnabled,
-      );
-      return;
-    }
-
-    // Pomodoro: focus → break (breaks unblock)
-    session.completedBlocks += 1;
-    session.phase = 'break';
-    session.phaseEndsAt = now + session.breakMinutes * 60_000;
-    await setLocal({ focusSession: session });
-    await syncSessionAccessRules();
-    chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
-    await updateBadge();
-    notifyPhase(
-      'Break time',
-      `${session.breakMinutes} minutes — sites are open. Block ${session.completedBlocks} done.`,
-      settings.notificationsEnabled,
-    );
-    return;
-  }
-
-  // Pomodoro: break → focus (re-block)
-  session.phase = 'focus';
-  session.phaseEndsAt = now + session.focusMinutes * 60_000;
-  await setLocal({ focusSession: session });
+  await chrome.alarms.clear(ALARMS.focusBadgeTick);
+  await setLocal({ focusSession: null });
   await syncSessionAccessRules();
-  chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
-  await redirectOpenBlockedTabs(settings.focusBlocklist);
   await updateBadge();
   notifyPhase(
-    'Back to focus',
-    `${session.focusMinutes} minutes. Sites re-blocked.`,
+    'Focus complete',
+    `${session.focusMinutes} minutes banked. Sites are open again.`,
     settings.notificationsEnabled,
   );
 }
@@ -184,7 +139,7 @@ export async function reconcileFocusOnStartup(): Promise<void> {
 /** Blocklist edited mid-session: refresh rules if currently blocking */
 export async function refreshFocusRules(newBlocklist: string[]): Promise<void> {
   const { focusSession: session } = await getLocal('focusSession');
-  if (!session || session.phase !== 'focus') return;
+  if (!session) return;
   await syncSessionAccessRules();
   await redirectOpenBlockedTabs(newBlocklist);
 }

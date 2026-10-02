@@ -8,7 +8,7 @@ import {
   deleteBookmarkGroup,
   moveBookmark,
 } from './bookmarks';
-import { addDeck, deleteDeck, renameDeck } from './flashcards';
+import { addDeck, deleteDeck } from './flashcards';
 import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
 import { openNativePdf } from './pdfIntercept';
@@ -26,7 +26,7 @@ export async function dispatch(
     case 'REFRESH_FEEDS':
       return refreshFeeds();
     case 'OPEN_ARTICLE':
-      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true);
+      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true, msg.original ?? false);
     case 'MARK_ALL_READ':
       return markAllRead();
     case 'VALIDATE_FEED':
@@ -50,8 +50,6 @@ export async function dispatch(
       return { ok: true };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);
-    case 'FLASH_RENAME_DECK':
-      return renameDeck(msg.id, msg.name);
     case 'FLASH_DELETE_DECK':
       return deleteDeck(msg.id);
     case 'PAPER_ADD':

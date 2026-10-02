@@ -1,8 +1,9 @@
 import type { ResumeTarget } from '../shared/messages';
+import { progressKeyFor } from '../shared/progress';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
-import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
+import { isYouTubeWatchUrl } from '../shared/youtube';
 import { recordEngagement } from './hyperfocus';
 import { scheduleNudge, cancelNudge } from './nudges';
 
@@ -27,8 +28,7 @@ export async function registerOpenedTab(
   url: string,
   resume: boolean,
 ): Promise<void> {
-  const ytId = getYouTubeVideoId(url);
-  const key = ytId ? videoKey(ytId) : normalizeUrl(url);
+  const key = progressKeyFor(url);
   const { trackedTabs, pendingResume } = await getSession('trackedTabs', 'pendingResume');
   trackedTabs[tabId] = { normalizedUrl: key, injectedAt: 0 };
 

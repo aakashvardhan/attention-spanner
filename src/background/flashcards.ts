@@ -32,17 +32,6 @@ export async function addDeck(
   return { ok: true, deck };
 }
 
-export async function renameDeck(id: string, name: string): Promise<FlashResult> {
-  const trimmed = name.trim();
-  if (!trimmed) return { ok: false, error: 'Deck name is required.' };
-  const { decks } = await getLocal('decks');
-  const deck = decks.find((d) => d.id === id);
-  if (!deck) return { ok: false, error: 'Deck not found.' };
-  deck.name = trimmed;
-  await setLocal({ decks });
-  return { ok: true };
-}
-
 export async function deleteDeck(id: string): Promise<FlashResult> {
   const { decks, papers } = await getLocal('decks', 'papers');
   await setLocal({

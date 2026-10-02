@@ -125,6 +125,25 @@ header h1 {
   cursor: pointer;
 }
 
+.setting-row input[type='text'],
+.setting-row input[type='password'] {
+  min-height: 44px;
+  min-width: 0;
+  max-width: 220px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-base);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.setting-row input[type='text']:focus,
+.setting-row input[type='password']:focus {
+  border-color: var(--accent);
+}
+
 .setting-row input[type='checkbox'] {
   accent-color: var(--accent);
   width: 22px;
@@ -297,4 +316,40 @@ button:hover {
   button {
     transition: none;
   }
+}
+
+/* ---------- Local AI ---------- */
+
+.ai-setup {
+  margin: var(--space-2) 0;
+}
+
+/* Selectable in one drag: this line gets pasted into a terminal. */
+.ai-setup-cmd {
+  display: block;
+  margin: var(--space-2) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.ai-impact {
+  margin-top: var(--space-4);
+}
+
+.ai-impact h3 {
+  font-size: var(--text-md);
+  margin-bottom: var(--space-2);
+}
+
+.ai-impact ul {
+  padding-left: var(--space-5);
+  color: var(--text-secondary);
+}
+
+.hint a {
+  color: var(--accent-text);
 }

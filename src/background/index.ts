@@ -1,4 +1,4 @@
-import { NOTIFICATION_IDS } from '../shared/constants';
+import { NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
 import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
@@ -112,12 +112,16 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) =>
 // (agent runs, automations). Pages/offscreen keep the runtime path.
 setLocalDispatcher((msg) => dispatch(msg, {} as chrome.runtime.MessageSender));
 
-// Clicking the toolbar icon opens the side panel. This is a stored preference
-// rather than a manifest field, so it has to be re-asserted from the worker;
-// top-level (not onInstalled) so a profile that predates the change picks it up
-// on the next wake too.
-void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => {
-  console.error('[sidePanel] could not open on action click', error);
+// Clicking the toolbar icon opens the dashboard. It used to open the side panel
+// via setPanelBehavior; with the panel gone the new tab is the only surface, so
+// the icon is a destination again. There is still no popup — see the note in
+// manifest.config.ts for why.
+//
+// Explicitly the extension's own page rather than a bare tabs.create({}): if
+// another extension has taken the new tab override, an empty create would open
+// theirs, and the toolbar icon has to land on ours.
+chrome.action.onClicked.addListener(() => {
+  void chrome.tabs.create({ url: chrome.runtime.getURL(NEWTAB_PAGE_PATH) });
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {

@@ -1,5 +1,5 @@
 import type { AnyProgress, ResumeTarget, Paper } from './types';
-import { belongsInContinue, progressKind } from './progress';
+import { belongsInContinue } from './progress';
 
 export function resumeContextFromProgress(progress: AnyProgress): ResumeTarget {
   if (progress.kind === 'video') {
@@ -18,21 +18,6 @@ export function resumeContextFromProgress(progress: AnyProgress): ResumeTarget {
   };
 }
 
-export function mostRecentUnfinished(
-  progress: Record<string, AnyProgress>,
-  now = Date.now(),
-): AnyProgress | null {
-  return (
-    Object.values(progress)
-      .filter((entry) => belongsInContinue(entry, now))
-      .sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
-  );
-}
-
-export function progressLabel(progress: AnyProgress): string {
-  return progressKind(progress) === 'video' ? 'unfinished video' : 'unfinished reading';
-}
-
 /** One resumable thing: an unfinished read/watch, or a paper mid-flight. */
 export interface ResumableItem {
   key: string;
@@ -46,16 +31,13 @@ export interface ResumableItem {
 /**
  * Everything worth picking back up, newest first.
  *
- * `mostRecentUnfinished` answers "what is the single next thing", which is what
- * the one-decision screen needs. This answers "what is still open", which is
- * what makes a new tab worth opening at all — the dashboard had no such list,
+ * This answers "what is still open", which is what makes a new tab worth opening at all — the dashboard had no such list,
  * so a half-read article was invisible until you remembered it yourself.
  */
 export function resumableItems(
   progress: Record<string, AnyProgress>,
   papers: readonly Paper[],
   now = Date.now(),
-  cap = 6,
 ): ResumableItem[] {
   const fromProgress = Object.values(progress)
     .filter((entry) => belongsInContinue(entry, now))
@@ -75,7 +57,7 @@ export function resumableItems(
       paper,
       progress: null,
     }));
-  return [...fromProgress, ...fromPapers]
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, cap);
+  // No cap: the dashboard shows the newest few and discloses the rest. A cap
+  // here silently dropped the seventh unfinished article with no way back.
+  return [...fromProgress, ...fromPapers].sort((a, b) => b.updatedAt - a.updatedAt);
 }

@@ -49,9 +49,3 @@ export function faviconUrl(pageUrl: string, size = 64): string {
   }
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}`;
 }
-
-export function daysAgo(days: number, from = new Date()): Date {
-  const d = new Date(from);
-  d.setDate(d.getDate() - days);
-  return d;
-}

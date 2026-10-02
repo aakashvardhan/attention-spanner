@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mostRecentUnfinished, resumeContextFromProgress } from './attention';
+import { resumableItems, resumeContextFromProgress } from './attention';
 import type { ReadingProgress, VideoProgress } from './types';
 
 const base = {
@@ -44,22 +44,25 @@ describe('attention resume context', () => {
       positionSeconds: 143,
     });
   });
+});
 
-  it('selects the most recently updated unfinished item only', () => {
-    const older: ReadingProgress = {
-      ...base,
-      url: 'https://example.com/old',
-      feedItemId: null,
-      scrollY: 100,
-      pageHeight: 1000,
-    };
-    const newer: ReadingProgress = { ...older, url: 'https://example.com/new', updatedAt: 20 };
-    const done: ReadingProgress = {
-      ...newer,
-      url: 'https://example.com/done',
-      updatedAt: 30,
-      completedAt: 30,
-    };
-    expect(mostRecentUnfinished({ older, newer, done }))?.toBe(newer);
+describe('resumableItems', () => {
+  it('lists every unfinished article, not just the newest six', () => {
+    const progress: Record<string, ReadingProgress> = {};
+    for (let i = 0; i < 9; i++) {
+      const url = `https://example.com/${i}`;
+      progress[url] = {
+        ...base,
+        kind: 'article',
+        url,
+        updatedAt: i,
+        feedItemId: null,
+        scrollY: 0,
+        pageHeight: 1000,
+      };
+    }
+    const items = resumableItems(progress, []);
+    expect(items).toHaveLength(9);
+    expect(items[0].progress?.url).toBe('https://example.com/8');
   });
 });

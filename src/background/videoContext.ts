@@ -12,9 +12,9 @@ import {
 import { captureCaptionsFromPlayer, type TabCaptionResult } from '../shared/youtubeTabCaptions';
 
 /**
- * The transcript of the video playing right now, for the side panel's Follow
+ * The transcript of the video playing right now, for the new tab's Follow
  * pane. Fetched lazily and cached for the session — nothing here may fetch
- * speculatively, because the panel asks the moment a video starts playing and
+ * speculatively, because the card mounts the moment a video starts playing and
  * most videos are never followed.
  *
  * Session rather than local storage: a transcript is only interesting while the
@@ -22,24 +22,45 @@ import { captureCaptionsFromPlayer, type TabCaptionResult } from '../shared/yout
  * nobody is watching.
  */
 
+const TEE_ID = 'yt-timedtext-tee';
+
 /**
  * Register the timedtext tee (content/timedtextTee.js) for YouTube pages.
  * document_start + MAIN world are both load-bearing: the player binds its
  * fetch/XHR references at boot, so a later or isolated-world injection sees
- * nothing. Idempotent — safe from both onInstalled and onStartup.
+ * nothing.
+ *
+ * Idempotent, and it has to be idempotent under concurrency rather than just in
+ * sequence. onInstalled and onStartup both call this, and on a reload they can
+ * be in flight together: each awaits getRegisteredContentScripts, each is told
+ * nothing is registered, and both then register. The loser threw "Duplicate
+ * script ID" as an unhandled rejection. Checking first is not a lock.
+ *
+ * So the duplicate is treated as the success it is — the post-condition this
+ * function promises is that the tee is registered, and that error proves it is.
+ * Anything else still throws.
  */
 export async function registerTimedtextTee(): Promise<void> {
-  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['yt-timedtext-tee'] });
+  const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [TEE_ID] });
   if (existing.length > 0) return;
-  await chrome.scripting.registerContentScripts([
-    {
-      id: 'yt-timedtext-tee',
-      matches: ['*://www.youtube.com/*', '*://m.youtube.com/*'],
-      js: ['content/timedtextTee.js'],
-      runAt: 'document_start',
-      world: 'MAIN',
-    },
-  ]);
+  try {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: TEE_ID,
+        matches: ['*://www.youtube.com/*', '*://m.youtube.com/*'],
+        js: ['content/timedtextTee.js'],
+        runAt: 'document_start',
+        world: 'MAIN',
+      },
+    ]);
+  } catch (error) {
+    if (!isDuplicateScriptId(error)) throw error;
+  }
+}
+
+/** Chrome reports this as a plain Error whose message names the id. */
+function isDuplicateScriptId(error: unknown): boolean {
+  return error instanceof Error && /duplicate script id/i.test(error.message);
 }
 
 /**

@@ -22,10 +22,10 @@ export default defineManifest(async (env) => {
       '48': 'icons/icon-48.png',
       '128': 'icons/icon-128.png',
     },
-    // No default_popup: clicking the icon opens the side panel instead, wired
-    // up with sidePanel.setPanelBehavior in the service worker. A popup is a
-    // transient overlay that dies the moment you click the page behind it,
-    // which is the wrong shape for a panel you keep open beside what you read.
+    // No default_popup: clicking the icon opens the new tab, wired up with
+    // action.onClicked in the service worker. A popup is a transient overlay
+    // that dies the moment you click the page behind it, which is the wrong
+    // shape for anything you want to keep looking at while you work.
     action: {
       default_icon: {
         '16': 'icons/icon-16.png',
@@ -36,11 +36,6 @@ export default defineManifest(async (env) => {
     options_page: 'src/pages/options/index.html',
     chrome_url_overrides: {
       newtab: 'src/pages/newtab/index.html',
-    },
-    // Acts on the page you're on, beside it rather than over it. Opened by
-    // clicking the toolbar icon (sidePanel.setPanelBehavior in the worker).
-    side_panel: {
-      default_path: 'src/pages/sidepanel/index.html',
     },
     background: {
       service_worker: 'src/background/index.ts',
@@ -55,7 +50,6 @@ export default defineManifest(async (env) => {
       // Read-only: response headers, to spot PDFs served from extensionless URLs
       'webRequest',
       'contextMenus',
-      'sidePanel',
     ],
     host_permissions: ['<all_urls>'],
     content_security_policy: {

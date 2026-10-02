@@ -1,5 +1,5 @@
 import { MAX_PDF_NATIVE_BYPASS } from '../shared/constants';
-import { isPdfResponse, isPdfUrl, readerPageUrl, shouldInterceptPdf } from '../shared/pdf';
+import { alphaxivUrl, isPdfResponse, isPdfUrl, readerPageUrl, shouldInterceptPdf } from '../shared/pdf';
 import { getSession, setSession } from '../shared/storage';
 
 /*
@@ -45,7 +45,8 @@ export async function maybeInterceptPdfResponse(
 
 async function redirectToReader(tabId: number, url: string): Promise<void> {
   try {
-    await chrome.tabs.update(tabId, { url: readerPageUrl(url) });
+    // arXiv PDFs go to alphaXiv instead of the reader.
+    await chrome.tabs.update(tabId, { url: alphaxivUrl(url) ?? readerPageUrl(url) });
   } catch {
     // Tab closed mid-navigation — nothing to redirect.
   }
@@ -53,6 +54,13 @@ async function redirectToReader(tabId: number, url: string): Promise<void> {
 
 /** Reader → native viewer: remember the choice for the session, then navigate. */
 export async function openNativePdf(tabId: number, url: string): Promise<{ ok: boolean }> {
+  await bypassPdfReader(url);
+  await chrome.tabs.update(tabId, { url });
+  return { ok: true };
+}
+
+/** Keep the interceptors off this URL for the rest of the session. */
+export async function bypassPdfReader(url: string): Promise<void> {
   const { pdfNativeBypass } = await getSession('pdfNativeBypass');
   if (!pdfNativeBypass.includes(url)) {
     // Capped like every other stored list: this only clears on browser restart,
@@ -61,6 +69,4 @@ export async function openNativePdf(tabId: number, url: string): Promise<{ ok: b
       pdfNativeBypass: [...pdfNativeBypass, url].slice(-MAX_PDF_NATIVE_BYPASS),
     });
   }
-  await chrome.tabs.update(tabId, { url });
-  return { ok: true };
 }

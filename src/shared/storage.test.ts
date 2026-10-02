@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_SETTINGS,
   v12ReadingProgress,
   v15Skin,
   v22StripSettings,
@@ -181,22 +182,20 @@ describe('v22', () => {
     expect(next).toEqual({ theme: 'dark', focusMinutes: 50 });
   });
 
+  // Derived from DEFAULT_SETTINGS rather than listed by hand: a hand-written
+  // list silently stops covering the settings added after it, which is exactly
+  // when this guard matters. Every live setting is every key with a default.
   it('never names a setting the extension still reads', () => {
-    for (const alive of [
-      'theme',
-      'skin',
-      'refreshInterval',
-      'notificationsEnabled',
-      'nudgesEnabled',
-      'hyperfocusEnabled',
-      'focusBlocklist',
-      'focusMinutes',
-      'focusBreakMinutes',
-      'focusMusicEnabled',
-      'semanticScholarApiKey',
-    ]) {
+    for (const alive of Object.keys(DEFAULT_SETTINGS)) {
       expect(V22_DEAD_SETTINGS).not.toContain(alive);
     }
+  });
+
+  it('sweeps what v23 retired: the daily focus and the Pomodoro break length', () => {
+    expect(V22_DEAD_KEYS).toContain('focusOfDay');
+    expect(v22StripSettings({ focusMinutes: 50, focusBreakMinutes: 10 })).toEqual({
+      focusMinutes: 50,
+    });
   });
 
   it('is a no-op on a profile that never stored settings', () => {

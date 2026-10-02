@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { sendMessage } from '../../../shared/messages';
+import { useSettings } from '../../../shared/hooks/useSettings';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { fetchPaperMeta, normalizeTitle, paperMatchKey } from '../../../shared/papers';
-import { DEFAULT_SETTINGS } from '../../../shared/storage';
 import type { Paper, PaperDraft } from '../../../shared/types';
 
 /** The position-derived fields the prompt seeds a new paper with. */
@@ -27,8 +27,8 @@ export function TrackPrompt({
 }) {
   const [decks] = useStorageValue('decks');
   const [papers] = useStorageValue('papers');
-  const [storedSettings] = useStorageValue('settings');
-  const apiKey = { ...DEFAULT_SETTINGS, ...storedSettings }.semanticScholarApiKey;
+  const [settings] = useSettings();
+  const apiKey = settings.semanticScholarApiKey;
   const paperDecks = decks.filter((d) => d.kind === 'papers');
 
   const [open, setOpen] = useState(false);

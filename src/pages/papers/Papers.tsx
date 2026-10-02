@@ -4,6 +4,7 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { PaperDeckList } from './components/PaperDeckList';
 import { PaperDeckView } from './components/PaperDeckView';
+import { RecallSearch } from './components/RecallSearch';
 
 type Screen = { name: 'decks' } | { name: 'deck'; deckId: string };
 
@@ -58,7 +59,10 @@ export function Papers() {
       </header>
 
       {screen.name === 'decks' && (
-        <PaperDeckList onOpen={(deckId) => setScreen({ name: 'deck', deckId })} />
+        <>
+          <RecallSearch />
+          <PaperDeckList onOpen={(deckId) => setScreen({ name: 'deck', deckId })} />
+        </>
       )}
       {screen.name === 'deck' && deck && <PaperDeckView deck={deck} />}
     </div>

@@ -1,9 +1,10 @@
 import { ACCENT_COLOR, MAX_CACHED_ITEMS, MAX_READ_ITEMS } from '../shared/constants';
-import { articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
+import { alphaxivUrl, articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
 import { belongsInContinue } from '../shared/progress';
 import { getLocal, setLocal } from '../shared/storage';
 import type { FeedItem } from '../shared/types';
 import { getYouTubeVideoId } from '../shared/youtube';
+import { bypassPdfReader } from './pdfIntercept';
 import { fetchFeed } from './rssParser';
 import { registerOpenedTab } from './tracking';
 import { focusExistingVideoTab } from './videoTracking';
@@ -97,17 +98,9 @@ export async function updateBadge(): Promise<void> {
   // so no module cycle.
   const { focusSession } = await getLocal('focusSession');
   if (focusSession) {
-    if (focusSession.phase === 'break') {
-      await chrome.action.setBadgeText({ text: 'brk' });
-      await chrome.action.setBadgeBackgroundColor({ color: '#2e7d32' });
-    } else {
-      const minutesLeft = Math.max(
-        0,
-        Math.ceil((focusSession.phaseEndsAt - Date.now()) / 60_000),
-      );
-      await chrome.action.setBadgeText({ text: String(minutesLeft) });
-      await chrome.action.setBadgeBackgroundColor({ color: '#333333' });
-    }
+    const minutesLeft = Math.max(0, Math.ceil((focusSession.phaseEndsAt - Date.now()) / 60_000));
+    await chrome.action.setBadgeText({ text: String(minutesLeft) });
+    await chrome.action.setBadgeBackgroundColor({ color: '#333333' });
     return;
   }
 
@@ -155,6 +148,7 @@ export async function openArticle(
   feedItemId: string | null,
   resume = false,
   readerView = true,
+  original = false,
 ): Promise<{ ok: boolean }> {
   if (feedItemId) {
     await markItemRead(feedItemId);
@@ -169,8 +163,13 @@ export async function openArticle(
 
   // PDFs go to the reader either way: Chrome's built-in viewer can't be
   // tracked at all, so the alternative is no progress and no resume.
-  if (isPdfUrl(url)) {
-    await chrome.tabs.create({ url: readerPageUrl(url) });
+  // `original` (Worth reading) opts out, interceptors included — they would
+  // otherwise redirect the plain tab, extensionless PDFs too.
+  if (original) {
+    await bypassPdfReader(url);
+  } else if (isPdfUrl(url)) {
+    // arXiv PDFs go to alphaXiv, as the PDF interceptor does.
+    await chrome.tabs.create({ url: alphaxivUrl(url) ?? readerPageUrl(url) });
     return { ok: true };
   }
   // Saved links pass readerView: false. shouldOpenInReader is true for nearly

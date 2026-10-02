@@ -1,5 +1,6 @@
 /*
- * New tab: Continue reading, and the speed dial. Two sections, one column.
+ * New tab: the hero, Favorites under it, then Continue and Worth reading side
+ * by side once there is room for two columns, stacked below that.
  *
  * Materials follow theme.css: glass lives in the chrome (rims, edges, header
  * plate) while text sits on a near-opaque --material-regular. That is not the
@@ -9,6 +10,12 @@
  *
  * Radii are concentric: a --radius-xl card with --space-2 padding takes
  * --radius-md children, so a card and its contents read as one object.
+ *
+ * One coordinate system, on the 4px token grid: every card sits --relay-gutter
+ * from its neighbours on both axes, and every card's content starts exactly
+ * --relay-gutter inside its edge. Rows and tiles carry their own hover padding,
+ * so they are pulled back out by that padding to keep their text and icons on
+ * the same vertical line as the card title. Nothing is centred by eye.
  */
 
 * {
@@ -40,48 +47,118 @@ body::before {
 }
 
 .relay {
-  width: min(720px, calc(100% - 32px));
+  --relay-gutter: var(--space-5);
+  --relay-row-inset: var(--space-3);
+  width: min(1100px, calc(100% - 32px));
   margin: 0 auto;
   padding-block: clamp(32px, 7vw, 80px);
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--relay-gutter);
 }
 
-/* ---------- Header ---------- */
+/* Each band rises into place a beat after the one above it, so the eye is led
+   down the page in reading order instead of everything landing at once. */
+@keyframes relay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
 
-.relay-header {
+@keyframes relay-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.relay > * {
+  animation: relay-rise 480ms var(--ease-out) both;
+  /* sibling-index() is Chrome 138+; older builds drop the delay, not the rise. */
+  animation-delay: calc((sibling-index() - 1) * 60ms);
+}
+
+.relay-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Hero ---------- */
+
+.relay-hero {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
 }
 
-.relay-eyebrow {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-sm);
+/* The one place the type scale is deliberately broken: --text-2xl is 24px, and
+   a clock you read across the room is the whole point of the band. Tabular
+   figures keep the digits from reflowing when the minute changes. */
+.relay-clock {
+  margin: 0;
+  font-size: clamp(44px, 9vw, 72px);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
-.relay-header h1 {
+.relay-greeting {
   margin: 0;
   font-size: clamp(var(--text-2xl), 4vw, 34px);
   line-height: 1.15;
   font-weight: 700;
+  color: var(--text-secondary);
 }
 
-.relay-header-right {
+/* ---------- Quote & weather ---------- */
+
+.relay-quote {
+  margin: var(--space-2) 0 0;
+  max-width: 52ch;
+  font-size: var(--text-md);
+  font-style: italic;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.relay-weather {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.relay-weather-temp {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.relay-weather-place {
+  color: var(--text-faint);
+}
+
+/* ---------- Commands ---------- */
+
+.relay-commands {
   display: flex;
+  justify-content: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+  /* Pulled up to --space-2 under the hero they belong to, and the gap below
+     opened by the same amount, so hero and cards read as two groups. */
+  margin-top: calc(var(--space-4) * -1);
+  margin-bottom: var(--space-2);
 }
 
 /* Glass belongs on controls, where there is no body copy to wash out. */
 .relay-command {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   min-height: 44px;
   padding: 0 var(--space-4);
   font-family: inherit;
@@ -111,6 +188,15 @@ body::before {
     0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.relay-command:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+
+.relay-command .relay-icon {
+  color: var(--accent-text);
+}
+
 :root[data-theme='dark'] .relay-command {
   box-shadow:
     inset 0 1px 0 var(--glass-rim),
@@ -118,11 +204,49 @@ body::before {
     0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
+/* Same pill shape as a command, laid out as a row so the countdown sits left
+   and Stop sits right. Carried over from the side panel's status row. */
+.relay-focus-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: min(460px, 100%);
+  margin: calc(var(--space-4) * -1) auto 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  background: var(--accent-wash);
+  border-radius: var(--radius-pill);
+}
+
+.relay-focus-row span {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--accent-text);
+}
+
+.relay-focus-row small {
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Cards ---------- */
 
+/* Two columns once each can hold ~440px of row; auto-fit collapses the empty
+   track, so with no feeds the Continue card takes the full width alone. */
+.relay-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: var(--relay-gutter);
+}
+
+/* No align-items: the columns stretch to one height so their bottom edges
+   line up instead of leaving a ragged row of card ends. */
+
 .relay-continue,
-.relay-bookmarks {
-  padding: var(--space-5);
+.relay-bookmarks,
+.relay-watching-card {
+  padding: var(--relay-gutter);
   background: var(--material-regular);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -131,15 +255,45 @@ body::before {
 }
 
 .relay-continue h2,
-.relay-bookmarks h2 {
+.relay-bookmarks h2,
+.relay-watching-card h2 {
   margin: 0 0 var(--space-3);
   font-size: var(--text-lg);
   font-weight: 700;
 }
 
+.relay-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 28px plate, --radius-md: concentric with the --radius-lg rows beside it. */
+.relay-card-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  color: var(--accent-text);
+  background: var(--accent-wash);
+}
+
+.relay-card-glyph .relay-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.relay-continue li {
+  animation: relay-rise 360ms var(--ease-out) both;
+  animation-delay: calc(300ms + (sibling-index() - 1) * 40ms);
+}
+
 .relay-continue ul {
   list-style: none;
-  margin: 0;
+  /* Out by the row's own padding, so row text sits on the title's edge. */
+  margin: 0 calc(var(--relay-row-inset) * -1);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -148,14 +302,14 @@ body::before {
 
 /* --radius-2xl shell, --space-5 padding — but a row is inset by its own
    padding rather than the card's, so it steps to --radius-lg, not lower. */
-.relay-continue li button {
+.relay-continue li .relay-row {
   width: 100%;
   min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--relay-row-inset);
   font-family: inherit;
   font-size: var(--text-md);
   text-align: left;
@@ -164,11 +318,77 @@ body::before {
   border: none;
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: background var(--transition-fast) var(--ease-out);
+  transition:
+    background var(--transition-fast) var(--ease-out),
+    transform var(--transition-fast) var(--ease-out);
 }
 
-.relay-continue li button:hover {
+.relay-continue li .relay-row:hover {
   background: var(--bg-hover);
+}
+
+.relay-continue li .relay-row:active {
+  transform: scale(0.99);
+  transition-duration: 60ms;
+}
+
+/* Title, then where it is from and how far in: the two facts that decide
+   which one to pick back up. */
+.relay-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.relay-row-title,
+.relay-triage-text strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.relay-row-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.relay-row-meter {
+  width: min(160px, 100%);
+  height: 3px;
+  margin-top: var(--space-1);
+  background: var(--bg-hover);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.relay-row-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transform-origin: left;
+  animation: relay-grow 700ms var(--ease-out) 360ms both;
+}
+
+/* A row is a link to somewhere else; the chevron says so without a border. */
+.relay-row-chevron {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--text-faint);
+  transition:
+    transform var(--transition-fast) var(--ease-out),
+    color var(--transition-fast) var(--ease-out);
+}
+
+.relay-row:hover .relay-row-chevron {
+  transform: translateX(2px);
+  color: var(--text-secondary);
 }
 
 .relay-watching {
@@ -182,10 +402,171 @@ body::before {
   white-space: nowrap;
 }
 
+/* A Continue row with a Recap control beside it, and the recap under both. */
+.relay-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.relay-row-wrap .relay-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.relay-recap-toggle {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.relay-recap-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.relay-recap {
+  padding: 0 var(--relay-row-inset) var(--space-2);
+  animation: relay-rise 240ms var(--ease-out) both;
+}
+
+/* ---------- Worth reading ---------- */
+
+.relay-triage-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* One line of the feed's own description: enough to decide, not to read. */
+.relay-triage-snippet {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.relay-triage-text small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.relay-triage-note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 .relay-empty {
   margin: 0;
   font-size: var(--text-md);
   color: var(--text-muted);
+}
+
+/* ---------- Now watching ----------
+   Was the side panel's Follow pane. The rules are the panel's, retargeted at a
+   card: the pane filled a 360px column and scrolled as a whole, so the height
+   and hairline that came from the panel chrome now come from the card. */
+
+.nw-head {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.nw-head h3 {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  line-height: 1.3;
+}
+
+.nw-head p {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.nw-meter {
+  height: 4px;
+  margin-top: var(--space-2);
+  background: var(--bg-hover);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.nw-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width var(--transition-base) var(--ease-out);
+}
+
+.nw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.nw-button {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nw-button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* Capped rather than free-running: an hour-long transcript would otherwise make
+   the new tab scroll past everything below it. */
+.nw-transcript {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.nw-transcript li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+.nw-transcript li[aria-current='true'] {
+  border-left-color: var(--accent);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.nw-stamp {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Bookmarks ---------- */
@@ -199,23 +580,75 @@ body::before {
 
 .relay-bookmarks-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.relay-bookmarks-head p {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
+.relay-bookmarks .relay-bookmarks-head h2 {
+  margin: 0;
+}
+
+.relay-bookmarks-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.relay-bookmarks-actions .ui-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.relay-bookmarks-actions .relay-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .relay-bookmarks .panel-scroll {
   max-height: 360px;
 }
 
+/* Groups flow side by side and wrap only when they run out of room: stacked,
+   two groups of four left most of a 1100px card empty. */
+.relay-bookmarks .panel-scroll {
+  flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
+}
+
+.relay-bookmarks .bm-group {
+  max-width: 100%;
+}
+
 .relay-bookmarks .bm-grid {
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  /* Tiles centre their icon, so the first icon would sit half a tile's slack
+     in from the edge. Pull the row out by that slack: icons line up with the
+     card title and the group label above them. */
+  margin-left: calc((var(--bm-icon) - var(--bm-tile)) / 2);
+}
+
+/* A tile is too narrow for the move menu and Delete side by side. */
+.relay-bookmarks .bm-edit {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Four across at phone width, never wider than a tile needs on desktop. */
+.relay-bookmarks {
+  --bm-icon: 52px;
+  --bm-tile: clamp(64px, 17vw, 96px);
+}
+
+.relay-bookmarks .bm-tile-wrap {
+  width: var(--bm-tile);
+}
+
+.bm-add {
+  animation: relay-rise 240ms var(--ease-out) both;
 }
 
 .panel-scroll {
@@ -259,41 +692,73 @@ body::before {
   gap: 3px;
 }
 
+/* Safari's Favorites: the icon sits on its own plate and the tile is bare
+   until hovered, so a row of them reads as icons rather than a table of
+   boxes, and a short last row leaves no empty cells showing. */
 .bm-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: var(--space-2) 6px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
   min-height: 44px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text-primary);
-  transition:
-    box-shadow var(--transition-fast) var(--ease-out),
-    border-color var(--transition-fast) var(--ease-out),
-    transform var(--transition-fast) var(--ease-out);
+  transition: background var(--transition-fast) var(--ease-out);
 }
 
 .bm-tile:hover {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-accent);
-  transform: translateY(-1px);
+  background: var(--bg-hover);
 }
 
+/* An app-icon plate: 52px squircle-ish at --radius-lg, a 1px top highlight and
+   a soft drop shadow that deepens as the icon lifts toward the pointer. */
 .bm-favicon,
 .bm-letter {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: var(--bm-icon, 52px);
+  height: var(--bm-icon, 52px);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px var(--border-subtle),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 0.3s var(--ease-spring),
+    box-shadow 0.3s var(--ease-out);
 }
 
+.bm-favicon {
+  padding: 12px;
+  background: linear-gradient(var(--bg-surface), var(--bg-subtle));
+}
+
+.bm-tile:hover .bm-favicon,
+.bm-tile:hover .bm-letter {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim-strong),
+    0 0 0 1px var(--border-subtle),
+    0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.bm-tile:active .bm-favicon,
+.bm-tile:active .bm-letter {
+  transform: scale(0.94);
+  transition-duration: 80ms;
+}
+
+/* A site with no favicon gets its own colour, hashed from the host (hueFor),
+   so two letter tiles side by side are still told apart at a glance. */
 .bm-letter {
-  background: var(--accent-wash);
-  color: var(--accent);
-  font-size: var(--text-lg);
+  background: linear-gradient(
+    145deg,
+    hsl(var(--bm-hue, 200) 72% 60%),
+    hsl(var(--bm-hue, 200) 68% 44%)
+  );
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  font-size: var(--text-xl);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -330,8 +795,8 @@ body::before {
 
 .bm-add {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-3);
 }
@@ -348,13 +813,19 @@ body::before {
   color: var(--text-primary);
 }
 
+.bm-add > input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 .bm-add input:focus {
   border-color: var(--accent);
 }
 
 .bm-add-row {
+  flex: 1 1 260px;
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .bm-add-row select,
@@ -395,13 +866,38 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .relay > *,
+  .relay-continue li,
+  .relay-row-meter > span,
+  .relay-recap,
+  .bm-add {
+    animation: none;
+  }
+
   .relay-command,
-  .bm-tile {
+  .relay-continue li .relay-row,
+  .bm-tile,
+  .bm-favicon,
+  .bm-letter,
+  .relay-row-chevron,
+  .nw-meter > span {
     transition: none;
   }
 
   .relay-command:hover,
-  .bm-tile:hover {
+  .relay-command:active,
+  .relay-continue li .relay-row:active,
+  .bm-tile:hover .bm-favicon,
+  .bm-tile:hover .bm-letter,
+  .bm-tile:active .bm-favicon,
+  .bm-tile:active .bm-letter,
+  .relay-row:hover .relay-row-chevron {
     transform: none;
   }
+}
+
+.relay-more {
+  margin-top: var(--space-2);
+  /* Same pull-out as the rows, so its label sits on the content edge. */
+  margin-left: calc(var(--relay-row-inset) * -1);
 }

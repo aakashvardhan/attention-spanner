@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,14 +17,25 @@ import type { AnnotationColor, AnnotationRect, PdfAnchoredAnnotation } from '../
 import type { PdfPageSize } from '../usePdfDocument';
 import { citationHref, resolveCitation, type Reference, type ReferenceIndex } from '../references';
 import { knownTargetFor, type KnownTarget } from '../citationLinks';
+import { MENTION_RE, mentionKey, type FigureKey } from '../figures';
 import { AnnotationLayer } from './AnnotationLayer';
 import { SelectionMenu } from './SelectionMenu';
 import { CitationTooltip } from './CitationTooltip';
+import { ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
 
 /** Vertical gap between pages, and padding above the first / below the last. */
 const PAGE_GAP = 16;
 /** Pages within this margin of the viewport get (and keep) a rendered canvas. */
 const RENDER_MARGIN = '1500px 0px';
+/** Side breathing room around the widest page at fit-width (zoom 1). */
+const PAGE_INSET = 48;
+/** Canvases re-render this long after the last zoom step; CSS stretches the old bitmap until then. */
+const RERENDER_DELAY_MS = 150;
+
+/** Navigation glides; restore and zoom re-anchoring never do. */
+function navBehavior(): ScrollBehavior {
+  return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+}
 
 export interface PdfViewportHandle {
   scrollToPosition(page: number, offset: number): void;
@@ -152,6 +164,36 @@ function wrapCitations(
 }
 
 /**
+ * Wrap figure/table mentions whose caption was found in
+ * `<span class="fig-ref">`, the same in-place split wrapCitations does.
+ */
+function wrapFigureRefs(container: HTMLElement, figures: Map<FigureKey, PdfPosition>): void {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n as Text);
+
+  for (const textNode of textNodes) {
+    if (textNode.parentElement?.closest('.fig-ref, .cite-marker')) continue;
+    const text = textNode.nodeValue ?? '';
+    const hits = [...text.matchAll(MENTION_RE)].filter((m) => figures.has(mentionKey(m[1], m[2])));
+    if (!hits.length) continue;
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    for (const m of hits) {
+      if (m.index > pos) frag.appendChild(document.createTextNode(text.slice(pos, m.index)));
+      const span = document.createElement('span');
+      span.className = 'fig-ref';
+      span.dataset.figure = mentionKey(m[1], m[2]);
+      span.textContent = m[0];
+      frag.appendChild(span);
+      pos = m.index + m[0].length;
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    textNode.parentNode?.replaceChild(frag, textNode);
+  }
+}
+
+/**
  * The scrolling page list. Every page gets a fixed-size placeholder up front
  * (sizes are known before any rendering), so scroll geometry is exact; an
  * IntersectionObserver fills in canvases near the viewport and drops far-away
@@ -161,6 +203,7 @@ export function PdfViewport({
   doc,
   pageSizes,
   zoom,
+  onZoom,
   initialPosition,
   onRestored,
   onPosition,
@@ -176,11 +219,14 @@ export function PdfViewport({
   onDeleteAnnotation,
   references,
   known,
+  figures,
 }: {
   doc: PDFDocumentProxy;
   pageSizes: PdfPageSize[];
   /** Multiplier over fit-width; 1 = the page fills the viewport width */
   zoom: number;
+  /** Pinch / ⌘-scroll zoom; the viewport keeps the point under the cursor still. */
+  onZoom: (zoom: number) => void;
   /** Saved position to scroll to once layout is known; null starts at page 1 */
   initialPosition: PdfPosition | null;
   /** Fires once, after the initial scroll (or immediately when there is none) */
@@ -201,6 +247,8 @@ export function PdfViewport({
   references: ReferenceIndex | null;
   /** Citations that resolve to something the reader already has, by match key. */
   known: Map<string, KnownTarget>;
+  /** Where each figure/table caption sits; null until scanned. */
+  figures: Map<FigureKey, PdfPosition> | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -208,6 +256,8 @@ export function PdfViewport({
   useEffect(() => {
     const el = containerRef.current!;
     setContainerWidth(el.clientWidth);
+    // Arrow keys and Space scroll the document from the first moment, as in Preview.
+    el.focus({ preventScroll: true });
     const observer = new ResizeObserver(() => setContainerWidth(el.clientWidth));
     observer.observe(el);
     return () => observer.disconnect();
@@ -218,7 +268,22 @@ export function PdfViewport({
     () => Math.max(...pageSizes.map((s) => s.width), 1),
     [pageSizes],
   );
-  const scale = containerWidth > 0 ? ((containerWidth - 48) / maxPageWidth) * zoom : 0;
+  const scale = containerWidth > 0 ? ((containerWidth - PAGE_INSET) / maxPageWidth) * zoom : 0;
+  // Wider than the viewport once zoomed in, so the whole page can be scrolled
+  // to; centered pages in a fixed-width list put their left side out of reach.
+  const listWidth = Math.max(containerWidth, maxPageWidth * scale + PAGE_INSET);
+
+  // Canvases and text layers render at a scale that trails the live one, so a
+  // pinch stretches what is already painted instead of re-rasterizing per frame.
+  const [renderScale, setRenderScale] = useState(0);
+  useEffect(() => {
+    if (renderScale === 0) {
+      setRenderScale(scale);
+      return;
+    }
+    const timer = window.setTimeout(() => setRenderScale(scale), RERENDER_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [scale, renderScale]);
 
   const { tops, heights, totalHeight } = useMemo(() => {
     const tops: number[] = [];
@@ -234,19 +299,35 @@ export function PdfViewport({
 
   const lastPosRef = useRef<PdfPosition>({ page: 1, offset: 0 });
 
+  /** anchorY: where in the viewport the position lands; the middle by default. */
   const scrollToPosition = useCallback(
-    (page: number, offset: number) => {
+    (page: number, offset: number, behavior: ScrollBehavior = 'instant', anchorY?: number) => {
       const el = containerRef.current;
       if (!el || tops.length === 0) return;
       const index = Math.min(tops.length, Math.max(1, page)) - 1;
-      const target = tops[index] + offset * heights[index] - el.clientHeight / 2;
-      el.scrollTop = Math.max(0, target);
+      const target = Math.max(0, tops[index] + offset * heights[index] - (anchorY ?? el.clientHeight / 2));
+      // Chrome's glide lengthens with distance (~1.4s across a paper). Cut to
+      // one screen short and glide the rest: quick, and still shows direction.
+      const distance = target - el.scrollTop;
+      if (behavior === 'smooth' && Math.abs(distance) > el.clientHeight) {
+        el.scrollTop = target - Math.sign(distance) * el.clientHeight;
+      }
+      el.scrollTo({ top: target, behavior });
       lastPosRef.current = { page: index + 1, offset };
     },
     [tops, heights],
   );
 
-  useImperativeHandle(handleRef, () => ({ scrollToPosition }), [scrollToPosition]);
+  // A page jump (offset 0) puts the page's top at the top, as Preview does; a
+  // spot inside a page (an annotation) lands in the middle.
+  useImperativeHandle(
+    handleRef,
+    () => ({
+      scrollToPosition: (page, offset) =>
+        scrollToPosition(page, offset, navBehavior(), offset === 0 ? PAGE_GAP : undefined),
+    }),
+    [scrollToPosition],
+  );
 
   // The saved position can only be applied once real layout exists (scale > 0,
   // i.e. the container has been measured) — so the restore lives here, not in
@@ -259,15 +340,51 @@ export function PdfViewport({
     onRestored();
   }, [scale, initialPosition, scrollToPosition, onRestored]);
 
-  // Zoom keeps the reading position: re-anchor the scroll after a scale change.
+  // Zoom keeps the reading position: re-anchor the scroll after a scale change,
+  // before paint so a pinch never shows a frame at the wrong spot. A pinch
+  // anchors on the point under the cursor; the toolbar on the middle.
+  const zoomAnchorRef = useRef<{ x: number; y: number; page: number; offset: number; fromCenter: number } | null>(null);
   const prevScaleRef = useRef(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scale > 0 && prevScaleRef.current > 0 && prevScaleRef.current !== scale) {
-      const { page, offset } = lastPosRef.current;
-      scrollToPosition(page, offset);
+      const anchor = zoomAnchorRef.current;
+      zoomAnchorRef.current = null;
+      if (anchor) {
+        scrollToPosition(anchor.page, anchor.offset, 'instant', anchor.y);
+        containerRef.current!.scrollLeft = listWidth / 2 + anchor.fromCenter * scale - anchor.x;
+      } else {
+        const { page, offset } = lastPosRef.current;
+        scrollToPosition(page, offset);
+      }
     }
     prevScaleRef.current = scale;
-  }, [scale, scrollToPosition]);
+  }, [scale, listWidth, scrollToPosition]);
+
+  // Trackpad pinch arrives as ctrl+wheel; ⌘+wheel is the mouse equivalent.
+  // Native listener: React's onWheel is passive and can't stop browser zoom.
+  const live = useRef({ zoom, scale, tops, heights, listWidth, onZoom });
+  live.current = { zoom, scale, tops, heights, listWidth, onZoom };
+  useEffect(() => {
+    const el = containerRef.current!;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const l = live.current;
+      if (l.scale <= 0) return;
+      const step = Math.max(-25, Math.min(25, e.deltaY));
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, l.zoom * Math.exp(-step * 0.01)));
+      if (next === l.zoom) return;
+      const box = el.getBoundingClientRect();
+      const x = e.clientX - box.left;
+      const y = e.clientY - box.top;
+      const pos = positionFromScroll(l.tops, l.heights, el.scrollTop + y);
+      zoomAnchorRef.current = { x, y, ...pos, fromCenter: (el.scrollLeft + x - l.listWidth / 2) / l.scale };
+      l.zoom = next;
+      l.onZoom(next);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
 
@@ -294,7 +411,8 @@ export function PdfViewport({
     if (!refs.length) return;
     cancelHoverClose();
     const rect = marker.getBoundingClientRect();
-    const flip = rect.top < 200;
+    // Open toward the side with more room; the tooltip caps its height to it.
+    const flip = rect.top < window.innerHeight / 2;
     setCitationHover({
       refs,
       x: Math.min(Math.max(rect.left + rect.width / 2, 184), window.innerWidth - 184),
@@ -310,10 +428,27 @@ export function PdfViewport({
     scheduleHoverClose();
   };
 
-  // Clicking a citation opens its reference. Skip when the click is part of a
-  // text selection so selecting across a marker doesn't navigate.
+  // Where a figure jump left from; the Back button returns there. Chained jumps
+  // keep the first spot, the one the reader was actually reading.
+  const [backTo, setBackTo] = useState<PdfPosition | null>(null);
+
+  // Clicking a citation opens its reference; a figure mention jumps to its
+  // caption. Skip when the click is part of a text selection so selecting
+  // across a marker doesn't navigate.
   const handleCitationClick = (e: ReactMouseEvent) => {
-    if (!references || e.button !== 0) return;
+    if (e.button !== 0) return;
+    const figRef = (e.target as HTMLElement).closest<HTMLElement>('.fig-ref');
+    const target = figRef && figures?.get(figRef.dataset.figure ?? '');
+    if (target) {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) return;
+      // Read now: the updater runs at render, after the jump has moved the ref.
+      const here = lastPosRef.current;
+      setBackTo((b) => b ?? here);
+      scrollToPosition(target.page, target.offset, navBehavior());
+      return;
+    }
+    if (!references) return;
     const marker = (e.target as HTMLElement).closest<HTMLElement>('.cite-marker');
     if (!marker) return;
     const sel = window.getSelection();
@@ -491,7 +626,7 @@ export function PdfViewport({
         onMouseOut={handleCitationOut}
         onClick={handleCitationClick}
       >
-        <div className="reader-page-list" style={{ height: totalHeight }}>
+        <div className="reader-page-list" style={{ height: totalHeight, width: listWidth }}>
           {scale > 0 &&
             pageSizes.map((size, i) => {
               const page = i + 1;
@@ -510,15 +645,16 @@ export function PdfViewport({
                     ['--scale-factor' as string]: String(scale),
                   }}
                 >
-                  {visiblePages.has(page) && (
+                  {visiblePages.has(page) && renderScale > 0 && (
                     <>
-                      <PageCanvas doc={doc} pageNumber={page} scale={scale} />
+                      <PageCanvas doc={doc} pageNumber={page} scale={renderScale} />
                       <PageTextLayer
                         doc={doc}
                         pageNumber={page}
-                        scale={scale}
+                        scale={renderScale}
                         references={references}
                         known={known}
+                        figures={figures}
                       />
                       <AnnotationLayer
                         annotations={annotationsByPage.get(page) ?? []}
@@ -537,6 +673,18 @@ export function PdfViewport({
             })}
         </div>
       </div>
+      {backTo && (
+        <button
+          type="button"
+          className="reader-back-btn"
+          onClick={() => {
+            scrollToPosition(backTo.page, backTo.offset, navBehavior());
+            setBackTo(null);
+          }}
+        >
+          ← Back to reading
+        </button>
+      )}
       {pendingSelection && (
         <SelectionMenu
           x={pendingSelection.menuX}
@@ -575,16 +723,27 @@ function PageCanvas({
     let renderTask: RenderTask | null = null;
     void (async () => {
       const page = await doc.getPage(pageNumber);
-      const canvas = canvasRef.current;
-      if (cancelled || !canvas) return;
+      if (cancelled) return;
       // Cap the backing resolution — full dpr×zoom canvases are megabytes each.
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: scale * dpr });
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      renderTask = page.render({ canvas, canvasContext: canvas.getContext('2d')!, viewport });
-      // Cancellation rejects the promise; that's the expected teardown path.
-      await renderTask.promise.catch(() => undefined);
+      // Paint off-screen and swap in when done: resizing the visible canvas
+      // clears it, which flashed every page white on each zoom step.
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.floor(viewport.width);
+      offscreen.height = Math.floor(viewport.height);
+      renderTask = page.render({ canvas: offscreen, canvasContext: offscreen.getContext('2d')!, viewport });
+      try {
+        await renderTask.promise;
+      } catch {
+        return; // Cancellation rejects the promise; that's the expected teardown path.
+      }
+      const canvas = canvasRef.current;
+      if (cancelled || !canvas) return;
+      canvas.width = offscreen.width;
+      canvas.height = offscreen.height;
+      canvas.getContext('2d')!.drawImage(offscreen, 0, 0);
+      canvas.dataset.ready = 'true';
     })();
     return () => {
       cancelled = true;
@@ -607,12 +766,14 @@ function PageTextLayer({
   scale,
   references,
   known,
+  figures,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
   references: ReferenceIndex | null;
   known: Map<string, KnownTarget>;
+  figures: Map<FigureKey, PdfPosition> | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Bumps once the text layer has finished rendering, so the citation-wrapping
@@ -651,6 +812,12 @@ function PageTextLayer({
     if (!container || !references || references.isEmpty || renderGen === 0) return;
     wrapCitations(container, references, known);
   }, [references, renderGen, known]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !figures?.size || renderGen === 0) return;
+    wrapFigureRefs(container, figures);
+  }, [figures, renderGen]);
 
   return <div ref={containerRef} className="textLayer" />;
 }

@@ -503,6 +503,71 @@ body {
   color: var(--accent-text);
 }
 
+.reader-outline-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 6px 8px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+.reader-outline-tabs button {
+  flex: 1;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reader-outline-tabs button[aria-selected='true'] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Generated bullets wrap; contents entries stay one line. */
+.reader-ai-outline {
+  list-style: none;
+}
+
+.reader-ai-outline .reader-outline-item {
+  white-space: normal;
+  line-height: 1.4;
+  padding-block: 7px;
+}
+
+.reader-ai-outline .reader-outline-item:disabled {
+  cursor: default;
+  background: transparent;
+}
+
+/* Where the outline ran, under the bullets it describes. */
+.reader-ai-outline + .ai-note-chip {
+  display: block;
+  padding: 6px 10px 0;
+}
+
+.reader-ai-outline-page {
+  margin-left: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The document column. Holds the viewport plus the cards that float over it
+   (recap, related highlight), so they never cover the outline or a side panel. */
+.reader-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .reader-viewport {
   flex: 1;
   overflow: auto;
@@ -545,6 +610,37 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+  /* A page fades in when its first paint lands instead of popping in. */
+  opacity: 0;
+  transition: opacity var(--transition-base) var(--ease-out);
+}
+
+.reader-canvas[data-ready] {
+  opacity: 1;
+}
+
+/* Side panels slide in from the edge they live on, like a Finder sidebar. */
+.reader-outline {
+  animation: reader-panel-in-left var(--transition-base) var(--ease-out);
+}
+
+.reader-notes,
+.reader-find {
+  animation: reader-panel-in-right var(--transition-base) var(--ease-out);
+}
+
+@keyframes reader-panel-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes reader-panel-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
 }
 
 /* Text layer — minimal subset of pdf.js web/pdf_viewer.css `.textLayer` rules.
@@ -719,6 +815,49 @@ body {
   padding: 6px 10px;
 }
 
+/* Figure/table mentions jump to their caption; Back returns to the reading spot. */
+
+.textLayer .fig-ref {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.textLayer .fig-ref:hover {
+  background: rgba(14, 165, 233, 0.28);
+}
+
+.reader-back-btn {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reader-back-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Night: the chrome is already dark (theme), and the pages follow. Inverting
+   then rotating hue keeps figure colours recognisable. */
+:root[data-theme='dark'] .reader-root[data-night] .reader-page {
+  background: #000;
+}
+
+:root[data-theme='dark'] .reader-root[data-night] .reader-canvas {
+  filter: invert(0.92) hue-rotate(180deg);
+}
+
 /* Citation hover markers + preview tooltip */
 
 .textLayer .cite-marker {
@@ -749,6 +888,7 @@ body {
   transform: translate(-50%, -100%);
   width: max-content;
   max-width: 360px;
+  overflow-y: auto;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -811,6 +951,40 @@ body {
   color: var(--text-muted);
 }
 
+.cite-tooltip-text strong,
+.cite-tooltip-byline,
+.cite-tooltip-summary {
+  display: block;
+}
+
+.cite-tooltip-byline {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.cite-tooltip-summary {
+  margin-top: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.cite-tooltip-save {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cite-tooltip-save:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
 /* Annotations sidebar (right rail) */
 
 .reader-notes {
@@ -854,6 +1028,14 @@ body {
 }
 
 .reader-find-results { list-style: none; }
+
+/* Ask: the find rail's shell, holding one question and its sourced answer. */
+.reader-ask-form { margin-bottom: var(--space-2); }
+.reader-ask-question {
+  margin: var(--space-3) 0 0;
+  font-weight: 700;
+  color: var(--text-primary);
+}
 .reader-find-results button { width: 100%; border: 0; border-radius: var(--radius-sm); padding: 8px; background: none; color: var(--text-secondary); text-align: left; cursor: pointer; }
 .reader-find-results button:hover { background: var(--bg-hover); }
 .reader-find-results strong, .reader-find-results span { display: block; }
@@ -1011,8 +1193,15 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-more-menu {
+  .reader-more-menu,
+  .reader-outline,
+  .reader-notes,
+  .reader-find {
     animation: none;
+  }
+
+  .reader-canvas {
+    transition: none;
   }
 
   .reader-loading-spinner {

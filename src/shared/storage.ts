@@ -1,5 +1,7 @@
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import type {
+  AiCacheEntry,
+  AiStats,
   Annotation,
   AnyProgress,
   BookmarkGroup,
@@ -9,6 +11,7 @@ import type {
   FocusSession,
   Paper,
   Settings,
+  WeatherCache,
 } from './types';
 import type { TranscriptSegment } from './youtubeCaptions';
 
@@ -28,6 +31,13 @@ export interface LocalSchema {
   papers: Paper[];
   /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey */
   annotations: Annotation[];
+  /** Last weather reading for the new tab, refetched when it goes stale */
+  weather: WeatherCache | null;
+  /** Generated text keyed 'task:hash' (llm/cache.ts); a cache, so loss is harmless */
+  aiCache: Record<string, AiCacheEntry>;
+  aiStats: AiStats;
+  /** int8 embeddings keyed by FeedItem id or annotation id (llm/vectors.ts) */
+  aiVectors: Record<string, string>;
 }
 
 export interface SessionSchema {
@@ -42,7 +52,7 @@ export interface SessionSchema {
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
   /**
-   * YouTube transcripts for the side panel's Follow pane, keyed by videoId.
+   * YouTube transcripts for the new tab's Follow pane, keyed by videoId.
    * Session-scoped because a transcript is only interesting while the video is
    * on screen — caching them to disk would grow without a bound anyone watches.
    */
@@ -51,6 +61,7 @@ export interface SessionSchema {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
+  readerNight: false,
   /* Not 'auto': auto means "match the host browser", which in Chrome is the
      blue skin. The Brave orange is the wanted look regardless of host. */
   skin: 'brave',
@@ -60,13 +71,19 @@ export const DEFAULT_SETTINGS: Settings = {
   hyperfocusEnabled: true,
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
-  focusBreakMinutes: 10,
   focusMusicEnabled: false,
   semanticScholarApiKey: '',
+  displayName: '',
+  weatherLocation: '',
+  ollamaUrl: 'http://localhost:11434',
+  ollamaChatModel: '',
+  ollamaEmbedModel: 'nomic-embed-text',
+  cloudMode: 'off',
+  claudeKey: '',
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 22,
+  schemaVersion: 23,
   feeds: [],
   readItems: [],
   cachedItems: [],
@@ -79,6 +96,14 @@ export const DEFAULTS: LocalSchema = {
   decks: [],
   papers: [],
   annotations: [],
+  // Additive, so no migration: getLocal and useStorageValue fall back to
+  // DEFAULTS for a key that was never written, and getSettings spreads over
+  // DEFAULT_SETTINGS. migrate() is for repairing data a live feature reads, not
+  // for seeding keys — see the note above it.
+  weather: null,
+  aiCache: {},
+  aiStats: { counts: {}, latencies: [], probes: [] },
+  aiVectors: {},
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -163,13 +188,16 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * notes, job tracking, the assistant, Google, and the habit layer are all
  * gone. Their keys and settings are swept in one cumulative pass that also
  * carries what v13, v20 and v21 retired — see V22_DEAD_KEYS.
+ * v22 → v23: the daily focus line and the unreachable Pomodoro mode went.
+ * Their key and setting join the same cumulative lists, and the sweep re-runs
+ * — removing an absent key is a no-op, so re-running v22's entries is free.
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
   const version = (schemaVersion as number | undefined) ?? 0;
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 22) return;
+  if (version >= 23) return;
 
   // Only branches that repair data a SURVIVING feature reads are kept. Every
   // migration that merely seeded a key now removed — the calendar defaults, the
@@ -188,7 +216,7 @@ export async function migrate(): Promise<void> {
   if (version < 15) await migrateToV15();
   await migrateToV22();
 
-  await chrome.storage.local.set({ schemaVersion: 22 });
+  await chrome.storage.local.set({ schemaVersion: 23 });
 }
 
 /**
@@ -258,6 +286,8 @@ export const V22_DEAD_KEYS = [
   'alphaxiv',
   'xBookmarks',
   'xBookmarksLastSyncedAt',
+  // v23: the new tab's daily focus line
+  'focusOfDay',
 ];
 
 export const V22_DEAD_SETTINGS = [
@@ -298,6 +328,8 @@ export const V22_DEAD_SETTINGS = [
   'questSprintsPerWeek',
   'questVideosPerWeek',
   'questFocusPerWeek',
+  // v23: Pomodoro could never be started, so its break length was never read
+  'focusBreakMinutes',
 ];
 
 /** Pure core of v22's settings half, so the delete rule is testable. */

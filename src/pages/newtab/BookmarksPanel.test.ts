@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeBookmarkUrl } from './BookmarksPanel';
+import { hueFor, normalizeBookmarkUrl } from './BookmarksPanel';
 
 describe('normalizeBookmarkUrl', () => {
   it('adds https to a bare hostname', () => {
@@ -15,5 +15,20 @@ describe('normalizeBookmarkUrl', () => {
     expect(normalizeBookmarkUrl('')).toBeNull();
     expect(normalizeBookmarkUrl('not a url')).toBeNull();
     expect(normalizeBookmarkUrl('javascript:alert(1)')).toBeNull();
+  });
+});
+
+describe('hueFor', () => {
+  it('keys on the host, so every page of a site shares a colour', () => {
+    expect(hueFor('https://zzz.invalid/a')).toBe(hueFor('https://zzz.invalid/b?x=1'));
+    expect(hueFor('https://zzz.invalid')).not.toBe(hueFor('https://other.invalid'));
+  });
+
+  it('stays a hue for any input', () => {
+    for (const url of ['', 'not a url', 'https://a.b']) {
+      const hue = hueFor(url);
+      expect(hue).toBeGreaterThanOrEqual(0);
+      expect(hue).toBeLessThan(360);
+    }
   });
 });

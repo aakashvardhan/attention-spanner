@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  alphaxivUrl,
   articleReaderPath,
   arxivPdfUrl,
   computePdfPercent,
   isPdfResponse,
   isPdfUrl,
+  paperOpenUrl,
   paperPdfSource,
   positionFromScroll,
   readerPagePath,
@@ -178,5 +180,40 @@ describe('articleReaderPath', () => {
     expect(articleReaderPath('https://example.com/a b?x=1')).toBe(
       'src/pages/reader/index.html?article=https%3A%2F%2Fexample.com%2Fa%20b%3Fx%3D1',
     );
+  });
+});
+
+describe('paperOpenUrl', () => {
+  it('sends an arXiv paper to alphaXiv, from an abs or pdf link', () => {
+    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239v2' })).toBe(
+      'https://www.alphaxiv.org/abs/2006.11239',
+    );
+    expect(paperOpenUrl({ url: 'https://arxiv.org/pdf/hep-th/9901001' })).toBe(
+      'https://www.alphaxiv.org/abs/hep-th/9901001',
+    );
+  });
+
+  it('opens an arXiv paper in the reader when asked to, as the Alt-click fallback', () => {
+    vi.stubGlobal('chrome', { runtime: { getURL: (path: string) => `chrome-extension://id/${path}` } });
+    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239' }, true)).toBe(
+      `chrome-extension://id/${readerPagePath('https://arxiv.org/pdf/2006.11239')}`,
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a non-arXiv paper as before', () => {
+    expect(paperOpenUrl({ url: 'https://dl.acm.org/doi/10.1145/3292500.3330701' })).toBe(
+      'https://dl.acm.org/doi/10.1145/3292500.3330701',
+    );
+  });
+});
+
+describe('alphaxivUrl', () => {
+  it('maps an intercepted arXiv PDF to its alphaXiv page', () => {
+    expect(alphaxivUrl('https://arxiv.org/pdf/2006.11239v3')).toBe('https://www.alphaxiv.org/abs/2006.11239');
+  });
+
+  it('is null for a PDF that is not on arXiv', () => {
+    expect(alphaxivUrl('https://example.com/paper.pdf')).toBeNull();
   });
 });

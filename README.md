@@ -76,9 +76,9 @@ metadata (arXiv URLs resolve via Semantic Scholar) into a short form.
 ### YouTube
 
 Long videos (≥15 min) are auto-tracked with resume-at-timestamp and abandonment
-nudges. While one is playing, the side panel shows a live row — title, position,
-current chapter — with a **Follow** pane that scrolls the transcript to the
-block being spoken. Watch time accrues even in a background tab, so
+nudges. While one is playing, the new tab shows a **Now watching** card — title,
+position, current chapter — with a **Follow** pane that scrolls the transcript
+to the block being spoken. Watch time accrues even in a background tab, so
 podcast-style listening isn't penalised. Shorts and live streams are ignored.
 
 ### Focus
@@ -93,11 +93,13 @@ podcast-style listening isn't penalised. Shorts and live streams are ignored.
 
 ### Elsewhere
 
-- **New-tab dashboard** — Continue reading, plus a speed dial of bookmarks and
-  link groups (independent of Chrome's own bookmarks, addable from the side
-  panel or a right-click).
-- **Side panel** — acts on the page you're looking at: read it, bookmark it,
-  start a focus block.
+- **New-tab dashboard** — the only surface, and where the toolbar icon lands.
+  A clock and greeting, one focus for the day, a quote and the local weather;
+  then Continue reading, the Now watching card, and a speed dial of bookmarks
+  and link groups (independent of Chrome's own bookmarks, addable inline or by
+  right-clicking a page). Starting a focus block, Papers and Settings are here
+  too. Reading or bookmarking the page you're on is the keyboard shortcut and
+  the right-click menu, which work from the page itself.
 - **Theming** — light / dark / system, with an accent that can match Chrome or
   Brave. Type is Atkinson Hyperlegible throughout, chosen for low-vision
   legibility; translucency is honoured or dropped according to your system's
@@ -160,7 +162,7 @@ npm test           # vitest unit tests
 
 - **Service worker** (`src/background/`) owns all storage writes; every
   read/write from the UI goes through a message router, so state stays
-  consistent across side panel, dashboard, and content scripts.
+  consistent across the dashboard, the reader, and content scripts.
 - **UI reactivity** is driven entirely by `chrome.storage.onChanged` — no
   polling.
 - **Content scripts** (`src/content/`) are bundled separately via esbuild (not
@@ -180,7 +182,7 @@ npm test           # vitest unit tests
 src/
   background/   Service worker: routing, feeds, focus, tracking, papers
   content/      Injected trackers (reading, video, caption tee)
-  pages/        newtab, sidepanel, options, reader, papers, blocked
+  pages/        newtab, options, reader, papers, blocked
   shared/       Dependency-free pure logic + storage helpers
 ```
 
@@ -197,7 +199,6 @@ src/
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `webRequest` | Read-only: response headers, to spot PDFs served from extensionless URLs |
 | `contextMenus` | "Read in Reader" and "Bookmark this page" |
-| `sidePanel` | The side panel |
 | `<all_urls>` | Trackers are injected into whatever page you're reading |
 
 No `identity`, no `tabCapture`, no `offscreen`. The extension has no account and

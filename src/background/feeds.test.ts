@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { applyMarkAllRead, mergeFeedItems } from './feeds';
+import { describe, expect, it, vi } from 'vitest';
+import { applyMarkAllRead, mergeFeedItems, openArticle } from './feeds';
 import type { FeedItem } from '../shared/types';
 
 /** `n` orders both the id and the pubDate, so "newest" is unambiguous in assertions */
@@ -70,5 +70,16 @@ describe('applyMarkAllRead', () => {
     expect(next).toHaveLength(2);
     expect(next).toContain('i3');
     expect(next).not.toContain('i1');
+  });
+});
+
+describe('openArticle', () => {
+  it('sends an arXiv PDF to alphaXiv, not the reader', async () => {
+    // A resume nudge for a paper left in the reader lands here with the PDF URL
+    const create = vi.fn(async () => ({}));
+    vi.stubGlobal('chrome', { tabs: { create } });
+    await openArticle('https://arxiv.org/pdf/2406.09246', null, true);
+    expect(create).toHaveBeenCalledWith({ url: 'https://www.alphaxiv.org/abs/2406.09246' });
+    vi.unstubAllGlobals();
   });
 });

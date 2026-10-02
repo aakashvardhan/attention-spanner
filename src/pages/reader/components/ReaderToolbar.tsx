@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { formatCitation, type CiteSource, type CiteStyle } from '../../../shared/citeFormats';
 import { NEWTAB_PAGE_PATH } from '../../../shared/constants';
 import { sendMessage } from '../../../shared/messages';
+import { useSettings } from '../../../shared/hooks/useSettings';
 import { useTheme } from '../../../shared/hooks/useTheme';
+import { patchSettings } from '../../../shared/storage';
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
+const CITE_STYLES: [CiteStyle, string][] = [
+  ['apa', 'APA'],
+  ['mla', 'MLA'],
+  ['bibtex', 'BibTeX'],
+];
+
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 3;
 
 function ToolbarIcon({
   children,
@@ -49,9 +58,9 @@ export function ReaderToolbar({
   onToggleNotes,
   findOpen,
   onToggleFind,
-  actionItemsCount,
-  actionsOpen,
-  onToggleActions,
+  askOpen,
+  onToggleAsk,
+  citation,
 }: {
   title: string;
   page: number;
@@ -77,12 +86,34 @@ export function ReaderToolbar({
   /** Absent for documents with no reference list to relate (a recording) */
   findOpen?: boolean;
   onToggleFind?: () => void;
-  /** Recording-only action item popup. */
-  actionItemsCount?: number;
-  actionsOpen?: boolean;
-  onToggleActions?: () => void;
+  askOpen?: boolean;
+  onToggleAsk?: () => void;
+  /** What "Copy citation" formats (may look it up); absent where there is nothing to cite */
+  citation?: () => Promise<CiteSource>;
 }) {
   const theme = useTheme();
+  const [settings] = useSettings();
+  // Night only exists for PDFs: it inverts the rendered pages.
+  const night = pageNoun === 'page' && settings.readerNight && theme.resolved === 'dark';
+  const appearance = night ? 'night' : theme.resolved;
+  // One patch: two concurrent read-modify-writes of settings would drop one.
+  const setAppearance = (mode: 'light' | 'dark' | 'night') =>
+    void patchSettings({ theme: mode === 'light' ? 'light' : 'dark', readerNight: mode === 'night' });
+  const [copied, setCopied] = useState<{ style: CiteStyle; label: string } | null>(null);
+  const copyCitation = async (style: CiteStyle) => {
+    if (!citation) return;
+    const flash = (label: string) => {
+      setCopied({ style, label });
+      setTimeout(() => setCopied((c) => (c?.style === style ? null : c)), 1500);
+    };
+    setCopied({ style, label: 'Looking up…' });
+    try {
+      await navigator.clipboard.writeText(formatCitation(await citation(), style));
+      flash('Copied');
+    } catch {
+      flash('Copy failed');
+    }
+  };
   const [pageDraft, setPageDraft] = useState(String(page));
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -269,6 +300,20 @@ export function ReaderToolbar({
       </div>
 
       <div className="reader-toolbar-right">
+        {onToggleAsk && (
+          <button
+            className={askOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
+            aria-label="Ask this document"
+            aria-pressed={askOpen}
+            title="Ask this document"
+            onClick={onToggleAsk}
+          >
+            <ToolbarIcon>
+              <path d="M12 20.5a8.5 8.5 0 1 0-7.6-4.7L3.5 20.5l4.7-.9A8.46 8.46 0 0 0 12 20.5Z" />
+              <path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.3M12 16.4v.1" />
+            </ToolbarIcon>
+          </button>
+        )}
         {onToggleFind && (
           <button
             className={findOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
@@ -308,20 +353,6 @@ export function ReaderToolbar({
           </ToolbarIcon>
           {annotationCount > 0 && <span className="reader-toolbar-badge">{annotationCount}</span>}
         </button>
-        {onToggleActions && actionItemsCount !== undefined && actionItemsCount > 0 && (
-          <button
-            className={actionsOpen ? 'reader-icon-btn active reader-badged-btn' : 'reader-icon-btn reader-badged-btn'}
-            aria-label={`Review ${actionItemsCount} suggested action items`}
-            aria-pressed={actionsOpen}
-            title="Review suggested action items"
-            onClick={onToggleActions}
-          >
-            <ToolbarIcon>
-              <path d="M6 21V4M6 5h10l-2.5 3L16 11H6" />
-            </ToolbarIcon>
-            <span className="reader-toolbar-badge">{actionItemsCount}</span>
-          </button>
-        )}
         <div className="reader-more" ref={moreRef}>
           <button
             className={moreOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
@@ -340,23 +371,57 @@ export function ReaderToolbar({
           {moreOpen && (
             <div className="reader-more-menu" role="menu">
               <button
-                role="menuitem"
-                onClick={() =>
-                  closeAfter(() => theme.setMode(theme.resolved === 'dark' ? 'light' : 'dark'))
-                }
+                role="menuitemradio"
+                aria-checked={appearance === 'light'}
+                className={appearance === 'light' ? 'active' : undefined}
+                onClick={() => closeAfter(() => setAppearance('light'))}
               >
                 <ToolbarIcon>
-                  {theme.resolved === 'dark' ? (
-                    <>
-                      <circle cx="12" cy="12" r="4" />
-                      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                    </>
-                  ) : (
-                    <path d="M20.4 15.2A8 8 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z" />
-                  )}
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
                 </ToolbarIcon>
-                <span>{theme.resolved === 'dark' ? 'Light appearance' : 'Dark appearance'}</span>
+                <span>Light</span>
               </button>
+              <button
+                role="menuitemradio"
+                aria-checked={appearance === 'dark'}
+                className={appearance === 'dark' ? 'active' : undefined}
+                onClick={() => closeAfter(() => setAppearance('dark'))}
+              >
+                <ToolbarIcon>
+                  <path d="M20.4 15.2A8 8 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z" />
+                </ToolbarIcon>
+                <span>Dark</span>
+              </button>
+              {pageNoun === 'page' && (
+                <button
+                  role="menuitemradio"
+                  aria-checked={appearance === 'night'}
+                  className={appearance === 'night' ? 'active' : undefined}
+                  title="Dark pages too: the PDF's colors are inverted"
+                  onClick={() => closeAfter(() => setAppearance('night'))}
+                >
+                  <ToolbarIcon>
+                    <path d="M20.4 15.2A8 8 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z" />
+                    <path d="M17 3v4M15 5h4" />
+                  </ToolbarIcon>
+                  <span>Night</span>
+                </button>
+              )}
+              {citation && (
+                <>
+                  <div className="reader-menu-separator" role="separator" />
+                  {CITE_STYLES.map(([style, label]) => (
+                    <button key={style} role="menuitem" onClick={() => void copyCitation(style)}>
+                      <ToolbarIcon>
+                        <rect x="8" y="8" width="12" height="12" rx="2" />
+                        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                      </ToolbarIcon>
+                      <span>{copied?.style === style ? copied.label : `Copy ${label} citation`}</span>
+                    </button>
+                  ))}
+                </>
+              )}
               {src && (
                 <>
                   <div className="reader-menu-separator" role="separator" />

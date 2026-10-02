@@ -31,13 +31,11 @@ export interface FeedItem {
 }
 
 export interface ResumeTarget {
-  kind: 'article' | 'pdf' | 'video' | 'web';
+  kind: 'article' | 'video';
   url: string;
   title: string;
   /** Reading position fields are optional because each medium uses a different one. */
   scrollY?: number;
-  page?: number;
-  offset?: number;
   positionSeconds?: number;
 }
 
@@ -45,14 +43,19 @@ export interface ResumeTarget {
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
 /**
- * Which browser's visual language the UI borrows. Purely cosmetic — it retints
- * the accent family and glass, and never changes what a surface can do.
- * 'auto' resolves to the browser actually running the extension.
+ * Which visual language the UI borrows. Cosmetic — it never changes what a
+ * surface can do. 'auto' resolves to the browser actually running the extension.
+ *
+ * 'alert' is the one skin that is not accent-only: its dark half also raises
+ * surface and text contrast, because its whole job is to keep you awake. Every
+ * other skin retints the accent family and glass and stops there.
  */
-export type SkinSetting = 'auto' | 'default' | 'chrome' | 'brave';
+export type SkinSetting = 'auto' | 'default' | 'chrome' | 'brave' | 'alert';
 
 export interface Settings {
   theme: ThemeSetting;
+  /** PDF reader night mode: dark chrome with the pages themselves inverted */
+  readerNight: boolean;
   /** Match the host browser's visual language; 'auto' follows the browser it runs in */
   skin: SkinSetting;
   /** Feed refresh interval in minutes (15–360) */
@@ -64,11 +67,71 @@ export interface Settings {
   /** Domains blocked during focus sessions */
   focusBlocklist: string[];
   focusMinutes: number;
-  focusBreakMinutes: number;
   /** Auto-open Flowtunes in a pinned tab when a focus session starts */
   focusMusicEnabled: boolean;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
+  /** Name in the new tab greeting; '' = greet without one */
+  displayName: string;
+  /** City for the new tab weather, geocoded on first use; '' = no weather */
+  weatherLocation: string;
+  /** Local Ollama server; every on-device AI call goes here */
+  ollamaUrl: string;
+  /** Picked from the server's /api/tags; '' = none yet, so generation stays off */
+  ollamaChatModel: string;
+  ollamaEmbedModel: string;
+  /**
+   * When public content (RSS, arXiv/DOI papers, YouTube) may go to Claude:
+   * never, after a per-request confirm, or whenever the local model cannot
+   * take it. Private content never goes, whatever this says (llm/route.ts).
+   */
+  cloudMode: CloudMode;
+  /** User's own Anthropic API key; '' = no cloud */
+  claudeKey: string;
+}
+
+export type CloudMode = 'off' | 'ask' | 'public';
+
+/** Per-feature counters and latency samples. Never leaves the device. */
+export interface AiStats {
+  /** 'feature.counter' → count, e.g. 'recap.shown' */
+  counts: Record<string, number>;
+  /** Newest last, capped (AI_STATS_MAX_SAMPLES) */
+  latencies: { task: string; target: string; ms: number }[];
+  /**
+   * A resume waiting to be scored: did the item advance AI_RESUME_ADVANCE
+   * points after it was reopened, with or without a recap shown?
+   */
+  probes: {
+    key: string;
+    startPercent: number;
+    recap: boolean;
+    at: number;
+    /** A feed pick opened from triage: scored on finishing, not on advancing */
+    kind?: 'triage';
+  }[];
+}
+
+export interface AiCacheEntry {
+  text: string;
+  target: string;
+  model: string;
+  at: number;
+}
+
+/** Last weather reading, kept so a new tab paints before the network answers. */
+export interface WeatherCache {
+  /** The settings.weatherLocation this was geocoded from — a change invalidates it */
+  query: string;
+  /** Resolved place name from the geocoder, which is tidier than what was typed */
+  name: string;
+  lat: number;
+  lon: number;
+  /** Always Celsius; the display unit is decided at render */
+  tempC: number;
+  /** WMO weather code — see weatherLabel */
+  code: number;
+  fetchedAt: number;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
@@ -231,20 +294,9 @@ export interface BookmarkLink extends RecordMeta {
 }
 
 export interface FocusSession {
-  mode: 'oneshot' | 'pomodoro';
-  phase: 'focus' | 'break';
   startedAt: number;
   phaseEndsAt: number;
   focusMinutes: number;
-  breakMinutes: number;
-  /** Pomodoro focus blocks completed so far this session */
-  completedBlocks: number;
-  /** Ignition mode: the task this micro-sprint is scoped to */
-  taskId?: string;
-  /** Ignition mode: the tiny first action shown in the banner and blocked page */
-  intent?: string;
-  /** Google Calendar "Focus" event created for this session (time-blocking) */
-  calendarEventId?: string;
 }
 
 interface ProgressBase {

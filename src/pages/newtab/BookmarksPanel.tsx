@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { type CSSProperties, useState } from 'react';
 import { Button, EmptyState } from '../../shared/components/ui';
 import { faviconUrl } from '../../shared/format';
 import { useBookmarks } from '../../shared/hooks/useBookmarks';
 import { sendMessage } from '../../shared/messages';
-import { shouldOpenInReader } from '../../shared/pdf';
+import { CardTitle, Icon } from './Icon';
 
 export function normalizeBookmarkUrl(value: string): string | null {
   const candidate = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
@@ -20,6 +20,8 @@ export function normalizeBookmarkUrl(value: string): string | null {
 export function BookmarksPanel() {
   const bookmarks = useBookmarks();
   const [editing, setEditing] = useState(false);
+  // The add form is a rare action, so it stays folded until asked for.
+  const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [groupChoice, setGroupChoice] = useState('unsorted');
@@ -55,24 +57,31 @@ export function BookmarksPanel() {
   return (
     <section className="relay-bookmarks" aria-labelledby="bookmark-links-title">
       <header className="relay-bookmarks-head">
-        <div>
-          <h2 id="bookmark-links-title">Bookmark links</h2>
-          <p>Your saved shortcuts and link groups.</p>
-        </div>
-        {bookmarks.bookmarks.length > 0 && (
-          <Button
-            variant="ghost"
-            className={editing ? 'editing' : undefined}
-            onClick={() => setEditing((current) => !current)}
-          >
-            {editing ? 'Done' : 'Edit'}
+        <CardTitle id="bookmark-links-title" icon="star">Favorites</CardTitle>
+        <div className="relay-bookmarks-actions">
+          <Button variant="ghost" aria-expanded={adding} onClick={() => setAdding((current) => !current)}>
+            {!adding && <Icon name="plus" />}
+            {adding ? 'Cancel' : 'Add link'}
           </Button>
-        )}
+          {bookmarks.bookmarks.length > 0 && (
+            <Button
+              variant="ghost"
+              className={editing ? 'editing' : undefined}
+              onClick={() => setEditing((current) => !current)}
+            >
+              {!editing && <Icon name="edit" />}
+              {editing ? 'Done' : 'Edit'}
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="panel-scroll">
         {bookmarks.grouped.length === 0 && (
-          <EmptyState>No bookmark links yet. Add one below or save a page from the side panel.</EmptyState>
+          <EmptyState>
+            No favorites yet. Use Add link, or right-click any page and choose “Bookmark this
+            page”.
+          </EmptyState>
         )}
         {bookmarks.grouped.map((group) => (
           <div key={group.id ?? 'unsorted'} className="bm-group">
@@ -98,8 +107,8 @@ export function BookmarksPanel() {
                 <div key={link.id} className="bm-tile-wrap">
                   {/* The href stays so middle-click, modifier-click and "open in
                       new tab" keep working; a plain left click is the one we
-                      reroute. shouldOpenInReader decides per link, so a Gmail
-                      or dashboard bookmark still opens as itself. */}
+                      reroute. A bookmark opens the page itself, not the
+                      reader: it is somewhere you go (openArticle). */}
                   <a
                     className="bm-tile"
                     href={link.url}
@@ -113,7 +122,7 @@ export function BookmarksPanel() {
                         type: 'OPEN_ARTICLE',
                         url: link.url,
                         feedItemId: null,
-                        readerView: shouldOpenInReader(link.url),
+                        readerView: false,
                       });
                     }}
                   >
@@ -154,62 +163,84 @@ export function BookmarksPanel() {
         ))}
       </div>
 
-      <form
-        className="bm-add"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void add();
-        }}
-      >
-        <input
-          type="text"
-          inputMode="url"
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          placeholder="Paste a URL…"
-          aria-label="Bookmark URL"
-        />
-        <input
-          type="text"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Name (optional)"
-          aria-label="Bookmark name"
-        />
-        <div className="bm-add-row">
-          <select
-            value={groupChoice}
-            onChange={(event) => setGroupChoice(event.target.value)}
-            aria-label="Bookmark group"
-          >
-            {bookmarks.groups.map((group) => (
-              <option key={group.id} value={group.id}>{group.name}</option>
-            ))}
-            <option value="unsorted">Unsorted</option>
-            <option value="new">New group…</option>
-          </select>
-          {groupChoice === 'new' && (
-            <input
-              type="text"
-              value={newGroupName}
-              onChange={(event) => setNewGroupName(event.target.value)}
-              placeholder="Group name"
-              aria-label="New bookmark group name"
-              maxLength={40}
-            />
-          )}
-          <button type="submit" className="bm-add-btn" disabled={!url.trim()}>
-            Add
-          </button>
-        </div>
-        {error && <p className="bm-error" role="alert">{error}</p>}
-      </form>
+      {adding && (
+        <form
+          className="bm-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void add();
+          }}
+        >
+          <input
+            type="text"
+            inputMode="url"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="Paste a URL…"
+            autoFocus
+            aria-label="Bookmark URL"
+          />
+          <input
+            type="text"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Name (optional)"
+            aria-label="Bookmark name"
+          />
+          <div className="bm-add-row">
+            <select
+              value={groupChoice}
+              onChange={(event) => setGroupChoice(event.target.value)}
+              aria-label="Bookmark group"
+            >
+              {bookmarks.groups.map((group) => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+              <option value="unsorted">Unsorted</option>
+              <option value="new">New group…</option>
+            </select>
+            {groupChoice === 'new' && (
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(event) => setNewGroupName(event.target.value)}
+                placeholder="Group name"
+                aria-label="New bookmark group name"
+                maxLength={40}
+              />
+            )}
+            <button type="submit" className="bm-add-btn" disabled={!url.trim()}>
+              Add
+            </button>
+          </div>
+          {error && <p className="bm-error" role="alert">{error}</p>}
+        </form>
+      )}
     </section>
   );
 }
 
 function BookmarkIcon({ url, title }: { url: string; title: string }) {
   const [failed, setFailed] = useState(false);
-  if (failed) return <span className="bm-letter">{(title[0] ?? '?').toUpperCase()}</span>;
+  if (failed) {
+    return (
+      <span className="bm-letter" style={{ '--bm-hue': hueFor(url) } as CSSProperties}>
+        {(title[0] ?? '?').toUpperCase()}
+      </span>
+    );
+  }
   return <img className="bm-favicon" src={faviconUrl(url, 64)} alt="" onError={() => setFailed(true)} />;
+}
+
+/** A stable hue per site, so a letter tile keeps its colour across visits. */
+export function hueFor(url: string): number {
+  let host = url;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // the raw string hashes just as well
+  }
+  let hash = 0;
+  for (const char of host) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 360;
 }

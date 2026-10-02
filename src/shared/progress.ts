@@ -1,6 +1,7 @@
 import { CONTINUE_MIN_PERCENT, CONTINUE_MIN_SECONDS } from './constants';
 import type { AnyProgress } from './types';
-import { isWatchingNow } from './youtube';
+import { normalizeUrl } from './urlNormalize';
+import { getYouTubeVideoId, isWatchingNow, videoKey } from './youtube';
 
 /**
  * Whether an entry belongs in "Continue where I left off".
@@ -38,4 +39,10 @@ export function belongsInContinue(progress: AnyProgress, now = Date.now()): bool
 /** Entries written before Phase 6 have no `kind`; they are all articles. */
 export function progressKind(progress: AnyProgress): 'article' | 'video' {
   return progress.kind === 'video' ? 'video' : 'article';
+}
+
+/** The readingProgress key a URL's progress is stored under. */
+export function progressKeyFor(url: string): string {
+  const videoId = getYouTubeVideoId(url);
+  return videoId ? videoKey(videoId) : normalizeUrl(url);
 }

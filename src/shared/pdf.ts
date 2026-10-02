@@ -119,12 +119,21 @@ export function paperPdfSource(paper: Pick<Paper, 'url' | 'pdf'>): string | null
 }
 
 /**
- * Where "open this paper" should go: the reader (resuming the saved position)
- * whenever we can point it at a PDF, otherwise the paper's own URL.
+ * Where "open this paper" should go: alphaXiv for an arXiv paper (unless
+ * `viaReader`, the Alt-click fallback), else the reader (resuming the saved
+ * position) whenever we can point it at a PDF, otherwise the paper's own URL.
  */
-export function paperOpenUrl(paper: Pick<Paper, 'url' | 'pdf'>): string {
+export function paperOpenUrl(paper: Pick<Paper, 'url' | 'pdf'>, viaReader = false): string {
+  const alphaxiv = !viaReader && alphaxivUrl(paper.url);
+  if (alphaxiv) return alphaxiv;
   const pdf = paperPdfSource(paper);
   return pdf ? readerPageUrl(pdf) : paper.url;
+}
+
+/** The alphaXiv page for an arXiv id or abs/pdf link, or null when it isn't arXiv. */
+export function alphaxivUrl(url: string): string | null {
+  const ref = parsePaperRef(url);
+  return ref?.startsWith('arXiv:') ? `https://www.alphaxiv.org/abs/${ref.slice('arXiv:'.length)}` : null;
 }
 
 /**

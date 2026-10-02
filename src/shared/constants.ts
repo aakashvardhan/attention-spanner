@@ -1,7 +1,6 @@
 export const ACCENT_COLOR = '#0ea5e9';
 
 export const FETCH_TIMEOUT_MS = 15000;
-export const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /* Come-back nudges. These were settings; nobody retunes them, and the ADHD-
    tuned values are the point of the feature. `nudgesEnabled` still switches
@@ -21,13 +20,9 @@ export const VIDEO_MIN_MINUTES = 15;
 export const VIDEO_WATCHING_STALE_MS = 15_000;
 /** Unbroken engagement before the hyperfocus break nudge (hyperfocusEnabled gates it) */
 export const HYPERFOCUS_MINUTES = 90;
-/** Local 'HH:MM' bounds where proactive nudges stay silent (wraps overnight) */
-export const QUIET_HOURS_START = '22:00';
-export const QUIET_HOURS_END = '08:00';
 
 export const MAX_READ_ITEMS = 500;
 export const MAX_CACHED_ITEMS = 300;
-export const MAX_LIST_ITEMS = 50;
 /** PDFs the user sent to Chrome's own viewer; session-scoped (pdfIntercept.ts) */
 export const MAX_PDF_NATIVE_BYPASS = 100;
 
@@ -44,7 +39,6 @@ export const DEFAULT_FOCUS_BLOCKLIST = [
   'hbomax.com',
   'max.com',
 ];
-export const FOCUS_PRESETS = [25, 50, 90] as const;
 /** Session-rule range reserved for Focus redirects. */
 export const FOCUS_DNR_ID_BASE = 1000;
 export const FOCUS_DNR_ID_LIMIT = 2000;
@@ -97,3 +91,20 @@ export const SAMPLE_FEEDS: ReadonlyArray<{ name: string; url: string }> = [
   { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
   { name: 'CSS Tricks', url: 'https://css-tricks.com/feed/' },
 ];
+
+/* Local AI (src/shared/llm). */
+/** num_ctx sent to Ollama. Its own default is small, and silently truncates. */
+export const OLLAMA_NUM_CTX = 8192;
+/**
+ * Input the local model is trusted with in one call. ~3.5 chars per token,
+ * minus room for the system prompt and the answer.
+ */
+export const LOCAL_CONTEXT_CHARS = 20_000;
+export const AI_CACHE_MAX_ENTRIES = 200;
+export const AI_STATS_MAX_SAMPLES = 50;
+/** Percentage points a resumed item must gain to count as "picked back up" */
+export const AI_RESUME_ADVANCE = 15;
+export const CLAUDE_MODELS = {
+  quick: 'claude-haiku-4-5',
+  deep: 'claude-sonnet-5-5',
+} as const;
