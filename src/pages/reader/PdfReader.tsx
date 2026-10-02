@@ -10,7 +10,9 @@ import { fetchPaperMeta, paperMatchKey } from '../../shared/papers';
 import { type PdfPosition } from '../../shared/pdf';
 import { isPdfAnchored } from '../../shared/types';
 import { headingForPage } from '../../shared/pdfOutline';
+import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
+import { useChromeAwake } from './useChromeAwake';
 import { usePdfDocument } from './usePdfDocument';
 import { indexKnownRefs } from './citationLinks';
 import { findFigureCaptions, type FigureKey } from './figures';
@@ -19,6 +21,7 @@ import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskSheet } from './components/AskSheet';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
+import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { TrackPrompt, type PaperSeed } from './components/TrackPrompt';
 import { PdfFindPanel } from './components/PdfFindPanel';
@@ -277,13 +280,25 @@ export function PdfReader({ src }: { src: string }) {
   }, [src, apiKey, title]);
   const looksScanned = pageTexts !== null && pageTexts.join('').replace(/\s/g, '').length < 200;
 
+  // Status for the capsule: page, and minutes left from the words still ahead.
+  const counts = useMemo(() => (pageTexts ? wordCounts(pageTexts) : null), [pageTexts]);
+  const capsuleLabel = [
+    `p. ${position.page} of ${pageCount}`,
+    timeLeftLabel(minutesLeft(counts, position.page - 1, position.offset)),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const progress = pageCount > 0 ? (position.page - 1 + position.offset) / pageCount : 0;
+  const awake = useChromeAwake(panel !== 'none' || noteMode || outlineOpen);
+
   return (
-    <div className="reader-root" data-night={settings.readerNight || undefined}>
+    <div
+      className="reader-root"
+      data-night={settings.readerNight || undefined}
+      data-chrome={awake ? 'awake' : 'asleep'}
+    >
       <ReaderToolbar
         title={title}
-        page={position.page}
-        pageCount={pageCount}
-        onPageJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
         zoom={zoom}
         onZoom={setZoom}
         hasOutline={ready}
@@ -301,21 +316,6 @@ export function PdfReader({ src }: { src: string }) {
         onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
         citation={getCitation}
       />
-      {ready && papersLoaded && !paper && (
-        <TrackPrompt src={src} suggestedTitle={state.title} getSeed={getSeed} />
-      )}
-      {ready && looksScanned && (
-        <div className="reader-scan-notice">
-          This looks like a scanned PDF. Search, highlighting, and document Q&A may be limited until it has OCR text.
-        </div>
-      )}
-      {noteMode && (
-        <div className="reader-mode-banner" role="status">
-          <span>Click anywhere on a page to place your note.</span>
-          <button type="button" onClick={() => setNoteMode(false)}>Cancel</button>
-          <kbd>Esc</kbd>
-        </div>
-      )}
       <div className="reader-body">
         {ready && outlineOpen && (
           <OutlineSidebar
@@ -376,6 +376,32 @@ export function PdfReader({ src }: { src: string }) {
               />
             )}
             <RelatedHighlight docKey={docKey} />
+            {looksScanned && (
+              <div className="reader-toast" role="status">
+                This looks like a scanned PDF. Search, highlighting, and document Q&A may be limited until it has OCR text.
+              </div>
+            )}
+            {noteMode && (
+              <div className="reader-toast reader-mode-banner" role="status">
+                <span>Click anywhere on a page to place your note.</span>
+                <button type="button" onClick={() => setNoteMode(false)}>
+                  Cancel
+                </button>
+                <kbd>Esc</kbd>
+              </div>
+            )}
+            <ReaderCapsule
+              label={capsuleLabel}
+              progress={progress}
+              page={position.page}
+              pageCount={pageCount}
+              pageNoun="page"
+              onPageJump={(page) => viewportRef.current?.scrollToPosition(page, 0)}
+              zoom={zoom}
+              onZoom={setZoom}
+            >
+              {!paper && <TrackPrompt src={src} suggestedTitle={state.title} getSeed={getSeed} />}
+            </ReaderCapsule>
           </div>
         )}
         {ready && papersLoaded && notesOpen && (

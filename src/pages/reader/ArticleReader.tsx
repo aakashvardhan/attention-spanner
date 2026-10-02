@@ -6,13 +6,16 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { RecapCard } from '../../shared/components/RecapCard';
 import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import type { TextAnchor } from '../../shared/textAnchor';
+import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import { normalizeUrl } from '../../shared/urlNormalize';
 import type { AnnotationColor } from '../../shared/types';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskSheet } from './components/AskSheet';
 import { ArticleViewport, type ArticleViewportHandle } from './components/ArticleViewport';
 import { OutlineSidebar } from './components/OutlineSidebar';
+import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
+import { useChromeAwake } from './useChromeAwake';
 import { blockTexts, useArticleDocument } from './useArticleDocument';
 
 /** One progress write at most every 5s, matching the PDF reader. */
@@ -39,6 +42,7 @@ export function ArticleReader({ url }: { url: string }) {
   const [panel, setPanel] = useState<'none' | 'notes' | 'ask'>('none');
   const notesOpen = panel === 'notes';
   const [blockIndex, setBlockIndex] = useState(0);
+  const [percent, setPercent] = useState(0);
   const viewportRef = useRef<ArticleViewportHandle>(null);
 
   const ready = state.status === 'ready';
@@ -92,6 +96,7 @@ export function ArticleReader({ url }: { url: string }) {
   const onProgress = useCallback(
     (percent: number, currentBlock: number) => {
       setBlockIndex(currentBlock);
+      setPercent(percent);
       progress.current.percent = percent;
       if (Date.now() - progress.current.lastSentAt < PROGRESS_THROTTLE_MS) return;
       send(percent, false);
@@ -154,12 +159,17 @@ export function ArticleReader({ url }: { url: string }) {
     setActiveId((current) => (current === id ? null : current));
   }, []);
 
+  // Status for the capsule: how far through, and minutes left from the words ahead.
+  const counts = useMemo(() => (passages ? wordCounts(passages) : null), [passages]);
+  const capsuleLabel = [`${Math.round(percent)}%`, timeLeftLabel(minutesLeft(counts, blockIndex, 0))]
+    .filter(Boolean)
+    .join(' · ');
+  const awake = useChromeAwake(panel !== 'none' || outlineOpen);
+
   return (
-    <div className="reader-root">
+    <div className="reader-root" data-chrome={awake ? 'awake' : 'asleep'}>
       <ReaderToolbar
         title={title}
-        page={blockIndex + 1}
-        pageCount={blocks.length}
         pageNoun="block"
         hasOutline={ready && state.outline.length > 0}
         outlineOpen={outlineOpen}
@@ -212,6 +222,14 @@ export function ArticleReader({ url }: { url: string }) {
               />
             )}
             <RelatedHighlight docKey={docKey} />
+            <ReaderCapsule
+              label={capsuleLabel}
+              progress={percent / 100}
+              page={blockIndex + 1}
+              pageCount={blocks.length}
+              pageNoun="block"
+              onPageJump={(block) => viewportRef.current?.scrollToBlock(block - 1)}
+            />
           </div>
         )}
         {panel === 'ask' && (

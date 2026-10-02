@@ -15,7 +15,7 @@ const CITE_STYLES: [CiteStyle, string][] = [
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
 
-function ToolbarIcon({
+export function ToolbarIcon({
   children,
   viewBox = '0 0 24 24',
 }: {
@@ -40,10 +40,7 @@ function ToolbarIcon({
 
 export function ReaderToolbar({
   title,
-  page,
-  pageCount,
   pageNoun = 'page',
-  onPageJump,
   zoom,
   onZoom,
   hasOutline,
@@ -63,12 +60,9 @@ export function ReaderToolbar({
   citation,
 }: {
   title: string;
-  page: number;
-  pageCount: number;
-  /** What `page` counts — articles have blocks, not pages */
+  /** Articles have blocks, not pages; night mode is PDF-only */
   pageNoun?: 'page' | 'block';
-  onPageJump?: (page: number) => void;
-  /** Zoom is PDF-only; articles reflow with the browser's own zoom */
+  /** Zoom shortcuts (⌘+/−/0) are PDF-only; the controls live in the capsule */
   zoom?: number;
   onZoom?: (zoom: number) => void;
   hasOutline: boolean;
@@ -114,13 +108,8 @@ export function ReaderToolbar({
       flash('Copy failed');
     }
   };
-  const [pageDraft, setPageDraft] = useState(String(page));
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
-
-  // Scroll position changes the current page; keep the editable control in
-  // sync without preventing someone from typing a multi-digit target.
-  useEffect(() => setPageDraft(String(page)), [page]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -165,15 +154,6 @@ export function ReaderToolbar({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [findOpen, onToggleFind, onZoom, zoom]);
 
-  const jumpToDraft = () => {
-    const next = Number(pageDraft);
-    if (onPageJump && Number.isInteger(next) && next >= 1 && next <= pageCount) {
-      onPageJump(next);
-    } else {
-      setPageDraft(String(page));
-    }
-  };
-
   const closeAfter = (action: () => void) => {
     action();
     setMoreOpen(false);
@@ -212,91 +192,6 @@ export function ReaderToolbar({
           <h1 title={title}>{title}</h1>
           <span>{pageNoun === 'page' ? 'PDF document' : 'Reader'}</span>
         </div>
-      </div>
-
-      <div className="reader-toolbar-center">
-        {pageCount > 0 && (
-          onPageJump ? (
-            <div className="reader-toolbar-group reader-pagination" aria-label="Page navigation">
-              <button
-                className="reader-icon-btn"
-                aria-label={`Previous ${pageNoun}`}
-                title={`Previous ${pageNoun}`}
-                disabled={page <= 1}
-                onClick={() => onPageJump(page - 1)}
-              >
-                <ToolbarIcon>
-                  <path d="m14 17-5-5 5-5" />
-                </ToolbarIcon>
-              </button>
-              <label className="reader-page-jump" title={`Go to ${pageNoun}`}>
-                <input
-                  aria-label={`Go to ${pageNoun}`}
-                  inputMode="numeric"
-                  value={pageDraft}
-                  onChange={(e) => setPageDraft(e.target.value)}
-                  onBlur={jumpToDraft}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
-                    } else if (e.key === 'Escape') {
-                      setPageDraft(String(page));
-                      e.currentTarget.blur();
-                    }
-                  }}
-                />
-                <span>of {pageCount}</span>
-              </label>
-              <button
-                className="reader-icon-btn"
-                aria-label={`Next ${pageNoun}`}
-                title={`Next ${pageNoun}`}
-                disabled={page >= pageCount}
-                onClick={() => onPageJump(page + 1)}
-              >
-                <ToolbarIcon>
-                  <path d="m10 17 5-5-5-5" />
-                </ToolbarIcon>
-              </button>
-            </div>
-          ) : (
-            <span className="reader-pageno" title={`${pageNoun} ${page} of ${pageCount}`}>
-              {page} of {pageCount}
-            </span>
-          ))}
-        {onZoom && zoom !== undefined && (
-          <div className="reader-toolbar-group reader-zoom-controls" aria-label="Zoom controls">
-            <button
-              className="reader-icon-btn"
-              aria-label="Zoom out"
-              title="Zoom out (⌘−)"
-              disabled={zoom <= ZOOM_MIN}
-              onClick={() => onZoom(Math.max(ZOOM_MIN, Math.round((zoom - 0.25) * 100) / 100))}
-            >
-              <ToolbarIcon>
-                <path d="M7 12h10" />
-              </ToolbarIcon>
-            </button>
-            <button
-              className="reader-zoom-value"
-              title="Fit width (⌘0)"
-              onClick={() => onZoom(1)}
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              className="reader-icon-btn"
-              aria-label="Zoom in"
-              title="Zoom in (⌘+)"
-              disabled={zoom >= ZOOM_MAX}
-              onClick={() => onZoom(Math.min(ZOOM_MAX, Math.round((zoom + 0.25) * 100) / 100))}
-            >
-              <ToolbarIcon>
-                <path d="M12 7v10M7 12h10" />
-              </ToolbarIcon>
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="reader-toolbar-right">

@@ -9,7 +9,8 @@ import type { Paper, PaperDraft } from '../../../shared/types';
 export type PaperSeed = Pick<Paper, 'progressPercent' | 'leftOff' | 'pdf'>;
 
 /**
- * Slim banner shown for a PDF that isn't in the papers list. Expanding it
+ * A small chip in the reader's capsule for a PDF that isn't in the papers
+ * list — quiet, so it never competes with the page. Opening it
  * prefetches metadata (arXiv /pdf/ URLs resolve via Semantic Scholar) into a
  * 4-field form; saving turns progress tracking on. Deliberately not the
  * full-page PaperForm — abstract/relevance/status can be edited later.
@@ -132,82 +133,89 @@ export function TrackPrompt({
     // record, and this banner unmounts by itself.
   };
 
-  if (!open) {
-    return (
-      <div className="reader-track-banner">
-        <span>Not tracking this paper — progress won't be saved.</span>
-        <button className="fc-primary-btn" onClick={expand}>
-          Track this paper
-        </button>
-      </div>
-    );
-  }
+  const chip = (
+    <button
+      type="button"
+      className="reader-track-chip"
+      aria-expanded={open}
+      title="Progress on this paper is not being saved"
+      onClick={() => (open ? setOpen(false) : expand())}
+    >
+      Not tracked · Track
+    </button>
+  );
+  if (!open) return chip;
 
   return (
-    <form
-      className="reader-track-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
-    >
-      {fetchMsg && <p className="reader-track-msg">{fetchMsg}</p>}
-      <div className="reader-track-fields">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
-        />
-        <input
-          type="text"
-          value={authors}
-          onChange={(e) => setAuthors(e.target.value)}
-          placeholder="Authors (comma-separated)"
-        />
-        <input
-          type="text"
-          value={venue}
-          onChange={(e) => setVenue(e.target.value)}
-          placeholder="Venue"
-        />
-        <input
-          type="text"
-          inputMode="numeric"
-          className="reader-track-year"
-          value={year ?? ''}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            setYear(Number.isFinite(n) ? n : null);
-          }}
-          placeholder="Year"
-        />
-        {paperDecks.length > 0 ? (
-          <select value={deckId} onChange={(e) => setDeckId(e.target.value)}>
-            {paperDecks.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        ) : (
+    <>
+      {chip}
+      <form
+        className="reader-track-form reader-track-popover"
+        role="dialog"
+        aria-label="Track this paper"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        {fetchMsg && <p className="reader-track-msg">{fetchMsg}</p>}
+        <div className="reader-track-fields">
           <input
             type="text"
-            value={newDeckName}
-            onChange={(e) => setNewDeckName(e.target.value)}
-            placeholder="New deck name (e.g. Papers)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
           />
-        )}
-      </div>
-      <div className="reader-track-actions">
-        <button type="button" className="ghost-btn" onClick={() => setOpen(false)}>
-          Not now
-        </button>
-        <button type="submit" className="fc-primary-btn" disabled={saving}>
-          {saving ? 'Saving…' : 'Start tracking'}
-        </button>
-      </div>
-      {error && <p className="fc-error">{error}</p>}
-    </form>
+          <input
+            type="text"
+            value={authors}
+            onChange={(e) => setAuthors(e.target.value)}
+            placeholder="Authors (comma-separated)"
+          />
+          <input
+            type="text"
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+            placeholder="Venue"
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            className="reader-track-year"
+            value={year ?? ''}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              setYear(Number.isFinite(n) ? n : null);
+            }}
+            placeholder="Year"
+          />
+          {paperDecks.length > 0 ? (
+            <select value={deckId} onChange={(e) => setDeckId(e.target.value)}>
+              {paperDecks.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={newDeckName}
+              onChange={(e) => setNewDeckName(e.target.value)}
+              placeholder="New deck name (e.g. Papers)"
+            />
+          )}
+        </div>
+        <div className="reader-track-actions">
+          <button type="button" className="ghost-btn" onClick={() => setOpen(false)}>
+            Not now
+          </button>
+          <button type="submit" className="fc-primary-btn" disabled={saving}>
+            {saving ? 'Saving…' : 'Start tracking'}
+          </button>
+        </div>
+        {error && <p className="fc-error">{error}</p>}
+      </form>
+    </>
   );
 }

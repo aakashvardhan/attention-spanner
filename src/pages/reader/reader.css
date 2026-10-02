@@ -12,6 +12,7 @@ body {
 }
 
 .reader-root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -19,40 +20,49 @@ body {
 
 /* Toolbar */
 
+/* The toolbar floats over the page and sleeps while you read (useChromeAwake):
+   it wakes at the top edge, on scroll-up, or while it holds focus. */
 .reader-toolbar {
-  position: relative;
+  position: absolute;
+  inset: 0 0 auto 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) auto minmax(160px, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
   min-height: 52px;
-  padding: 7px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--material-regular);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   box-shadow: 0 1px 0 var(--glass-rim) inset;
-  flex-shrink: 0;
+  transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+}
+
+.reader-root[data-chrome='asleep'] .reader-toolbar:not(:focus-within):not(:hover) {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
 }
 
 .reader-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
 .reader-document-title {
   min-width: 0;
-  margin-left: 6px;
+  margin-left: 8px;
 }
 
 .reader-document-title h1 {
   max-width: min(34vw, 420px);
   font-size: var(--text-sm);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: var(--leading-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -60,22 +70,17 @@ body {
 
 .reader-document-title span {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1;
 }
 
-.reader-toolbar-center,
 .reader-toolbar-right {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   flex-shrink: 0;
-}
-
-.reader-toolbar-center {
-  justify-content: center;
 }
 
 .reader-toolbar-right {
@@ -86,9 +91,9 @@ body {
   display: flex;
   align-items: center;
   min-height: 34px;
-  padding: 2px;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--bg-subtle);
   box-shadow: 0 1px 0 var(--glass-rim) inset;
 }
@@ -104,7 +109,7 @@ body {
 .reader-zoom-value,
 .reader-ask-btn {
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -166,7 +171,7 @@ body {
 .reader-pageno {
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  padding: 0 6px;
+  padding: 0 8px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -174,7 +179,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 78px;
   color: var(--text-secondary);
   font-size: var(--text-xs);
@@ -183,9 +188,9 @@ body {
 
 .reader-page-jump input {
   width: 30px;
-  padding: 3px 2px;
+  padding: 4px 4px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -201,7 +206,7 @@ body {
 .reader-zoom-value {
   min-width: 48px;
   height: 28px;
-  padding: 0 5px;
+  padding: 0 4px;
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
@@ -213,8 +218,8 @@ body {
 
 .reader-toolbar-badge {
   position: absolute;
-  top: -2px;
-  right: -3px;
+  top: 0;
+  right: -4px;
   display: grid;
   min-width: 16px;
   height: 16px;
@@ -224,7 +229,7 @@ body {
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -239,7 +244,7 @@ body {
   top: calc(100% + 8px);
   right: 0;
   width: 224px;
-  padding: 5px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--glass-surface);
@@ -261,12 +266,12 @@ body {
   display: grid;
   grid-template-columns: 20px 1fr 16px;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
   min-height: 36px;
-  padding: 6px 8px;
+  padding: 8px 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -288,7 +293,7 @@ body {
 
 .reader-menu-separator {
   height: 1px;
-  margin: 5px 7px;
+  margin: 4px 8px;
   background: var(--border);
 }
 
@@ -298,8 +303,8 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   font-size: var(--text-sm);
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -319,37 +324,67 @@ body {
   font-size: var(--text-sm);
 }
 
-/* Track-this-paper banner / form */
+/* Track-this-paper: a chip in the capsule that opens this form above it. */
+.reader-track-chip {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
 
-.reader-track-banner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 8px 14px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--accent-border);
-  font-size: var(--text-sm);
+.reader-track-chip:hover,
+.reader-track-chip[aria-expanded='true'] {
+  border-color: var(--accent-border);
   color: var(--accent-text);
-  flex-shrink: 0;
 }
 
 .reader-track-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 10px 14px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--accent-border);
-  flex-shrink: 0;
 }
 
-.reader-scan-notice {
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--warning-border, var(--border));
-  background: var(--bg-subtle);
+.reader-track-popover {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - var(--space-6)));
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--material-thick);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  /* The capsule it hangs from is nowrap; a form must wrap. */
+  white-space: normal;
+}
+
+/* Notices float above the capsule instead of pushing the page down. */
+.reader-toast {
+  position: absolute;
+  bottom: calc(var(--space-5) + var(--space-7));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(560px, calc(100% - var(--space-6)));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: center;
 }
 
 .reader-mode-banner {
@@ -357,13 +392,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 36px;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--accent-border);
-  background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: var(--text-sm);
-  flex-shrink: 0;
 }
 
 .reader-mode-banner button {
@@ -380,9 +409,9 @@ body {
 }
 
 .reader-mode-banner kbd {
-  padding: 1px 5px;
+  padding: 0 4px;
   border: 1px solid var(--accent-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-family: inherit;
@@ -400,7 +429,7 @@ body {
 .reader-track-fields select {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  padding: 6px 8px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
@@ -433,13 +462,27 @@ body {
   position: relative;
 }
 
-.reader-outline {
-  width: 260px;
-  flex-shrink: 0;
+/* Side panels are sheets over the page, not columns beside it: opening one
+   never reflows or rescales the document you are reading. */
+.reader-outline,
+.reader-notes,
+.reader-find {
+  position: absolute;
+  top: var(--space-8);
+  bottom: var(--space-3);
+  z-index: 15;
   overflow-y: auto;
-  border-right: 1px solid var(--border);
-  background: var(--bg-surface);
   padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-xl);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+}
+
+.reader-outline {
+  left: var(--space-3);
+  width: 280px;
 }
 
 .reader-outline h2 {
@@ -448,7 +491,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  padding: 0 10px 8px;
+  padding: 0 12px 8px;
 }
 
 .reader-outline ul {
@@ -464,7 +507,7 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  padding: 5px 10px;
+  padding: 4px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   overflow: hidden;
@@ -484,23 +527,23 @@ body {
 
 .reader-outline-tabs {
   display: flex;
-  gap: 2px;
-  margin: 0 6px 8px;
-  padding: 2px;
+  gap: 4px;
+  margin: 0 8px 8px;
+  padding: 4px;
   border-radius: var(--radius-sm);
   background: var(--bg-hover);
 }
 
 .reader-outline-tabs button {
   flex: 1;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border: 0;
-  border-radius: calc(var(--radius-sm) - 2px);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -516,8 +559,8 @@ body {
 
 .reader-ai-outline .reader-outline-item {
   white-space: normal;
-  line-height: 1.4;
-  padding-block: 7px;
+  line-height: var(--leading-sm);
+  padding-block: 8px;
 }
 
 .reader-ai-outline .reader-outline-item:disabled {
@@ -528,11 +571,11 @@ body {
 /* Where the outline ran, under the bullets it describes. */
 .reader-ai-outline + .ai-note-chip {
   display: block;
-  padding: 6px 10px 0;
+  padding: 8px 12px 0;
 }
 
 .reader-ai-outline-page {
-  margin-left: 6px;
+  margin-left: 8px;
   font-size: var(--text-xs);
   color: var(--text-muted);
   white-space: nowrap;
@@ -551,15 +594,18 @@ body {
   flex: 1;
   overflow: auto;
   min-width: 0;
+  /* Clears the floating toolbar at the top and the capsule at the bottom. */
+  padding-block: var(--space-8);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-page) 88%, var(--text-primary)) 0%, var(--bg-page) 220px);
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
 
-.reader-viewport:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+/* The viewport takes focus on load so the arrow keys scroll it; that is not a
+   selection, and a ring around the whole document pulled the eye off the page. */
+.reader-viewport:focus {
+  outline: none;
 }
 
 .reader-page-list {
@@ -571,11 +617,9 @@ body {
   left: 50%;
   transform: translateX(-50%);
   /* Pages are white regardless of theme — the PDF's own background */
-  background: #fff;
+  background: var(--pdf-page);
   outline: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--pdf-shadow);
   /* Only the text layer's spans are selectable */
   user-select: none;
   /* pdf.js layer-sizing vars; --scale-factor is set inline per page */
@@ -656,7 +700,7 @@ body {
   --font-height: 0;
   --scale-x: 1;
   --rotate: 0deg;
-  font-size: calc(var(--total-scale-factor) * var(--min-font-size) * var(--font-height));
+  font-size: calc(var(--total-scale-factor) * var(--min-font-size) * var(--font-height)); /* ds-exempt: pdf.js text-layer contract */
   transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(calc(1 / var(--min-font-size)));
 }
 
@@ -665,7 +709,7 @@ body {
 }
 
 .textLayer ::selection {
-  background: rgba(14, 165, 233, 0.35);
+  background: var(--selection);
 }
 
 /* Annotations: highlights, sticky pins, popover */
@@ -687,14 +731,14 @@ body {
   pointer-events: auto;
   cursor: pointer;
   mix-blend-mode: multiply;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .annot-highlight.annot-has-note::after {
   content: '';
   position: absolute;
-  top: -3px;
-  right: -3px;
+  top: -4px;
+  right: -4px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -708,9 +752,9 @@ body {
   cursor: pointer;
   width: 22px;
   height: 22px;
-  border-radius: 6px 6px 6px 0;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 0;
   background: var(--warning);
-  border: 2px solid #fff;
+  border: 2px solid var(--pdf-page);
   box-shadow: var(--shadow-sm);
 }
 
@@ -724,7 +768,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -748,7 +792,7 @@ body {
   background: var(--bg-page);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: 8px 8px;
   resize: vertical;
   min-height: 56px;
 }
@@ -756,7 +800,7 @@ body {
 .annot-popover-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .annot-popover-actions .annot-delete {
@@ -786,12 +830,12 @@ body {
   transform: translate(-50%, -100%);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-lg);
-  padding: 6px 10px;
+  padding: 8px 12px;
 }
 
 /* Figure/table mentions jump to their caption; Back returns to the reading spot. */
@@ -799,11 +843,11 @@ body {
 .textLayer .fig-ref {
   pointer-events: auto;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .textLayer .fig-ref:hover {
-  background: rgba(14, 165, 233, 0.28);
+  background: var(--cite-hover);
 }
 
 .reader-back-btn {
@@ -814,12 +858,12 @@ body {
   transform: translateX(-50%);
   padding: 8px 16px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-surface);
   box-shadow: var(--shadow-lg);
   color: var(--text-primary);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -830,7 +874,7 @@ body {
 /* Night: the chrome is already dark (theme), and the pages follow. Inverting
    then rotating hue keeps figure colours recognisable. */
 :root[data-theme='dark'] .reader-root[data-night] .reader-page {
-  background: #000;
+  background: var(--pdf-page-night);
 }
 
 :root[data-theme='dark'] .reader-root[data-night] .reader-canvas {
@@ -842,11 +886,11 @@ body {
 .textLayer .cite-marker {
   pointer-events: auto;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .textLayer .cite-marker:hover {
-  background: rgba(14, 165, 233, 0.28);
+  background: var(--cite-hover);
 }
 
 /* A citation pointing at something already in the library. Underlined rather
@@ -872,10 +916,10 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  padding: 10px 12px;
+  padding: 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   user-select: text;
   cursor: auto;
 }
@@ -888,12 +932,12 @@ body {
 
 .cite-tooltip-entry + .cite-tooltip-entry {
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding-top: 12px;
 }
 
 .cite-tooltip-text {
   font-size: var(--text-xs);
-  line-height: 1.4;
+  line-height: var(--leading-xs);
   color: var(--text-primary);
   max-height: 140px;
   overflow-y: auto;
@@ -908,7 +952,7 @@ body {
 .cite-tooltip-link {
   align-self: flex-start;
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
   text-decoration: none;
 }
@@ -937,7 +981,7 @@ body {
 }
 
 .cite-tooltip-byline {
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
@@ -949,14 +993,14 @@ body {
 
 .cite-tooltip-save {
   margin-left: auto;
-  padding: 2px 10px;
+  padding: 4px 12px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--accent);
   font: inherit;
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -967,12 +1011,8 @@ body {
 /* Annotations sidebar (right rail) */
 
 .reader-notes {
-  width: 300px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--bg-surface);
-  padding: var(--space-3) var(--space-2);
+  right: var(--space-3);
+  width: 320px;
 }
 
 /* Related rail: what this cites, what cites it, and the map around it. Same
@@ -987,18 +1027,14 @@ body {
 }
 
 .reader-find {
-  width: 340px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--bg-surface);
-  padding: var(--space-3) var(--space-2);
+  right: var(--space-3);
+  width: 360px;
 }
 
 .reader-find-input {
   width: 100%;
   margin: var(--space-3) 0 0;
-  padding: 7px 9px;
+  padding: 8px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-page);
@@ -1019,7 +1055,7 @@ body {
 .reader-find-results button:hover { background: var(--bg-hover); }
 .reader-find-results strong, .reader-find-results span { display: block; }
 .reader-find-results strong { color: var(--accent-text); font-size: var(--text-xs); }
-.reader-find-results span { margin-top: 3px; font-size: var(--text-xs); line-height: 1.35; }
+.reader-find-results span { margin-top: 4px; font-size: var(--text-xs); line-height: var(--leading-xs); }
 
 .reader-related-head {
   display: flex;
@@ -1052,14 +1088,14 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  padding: 0 10px 8px;
+  padding: 0 12px 8px;
 }
 
 .reader-notes h3 {
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-muted);
-  padding: 8px 10px 4px;
+  padding: 8px 12px 4px;
 }
 
 .annot-row {
@@ -1071,7 +1107,7 @@ body {
   background: transparent;
   border: none;
   font-family: var(--font-sans);
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
@@ -1083,8 +1119,8 @@ body {
 .annot-row-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
-  margin-top: 3px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
   flex-shrink: 0;
 }
 
@@ -1118,7 +1154,7 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   font-size: var(--text-sm);
-  padding: 0 2px;
+  padding: 0 4px;
   flex-shrink: 0;
 }
 
@@ -1133,7 +1169,7 @@ body {
 .reader-notes-empty {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  padding: 8px 10px;
+  padding: 8px 12px;
 }
 
 .ghost-btn.active {
@@ -1149,7 +1185,7 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   color: var(--text-secondary);
   font-size: var(--text-sm);
   padding: 40px;
@@ -1195,14 +1231,14 @@ body {
 .article-scroller {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-4);
 }
 
 .article-body {
   max-width: 68ch; /* ~66-72 characters is the readable measure */
   margin: 0 auto;
-  font-size: 17px;
-  line-height: 1.7;
+  font-size: var(--text-md);
+  line-height: var(--leading-read);
   color: var(--text-primary);
 }
 
@@ -1211,11 +1247,12 @@ body {
 }
 
 .article-heading {
+  font-family: var(--font-display);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: var(--leading-xl);
   margin-top: var(--space-6);
   margin-bottom: var(--space-3);
-  font-size: 22px;
+  font-size: var(--text-xl);
 }
 
 /* Markdown wraps source text in paragraphs; the article block already owns
@@ -1269,7 +1306,7 @@ body {
 }
 
 .article-mark {
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: inherit;
 }
@@ -1295,23 +1332,15 @@ body {
 }
 
 @media (max-width: 900px) {
-  .reader-toolbar {
-    grid-template-columns: auto 1fr auto;
-  }
-
   .reader-document-title {
     display: none;
-  }
-
-  .reader-toolbar-center {
-    justify-content: center;
   }
 }
 
 @media (max-width: 650px) {
   .reader-toolbar {
-    gap: 3px;
-    padding-inline: 7px;
+    gap: 4px;
+    padding-inline: 8px;
   }
 
   .reader-toolbar-left > .reader-icon-btn:first-child {
@@ -1333,16 +1362,114 @@ body {
   .reader-outline {
     width: 220px;
   }
+}
 
-  .reader-notes,
-  .reader-related,
-  .reader-ask {
-    position: absolute;
-    z-index: 8;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    box-shadow: var(--shadow-lg);
+/* ---------------------------------------------------------------------------
+   Observatory status: a glowing line for how far through, and a capsule for
+   where you are and how long is left. Both float; neither takes layout.
+   --------------------------------------------------------------------------- */
+
+.reader-progress-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+  pointer-events: none;
+}
+
+.reader-capsule {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100% - var(--space-6));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reader-capsule[data-open] {
+  padding-block: var(--space-1);
+}
+
+.reader-capsule-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.reader-capsule-summary:hover {
+  color: var(--text-primary);
+}
+
+.reader-capsule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+}
+
+.reader-capsule-message:empty {
+  display: none;
+}
+
+.reader-capsule[data-message] {
+  color: var(--text-primary);
+  animation: reader-capsule-pulse 600ms var(--ease-out) 1;
+}
+
+@keyframes reader-capsule-pulse {
+  50% {
+    box-shadow: var(--shadow-card), 0 0 0 4px var(--accent-wash);
   }
-  .reader-find { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; box-shadow: var(--shadow-lg); }
+}
+
+.reader-capsule-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-capsule-action:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-toolbar,
+  .reader-progress-line {
+    transition: none;
+  }
+
+  .reader-capsule[data-message] {
+    animation: none;
+  }
 }
