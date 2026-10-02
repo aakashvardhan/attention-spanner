@@ -3,7 +3,14 @@ import { usePapers } from '../../../shared/hooks/usePapers';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../../shared/messages';
 
-export function PaperDeckList({ onOpen }: { onOpen: (deckId: string) => void }) {
+export function PaperDeckList({
+  onOpen,
+  selectedId,
+}: {
+  onOpen: (deckId: string) => void;
+  /** The deck open beside the list */
+  selectedId?: string;
+}) {
   const [decks] = useStorageValue('decks');
   const { byDeck } = usePapers();
   const [name, setName] = useState('');
@@ -35,7 +42,7 @@ export function PaperDeckList({ onOpen }: { onOpen: (deckId: string) => void }) 
       {paperDecks.length === 0 && (
         <div className="panel fc-empty">
           <p>
-            No paper decks yet. Create one below, then open it to add papers — each paper tracks its
+            Your library is empty. Name a deck below to start one — each paper in it tracks its
             authors, venue, citations, and how far you've read.
           </p>
         </div>
@@ -47,7 +54,7 @@ export function PaperDeckList({ onOpen }: { onOpen: (deckId: string) => void }) 
           const reading = papers.filter((p) => p.status === 'reading').length;
           const toRead = papers.filter((p) => p.status === 'to-read').length;
           return (
-            <div className="panel fc-deck-row" key={deck.id}>
+            <div className="panel fc-deck-row" key={deck.id} aria-current={deck.id === selectedId || undefined}>
               <button className="fc-deck-name" onClick={() => onOpen(deck.id)}>
                 {deck.name}
               </button>
@@ -67,9 +74,6 @@ export function PaperDeckList({ onOpen }: { onOpen: (deckId: string) => void }) 
                 )}
               </div>
               <div className="fc-deck-actions">
-                <button className="fc-study-btn" onClick={() => onOpen(deck.id)}>
-                  Open
-                </button>
                 <button
                   className="ghost-btn"
                   title="Delete deck"

@@ -95,6 +95,11 @@ export function PaperRow({
       <div className="dash-bar pp-bar">
         <div className="dash-bar-fill" style={{ width: `${paper.progressPercent}%` }} />
       </div>
+      {paper.pdf && (
+        <p className="pp-page">
+          Page {paper.pdf.page} of {paper.pdf.pageCount}
+        </p>
+      )}
 
       <div className="pp-controls">
         <select

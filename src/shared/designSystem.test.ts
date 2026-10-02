@@ -22,7 +22,6 @@ const MAX_EXEMPTIONS = 12;
 
 /** Files not yet moved onto the system. Each page task deletes its entry. */
 const PENDING = new Set<string>([
-  'src/pages/papers/papers.css',
   'src/pages/options/options.css',
   'src/pages/blocked/blocked.css',
 ]);
