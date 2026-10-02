@@ -14,7 +14,6 @@ import {
 import { dequantize, quantize } from '../../shared/llm/vectors';
 import { sendMessage } from '../../shared/messages';
 import { progressKeyFor } from '../../shared/progress';
-import { CardTitle, Icon } from './Icon';
 
 const SHOWN = 5;
 /** Unread items considered; the first visit embeds these once, later visits hit the cache */
@@ -112,8 +111,8 @@ export function TriageCard() {
   if (!itemsLoaded || cachedItems.length === 0) return null;
 
   return (
-    <section className="relay-continue relay-triage" aria-labelledby="triage-title">
-      <CardTitle id="triage-title" icon="sparkles">Worth reading</CardTitle>
+    <section className="edition-feed" aria-labelledby="triage-title">
+      <h2 id="triage-title" className="edition-kicker">From your feeds</h2>
       {picks === null ? (
         <p className="relay-empty">Sorting by what you finish…</p>
       ) : picks.length === 0 ? (
@@ -123,7 +122,8 @@ export function TriageCard() {
           {picks.map(({ item, because }) => (
             <li key={item.id}>
               <button
-                className="relay-row"
+                className="edition-story"
+                data-story
                 onClick={() => {
                   void recordStat({
                     count: 'triage.opened',
@@ -132,12 +132,9 @@ export function TriageCard() {
                   void sendMessage({ type: 'OPEN_ARTICLE', url: item.link, feedItemId: item.id, readerView: false, original: true });
                 }}
               >
-                <span className="relay-triage-text">
-                  <strong>{item.title}</strong>
-                  {item.snippet && <span className="relay-triage-snippet">{item.snippet}</span>}
-                  <small>{because ? `${item.source} · Because you read ${because}` : item.source}</small>
-                </span>
-                <Icon name="chevron" className="relay-row-chevron" />
+                <span className="edition-story-title">{item.title}</span>
+                <span className="edition-story-meta">{item.source}</span>
+                {because && <span className="edition-story-why">Because you read {because}</span>}
               </button>
             </li>
           ))}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ResumableItem } from '../../shared/attention';
 import { AiNote } from '../../shared/components/AiNote';
-import { formatWatchTime } from '../../shared/format';
+import { formatRelativeDate, formatWatchTime } from '../../shared/format';
 import { useAi } from '../../shared/hooks/useAi';
 import { cachedAi } from '../../shared/llm/generate';
 import { recapRequest, wantsRecap } from '../../shared/llm/recap';
@@ -11,6 +11,26 @@ import { progressKeyFor } from '../../shared/progress';
 import type { VideoProgress } from '../../shared/types';
 import { isWatchingNow, livePositionSeconds } from '../../shared/youtube';
 import { Icon } from './Icon';
+
+/** The lead story's status line: where you are, in the unit the thing has. */
+export function leadStatus(item: ResumableItem): string {
+  const { paper, progress } = item;
+  if (paper) {
+    if (!paper.pdf) return `${Math.round(paper.progressPercent)}% read`;
+    const page = `Page ${paper.pdf.page} of ${paper.pdf.pageCount}`;
+    return paper.leftOff ? `${page} · ${paper.leftOff}` : page;
+  }
+  if (progress?.kind === 'video') {
+    return `${formatWatchTime(progress.positionSeconds)} of ${formatWatchTime(progress.durationSeconds)}`;
+  }
+  const opened = formatRelativeDate(new Date(item.updatedAt)).replace(/^Just now$/, 'just now');
+  return `${Math.round(progress?.maxPercent ?? 0)}% read · opened ${opened}`;
+}
+
+export function kickerFor(item: ResumableItem): string {
+  if (item.paper) return 'Continue reading · paper';
+  return item.progress?.kind === 'video' ? 'Continue watching · video' : 'Continue reading · article';
+}
 
 /**
  * One "Pick something back up" row, with a Recap control when there is
@@ -25,9 +45,15 @@ export function ContinueRow({
   item,
   now,
   onOpen,
+  lead = false,
+  selected = false,
 }: {
   item: ResumableItem;
   now: number;
+  /** The front-page lead story: kicker, headline, status and the one primary action. */
+  lead?: boolean;
+  /** Where J/K selection sits; Enter with nothing focused opens it. */
+  selected?: boolean;
   /** `alt`: Option/Alt was held, so a paper opens in the reader instead of alphaXiv. */
   onOpen: (alt: boolean) => void;
 }) {
@@ -73,7 +99,9 @@ export function ContinueRow({
     <li>
       <div className="relay-row-wrap">
         <button
-          className="relay-row"
+          className={lead ? 'edition-lead' : 'relay-row'}
+          data-story
+          aria-current={selected || undefined}
           onClick={(e) => {
             // A reader-opened document re-records this probe with what it
             // showed; the row's answer stands for everything else.
@@ -88,17 +116,31 @@ export function ContinueRow({
             onOpen(e.altKey);
           }}
         >
-          <span className="relay-row-text">
-            <span className="relay-row-title">{item.title}</span>
-            <small className="relay-row-meta">
-              {[item.paper ? item.paper.venue || 'Paper' : item.progress?.source, `${Math.round(percent)}%`]
-                .filter(Boolean)
-                .join(' · ')}
-            </small>
-            <span className="relay-row-meter" aria-hidden="true">
-              <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+          {lead ? (
+            <span className="edition-lead-text">
+              <span className="edition-kicker">{kickerFor(item)}</span>
+              <span className="edition-headline">{item.title}</span>
+              <span className="edition-lead-status">{leadStatus(item)}</span>
+              <span className="relay-row-meter" aria-hidden="true">
+                <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+              </span>
+              <span className="edition-cta">
+                Pick it back up <kbd>Enter</kbd>
+              </span>
             </span>
-          </span>
+          ) : (
+            <span className="relay-row-text">
+              <span className="relay-row-title">{item.title}</span>
+              <small className="relay-row-meta">
+                {[item.paper ? item.paper.venue || 'Paper' : item.progress?.source, `${Math.round(percent)}%`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </small>
+              <span className="relay-row-meter" aria-hidden="true">
+                <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+              </span>
+            </span>
+          )}
           {/* A video playing in another tab is context, so it marks the
               row it already occupies rather than earning a card. */}
           {item.progress && isWatchingNow(item.progress, now) && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { greetingFor } from './Hero';
+import { editionName, greetingFor } from './Hero';
 import { QUOTES, quoteOfDay } from './quotes';
 
 describe('greetingFor', () => {
@@ -34,5 +34,18 @@ describe('quoteOfDay', () => {
 
   it('does not index negatively before the epoch', () => {
     expect(QUOTES).toContain(quoteOfDay('1969-07-20'));
+  });
+});
+
+describe('editionName', () => {
+  it('follows the same hour boundaries as the greeting', () => {
+    expect(editionName(0)).toBe('The Late Edition');
+    expect(editionName(4)).toBe('The Late Edition');
+    expect(editionName(5)).toBe('The Morning Edition');
+    expect(editionName(11)).toBe('The Morning Edition');
+    expect(editionName(12)).toBe('The Afternoon Edition');
+    expect(editionName(17)).toBe('The Afternoon Edition');
+    expect(editionName(18)).toBe('The Evening Edition');
+    expect(editionName(23)).toBe('The Evening Edition');
   });
 });

@@ -4,7 +4,6 @@ import { sendMessage } from '../../shared/messages';
 import { livePositionSeconds } from '../../shared/youtube';
 import type { TranscriptSegment } from '../../shared/youtubeCaptions';
 import { segmentAt } from '../../shared/youtubeCaptions';
-import { CardTitle } from './Icon';
 
 /** The live half of useNowWatching's return, which is the only half this renders. */
 type Watching = Extract<ReturnType<typeof useNowWatching>, { active: true }>;
@@ -75,7 +74,7 @@ export function NowWatching({ watching }: { watching: Watching }) {
   return (
     <section className="relay-watching-card" aria-labelledby="watching-title">
       <div className="nw-head">
-        <CardTitle id="watching-title" icon="play">Now watching</CardTitle>
+        <h2 id="watching-title" className="edition-kicker edition-live">Live · Now watching</h2>
         <h3>{watching.video.title}</h3>
         <p>
           {watching.video.source} · {watching.position} / {watching.duration}

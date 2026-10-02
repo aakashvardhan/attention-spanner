@@ -1,27 +1,33 @@
 import { useEffect, useState } from 'react';
-import { formatTime, localDate } from '../../shared/format';
+import { formatTime } from '../../shared/format';
 import { useSettings } from '../../shared/hooks/useSettings';
-import { quoteOfDay } from './quotes';
 import { Weather } from './Weather';
 
 /**
- * The top band: the time, who you are, and a line to read while the page
- * settles. None of it is a task list — the daily focus field went too, since
- * the one thing you mean to do today already lives in Notion.
+ * The masthead. The edition's name is the greeting (Morning, Afternoon,
+ * Evening, Late), with the date on one side and the time and weather on the
+ * other; the dek under the double rule says who it is for and what is waiting.
  */
-export function Hero() {
+export function Hero({ status }: { status: string }) {
   const [settings] = useSettings();
-  const today = localDate();
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = `${greetingFor(hour)}${settings.displayName ? `, ${settings.displayName}` : ''}`;
 
   return (
-    <header className="relay-hero">
-      <Clock />
-      <h1 className="relay-greeting">
-        {greetingFor(new Date().getHours())}
-        {settings.displayName ? `, ${settings.displayName}` : ''}
-      </h1>
-      <p className="relay-quote">{quoteOfDay(today)}</p>
-      <Weather location={settings.weatherLocation} />
+    <header className="edition-masthead">
+      <p className="edition-dateline">
+        {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+      </p>
+      <h1 className="edition-name">{editionName(hour)}</h1>
+      <div className="edition-weatherline">
+        <Clock />
+        <Weather location={settings.weatherLocation} />
+      </div>
+      <p className="edition-dek">
+        <span>{greeting.endsWith('?') ? greeting : `${greeting}.`}</span>
+        <span>{status}</span>
+      </p>
     </header>
   );
 }
@@ -32,6 +38,14 @@ export function greetingFor(hour: number): string {
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';
+}
+
+/** The masthead. Same boundaries as greetingFor, so the two never disagree. */
+export function editionName(hour: number): string {
+  if (hour < 5) return 'The Late Edition';
+  if (hour < 12) return 'The Morning Edition';
+  if (hour < 18) return 'The Afternoon Edition';
+  return 'The Evening Edition';
 }
 
 function Clock() {
@@ -53,8 +67,8 @@ function Clock() {
   }, []);
 
   return (
-    <p className="relay-clock">
-      <time dateTime={now.toISOString()}>{formatTime(now)}</time>
-    </p>
+    <time className="edition-clock" dateTime={now.toISOString()}>
+      {formatTime(now)}
+    </time>
   );
 }

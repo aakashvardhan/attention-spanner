@@ -1,9 +1,7 @@
 import { type CSSProperties, useState } from 'react';
-import { Button, EmptyState } from '../../shared/components/ui';
 import { faviconUrl } from '../../shared/format';
 import { useBookmarks } from '../../shared/hooks/useBookmarks';
 import { sendMessage } from '../../shared/messages';
-import { CardTitle, Icon } from './Icon';
 
 export function normalizeBookmarkUrl(value: string): string | null {
   const candidate = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
@@ -55,113 +53,100 @@ export function BookmarksPanel() {
   };
 
   return (
-    <section className="relay-bookmarks" aria-labelledby="bookmark-links-title">
-      <header className="relay-bookmarks-head">
-        <CardTitle id="bookmark-links-title" icon="star">Favorites</CardTitle>
-        <div className="relay-bookmarks-actions">
-          <Button variant="ghost" aria-expanded={adding} onClick={() => setAdding((current) => !current)}>
-            {!adding && <Icon name="plus" />}
-            {adding ? 'Cancel' : 'Add link'}
-          </Button>
-          {bookmarks.bookmarks.length > 0 && (
-            <Button
-              variant="ghost"
-              className={editing ? 'editing' : undefined}
-              onClick={() => setEditing((current) => !current)}
-            >
-              {!editing && <Icon name="edit" />}
-              {editing ? 'Done' : 'Edit'}
-            </Button>
-          )}
-        </div>
-      </header>
+    <section className="edition-favorites" aria-labelledby="bookmark-links-title">
+      <h2 id="bookmark-links-title" className="edition-kicker">Favorites</h2>
 
-      <div className="panel-scroll">
-        {bookmarks.grouped.length === 0 && (
-          <EmptyState>
-            No favorites yet. Use Add link, or right-click any page and choose “Bookmark this
-            page”.
-          </EmptyState>
-        )}
-        {bookmarks.grouped.map((group) => (
-          <div key={group.id ?? 'unsorted'} className="bm-group">
-            <p className="row-label bm-group-head">
-              <span>{group.name}</span>
-              {editing && group.id !== null && (
-                <Button
-                  variant="ghost"
-                  title={`Delete ${group.name}`}
-                  aria-label={`Delete ${group.name} group`}
-                  onClick={() => {
-                    if (window.confirm(`Delete group "${group.name}"? Its links will move to Unsorted.`)) {
-                      void bookmarks.deleteGroup(group.id!);
+      {bookmarks.grouped.length === 0 && (
+        <p className="edition-fav-empty">
+          None yet. Add one, or right-click any page and choose “Bookmark this page”.
+        </p>
+      )}
+      {bookmarks.grouped.map((group) => (
+        <div key={group.id ?? 'unsorted'} className="edition-fav-group">
+          {/* One unnamed group needs no label; with several, the name says which is which. */}
+          {bookmarks.grouped.length > 1 && <span className="edition-fav-group-name">{group.name}</span>}
+          {editing && group.id !== null && (
+            <button
+              type="button"
+              className="edition-link"
+              aria-label={`Delete ${group.name} group`}
+              onClick={() => {
+                if (window.confirm(`Delete group "${group.name}"? Its links will move to Unsorted.`)) {
+                  void bookmarks.deleteGroup(group.id!);
+                }
+              }}
+            >
+              Delete group
+            </button>
+          )}
+          <ul className="edition-fav-list">
+            {group.links.map((link) => (
+              <li key={link.id}>
+                {/* The href stays so middle-click, modifier-click and "open in
+                    new tab" keep working; a plain left click is the one we
+                    reroute. A bookmark opens the page itself, not the
+                    reader: it is somewhere you go (openArticle). */}
+                <a
+                  className="edition-fav"
+                  href={link.url}
+                  title={link.url}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+                      return;
                     }
+                    event.preventDefault();
+                    void sendMessage({
+                      type: 'OPEN_ARTICLE',
+                      url: link.url,
+                      feedItemId: null,
+                      readerView: false,
+                    });
                   }}
                 >
-                  Delete group
-                </Button>
-              )}
-            </p>
-            <div className="bm-grid">
-              {group.links.map((link) => (
-                <div key={link.id} className="bm-tile-wrap">
-                  {/* The href stays so middle-click, modifier-click and "open in
-                      new tab" keep working; a plain left click is the one we
-                      reroute. A bookmark opens the page itself, not the
-                      reader: it is somewhere you go (openArticle). */}
-                  <a
-                    className="bm-tile"
-                    href={link.url}
-                    title={link.url}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
-                        return;
+                  <BookmarkIcon url={link.url} title={link.title} />
+                  <span>{link.title}</span>
+                </a>
+                {editing && (
+                  <span className="edition-fav-edit">
+                    <select
+                      aria-label={`Move ${link.title}`}
+                      value={link.groupId ?? 'unsorted'}
+                      onChange={(event) =>
+                        void bookmarks.moveBookmark(
+                          link.id,
+                          event.target.value === 'unsorted' ? null : event.target.value,
+                        )
                       }
-                      event.preventDefault();
-                      void sendMessage({
-                        type: 'OPEN_ARTICLE',
-                        url: link.url,
-                        feedItemId: null,
-                        readerView: false,
-                      });
-                    }}
-                  >
-                    <BookmarkIcon url={link.url} title={link.title} />
-                    <span className="bm-name">{link.title}</span>
-                  </a>
-                  {editing && (
-                    <div className="bm-edit">
-                      <select
-                        aria-label={`Move ${link.title}`}
-                        value={link.groupId ?? 'unsorted'}
-                        onChange={(event) =>
-                          void bookmarks.moveBookmark(
-                            link.id,
-                            event.target.value === 'unsorted' ? null : event.target.value,
-                          )
-                        }
-                      >
-                        {bookmarks.groups.map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
-                        ))}
-                        <option value="unsorted">Unsorted</option>
-                      </select>
-                      <Button
-                        variant="ghost"
-                        title={`Delete ${link.title}`}
-                        aria-label={`Delete ${link.title}`}
-                        onClick={() => void bookmarks.deleteBookmark(link.id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+                    >
+                      {bookmarks.groups.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                      ))}
+                      <option value="unsorted">Unsorted</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="edition-link"
+                      aria-label={`Delete ${link.title}`}
+                      onClick={() => void bookmarks.deleteBookmark(link.id)}
+                    >
+                      Delete
+                    </button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      <button type="button" className="edition-link" aria-expanded={adding} onClick={() => setAdding((current) => !current)}>
+        {adding ? 'Cancel' : '+ Add'}
+      </button>
+      {bookmarks.bookmarks.length > 0 && (
+        <button type="button" className="edition-link" aria-pressed={editing} onClick={() => setEditing((current) => !current)}>
+          {editing ? 'Done' : 'Edit'}
+        </button>
+      )}
 
       {adding && (
         <form
