@@ -284,6 +284,15 @@ export interface BookmarkLink extends RecordMeta {
 }
 
 /** One local day in the new tab's heatmap (shared/activity.ts). */
+/** A parked brain dump (shared/brainDump.ts) */
+export interface Dump {
+  id: string;
+  text: string;
+  createdAt: number;
+  /** Unset until asked; null when the local model found nothing to act on */
+  nextStep?: string | null;
+}
+
 export interface DayActivity {
   /** Distinct papers read that day */
   papers: string[];

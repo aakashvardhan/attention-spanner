@@ -8,6 +8,7 @@ import type {
   BookmarkLink,
   DayActivity,
   Deck,
+  Dump,
   FeedItem,
   FocusSession,
   Paper,
@@ -41,6 +42,12 @@ export interface LocalSchema {
   aiVectors: Record<string, string>;
   /** Per local day 'YYYY-MM-DD': papers read, focus sessions finished (shared/activity.ts) */
   activity: Record<string, DayActivity>;
+  /**
+   * Parked brain dumps, newest first. Never rename this to a key in
+   * V22_DEAD_KEYS ('notes', 'parkingLot'...): that sweep re-runs on every
+   * schema bump and would delete them.
+   */
+  dumps: Dump[];
 }
 
 export interface SessionSchema {
@@ -106,6 +113,7 @@ export const DEFAULTS: LocalSchema = {
   aiStats: { counts: {}, latencies: [], probes: [] },
   aiVectors: {},
   activity: {},
+  dumps: [],
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {

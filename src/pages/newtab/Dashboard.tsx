@@ -16,6 +16,7 @@ import type { ResumableItem } from '../../shared/attention';
 import type { ResumeTarget } from '../../shared/types';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { BookmarksPanel } from './BookmarksPanel';
+import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
 import { Hero } from './Hero';
 import { NowWatching } from './NowWatching';
@@ -155,6 +156,7 @@ export function Dashboard() {
       </section>
 
       <aside className="edition-side">
+        <BrainDump />
         <TriageCard />
         <p className="edition-quote">{quoteOfDay(localDate())}</p>
       </aside>
