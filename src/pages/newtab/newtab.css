@@ -709,6 +709,42 @@ ol {
   }
 }
 
+/* ---------- Wide ---------- */
+
+/* The new tab is the one page that uses the whole window: the 12 columns
+   stretch edge to edge instead of stopping at --grid-max. Two zones on
+   them: Now watching and the lead stack in columns 1–8, the feeds run down
+   9–12 beside both, so every block starts and ends on the same lines.
+   Running text keeps a reading measure inside its block. */
+.edition {
+  max-width: none;
+}
+@media (min-width: 1440px) {
+  .edition {
+    padding-inline: var(--space-7);
+  }
+}
+@media (min-width: 901px) {
+  .relay-watching-card {
+    grid-column: 1 / span 8;
+  }
+  .edition-side {
+    grid-row: 2;
+  }
+  .edition:has(> .relay-watching-card) .edition-side {
+    grid-row: 2 / span 2;
+  }
+}
+.edition-headline,
+.edition-story-title,
+.relay-row-title,
+.relay-recap,
+.edition-notice,
+.relay-watching-card h3,
+.nw-transcript li > span:last-child {
+  max-inline-size: 75ch;
+}
+
 /* ---------- Narrow ---------- */
 
 @media (max-width: 900px) {
