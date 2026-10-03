@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { formatTime } from '../../shared/format';
 import { useSettings } from '../../shared/hooks/useSettings';
-import { Weather } from './Weather';
+import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { PixelWalk } from './PixelWalk';
+import { usableReading, Weather } from './Weather';
 
 /**
  * The masthead. The edition's name is the greeting (Morning, Afternoon,
@@ -13,9 +15,13 @@ export function Hero({ status }: { status: string }) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = `${greetingFor(hour)}${settings.displayName ? `, ${settings.displayName}` : ''}`;
+  // The street only draws over a reading the readout would also show.
+  const [weather] = useStorageValue('weather');
+  const reading = usableReading(weather, settings.weatherLocation.trim()) ? weather : null;
 
   return (
-    <header className="edition-masthead">
+    <header className={reading ? 'edition-masthead edition-masthead--scene' : 'edition-masthead'}>
+      {reading && <PixelWalk code={reading.code} />}
       <p className="edition-dateline">
         {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
       </p>

@@ -43,6 +43,22 @@ ol {
   border-bottom: 3px double var(--rule);
   padding-bottom: var(--space-2);
 }
+/* The pixel street (PixelWalk.tsx): drawn behind the masthead, with a lane
+   above the double rule for the walker so it never crosses the dek. */
+.edition-masthead--scene {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: var(--space-7);
+}
+.edition-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
 .edition-dateline,
 .edition-weatherline {
   margin: 0;
