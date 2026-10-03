@@ -1,3 +1,4 @@
+import { logActivity } from '../shared/activity';
 import { MAX_PAPERS } from '../shared/constants';
 import { paperMatchKey } from '../shared/papers';
 import { computePdfPercent } from '../shared/pdf';
@@ -38,14 +39,16 @@ export async function updatePaper(
   const paper = papers.find((p) => p.id === id);
   if (!paper) return { ok: false, error: 'Paper not found.' };
 
+  const now = Date.now();
   Object.assign(paper, patch);
-  paper.updatedAt = Date.now();
+  paper.updatedAt = now;
   // Reading a paper (setting/advancing progress while not "to-read") stamps the
   // last-read time so the dashboard can surface the most recently touched ones.
   const touchesReading = patch.status !== undefined || patch.progressPercent !== undefined;
-  if (touchesReading && paper.status !== 'to-read') paper.lastReadAt = Date.now();
+  if (touchesReading && paper.status !== 'to-read') paper.lastReadAt = now;
 
   await setLocal({ papers });
+  if (paper.lastReadAt === now) await logActivity({ paperId: id });
   return { ok: true };
 }
 
@@ -83,6 +86,7 @@ export async function markPaperReadingByUrl(url: string): Promise<void> {
     paper.updatedAt = now;
     await setLocal({ papers });
   }
+  if (paper.lastReadAt === now) await logActivity({ paperId: paper.id });
 }
 
 /** What the PDF reader reports about the position it's showing. */
@@ -152,6 +156,8 @@ export async function handleReaderProgress(
   const { papers } = await getLocal('papers');
   const paper = papers.find((p) => p.id === paperId);
   if (!paper) return { ok: false, error: 'Paper not found.' };
-  if (applyReaderProgress(paper, pos, Date.now())) await setLocal({ papers });
+  const now = Date.now();
+  if (applyReaderProgress(paper, pos, now)) await setLocal({ papers });
+  if (paper.lastReadAt === now) await logActivity({ paperId });
   return { ok: true };
 }

@@ -1,3 +1,4 @@
+import { logActivity } from '../shared/activity';
 import {
   ALARMS,
   BLOCKED_PAGE_PATH,
@@ -98,6 +99,7 @@ export async function handleFocusPhaseEnd(): Promise<void> {
   const settings = await getSettings();
   await chrome.alarms.clear(ALARMS.focusBadgeTick);
   await setLocal({ focusSession: null });
+  await logActivity({ focus: true });
   await syncSessionAccessRules();
   await updateBadge();
   notifyPhase(
@@ -124,6 +126,7 @@ export async function reconcileFocusOnStartup(): Promise<void> {
   if (session.phaseEndsAt <= Date.now()) {
     await chrome.alarms.clear(ALARMS.focusBadgeTick);
     await setLocal({ focusSession: null });
+    await logActivity({ focus: true });
     await syncSessionAccessRules();
     await updateBadge();
     return;

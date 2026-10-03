@@ -6,6 +6,7 @@ import type {
   AnyProgress,
   BookmarkGroup,
   BookmarkLink,
+  DayActivity,
   Deck,
   FeedItem,
   FocusSession,
@@ -38,6 +39,8 @@ export interface LocalSchema {
   aiStats: AiStats;
   /** int8 embeddings keyed by FeedItem id or annotation id (llm/vectors.ts) */
   aiVectors: Record<string, string>;
+  /** Per local day 'YYYY-MM-DD': papers read, focus sessions finished (shared/activity.ts) */
+  activity: Record<string, DayActivity>;
 }
 
 export interface SessionSchema {
@@ -102,6 +105,7 @@ export const DEFAULTS: LocalSchema = {
   aiCache: {},
   aiStats: { counts: {}, latencies: [], probes: [] },
   aiVectors: {},
+  activity: {},
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {

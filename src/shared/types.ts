@@ -283,6 +283,14 @@ export interface BookmarkLink extends RecordMeta {
   createdAt: number;
 }
 
+/** One local day in the new tab's heatmap (shared/activity.ts). */
+export interface DayActivity {
+  /** Distinct papers read that day */
+  papers: string[];
+  /** Focus sessions that ran to the end; a stopped one does not count */
+  focus: number;
+}
+
 export interface FocusSession {
   startedAt: number;
   phaseEndsAt: number;

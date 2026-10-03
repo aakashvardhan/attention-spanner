@@ -456,6 +456,193 @@ ol {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- The record: papers and focus by day ---------- */
+
+/* GitHub's contribution calendar, set as a section of the edition: kicker and
+   serif headline over the year, Less → More key under it. */
+.heat {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.heat-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+.heat-title {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 700;
+}
+/* Segmented control: the thumb slides under the choice on a spring. */
+.heat-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+}
+.heat-seg::before {
+  content: '';
+  position: absolute;
+  inset: var(--space-1) auto var(--space-1) var(--space-1);
+  width: calc((100% - var(--space-2)) / 3);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform var(--dur-snappy) var(--spring-snappy);
+}
+.heat-seg button {
+  position: relative;
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast) var(--ease-out),
+    transform var(--dur-snappy) var(--spring-snappy);
+}
+.heat-seg button[aria-checked='true'] {
+  color: var(--text-primary);
+}
+/* Sized by the frame so the tooltip can clamp itself inside it (100cqw). */
+.heat-frame {
+  position: relative;
+  container-type: inline-size;
+}
+.heat-scroll {
+  overflow-x: auto;
+  padding-block: var(--space-1);
+}
+.heat-table {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-2);
+  max-width: 1600px;
+}
+.heat-months,
+.heat-grid {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(53, minmax(12px, 1fr));
+  column-gap: var(--space-1);
+}
+.heat-months,
+.heat-days {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+.heat-months span {
+  white-space: nowrap;
+}
+.heat-days {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  row-gap: var(--space-1);
+  align-items: center;
+}
+.heat-grid {
+  grid-row: 2;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, auto);
+  row-gap: var(--space-1);
+}
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background: var(--heat-0);
+  outline: 1px solid var(--heat-cell-border);
+  outline-offset: -1px;
+}
+.heat-cell[data-level='1'] {
+  background: var(--heat-1);
+}
+.heat-cell[data-level='2'] {
+  background: var(--heat-2);
+}
+.heat-cell[data-level='3'] {
+  background: var(--heat-3);
+}
+.heat-cell[data-level='4'] {
+  background: var(--heat-4);
+}
+.heat-cell--future {
+  visibility: hidden;
+}
+.heat-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* GitHub's ink tooltip over the cell, kept inside the frame at either end. */
+.heat-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--rule);
+  color: var(--bg-page);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: bottom center;
+  translate: calc(clamp(180px, var(--x), 100cqw - 180px) - 50%) calc(var(--y) - 100% - 8px);
+  transition: translate var(--dur-snappy) var(--spring-snappy);
+  animation: heat-tip-in var(--dur-snappy) var(--spring-snappy) both;
+}
+.heat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+.heat-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+.heat-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+.heat-cell--key {
+  width: 12px;
+}
+.heat-legend > span:first-child {
+  margin-right: var(--space-1);
+}
+.heat-legend > span:last-child {
+  margin-left: var(--space-1);
+}
+
 /* ---------- Index row ---------- */
 
 .edition-index {
@@ -654,7 +841,8 @@ ol {
 }
 .edition-masthead,
 .edition-lead-col,
-.edition-side {
+.edition-side,
+.heat {
   animation: edition-rise var(--dur-snappy) var(--spring-snappy) both;
 }
 .edition-lead-col {
@@ -662,6 +850,40 @@ ol {
 }
 .edition-side {
   animation-delay: 120ms;
+}
+.heat {
+  animation-delay: 180ms;
+}
+
+/* The year pops in as a wave, oldest week first and top to bottom in each,
+   and a change of metric sweeps the new colours across the weeks. Backwards,
+   not both, so a finished pop leaves transform free for the hover lift. */
+@keyframes heat-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+@keyframes heat-tip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.heat-grid .heat-cell {
+  animation: heat-pop var(--dur-bouncy) var(--spring-bouncy) backwards;
+  animation-delay: calc(240ms + var(--w) * 8ms + var(--d) * 12ms);
+  transition:
+    background-color var(--dur-smooth) var(--spring-smooth) calc(var(--w) * 6ms),
+    transform var(--dur-snappy) var(--spring-snappy);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .heat-grid .heat-cell:hover {
+    transform: scale(1.3);
+  }
+  .heat-seg button:active {
+    transform: scale(0.96);
+  }
 }
 
 /* The name rises through its own line, as if set from below the rule. */
@@ -696,7 +918,10 @@ ol {
   .relay-row-meter > span,
   .relay-recap,
   .bm-add,
-  .edition-name-line {
+  .edition-name-line,
+  .heat,
+  .heat-grid .heat-cell,
+  .heat-tip {
     animation: none;
   }
   .edition-headline,
@@ -704,7 +929,11 @@ ol {
   .relay-row-title,
   .edition-cta,
   .nw-meter > span,
-  .edition-name-line > span {
+  .edition-name-line > span,
+  .heat-seg::before,
+  .heat-seg button,
+  .heat-grid .heat-cell,
+  .heat-tip {
     transition: none;
   }
 }

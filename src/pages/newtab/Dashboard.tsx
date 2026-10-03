@@ -14,6 +14,7 @@ import { sendMessage } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import type { ResumableItem } from '../../shared/attention';
 import type { ResumeTarget } from '../../shared/types';
+import { ActivityHeatmap } from './ActivityHeatmap';
 import { BookmarksPanel } from './BookmarksPanel';
 import { ContinueRow } from './ContinueRow';
 import { Hero } from './Hero';
@@ -157,6 +158,8 @@ export function Dashboard() {
         <TriageCard />
         <p className="edition-quote">{quoteOfDay(localDate())}</p>
       </aside>
+
+      <ActivityHeatmap papers={papers} />
 
       <footer className="edition-index">
         <BookmarksPanel />
