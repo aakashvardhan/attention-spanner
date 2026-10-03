@@ -93,6 +93,7 @@ ol {
   font-weight: 700;
   text-align: center;
   letter-spacing: -0.01em;
+  overflow: clip;
 }
 .edition-dek {
   grid-column: 1 / -1;
@@ -269,7 +270,8 @@ ol {
   background: var(--accent);
   border-radius: inherit;
   transform-origin: left;
-  animation: edition-grow 700ms var(--ease-out) 360ms both;
+  /* Bouncy: the fill overshoots a hair and settles. The track clips it. */
+  animation: edition-grow var(--dur-bouncy) var(--spring-bouncy) 360ms both;
 }
 .relay-watching {
   flex: none;
@@ -402,7 +404,7 @@ ol {
   height: 100%;
   background: var(--accent);
   border-radius: inherit;
-  transition: width var(--transition-base) var(--ease-out);
+  transition: width var(--dur-smooth) var(--spring-smooth);
 }
 .nw-actions {
   display: flex;
@@ -642,7 +644,7 @@ ol {
 @keyframes edition-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(8px) scale(0.98);
   }
 }
 @keyframes edition-grow {
@@ -653,7 +655,7 @@ ol {
 .edition-masthead,
 .edition-lead-col,
 .edition-side {
-  animation: edition-rise 300ms var(--ease-out) both;
+  animation: edition-rise var(--dur-snappy) var(--spring-snappy) both;
 }
 .edition-lead-col {
   animation-delay: 60ms;
@@ -662,20 +664,47 @@ ol {
   animation-delay: 120ms;
 }
 
+/* The name rises through its own line, as if set from below the rule. */
+@keyframes edition-mask-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+.edition-name-line {
+  display: inline-block;
+  animation: edition-mask-rise var(--dur-smooth) var(--spring-smooth) 60ms both;
+}
+/* Hover: the letters lift in a wave, left to right. A weight wave would read
+   better, but Chrome draws the display serif as static faces, so the name
+   would snap to a wider face and slide under the cursor. Inline-block so a
+   letter can move; pre so the spaces keep their width. */
+.edition-name-line > span {
+  display: inline-block;
+  white-space: pre;
+  transition: transform var(--dur-snappy) var(--spring-snappy) calc(var(--i) * 20ms);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .edition-name:hover .edition-name-line > span {
+    transform: translateY(-4px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .edition-masthead,
   .edition-lead-col,
   .edition-side,
   .relay-row-meter > span,
   .relay-recap,
-  .bm-add {
+  .bm-add,
+  .edition-name-line {
     animation: none;
   }
   .edition-headline,
   .edition-story-title,
   .relay-row-title,
   .edition-cta,
-  .nw-meter > span {
+  .nw-meter > span,
+  .edition-name-line > span {
     transition: none;
   }
 }

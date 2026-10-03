@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useMemo, useRef, useState } from 'react';
 import { useSettings } from '../../../shared/hooks/useSettings';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { recallEntries, searchRecall, type RecallEntry } from '../../../shared/llm/recall';
@@ -16,7 +16,7 @@ export function RecallSearch() {
 
   const [query, setQuery] = useState('');
   const [state, setState] = useState<
-    { status: 'idle' } | { status: 'searching' } | { status: 'done'; hits: RecallEntry[] } | { status: 'error'; message: string }
+    { status: 'idle' } | { status: 'searching' } | { status: 'done'; hits: RecallEntry[]; id: number } | { status: 'error'; message: string }
   >({ status: 'idle' });
   const latest = useRef(0);
 
@@ -28,7 +28,7 @@ export function RecallSearch() {
     try {
       const hits = await searchRecall(query, entries, settings, 8);
       if (id !== latest.current) return;
-      setState({ status: 'done', hits: hits.map((h) => h.entry) });
+      setState({ status: 'done', hits: hits.map((h) => h.entry), id });
       void recordStat({ count: 'recall.searched' });
     } catch {
       if (id !== latest.current) return;
@@ -64,8 +64,9 @@ export function RecallSearch() {
       {state.status === 'error' && <p className="recall-hint">{state.message}</p>}
       {state.status === 'done' && (
         <ul className="recall-results">
-          {state.hits.map((entry) => (
-            <li key={entry.key}>
+          {state.hits.map((entry, i) => (
+            // Keyed by search too, so a second search's rows arrive fresh.
+            <li key={`${state.id}:${entry.key}`} style={{ '--i': i } as CSSProperties}>
               <button
                 onClick={() => {
                   void recordStat({ count: 'recall.clicked' });

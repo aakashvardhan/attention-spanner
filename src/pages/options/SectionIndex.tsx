@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** The sticky table of contents; the section in view is lit. */
 export function SectionIndex() {
@@ -27,8 +27,18 @@ export function SectionIndex() {
     return () => window.removeEventListener('scroll', update);
   }, []);
 
+  // The bar under the lit link. The nav is sticky, so it is the links'
+  // offsetParent and offsetTop is already relative to it.
+  const nav = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const link = nav.current?.querySelector<HTMLElement>('a[aria-current]');
+    if (!nav.current || !link) return;
+    nav.current.style.setProperty('--indicator-y', `${link.offsetTop}px`);
+    nav.current.style.setProperty('--indicator-h', `${link.offsetHeight}px`);
+  }, [active, sections]);
+
   return (
-    <nav className="colophon-index" aria-label="Settings sections">
+    <nav ref={nav} className="colophon-index" aria-label="Settings sections">
       <ol>
         {sections.map((s) => (
           <li key={s.id}>

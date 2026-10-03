@@ -1,5 +1,7 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { editionName, greetingFor } from './Hero';
+import { EditionName, editionName, greetingFor } from './Hero';
 import { QUOTES, quoteOfDay } from './quotes';
 
 describe('greetingFor', () => {
@@ -47,5 +49,19 @@ describe('editionName', () => {
     expect(editionName(17)).toBe('The Afternoon Edition');
     expect(editionName(18)).toBe('The Evening Edition');
     expect(editionName(23)).toBe('The Evening Edition');
+  });
+});
+
+describe('EditionName', () => {
+  const html = renderToStaticMarkup(createElement(EditionName, { name: 'The Late Edition' }));
+
+  it('reads as one name to a screen reader, not letter by letter', () => {
+    expect(html).toMatch(/^<h1 class="edition-name" aria-label="The Late Edition"><span class="edition-name-line" aria-hidden="true">/);
+  });
+
+  it('sets one indexed span per letter for the hover wave', () => {
+    const letters = [...html.matchAll(/<span style="--i:(\d+)">(.)<\/span>/g)];
+    expect(letters.map((m) => m[2]).join('')).toBe('The Late Edition');
+    expect(letters.map((m) => Number(m[1]))).toEqual([...Array(16).keys()]);
   });
 });

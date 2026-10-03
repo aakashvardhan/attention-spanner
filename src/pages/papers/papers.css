@@ -449,6 +449,23 @@ a.pp-row-title:hover {
   padding: 0;
 }
 
+/* Results arrive one after another, a beat apart. */
+@keyframes recall-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.recall-results li {
+  animation: recall-arrive var(--dur-snappy) var(--spring-snappy) calc(var(--i) * 30ms) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recall-results li {
+    animation: none;
+  }
+}
+
 .recall-results button {
   width: 100%;
   min-height: 44px;

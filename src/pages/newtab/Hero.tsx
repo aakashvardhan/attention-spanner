@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { formatTime } from '../../shared/format';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -25,7 +25,7 @@ export function Hero({ status }: { status: string }) {
       <p className="edition-dateline">
         {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
       </p>
-      <h1 className="edition-name">{editionName(hour)}</h1>
+      <EditionName name={editionName(hour)} />
       <div className="edition-weatherline">
         <Clock />
         <Weather location={settings.weatherLocation} />
@@ -35,6 +35,24 @@ export function Hero({ status }: { status: string }) {
         <span>{status}</span>
       </p>
     </header>
+  );
+}
+
+/**
+ * The edition's name, one span per letter for the hover wave. The label keeps
+ * it one word to a screen reader.
+ */
+export function EditionName({ name }: { name: string }) {
+  return (
+    <h1 className="edition-name" aria-label={name}>
+      <span className="edition-name-line" aria-hidden="true">
+        {[...name].map((ch, i) => (
+          <span key={i} style={{ '--i': i } as CSSProperties}>
+            {ch}
+          </span>
+        ))}
+      </span>
+    </h1>
   );
 }
 
