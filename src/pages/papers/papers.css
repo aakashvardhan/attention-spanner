@@ -575,10 +575,27 @@ a.pp-row-title:hover {
   box-shadow: none;
 }
 
+/* The deck column is a third of the page, too narrow for a name and three
+   chips on one line: the chips never shrink, so the name ellipsized to a
+   couple of letters. The name takes its own line and wraps; the counts and
+   delete sit under it. */
+.library .fc-deck-row {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
 .library .fc-deck-name {
+  flex-basis: 100%;
+  padding: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-size: var(--text-md);
   line-height: var(--leading-md);
+}
+
+.library .fc-deck-counts {
+  flex: 1;
 }
 
 .library .fc-deck-row[aria-current] .fc-deck-name {
