@@ -726,53 +726,94 @@ ol {
 
 .edition-index {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-5);
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: var(--space-4);
   border-top: 3px double var(--rule);
   padding-top: var(--space-3);
 }
+/* A paper's section index on the page's own columns. The favourites' parts
+   join the index grid directly: the head shares a line with the actions,
+   which start where the sidebar does, and below them each group takes two
+   of the twelve columns. Rows are explicit for the head and actions, so no
+   group is auto-placed beside them. */
 .edition-favorites {
-  flex: 1 1 480px;
-  min-width: 0;
+  display: contents;
+}
+.edition-fav-head {
+  grid-column: 1 / span 8;
+  grid-row: 1;
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  gap: var(--space-4);
+}
+.edition-fav-empty,
+.edition-favorites > .bm-add {
+  grid-column: 1 / -1;
 }
 .edition-fav-group {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+  grid-column: span 2;
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+/* Doubled so the narrow-width spans below never shrink the only list. */
+.edition-fav-group.edition-fav-group--solo {
+  grid-column: 1 / -1;
+}
+.edition-fav-group > .edition-link {
+  justify-self: start;
 }
 .edition-fav-group-name {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 .edition-fav-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-}
-.edition-fav-list li {
-  display: flex;
-  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
   gap: var(--space-2);
 }
+/* One list with no group names flows across the same lines: six tracks with
+   the page's gutter fall exactly where two-column groups would. */
+.edition-fav-group--solo .edition-fav-list {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: var(--grid-gutter);
+}
+.edition-fav-list li {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1) var(--space-2);
+}
 .edition-fav {
+  min-width: 0;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
   color: var(--text-primary);
   text-decoration: none;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
 }
 .edition-fav:hover {
   color: var(--accent-text);
+}
+/* The icon sits on the first line of a title that wraps. */
+.edition-fav > img,
+.edition-fav > .bm-letter {
+  flex: none;
+  margin-block: calc((var(--leading-sm) - 16px) / 2);
 }
 .edition-fav-edit {
   display: inline-flex;
@@ -795,10 +836,15 @@ ol {
   font-weight: 700;
 }
 .edition-actions {
-  margin-left: auto;
+  grid-column: 9 / -1;
+  grid-row: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-4);
+  align-self: start;
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-5);
 }
 .edition-link {
   background: none;
@@ -1074,7 +1120,37 @@ ol {
   .edition-weatherline {
     justify-self: center;
   }
+  .edition-fav-head,
   .edition-actions {
-    margin-left: 0;
+    grid-column: 1 / -1;
+  }
+  /* Under everything rather than between the head and the groups. */
+  .edition-actions {
+    grid-row: auto;
+    order: 1;
+    border-left: 0;
+    padding-left: 0;
+  }
+  .edition-fav-group {
+    grid-column: span 6;
+  }
+  .edition-fav-group--solo .edition-fav-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 901px) and (max-width: 1280px) {
+  .edition-fav-group {
+    grid-column: span 3;
+  }
+  .edition-fav-group--solo .edition-fav-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .edition-fav-group {
+    grid-column: 1 / -1;
+  }
+  .edition-fav-group--solo .edition-fav-list {
+    grid-template-columns: 1fr;
   }
 }

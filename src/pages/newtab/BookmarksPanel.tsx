@@ -54,7 +54,17 @@ export function BookmarksPanel() {
 
   return (
     <section className="edition-favorites" aria-labelledby="bookmark-links-title">
-      <h2 id="bookmark-links-title" className="edition-kicker">Favorites</h2>
+      <div className="edition-fav-head">
+        <h2 id="bookmark-links-title" className="edition-kicker">Favorites</h2>
+        <button type="button" className="edition-link" aria-expanded={adding} onClick={() => setAdding((current) => !current)}>
+          {adding ? 'Cancel' : '+ Add'}
+        </button>
+        {bookmarks.bookmarks.length > 0 && (
+          <button type="button" className="edition-link" aria-pressed={editing} onClick={() => setEditing((current) => !current)}>
+            {editing ? 'Done' : 'Edit'}
+          </button>
+        )}
+      </div>
 
       {bookmarks.grouped.length === 0 && (
         <p className="edition-fav-empty">
@@ -62,7 +72,10 @@ export function BookmarksPanel() {
         </p>
       )}
       {bookmarks.grouped.map((group) => (
-        <div key={group.id ?? 'unsorted'} className="edition-fav-group">
+        <div
+          key={group.id ?? 'unsorted'}
+          className={bookmarks.grouped.length > 1 ? 'edition-fav-group' : 'edition-fav-group edition-fav-group--solo'}
+        >
           {/* One unnamed group needs no label; with several, the name says which is which. */}
           {bookmarks.grouped.length > 1 && <span className="edition-fav-group-name">{group.name}</span>}
           {editing && group.id !== null && (
@@ -138,15 +151,6 @@ export function BookmarksPanel() {
           </ul>
         </div>
       ))}
-
-      <button type="button" className="edition-link" aria-expanded={adding} onClick={() => setAdding((current) => !current)}>
-        {adding ? 'Cancel' : '+ Add'}
-      </button>
-      {bookmarks.bookmarks.length > 0 && (
-        <button type="button" className="edition-link" aria-pressed={editing} onClick={() => setEditing((current) => !current)}>
-          {editing ? 'Done' : 'Edit'}
-        </button>
-      )}
 
       {adding && (
         <form
