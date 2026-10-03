@@ -541,6 +541,13 @@ ol {
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
+/* Head, calendar and foot share one centred width, so the toggle and the
+   legend end where the last week does on a wide screen. */
+.heat > * {
+  width: 100%;
+  max-width: 1600px;
+  justify-self: center;
+}
 .heat-head {
   display: flex;
   align-items: flex-end;
@@ -607,7 +614,6 @@ ol {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--space-1) var(--space-2);
-  max-width: 1600px;
 }
 .heat-months,
 .heat-grid {
