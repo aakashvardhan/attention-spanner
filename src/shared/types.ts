@@ -305,6 +305,8 @@ export interface Dump {
   createdAt: number;
   /** Unset until asked; null when the local model found nothing to act on */
   nextStep?: string | null;
+  /** Steps already ticked off, oldest first; a null nextStep after these means the loop is closed */
+  done?: string[];
 }
 
 export interface DayActivity {

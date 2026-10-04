@@ -143,7 +143,9 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
       <p className="hint">
         Public means feed items, arXiv and DOI papers, and YouTube videos. Web pages, local PDFs
         and your highlights are always treated as private — a signed-in page cannot be told apart
-        from a public one, so none of them is ever sent. The key is stored only in this browser.
+        from a public one, so none of them is ever sent. A brain dump goes to Claude Haiku only when
+        the local model can't answer and you click Ask Claude Haiku on that dump. The key is stored
+        only in this browser.
       </p>
 
       <ImpactRows stats={aiStats} />

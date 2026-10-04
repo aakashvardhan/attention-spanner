@@ -112,6 +112,10 @@ export const AI_RESUME_ADVANCE = 15;
 export const LAYA_PREFILL_MIN = 0.55;
 export const LAYA_ROLE_MIN = 0.5;
 export const LAYA_DRIFT_MIN = 0.85;
+/** Pure-feeling dumps came back 0.88–0.89; every dump with a task ≤0.71 */
+export const LAYA_FEELING_MIN = 0.85;
+/** P("hours or days") for a next step: every measured small step was ≤0.29, half the big ones 0.48–0.69 */
+export const LAYA_BIG_STEP_MIN = 0.45;
 export const LAYA_URL_DEFAULT = 'http://localhost:11435';
 export const CLAUDE_MODELS = {
   quick: 'claude-haiku-4-5',

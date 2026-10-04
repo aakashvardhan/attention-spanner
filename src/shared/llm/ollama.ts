@@ -88,6 +88,12 @@ export async function chat(opts: {
   messages: ChatMessage[];
   signal?: AbortSignal;
   onText?: (text: string) => void;
+  /**
+   * false skips a thinking model's reasoning: qwen3:8b spends ~17 s and ~700
+   * tokens thinking before a one-line answer. Models without thinking accept
+   * false; true makes them error, so it is left out unless asked.
+   */
+  think?: boolean;
 }): Promise<string> {
   const res = await post(
     opts.url,
@@ -96,6 +102,7 @@ export async function chat(opts: {
       model: opts.model,
       messages: opts.messages,
       stream: true,
+      think: opts.think,
       options: { num_ctx: OLLAMA_NUM_CTX },
     },
     opts.signal,
@@ -132,6 +139,19 @@ export async function embed(opts: {
     throw new OllamaError('http', 'Ollama returned the wrong number of embeddings.');
   }
   return body.embeddings;
+}
+
+/**
+ * Loads a model into Ollama's memory without generating anything, so the next
+ * real ask skips the cold load (qwen3:8b: ~40 s cold, ~2 s warm). Ollama keeps
+ * it for its default 5 minutes. Fire-and-forget: a failure here just means the
+ * real ask pays the load.
+ */
+export function warm(url: string, model: string): void {
+  void post(url, '/api/generate', { model }).then(
+    (res) => res.text(),
+    () => {},
+  );
 }
 
 /** Split complete NDJSON lines off a buffer; a partial last line is kept. */
