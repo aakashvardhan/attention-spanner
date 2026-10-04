@@ -437,6 +437,522 @@ ol {
   padding-left: 0;
 }
 
+/* The loop, after Apple's Reminders: what is done sits quietly above, the next
+   step is the one card on the page, and the work behind it is a row of chips
+   you can open. Motion only explains a change of state: a tapped step fills
+   its circle and slides into the done list, the next one rises in, and a
+   closed loop draws its ring shut. It always moves, Reduce Motion or not (the
+   owner's choice; the rest of the page still honours the setting). The card's
+   material turns opaque under Reduce Transparency (theme tokens). */
+.dump-loop {
+  display: grid;
+  gap: var(--space-3);
+}
+.dump-loop:empty {
+  display: none;
+}
+
+.dump-done {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dump-done-item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--space-2);
+  align-items: start;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.dump-done-item svg {
+  width: 16px;
+  height: 16px;
+}
+.dump-done-item circle {
+  fill: var(--accent-wash);
+}
+.dump-done-item path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dump-done-earlier {
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-faint);
+}
+
+.dump-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  position: relative;
+  background: var(--material-regular);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
+}
+.dump-card.is-working,
+.dump-card.is-closed {
+  grid-template-columns: 1fr;
+}
+.dump-card.is-closed.has-ring {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.dump-card-body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.dump-card-label {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.dump-card-text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  transition: color var(--transition-base) var(--ease-out);
+}
+.dump-card-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+.dump-card.is-checking .dump-card-text {
+  color: var(--text-muted);
+}
+.dump-close {
+  justify-self: start;
+  margin-left: calc(-1 * var(--space-3));
+}
+
+/* The circle is the Done button. 28px drawn, 44px to hit (Apple's minimum). */
+.dump-check {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: var(--space-5);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-snappy) var(--spring-snappy); /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-check::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+.dump-check:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dump-check svg {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+.dump-check circle {
+  fill: transparent;
+  stroke: var(--text-faint);
+  stroke-width: 1.5;
+  transition:
+    fill var(--transition-base) var(--ease-out),
+    stroke var(--transition-base) var(--ease-out);
+}
+.dump-check path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  opacity: 0;
+  transition:
+    stroke-dashoffset var(--dur-snappy) var(--spring-snappy),
+    opacity var(--transition-base) var(--ease-out); /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+/* Hover previews the check, faintly, so the circle says what it does. */
+.dump-check:hover circle,
+.dump-check:focus-visible circle {
+  stroke: var(--accent);
+}
+.dump-check:hover path {
+  stroke-dashoffset: 0;
+  opacity: 0.4;
+}
+.dump-card.is-checking .dump-check circle {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+.dump-card.is-checking .dump-check path {
+  stroke: var(--on-accent);
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+
+/* Working: a placeholder that shimmers until the first words stream in. */
+.dump-shimmer {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-1);
+}
+.dump-shimmer span {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--bg-hover) 50%, var(--bg-subtle) 75%);
+  background-size: 200% 100%;
+}
+.dump-shimmer span:first-child {
+  width: 88%;
+}
+.dump-shimmer span:last-child {
+  width: 56%;
+}
+
+.dump-ring {
+  width: 32px;
+  height: 32px;
+}
+.dump-ring circle,
+.dump-ring path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dump-ring-track {
+  stroke: var(--accent-track);
+  stroke-width: 3;
+}
+.dump-ring-fill {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 76;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+.dump-ring-check {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 14;
+}
+
+.dump-trace summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+  list-style: none;
+  cursor: pointer;
+}
+.dump-trace summary::-webkit-details-marker {
+  display: none;
+}
+.dump-trace summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dump-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.dump-trace summary:hover .dump-chip {
+  background: var(--bg-hover);
+}
+.dump-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.dump-chip.is-skip {
+  color: var(--text-faint);
+}
+.dump-chip.is-skip .dump-chip-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-faint);
+}
+.dump-chip.is-fail .dump-chip-dot {
+  background: var(--danger);
+}
+.dump-chip-sep {
+  color: var(--text-faint);
+}
+.dump-trace-chevron {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-snappy) var(--spring-snappy); /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-trace[open] .dump-trace-chevron {
+  transform: rotate(90deg);
+}
+.dump-trace-lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-3);
+  border-left: 1px solid var(--border-subtle);
+  list-style: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+@keyframes dump-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes dump-slot {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes dump-pop {
+  from {
+    transform: scale(0.8);
+  }
+}
+@keyframes dump-draw {
+  from {
+    stroke-dashoffset: var(--len);
+  }
+}
+@keyframes dump-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes dump-pulse {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.6);
+  }
+}
+/* A word arrives out of focus and settles, as the model writes it. */
+@keyframes dump-word {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(4px);
+  }
+}
+@keyframes dump-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px) scale(0.8);
+  }
+}
+/* Sparks leave from the ring's edge (r = 12), not its centre, and are
+   invisible until they do, so nothing sits inside the ring while it draws. */
+@keyframes dump-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 45deg)) translateY(-12px) scale(1);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 45deg)) translateY(-32px) scale(0.5);
+  }
+}
+@keyframes dump-orbit {
+  to {
+    --dump-angle: 360deg;
+  }
+}
+@property --dump-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* backwards, not both: once the card has risen, its transform is free for the hover lift. */
+.dump-card {
+  animation: dump-rise var(--dur-smooth) var(--spring-smooth) backwards;
+  transition:
+    transform var(--dur-snappy) var(--spring-snappy),
+    box-shadow var(--dur-snappy) var(--ease-out); /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-card:not(.is-working):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+/* Working: a light runs around the card's edge while the model thinks. */
+.dump-card.is-working::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: var(--space-1);
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--dump-angle),
+    transparent 0deg,
+    var(--accent) 70deg,
+    var(--accent-border) 140deg,
+    transparent 200deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(currentColor 0 0) content-box,
+    linear-gradient(currentColor 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(currentColor 0 0) content-box,
+    linear-gradient(currentColor 0 0);
+  mask-composite: exclude;
+  filter: blur(3px);
+  opacity: 0.7;
+  pointer-events: none;
+  animation: dump-orbit 2.4s linear infinite;
+}
+.dump-word {
+  display: inline-block;
+  white-space: pre;
+  animation: dump-word var(--dur-smooth) var(--spring-smooth) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+/* A finished step cascades in word by word as its card rises. */
+.dump-card:not(.is-working) .dump-word {
+  animation-delay: calc(120ms + var(--i) * 28ms);
+}
+.dump-done-item.is-new {
+  animation: dump-slot var(--dur-smooth) var(--spring-smooth) both; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-done-item.is-new circle {
+  transform-origin: center;
+  animation: dump-pop var(--dur-bouncy) var(--spring-bouncy) 160ms backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-done-item.is-new path {
+  --len: 12;
+  stroke-dasharray: 12;
+  animation: dump-draw var(--dur-smooth) var(--spring-smooth) 260ms backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-card.is-checking .dump-check svg {
+  animation: dump-pop var(--dur-bouncy) var(--spring-bouncy) both; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-check:active {
+  transform: scale(0.88);
+}
+.dump-ring-wrap {
+  position: relative;
+  display: grid;
+}
+.dump-ring {
+  animation: dump-pop var(--dur-bouncy) var(--spring-bouncy) both; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-card.is-closed .dump-ring-fill {
+  --len: 76;
+  animation: dump-draw var(--dur-bouncy) var(--spring-smooth) 120ms both; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-ring-check {
+  --len: 14;
+  animation: dump-draw var(--dur-smooth) var(--spring-smooth) 480ms both; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+/* As the ring shuts, a handful of clay sparks fly off it. */
+.dump-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+}
+.dump-burst i {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  animation: dump-burst 900ms var(--ease-out) 560ms both;
+}
+.dump-burst i:nth-child(even) {
+  background: var(--accent-border);
+}
+.dump-shimmer span {
+  animation: dump-shimmer 1.6s linear infinite;
+}
+.dump-chip,
+.dump-chip-sep {
+  animation: dump-chip-in var(--dur-snappy) var(--spring-bouncy) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+.dump-chip.is-active .dump-chip-dot {
+  animation: dump-pulse 1.2s var(--ease-out) infinite;
+}
+.dump-trace[open] .dump-trace-lines li {
+  animation: dump-rise var(--dur-smooth) var(--spring-smooth) calc(var(--i) * 40ms) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+/* The count bumps as a dump lands in it. */
+.dump-count {
+  display: inline-block;
+  animation: dump-pop var(--dur-bouncy) var(--spring-bouncy) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
+}
+/* The text you parked, flying down into "Parked (N)" (BrainDump flyToParked). */
+.dump-ghost {
+  position: fixed;
+  z-index: 10;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--material-regular);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
 /* ---------- Now watching ---------- */
 
 .relay-watching-card {
@@ -871,7 +1387,7 @@ ol {
   font-weight: 700;
   cursor: pointer;
 }
-.edition-pill:hover {
+.edition-pill:hover:not(:disabled) {
   background: var(--rule);
   color: var(--bg-page);
 }

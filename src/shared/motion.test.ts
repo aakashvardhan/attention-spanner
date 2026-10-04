@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
  * Every rule that moves on a spring token is stilled under Reduce Motion: its
  * selector is listed again inside the same stylesheet's
  * `@media (prefers-reduced-motion: reduce)` block. Static, like the design
- * system lint: it reads source, so it never flakes.
+ * system lint: it reads source, so it never flakes. A rule meant to move
+ * regardless says so with a `motion-exempt: <reason>` comment in its body,
+ * which excuses that rule only, not its selector elsewhere.
  */
 
 const ROOT = join(__dirname, '..', '..');
@@ -16,13 +18,14 @@ const selectorsOf = (text: string) => text.split(',').map((s) => s.replace(/\s+/
 
 /** Selectors of rules that use a spring token but are not stilled under Reduce Motion. */
 export function unstilled(source: string): string[] {
-  let css = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const EXEMPT = '__motion_exempt__';
+  let css = source.replace(/\/\*[^*]*motion-exempt:[\s\S]*?\*\//g, EXEMPT).replace(/\/\*[\s\S]*?\*\//g, '');
   const stilled = new Set<string>();
   for (let m = REDUCE.exec(css); m; m = REDUCE.exec(css)) {
     // Cut the block out by matching braces, keeping the selectors inside it.
     let depth = 1;
     let i = m.index + m[0].length;
-    while (depth > 0 && i < css.length) depth += css[i] === '{' ? 1 : css[i] === '}' ? -1 : 0, i++;
+    while (depth > 0 && i < css.length) ((depth += css[i] === '{' ? 1 : css[i] === '}' ? -1 : 0), i++);
     const block = css.slice(m.index + m[0].length, i - 1);
     for (const rule of block.matchAll(/([^{}]+)\{[^{}]*\}/g)) selectorsOf(rule[1]).forEach((s) => stilled.add(s));
     css = css.slice(0, m.index) + css.slice(i);
@@ -30,7 +33,8 @@ export function unstilled(source: string): string[] {
   }
   const out: string[] = [];
   for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (rule[2].includes('var(--spring-')) out.push(...selectorsOf(rule[1]).filter((s) => !stilled.has(s)));
+    if (rule[2].includes('var(--spring-') && !rule[2].includes(EXEMPT))
+      out.push(...selectorsOf(rule[1]).filter((s) => !stilled.has(s)));
   }
   return out;
 }
@@ -51,8 +55,23 @@ describe('unstilled', () => {
   });
 
   it('accepts a rule stilled under reduced motion, selector by selector', () => {
-    expect(unstilled(`${springy}\n@media (prefers-reduced-motion: reduce) {\n  .a,\n  .b { transition: none; }\n}`)).toEqual([]);
-    expect(unstilled(`${springy}\n@media (prefers-reduced-motion: reduce) { .a { transition: none; } }`)).toEqual(['.b']);
+    expect(
+      unstilled(`${springy}\n@media (prefers-reduced-motion: reduce) {\n  .a,\n  .b { transition: none; }\n}`),
+    ).toEqual([]);
+    expect(unstilled(`${springy}\n@media (prefers-reduced-motion: reduce) { .a { transition: none; } }`)).toEqual([
+      '.b',
+    ]);
+  });
+
+  it('skips a rule that carries a motion-exempt reason, and only that rule', () => {
+    expect(
+      unstilled('.a { animation: x 1s var(--spring-smooth); /* motion-exempt: owner wants it always on */ }'),
+    ).toEqual([]);
+    expect(
+      unstilled(
+        `/* a note */\n.a { animation: x 1s var(--spring-smooth); /* motion-exempt: always on */ }\n${springy}`,
+      ),
+    ).toEqual(['.a', '.b']);
   });
 
   it('ignores rules that do not use a spring, and comments', () => {

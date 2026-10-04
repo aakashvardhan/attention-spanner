@@ -116,6 +116,8 @@ export const LAYA_DRIFT_MIN = 0.85;
 export const LAYA_FEELING_MIN = 0.85;
 /** P("hours or days") for a next step: every measured small step was ≤0.29, half the big ones 0.48–0.69 */
 export const LAYA_BIG_STEP_MIN = 0.45;
+/** P("keep getting better"): 8 practices measured 0.79-0.96, 8 tasks 0.51-0.69 */
+export const LAYA_RECURRING_MIN = 0.75;
 export const LAYA_URL_DEFAULT = 'http://localhost:11435';
 export const CLAUDE_MODELS = {
   quick: 'claude-haiku-4-5',

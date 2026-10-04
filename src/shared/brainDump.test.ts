@@ -3,8 +3,15 @@ import { OllamaError } from './llm/ollama';
 import {
   ASK_TIMEOUT_MS,
   MAX_DUMP_CHARS,
+  DAILY_STEP_SYSTEM,
+  NEXT_STEP_SYSTEM,
   askErrorMessage,
+  doneToday,
   hoursShare,
+  isDue,
+  isRecurring,
+  keepAfterRetries,
+  systemFor,
   completeStep,
   isOnlyFeeling,
   isTooBig,
@@ -15,6 +22,7 @@ import {
   retryPrompt,
   setNextStep,
   stepProblem,
+  traceStages,
 } from './brainDump';
 
 describe('parkDump', () => {
@@ -71,6 +79,14 @@ describe('parseNextStep', () => {
     expect(parseNextStep('...')).toBeNull();
     expect(parseNextStep('—')).toBeNull();
     expect(parseNextStep('Buy 2 eggs.')).toBe('Buy 2 eggs.');
+  });
+
+  it('drops a "Today" or "Day N" opener the model echoes from the prompt', () => {
+    expect(parseNextStep('Today, focus on tempo squats.')).toBe('Focus on tempo squats.');
+    expect(parseNextStep('Today, day 6: Practise sliding windows.')).toBe('Practise sliding windows.');
+    expect(parseNextStep('Day 3: Drill subjunctive -ar verbs.')).toBe('Drill subjunctive -ar verbs.');
+    expect(parseNextStep("Today's session: two-pointer drills.")).toBe('Two-pointer drills.');
+    expect(parseNextStep('Today')).toBeNull();
   });
 
   it('reads a bare bullet as nothing', () => {
@@ -171,6 +187,16 @@ describe('isTooBig', () => {
 });
 
 describe('retryPrompt', () => {
+  it('after a counting rejection, says what to name instead', () => {
+    const [d] = parkDump([], 'leetcode', 1);
+    expect(
+      retryPrompt({ ...d, kind: 'recurring' }, [{ step: 'Solve the fourth problem.', why: 'counting through a list' }]),
+    ).toBe(
+      'leetcode\n\nThis is day 1.\n\nRejected, do not reply with these:\n- Solve the fourth problem. (counting through a list)' +
+        '\nName a skill or pattern to practise, not a position in a list.',
+    );
+  });
+
   const [dump] = parkDump([], 'apartment is a mess', 1);
 
   it('is the plain prompt on the first try', () => {
@@ -227,5 +253,167 @@ describe('askErrorMessage', () => {
     expect(askErrorMessage(new TypeError('x is undefined'), 'Ollama', false)).toBe(`Ollama didn't answer.${tail}`);
     expect(askErrorMessage('boom', 'Claude', false)).toBe(`Claude didn't answer.${tail}`);
     expect(askErrorMessage(new Error('y'.repeat(500)), 'Claude', false).length).toBeLessThan(220);
+  });
+});
+
+describe('traceStages — the trace as a row of chips', () => {
+  it('names each stage once, in order, with the model standing in for its server', () => {
+    expect(
+      traceStages([
+        'Laya · something to act on (feeling 3%, 78 ms)',
+        'Ollama · qwen3:8b · try 1: "Email advisor.", 438 ms',
+        'Check · passed (one action, new)',
+      ]),
+    ).toEqual([
+      { name: 'Laya', state: 'done', tries: 0 },
+      { name: 'qwen3:8b', state: 'done', tries: 1 },
+      { name: 'Check', state: 'done', tries: 0 },
+    ]);
+  });
+
+  it('counts tries and marks the stage in flight as active', () => {
+    expect(
+      traceStages([
+        'Laya · skipped: with steps done, Ollama decides when the loop is closed',
+        'Ollama · m · try 1: "Wash and fold.", 2 ms',
+        'Check · two actions joined, asking again',
+        'Ollama · m · try 2, working…',
+      ]),
+    ).toEqual([
+      { name: 'Laya', state: 'skip', tries: 0 },
+      { name: 'm', state: 'active', tries: 1 },
+      { name: 'Check', state: 'active', tries: 0 },
+    ]);
+  });
+
+  it('reads Laya being off or down as skipped, and a model with no answer as failed', () => {
+    expect(traceStages(['Laya · off, Ollama alone', 'Ollama · m · no answer'])).toEqual([
+      { name: 'Laya', state: 'skip', tries: 0 },
+      { name: 'm', state: 'fail', tries: 0 },
+    ]);
+    expect(traceStages(['Laya · no answer, Claude alone'])[0].state).toBe('skip');
+    expect(traceStages(['Ollama · not running'])).toEqual([{ name: 'Ollama', state: 'fail', tries: 0 }]);
+    expect(traceStages(['Check · already done, no new step after 3 tries'])[0].state).toBe('fail');
+  });
+
+  it('keeps a Laya decision that made the model unnecessary as done', () => {
+    expect(traceStages(['Laya · only a feeling (feeling 89%, 265 ms), Ollama not needed'])).toEqual([
+      { name: 'Laya', state: 'done', tries: 0 },
+    ]);
+  });
+
+  it('is empty for no lines', () => {
+    expect(traceStages([])).toEqual([]);
+  });
+});
+
+describe('recurring dumps — one step a day, each a little further', () => {
+  const day = (iso: string) => new Date(iso).getTime();
+  const [base] = parkDump([], 'want to get better at leetcode', day('2026-10-01T09:00'));
+  const practice = { ...base, kind: 'recurring' as const };
+  const choice = (better: number) => ({
+    type: 'choice' as const,
+    choice: better >= 0.5 ? 'keep getting better' : 'finish once',
+    probabilities: { 'finish once': 1 - better, 'keep getting better': better },
+  });
+
+  it('is recurring from 0.75: practices measured 0.79-0.96, tasks 0.51-0.69', () => {
+    expect(isRecurring(choice(0.91))).toBe(true);
+    expect(isRecurring(choice(0.79))).toBe(true);
+    expect(isRecurring(choice(0.69))).toBe(false);
+    expect(isRecurring(undefined)).toBe(false);
+    expect(isRecurring({ type: 'choice' } as never)).toBe(false);
+  });
+
+  it('asks for a daily session, with the last 7 days as days, oldest first', () => {
+    expect(systemFor(practice)).toBe(DAILY_STEP_SYSTEM);
+    expect(systemFor(base)).toBe(NEXT_STEP_SYSTEM);
+    const done = Array.from({ length: 9 }, (_, i) => `Session ${i + 1}.`);
+    const prompt = nextStepPrompt({ ...practice, done });
+    expect(prompt).toBe(
+      'want to get better at leetcode\n\nDays so far, oldest first:\n' +
+        done
+          .slice(2)
+          .map((s, i) => `- Day ${i + 3}: ${s}`)
+          .join('\n') +
+        '\n\nThis is day 10.',
+    );
+    expect(nextStepPrompt(practice)).toBe('want to get better at leetcode\n\nThis is day 1.');
+  });
+
+  it('leaves counting steps out of the history, so the model is not taught to count on', () => {
+    const done = [
+      'Make a list of the top 100 problems.',
+      'Solve the first problem in the top 100 list.',
+      'Drill two-pointer on sorted arrays.',
+      'Solve problem 3.',
+    ];
+    expect(nextStepPrompt({ ...practice, done })).toBe(
+      'want to get better at leetcode\n\nDays so far, oldest first:\n' +
+        '- Day 1: Make a list of the top 100 problems.\n- Day 3: Drill two-pointer on sorted arrays.\n\nThis is day 5.',
+    );
+  });
+
+  it('catches a done step reworded with another verb, for any dump', () => {
+    const withDone = { ...base, done: ['Solve the third problem in the top 100 list.'] };
+    expect(stepProblem('Work on the third problem in the top 100 list.', withDone)).toBe('already done');
+    const email = { ...base, done: ['Email advisor about the deadline.'] };
+    expect(stepProblem('Book the dentist.', email)).toBeNull();
+    const gym = { ...base, done: ['Do 3 sets of 10 push-ups.'] };
+    expect(stepProblem('Do 3 sets of 10 squats.', gym)).toBeNull();
+  });
+
+  it('rejects counting through a list, for a practice only', () => {
+    for (const step of [
+      'Work on the fourth problem in the top 100 list.',
+      'Solve problem 4.',
+      'Do the next exercise.',
+    ]) {
+      expect(stepProblem(step, practice)).toBe('counting through a list');
+    }
+    expect(stepProblem('Solve problem 4.', base)).toBeNull();
+    expect(stepProblem('Solve one medium two-pointer problem without hints.', practice)).toBeNull();
+  });
+
+  it('lets one practice session cover a few related things; a task step stays one action', () => {
+    const verbs = 'Conjugate present-tense -ar, -er and -ir verbs aloud.';
+    expect(stepProblem(verbs, practice)).toBeNull();
+    expect(stepProblem(verbs, base)).toBe('two actions joined');
+  });
+
+  it('gives a practice session 20 words, a task 15', () => {
+    const sixteen = 'Practise ' + 'one '.repeat(14) + 'drill.';
+    expect(stepProblem(sixteen, base)).toBe('too long');
+    expect(stepProblem(sixteen, practice)).toBeNull();
+  });
+
+  it('never keeps a repeat when the tries run out', () => {
+    expect(keepAfterRetries([{ step: 'A.', why: 'already done' }])).toBeNull();
+    expect(keepAfterRetries([{ step: 'A.', why: 'counting through a list' }])).toBeNull();
+    expect(keepAfterRetries([{ step: 'NONE', why: 'a practice has no end' }])).toBeNull();
+    expect(keepAfterRetries([{ step: 'NONE', why: 'gave up' }])).toBeNull();
+    expect(
+      keepAfterRetries([
+        { step: 'Long one.', why: 'too long' },
+        { step: 'A.', why: 'already done' },
+      ]),
+    ).toBe('Long one.');
+  });
+
+  it('records when a step was done, and is due again the next local day', () => {
+    const open = setNextStep([practice], practice.id, 'Two-pointer drill.');
+    const [ticked] = completeStep(open, practice.id, day('2026-10-02T21:30'));
+    expect(ticked.lastDoneAt).toBe(day('2026-10-02T21:30'));
+    expect(doneToday(ticked, day('2026-10-02T23:59'))).toBe(true);
+    expect(isDue(ticked, day('2026-10-02T23:59'))).toBe(false);
+    expect(doneToday(ticked, day('2026-10-03T00:01'))).toBe(false);
+    expect(isDue(ticked, day('2026-10-03T00:01'))).toBe(true);
+  });
+
+  it('is never due when closed, or when it is not recurring', () => {
+    const now = day('2026-10-05T09:00');
+    expect(isDue({ ...practice, nextStep: null }, now)).toBe(false);
+    expect(isDue(base, now)).toBe(false);
+    expect(isDue(practice, now)).toBe(true);
   });
 });

@@ -307,6 +307,10 @@ export interface Dump {
   nextStep?: string | null;
   /** Steps already ticked off, oldest first; a null nextStep after these means the loop is closed */
   done?: string[];
+  /** Laya's call, made once: a task ends, a recurring dump gets one step a day for good */
+  kind?: 'task' | 'recurring';
+  /** When the last step was ticked off; a recurring dump is due again the next local day */
+  lastDoneAt?: number;
 }
 
 export interface DayActivity {

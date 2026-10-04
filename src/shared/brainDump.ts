@@ -1,4 +1,5 @@
-import { LAYA_BIG_STEP_MIN, LAYA_FEELING_MIN } from './constants';
+import { LAYA_BIG_STEP_MIN, LAYA_FEELING_MIN, LAYA_RECURRING_MIN } from './constants';
+import { localDate } from './format';
 import { confident, type LayaAnswer, type LayaQuestion } from './llm/laya';
 import { OllamaError } from './llm/ollama';
 import type { Dump } from './types';
@@ -26,6 +27,39 @@ export const NEXT_STEP_SYSTEM =
   'If steps are already done, give the next one and never repeat them. ' +
   'If nothing in it is actionable, or the done steps finish it, reply exactly NONE. ' +
   'No advice, no reassurance, no list.';
+
+/**
+ * A recurring dump is a practice, not a project: "get better at leetcode" has
+ * no last step, so it gets one session a day, each about 1% further than the
+ * day before, instead of a list it counts through until NONE.
+ */
+export const DAILY_STEP_SYSTEM =
+  'This brain dump is an ongoing practice with no end. Reply with what to practise today: ' +
+  'ONE focused 15 to 30 minute session, as one imperative sentence under 15 words that starts with a verb. ' +
+  'Make it about 1% harder, deeper or broader than the last day, never a repeat. ' +
+  'Name the exact skill, pattern or technique. Say what to do, not why. ' +
+  'Never count through a list: no "the next problem", no "problem 4", no "the fourth one". ' +
+  'No advice, no reassurance, no list.';
+
+export function systemFor(dump: Dump): string {
+  return dump.kind === 'recurring' ? DAILY_STEP_SYSTEM : NEXT_STEP_SYSTEM;
+}
+
+/** Asked once per dump, batched with the feeling question when both are due. */
+export const RECURRING_QUESTION: LayaQuestion = {
+  type: 'choice',
+  instructions: 'Is this something to finish once, or a skill or habit to keep getting better at over time?',
+  criteria: ['finish once', 'keep getting better'],
+};
+
+export function isRecurring(answer: LayaAnswer | undefined): boolean {
+  if (answer?.type !== 'choice') return false;
+  const p = (answer.probabilities as Record<string, unknown> | undefined)?.['keep getting better'];
+  return typeof p === 'number' && p >= LAYA_RECURRING_MIN;
+}
+
+/** Days a recurring prompt carries; the model needs the trend, not the whole history. */
+const DAYS_SHOWN = 7;
 
 /**
  * Laya screens a fresh dump before the chat model is asked: a pure feeling
@@ -99,16 +133,65 @@ const normal = (s: string) =>
     .replace(/[^\p{L}\p{N} ]/gu, '')
     .trim();
 
+const FILLER = new Set([
+  'the',
+  'a',
+  'an',
+  'on',
+  'in',
+  'of',
+  'to',
+  'for',
+  'and',
+  'with',
+  'from',
+  'your',
+  'my',
+  'this',
+  'that',
+  'list',
+  'top',
+]);
+
+/** What a step is about: its words minus the leading verb and filler, so "Work on" and "Solve" match. */
+function topic(step: string): Set<string> {
+  const words = normal(step).split(/\s+/).filter(Boolean).slice(1);
+  return new Set(words.filter((w) => !FILLER.has(w)));
+}
+
+/**
+ * Same topic as an earlier step: 70% of the words shared. Tuned on the cases
+ * that matter: "Work on / Solve the third problem" is a repeat (1.0); "3 sets
+ * of push-ups" and "3 sets of squats" are not (0.6).
+ */
+function sameTopic(a: string, b: string): boolean {
+  const x = topic(a);
+  const y = topic(b);
+  if (!x.size || !y.size) return normal(a) === normal(b);
+  const shared = [...x].filter((w) => y.has(w)).length;
+  return shared / (x.size + y.size - shared) >= 0.7;
+}
+
+/**
+ * "The fourth problem", "problem 4", "the next exercise": counting, not getting better.
+ * ponytail: a LeetCode id ("problem 217") reads as counting too, which costs one retry;
+ * tell ids from positions if that starts eating tries.
+ */
+const COUNTING =
+  /\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|next|\d+(?:st|nd|rd|th))\b[^.]*\b(?:problem|question|item|exercise|lesson|chapter|card|one)s?\b|\b(?:problem|question|item|exercise|lesson|chapter)s?\s*#?\d+/i;
+
 /**
  * Why a step fails the rule half of the self-check, or null when it passes.
  * ponytail: "and" is a word heuristic, so "list pros and cons" reads as two
  * actions. A false hit only costs one retry; parse a verb if that gets noisy.
  */
 export function stepProblem(step: string, dump: Dump): string | null {
-  if (dump.done?.some((d) => normal(d) === normal(step))) return 'already done';
+  if (dump.done?.some((d) => sameTopic(d, step))) return 'already done';
+  if (dump.kind === 'recurring' && COUNTING.test(step)) return 'counting through a list';
   // A comma between digits is a thousands separator ($1,200), not a join.
-  if (/\b(?:and|then)\b|;|,(?!\d)/i.test(step)) return 'two actions joined';
-  if (step.split(/\s+/).length > 15) return 'too long';
+  // A practice session may cover a few related things ("-ar, -er and -ir verbs"); a task step is one action.
+  if (dump.kind !== 'recurring' && /\b(?:and|then)\b|;|,(?!\d)/i.test(step)) return 'two actions joined';
+  if (step.split(/\s+/).length > (dump.kind === 'recurring' ? 20 : 15)) return 'too long';
   return null;
 }
 
@@ -116,19 +199,60 @@ export function stepProblem(step: string, dump: Dump): string | null {
 export function retryPrompt(dump: Dump, rejected: readonly { step: string; why: string }[]): string {
   if (!rejected.length) return nextStepPrompt(dump);
   const list = rejected.map((r) => `- ${r.step} (${r.why})`).join('\n');
-  return `${nextStepPrompt(dump)}\n\nRejected, do not reply with these:\n${list}`;
+  // Told only "not that", a model anchored on a list moves to the next position; say what to name instead.
+  const hint = rejected.some((r) => r.why === 'counting through a list')
+    ? '\nName a skill or pattern to practise, not a position in a list.'
+    : '';
+  return `${nextStepPrompt(dump)}\n\nRejected, do not reply with these:\n${list}${hint}`;
+}
+
+/**
+ * The step to keep when every try failed the check. Never a repeat or a count:
+ * showing one again is the loop this check exists to break.
+ */
+export function keepAfterRetries(rejected: readonly { step: string; why: string }[]): string | null {
+  const unusable = new Set(['already done', 'counting through a list', 'a practice has no end', 'gave up']);
+  const usable = rejected.filter((r) => !unusable.has(r.why));
+  return usable.at(-1)?.step ?? null;
 }
 
 export function nextStepPrompt(dump: Dump): string {
+  if (dump.kind === 'recurring') {
+    const done = dump.done ?? [];
+    // Counting days are left out: shown "the third problem", the model goes on to the fourth.
+    const days = done
+      .map((step, i) => ({ step, day: i + 1 }))
+      .filter(({ step }) => !COUNTING.test(step))
+      .slice(-DAYS_SHOWN)
+      .map(({ step, day }) => `- Day ${day}: ${step}`)
+      .join('\n');
+    return `${dump.text}\n\n${days ? `Days so far, oldest first:\n${days}\n\n` : ''}This is day ${done.length + 1}.`;
+  }
   if (!dump.done?.length) return dump.text;
   return `${dump.text}\n\nAlready done:\n${dump.done.map((s) => `- ${s}`).join('\n')}`;
 }
 
 /** Ticks off the current step; the next one is left unasked. */
-export function completeStep(list: readonly Dump[], id: string): Dump[] {
+export function completeStep(list: readonly Dump[], id: string, now = Date.now()): Dump[] {
   return list.map((d) =>
-    d.id === id && d.nextStep ? { ...d, done: [...(d.done ?? []), d.nextStep], nextStep: undefined } : d,
+    d.id === id && d.nextStep
+      ? { ...d, done: [...(d.done ?? []), d.nextStep], nextStep: undefined, lastDoneAt: now }
+      : d,
   );
+}
+
+export function setKind(list: readonly Dump[], id: string, kind: Dump['kind']): Dump[] {
+  return list.map((d) => (d.id === id ? { ...d, kind } : d));
+}
+
+/** Today's step of a recurring dump is ticked off; the next comes tomorrow. */
+export function doneToday(dump: Dump, now: number): boolean {
+  return dump.lastDoneAt !== undefined && localDate(new Date(dump.lastDoneAt)) === localDate(new Date(now));
+}
+
+/** A recurring dump that is still open and has not had today's step done. */
+export function isDue(dump: Dump, now: number): boolean {
+  return dump.kind === 'recurring' && dump.nextStep !== null && !doneToday(dump, now);
 }
 
 export function parkDump(list: readonly Dump[], text: string, now: number): Dump[] {
@@ -160,8 +284,45 @@ export function parseNextStep(reply: string): string | null {
   const step = line
     .replace(/^(?:[-*•]|\d+[.)])(?:\s+|$)/, '')
     .replace(/^next step:\s*/i, '')
+    // The daily prompt says "This is day N"; the model likes to echo it back as an opener.
+    .replace(/^(?:(?:today(?:'s session)?|day \d+)\s*[,:.—-]?\s*)+/i, '')
     .replace(/^[*_"'“]+|[*_"'”]+$/g, '')
     .trim();
   if (!step || /^none\b/i.test(step) || !/[\p{L}\p{N}]/u.test(step)) return null;
   return (step[0].toUpperCase() + step.slice(1)).slice(0, MAX_STEP_CHARS);
+}
+
+export interface TraceStage {
+  /** Laya, Check, or the model that wrote the step (it stands in for Ollama or Claude) */
+  name: string;
+  state: 'done' | 'active' | 'skip' | 'fail';
+  /** Steps this stage wrote; above 1 means the self-check sent one back */
+  tries: number;
+}
+
+/**
+ * The trace as a row of chips: one per stage, in the order they first ran,
+ * each in the state of its latest line. Reads the lines BrainDump writes, so
+ * a change to their wording shows up here as a test failure.
+ */
+export function traceStages(lines: readonly string[]): TraceStage[] {
+  const stages: TraceStage[] = [];
+  for (const line of lines) {
+    const parts = line.split(' · ');
+    const server = parts[0];
+    const name = (server === 'Ollama' || server === 'Claude') && parts.length >= 3 ? parts[1] : server;
+    let stage = stages.find((s) => s.name === name);
+    if (!stage) stages.push((stage = { name, state: 'done', tries: 0 }));
+    stage.state = lineState(line);
+    if (/ · try \d+:/.test(line)) stage.tries++;
+  }
+  return stages;
+}
+
+function lineState(line: string): TraceStage['state'] {
+  if (line.endsWith('…') || line.endsWith('asking again')) return 'active';
+  // "Laya · off, Ollama alone", "Laya · not running, Claude alone": the stage stepped aside.
+  if (/skipped|, \w+ alone$/.test(line)) return 'skip';
+  if (/no answer$|failed|refused|not running$|not answering$|no new step/.test(line)) return 'fail';
+  return 'done';
 }
