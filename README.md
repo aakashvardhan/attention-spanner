@@ -5,7 +5,8 @@ and blocks what pulls you away.**
 
 Everything runs locally. No accounts, and no network calls except fetching the
 feeds and documents you asked for — plus, only if you set them up, your own
-Ollama server and (for public sources only) Claude with your own key.
+Ollama server, a Laya sidecar, and Claude with your own key (for public sources,
+or a brain dump you choose to send).
 
 Built on Manifest V3 with React 19, Vite, and TypeScript.
 
@@ -50,14 +51,18 @@ from the document in front of you, and search over your own highlights. It runs
 on your machine through [Ollama](https://ollama.com) and is off until you pick a
 model. Claude can take over for public sources (feeds, arXiv/DOI papers, YouTube)
 if you add your own key; a web page you opened, a local PDF or your highlights
-never leave the machine, whatever the settings say.
+never leave the machine, whatever the settings say. A brain dump is private too:
+it reaches Claude Haiku only when the local model can't answer and you click
+"Ask Claude Haiku" on that one dump.
 
 Optionally, [Laya](https://github.com/receptron/laya) makes small decisions
 alongside it: which deck a new paper belongs in, which of your highlights is a
 paper's claim, method, result or limitation (the papers page's highlight
-matrix), a second opinion on feed ranking, and whether a tab is off-task during
-focus. It answers with probabilities and stays quiet when it is unsure. It needs
-Node 20+ and about 2 GB of memory, and the first start downloads 1.7 GB:
+matrix), a second opinion on feed ranking, whether a tab is off-task during
+focus, and, in the brain dump, whether a dump is only a feeling and whether a
+next step is too big. It answers with probabilities and stays quiet when it is
+unsure. It needs Node 20+ and about 2 GB of memory, and the first start
+downloads 1.7 GB:
 
 ```sh
 cd scripts/laya-server && npm install && node server.mjs
@@ -81,6 +86,12 @@ browser is a reason to start, not a list to manage:
   one primary button. Enter opens it; J and K walk every story on the page.
 - **From your feeds** — five unread items ranked against what you finish, each
   with the reason it is there.
+- **Brain dump** — type whatever is looping and park it; it goes out of sight
+  behind a closed "Parked (N)". With a local model, it closes the loop one small
+  step at a time: one action you can do in under ten minutes, then the next when
+  you tick it off, until nothing is left. Every step is checked before you see it
+  (new, one action, short, not "hours or days"), and a failing one is sent back
+  with the reason. A trace under the step shows what Laya and the model did.
 - **The index** along the bottom: favorites, Papers, Settings and a focus block.
 
 ### Reading
@@ -239,9 +250,92 @@ carries a `/* ds-exempt: reason */` comment.
 
 ## Architecture
 
-- **Service worker** (`src/background/`) owns all storage writes; every
-  read/write from the UI goes through a message router, so state stays
-  consistent across the dashboard, the reader, and content scripts.
+Everything is one Chrome extension plus two optional local servers. Solid
+arrows run whenever the feature is on; the dotted one runs only when you opt in.
+
+```mermaid
+flowchart TB
+  subgraph Chrome
+    subgraph Pages["Extension pages"]
+      direction LR
+      NT["New tab<br/>edition, brain dump,<br/>triage, heatmap"]
+      RD["Reader<br/>PDF.js, articles,<br/>annotations"]
+      PP["Papers<br/>decks, highlight matrix"]
+      OP["Settings"]
+    end
+    CS["Content scripts<br/>reading, video, caption tee"]
+    SW["Service worker<br/>message router, feeds, focus,<br/>nudges, drift, paper tracking"]
+    ST[("chrome.storage<br/>local + session")]
+    DNR["declarativeNetRequest<br/>focus blocklist"]
+    AI["AI layer, src/shared/llm<br/>privacy router, clients,<br/>caches"]
+  end
+  subgraph Machine["Your machine, optional"]
+    direction LR
+    OL["Ollama :11434<br/>chat + embeddings"]
+    LY["Laya sidecar :11435<br/>decisions as probabilities"]
+  end
+  subgraph Internet
+    direction LR
+    RSS["RSS and Atom feeds"]
+    S2["Semantic Scholar"]
+    WX["Open-Meteo"]
+    CL["Claude API<br/>your key"]
+  end
+  Pages -- "messages" --> SW
+  CS -- "progress, position" --> SW
+  SW -- "writes" --> ST
+  ST -- "onChanged" --> Pages
+  SW -- "focus rules" --> DNR
+  Pages -- "recap, triage, ask,<br/>next step, decisions" --> AI
+  SW -- "focus drift" --> AI
+  AI --> OL
+  AI --> LY
+  AI -. "public sources, or<br/>a dump you send" .-> CL
+  SW -- "refresh" --> RSS
+  Pages -- "paper metadata" --> S2
+  Pages -- "weather" --> WX
+```
+
+Where an AI call runs is decided by rules, not by a model
+(`src/shared/llm/route.ts`): private content (a web page, a local PDF, your
+highlights) stays on device whatever the settings say, and only public sources
+may overflow to Claude. The one exception is the brain dump's "Ask Claude Haiku"
+button, which sends a single dump and only when you click it. Nothing sent to
+Laya or Ollama leaves the machine.
+
+A brain dump, end to end:
+
+```mermaid
+sequenceDiagram
+  actor You
+  participant NT as New tab
+  participant LY as Laya
+  participant OL as Ollama
+  participant ST as chrome.storage
+  You->>NT: Park a dump
+  NT->>ST: Save it, before any model is asked
+  NT->>LY: Only a feeling?
+  alt P(feeling) of 0.85 or more
+    LY-->>NT: Yes, so "Nothing to act on" and no model call
+  else Something to act on
+    loop Up to 3 tries
+      NT->>OL: One next step, thinking off, 60 s limit
+      OL-->>NT: One line
+      NT->>NT: Rules check: new, one action, 15 words or fewer
+      NT->>LY: Hours or days?
+    end
+    NT->>ST: Save the step
+  end
+  You->>NT: Done
+  NT->>OL: The next step, with the steps already done
+  OL-->>NT: NONE, so the loop is closed
+  Note over NT,OL: If Ollama is down or fails, an "Ask Claude Haiku" button<br/>sends that one dump, only when cloud is on in Settings
+```
+
+- **Service worker** (`src/background/`) owns most storage writes; the UI reads
+  and writes through a message router, so state stays consistent across the
+  dashboard, the reader, and content scripts. The AI caches and the brain dump
+  write from the page that owns them.
 - **UI reactivity** is driven entirely by `chrome.storage.onChanged` — no
   polling.
 - **Content scripts** (`src/content/`) are bundled separately via esbuild (not
@@ -263,6 +357,9 @@ src/
   content/      Injected trackers (reading, video, caption tee)
   pages/        newtab, options, reader, papers, blocked
   shared/       Dependency-free pure logic + storage helpers
+    llm/        Ollama, Claude and Laya clients, the privacy router, triage
+scripts/
+  laya-server/  The Laya sidecar (Node, loopback only)
 ```
 
 ---
@@ -278,11 +375,11 @@ src/
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `webRequest` | Read-only: response headers, to spot PDFs served from extensionless URLs |
 | `contextMenus` | "Read in Reader" and "Bookmark this page" |
-| `<all_urls>` | Trackers are injected into whatever page you're reading; also reaches your Ollama server |
+| `<all_urls>` | Trackers are injected into whatever page you're reading; also reaches your Ollama server and Laya sidecar |
 
 No `identity`, no `tabCapture`, no `offscreen`. The extension has no account.
 The only authenticated request it can make is to Claude, with a key you added,
-for public sources you allowed.
+for public sources you allowed or a brain dump you chose to send.
 
 ---
 
