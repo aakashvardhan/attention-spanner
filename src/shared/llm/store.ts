@@ -4,7 +4,7 @@ import {
   AI_STATS_MAX_SAMPLES,
 } from '../constants';
 import { getLocal, setLocal } from '../storage';
-import type { AiCacheEntry, AiStats, AnyProgress, Paper } from '../types';
+import type { AiCacheEntry, AiStats, AnyProgress, HighlightRole, Paper } from '../types';
 
 /**
  * The AI cache and the impact counters, written straight from the page rather
@@ -149,5 +149,15 @@ export function updateVectors(
   return serial(async () => {
     const { aiVectors } = await getLocal('aiVectors');
     await setLocal({ aiVectors: change(aiVectors) });
+  });
+}
+
+/** Read-modify-write of the highlight roles, in the same queue as the rest. */
+export function updateRoles(
+  change: (roles: Record<string, HighlightRole>) => Record<string, HighlightRole>,
+): Promise<void> {
+  return serial(async () => {
+    const { layaRoles } = await getLocal('layaRoles');
+    await setLocal({ layaRoles: change(layaRoles) });
   });
 }

@@ -52,6 +52,19 @@ model. Claude can take over for public sources (feeds, arXiv/DOI papers, YouTube
 if you add your own key; a web page you opened, a local PDF or your highlights
 never leave the machine, whatever the settings say.
 
+Optionally, [Laya](https://github.com/receptron/laya) makes small decisions
+alongside it: which deck a new paper belongs in, which of your highlights is a
+paper's claim, method, result or limitation (the papers page's highlight
+matrix), a second opinion on feed ranking, and whether a tab is off-task during
+focus. It answers with probabilities and stays quiet when it is unsure. It needs
+Node 20+ and about 2 GB of memory, and the first start downloads 1.7 GB:
+
+```sh
+cd scripts/laya-server && npm install && node server.mjs
+```
+
+Then set the Laya address in Settings → Local AI (`http://localhost:11435`).
+
 ---
 
 ## Features

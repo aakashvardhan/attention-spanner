@@ -1,11 +1,12 @@
 import type { AnyProgress, FeedItem, Paper } from '../types';
+import { clip, layaReady, systemOne, type LayaAnswer, type LayaQuestion } from './laya';
 import { cosine } from './vectors';
 
 /**
  * "Worth reading": rank unread feed items by how close they sit to what you
  * actually finish — papers you are reading or have read, and articles you got
- * to the end of. Ranking is embeddings only; no text generation, so it costs a
- * few hundred milliseconds and nothing leaves the machine.
+ * to the end of. Ranking is embeddings, reordered by Laya when it runs; no
+ * text generation, so it costs well under a second and nothing leaves the machine.
  */
 
 export interface ProfileEntry {
@@ -104,4 +105,45 @@ export function rankItems(
 
 export function newest(items: readonly FeedItem[], k: number): Pick[] {
   return items.slice(0, k).map((item) => ({ item, because: null }));
+}
+
+/**
+ * Embeddings are the cheap first pass; when Laya is running it reorders their
+ * shortlist by P(relevant to what you read). Every item is its own question
+ * over one shared state, so the whole shortlist is one forward pass (~0.5s).
+ * Laya off, or failing, leaves the embedding order as it was.
+ */
+export async function rerankPicks(
+  layaUrl: string,
+  picks: Pick[],
+  profile: readonly ProfileEntry[],
+  k: number,
+): Promise<Pick[]> {
+  if (picks.length <= 1 || !(await layaReady(layaUrl))) return picks.slice(0, k);
+  const questions: Record<string, LayaQuestion> = {};
+  picks.forEach((pick, i) => {
+    questions[i] = {
+      type: 'noul',
+      instructions: `Is this item relevant to the reader's interests? Item: ${clip(itemText(pick.item), 300)}`,
+    };
+  });
+  try {
+    const state = { reader_interests: clip(profile.map((p) => p.label).join('; '), 1500) };
+    return byRelevance(picks, await systemOne(layaUrl, state, questions), k);
+  } catch {
+    return picks.slice(0, k);
+  }
+}
+
+/** Highest P(relevant) first; ties keep the embedding order. */
+export function byRelevance(picks: Pick[], answers: Partial<Record<string, LayaAnswer>>, k: number): Pick[] {
+  const p = (i: number) => {
+    const a = answers[i];
+    return a?.type === 'noul' ? a.noul : 0;
+  };
+  return picks
+    .map((pick, i) => ({ pick, p: p(i) }))
+    .sort((a, b) => b.p - a.p)
+    .slice(0, k)
+    .map(({ pick }) => pick);
 }

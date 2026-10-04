@@ -11,6 +11,7 @@ import type {
   Dump,
   FeedItem,
   FocusSession,
+  HighlightRole,
   Paper,
   Settings,
   WeatherCache,
@@ -40,6 +41,8 @@ export interface LocalSchema {
   aiStats: AiStats;
   /** int8 embeddings keyed by FeedItem id or annotation id (llm/vectors.ts) */
   aiVectors: Record<string, string>;
+  /** Laya's reading of each highlight, keyed by annotation id (llm/matrix.ts); a cache */
+  layaRoles: Record<string, HighlightRole>;
   /** Per local day 'YYYY-MM-DD': papers read, focus sessions finished (shared/activity.ts) */
   activity: Record<string, DayActivity>;
   /**
@@ -67,6 +70,8 @@ export interface SessionSchema {
    * on screen — caching them to disk would grow without a bound anyone watches.
    */
   videoTranscripts: Record<string, TranscriptSegment[]>;
+  /** Hosts already asked about in this focus session (background/drift.ts) */
+  driftChecked: { startedAt: number; hosts: string[] };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +93,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaEmbedModel: 'nomic-embed-text',
   cloudMode: 'off',
   claudeKey: '',
+  layaUrl: '',
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -112,6 +118,7 @@ export const DEFAULTS: LocalSchema = {
   aiCache: {},
   aiStats: { counts: {}, latencies: [], probes: [] },
   aiVectors: {},
+  layaRoles: {},
   activity: {},
   dumps: [],
 };
@@ -123,6 +130,7 @@ export const SESSION_DEFAULTS: SessionSchema = {
   hyperfocus: { unbrokenSeconds: 0, lastDeltaAt: 0, notifiedAtSeconds: 0 },
   pdfNativeBypass: [],
   videoTranscripts: {},
+  driftChecked: { startedAt: 0, hosts: [] },
 };
 
 export async function getLocal<K extends keyof LocalSchema>(

@@ -4,6 +4,7 @@ import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import { clearRetiredAlarms, handleAlarm, setupRefreshAlarm } from './alarms';
 import { bookmarkFromContextMenu } from './bookmarks';
+import { checkDrift } from './drift';
 import { openArticle, refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
 import { removeLegacyDailyGateRule } from './accessRules';
@@ -171,6 +172,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     void maybeInjectTracker(tabId, tab.url);
     // URL-only match — works even in PDF viewers our content scripts can't enter
     void markPaperReadingByUrl(tab.url);
+    void checkDrift(tab);
   }
   // YouTube is an SPA: pushState navs fire onUpdated with changeInfo.url but
   // no 'complete'. The in-page guard makes repeated injections harmless.
@@ -197,6 +199,10 @@ chrome.webRequest.onHeadersReceived.addListener(
   { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] },
   ['responseHeaders'],
 );
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void chrome.tabs.get(tabId).then(checkDrift, () => undefined);
+});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   void handleTabRemoved(tabId);

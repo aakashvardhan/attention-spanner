@@ -8,6 +8,7 @@ import {
   itemText,
   newest,
   rankItems,
+  rerankPicks,
   unreadItems,
   type Pick,
 } from '../../shared/llm/triage';
@@ -16,6 +17,8 @@ import { sendMessage } from '../../shared/messages';
 import { progressKeyFor } from '../../shared/progress';
 
 const SHOWN = 5;
+/** Embedding shortlist handed to Laya for a second opinion, when it is running */
+const RERANK_POOL = 15;
 /** Unread items considered; the first visit embeds these once, later visits hit the cache */
 const CANDIDATES = 60;
 
@@ -93,10 +96,8 @@ export function TriageCard() {
           return next;
         });
         const vectorOf = (key: string) => (all[key] ? dequantize(all[key]) : undefined);
-        return {
-          picks: rankItems(unread, (i) => vectorOf(itemKey(i.id)), profile, (p) => vectorOf(profileKey(p.id)), SHOWN),
-          note: '',
-        };
+        const shortlist = rankItems(unread, (i) => vectorOf(itemKey(i.id)), profile, (p) => vectorOf(profileKey(p.id)), RERANK_POOL);
+        return { picks: await rerankPicks(settings.layaUrl, shortlist, profile, SHOWN), note: '' };
       } catch {
         return {
           picks: newest(unread, SHOWN),
@@ -105,7 +106,7 @@ export function TriageCard() {
       }
     }
     // `signature` stands in for unread, profile and the model.
-  }, [signature, settingsLoaded, itemsLoaded, settings.ollamaUrl]);
+  }, [signature, settingsLoaded, itemsLoaded, settings.ollamaUrl, settings.layaUrl]);
 
   // No feeds, nothing to triage: no card, rather than an empty one.
   if (!itemsLoaded || cachedItems.length === 0) return null;

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useSettings } from '../../../shared/hooks/useSettings';
+import { useStorageValue } from '../../../shared/hooks/useStorageValue';
+import { PAPER_KINDS, suggestIntake } from '../../../shared/llm/intake';
 import { fetchPaperMeta } from '../../../shared/papers';
-import type { Deck, PaperDraft, PaperStatus } from '../../../shared/types';
+import type { Deck, PaperDraft, PaperKind, PaperStatus } from '../../../shared/types';
 
 export function emptyPaperDraft(deckId: string): PaperDraft {
   return {
@@ -45,6 +47,7 @@ export function PaperForm({
   onCancel: () => void;
 }) {
   const [settings] = useSettings();
+  const [papers] = useStorageValue('papers');
   const apiKey = settings.semanticScholarApiKey;
   const [draft, setDraft] = useState<PaperDraft>(initial);
   const [fetching, setFetching] = useState(false);
@@ -77,6 +80,19 @@ export function PaperForm({
       url: meta.url || d.url,
     }));
     setFetchMsg('Fetched — review and edit anything below.');
+
+    // Filing suggestions are for a new paper; re-fetching an existing one must
+    // not move it to another deck.
+    if (initial.title) return;
+    const hint = await suggestIntake(settings.layaUrl, meta, decks, papers);
+    if (!hint || (!hint.deckId && !hint.kind)) return;
+    setDraft((d) => ({ ...d, deckId: hint.deckId ?? d.deckId, kind: hint.kind ?? d.kind }));
+    const deckName = decks.find((d) => d.id === hint.deckId)?.name;
+    setFetchMsg(
+      `Fetched — review and edit anything below. Suggested: ${[deckName && `the ${deckName} deck`, hint.kind && `a ${hint.kind} paper`]
+        .filter(Boolean)
+        .join(', ')}.`,
+    );
   };
 
   const submit = async () => {
@@ -177,6 +193,20 @@ export function PaperForm({
             {decks.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="pp-field">
+          <span>Type</span>
+          <select
+            value={draft.kind ?? ''}
+            onChange={(e) => set('kind', (e.target.value || undefined) as PaperKind | undefined)}
+          >
+            <option value="">—</option>
+            {Object.keys(PAPER_KINDS).map((k) => (
+              <option key={k} value={k}>
+                {k[0].toUpperCase() + k.slice(1)}
               </option>
             ))}
           </select>

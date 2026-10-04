@@ -555,6 +555,67 @@ a.pp-row-title:hover {
   line-height: var(--leading-xl);
 }
 
+.pp-deck-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Highlight matrix (PaperMatrix.tsx) */
+
+.pp-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pp-matrix-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.pp-matrix-scroll {
+  overflow-x: auto;
+}
+
+.pp-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.pp-matrix-table th,
+.pp-matrix-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+  min-width: 160px;
+}
+
+.pp-matrix-table thead th {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.pp-matrix-table td a {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.pp-matrix-table td a:hover {
+  color: var(--accent-text);
+}
+
 .library-hint {
   padding-block: var(--space-5);
   color: var(--text-muted);

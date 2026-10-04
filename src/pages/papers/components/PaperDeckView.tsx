@@ -3,20 +3,40 @@ import { usePapers } from '../../../shared/hooks/usePapers';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import type { Deck } from '../../../shared/types';
 import { emptyPaperDraft, PaperForm } from './PaperForm';
+import { PaperMatrix } from './PaperMatrix';
 import { PaperRow } from './PaperRow';
 
 export function PaperDeckView({ deck }: { deck: Deck }) {
   const [allDecks] = useStorageValue('decks');
   const { byDeck, addPaper, updatePaper, deletePaper } = usePapers();
   const [adding, setAdding] = useState(false);
+  const [matrix, setMatrix] = useState(false);
 
   // Papers can only move between paper decks
   const decks = allDecks.filter((d) => d.kind === 'papers');
   const papers = byDeck.get(deck.id) ?? [];
 
+  const head = (
+    <div className="pp-deck-head">
+      <h2 className="library-deck-name">{deck.name}</h2>
+      <button type="button" className="ghost-btn" aria-pressed={matrix} onClick={() => setMatrix((m) => !m)}>
+        {matrix ? 'Paper list' : 'Highlight matrix'}
+      </button>
+    </div>
+  );
+
+  if (matrix) {
+    return (
+      <main className="fc-main">
+        {head}
+        <PaperMatrix papers={papers} />
+      </main>
+    );
+  }
+
   return (
     <main className="fc-main">
-      <h2 className="library-deck-name">{deck.name}</h2>
+      {head}
       {adding ? (
         <div className="panel">
           <h2>Add a paper</h2>

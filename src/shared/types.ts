@@ -78,6 +78,8 @@ export interface Settings {
   cloudMode: CloudMode;
   /** User's own Anthropic API key; '' = no cloud */
   claudeKey: string;
+  /** Local Laya sidecar (scripts/laya-server); '' = off */
+  layaUrl: string;
 }
 
 export type CloudMode = 'off' | 'ask' | 'public';
@@ -141,6 +143,8 @@ export interface Deck extends RecordMeta {
 
 export type PaperStatus = 'to-read' | 'reading' | 'read';
 
+export type PaperKind = 'survey' | 'method' | 'benchmark' | 'dataset' | 'position' | 'theory';
+
 export interface Paper extends RecordMeta {
   id: string;
   /** Reuses Deck.id — the same decks as flashcards */
@@ -159,6 +163,8 @@ export interface Paper extends RecordMeta {
   abstract: string;
   /** Free text: why this paper matters to me */
   relevance: string;
+  /** Absent on papers filed before it existed, or never set */
+  kind?: PaperKind;
   status: PaperStatus;
   /** 0–100; auto-ratcheted by the PDF reader, editable by hand */
   progressPercent: number;
@@ -245,6 +251,14 @@ export interface Annotation extends RecordMeta {
   note: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/** What Laya read a highlight as, and how sure it was (llm/matrix.ts). */
+export interface HighlightRole {
+  role: string;
+  p: number;
+  /** Of the text it was classified from; an edited note re-classifies */
+  hash: string;
 }
 
 /** Draft from the reader; the service worker fills id/timestamps. */

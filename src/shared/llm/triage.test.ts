@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyProgress, FeedItem, Paper } from '../types';
-import { interestProfile, rankItems, unreadItems, type ProfileEntry } from './triage';
+import { byRelevance, interestProfile, rankItems, unreadItems, type ProfileEntry } from './triage';
 
 const item = (id: string, title: string): FeedItem => ({
   id,
@@ -84,5 +84,18 @@ describe('rankItems', () => {
       { item: items[0], because: null },
       { item: items[1], because: null },
     ]);
+  });
+});
+
+describe('byRelevance', () => {
+  const picks = ['a', 'b', 'c'].map((id) => ({ item: item(id, id), because: null }));
+
+  it('puts the item Laya finds most relevant first and keeps k', () => {
+    const answers = { 0: { type: 'noul' as const, noul: 0.04 }, 1: { type: 'noul' as const, noul: 0.3 }, 2: { type: 'noul' as const, noul: 0.12 } };
+    expect(byRelevance(picks, answers, 2).map((p) => p.item.id)).toEqual(['b', 'c']);
+  });
+
+  it('keeps the embedding order where Laya gave no answer', () => {
+    expect(byRelevance(picks, {}, 3).map((p) => p.item.id)).toEqual(['a', 'b', 'c']);
   });
 });

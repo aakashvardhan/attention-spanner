@@ -82,6 +82,7 @@ export const NOTIFICATION_IDS = {
   focusPhase: 'focus-phase',
   bookmarkSaved: 'bookmark-saved',
   hyperfocus: 'hyperfocus',
+  focusDrift: 'focus-drift',
 } as const;
 
 export const SAMPLE_FEEDS: ReadonlyArray<{ name: string; url: string }> = [
@@ -104,6 +105,14 @@ export const AI_CACHE_MAX_ENTRIES = 200;
 export const AI_STATS_MAX_SAMPLES = 50;
 /** Percentage points a resumed item must gain to count as "picked back up" */
 export const AI_RESUME_ADVANCE = 15;
+/* Laya probability floors (src/shared/llm/laya.ts). Calibration knobs, not
+   laws: below one, a suggestion stays quiet rather than risk being wrong.
+   Laya is cautious — DDPM went to the obvious deck at only 0.62 of 3 — so a
+   prefill the user reviews before saving can sit lower than a nudge. */
+export const LAYA_PREFILL_MIN = 0.55;
+export const LAYA_ROLE_MIN = 0.5;
+export const LAYA_DRIFT_MIN = 0.85;
+export const LAYA_URL_DEFAULT = 'http://localhost:11435';
 export const CLAUDE_MODELS = {
   quick: 'claude-haiku-4-5',
   deep: 'claude-sonnet-5-5',

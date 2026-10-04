@@ -1,0 +1,15 @@
+{
+  "name": "laya-server",
+  "private": true,
+  "type": "module",
+  "description": "Localhost sidecar that serves Laya decisions to the extension",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@receptron/laya": "0.1.2"
+  }
+}

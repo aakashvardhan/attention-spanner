@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { sendMessage } from '../../../shared/messages';
 import { useSettings } from '../../../shared/hooks/useSettings';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
+import { suggestIntake } from '../../../shared/llm/intake';
 import { fetchPaperMeta, normalizeTitle, paperMatchKey } from '../../../shared/papers';
 import type { Paper, PaperDraft } from '../../../shared/types';
 
@@ -68,6 +69,9 @@ export function TrackPrompt({
         // Canonical page (arXiv abs) when known; the reader still opens `pdf.url`
         url: result.meta.url,
       });
+      // Only the deck: this form has no type field, and nothing is saved unseen.
+      const hint = await suggestIntake(settings.layaUrl, result.meta, paperDecks, papers);
+      if (hint?.deckId) setDeckId(hint.deckId);
     })();
   };
 

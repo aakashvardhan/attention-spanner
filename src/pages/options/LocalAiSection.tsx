@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
+import { LAYA_URL_DEFAULT } from '../../shared/constants';
+import { layaHealth, type LayaHealth } from '../../shared/llm/laya';
 import { health, type Health } from '../../shared/llm/ollama';
 import { patchSettings } from '../../shared/storage';
 import type { AiStats, CloudMode, Settings } from '../../shared/types';
@@ -114,6 +116,8 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
         </>
       )}
 
+      <LayaRows url={settings.layaUrl} />
+
       <div className="setting-row">
         <label htmlFor="cloud-mode">Cloud for public sources</label>
         <select
@@ -144,6 +148,60 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
 
       <ImpactRows stats={aiStats} />
     </section>
+  );
+}
+
+/**
+ * Laya answers questions with probabilities rather than text: which deck a
+ * paper belongs in, what a highlight is, whether a tab is off-task. It runs as
+ * its own small server because it needs Node, not a browser.
+ */
+function LayaRows({ url }: { url: string }) {
+  const [status, setStatus] = useState<LayaHealth | null>(null);
+
+  const test = useCallback(async () => {
+    setStatus(null);
+    if (url) setStatus(await layaHealth(url));
+  }, [url]);
+
+  useEffect(() => {
+    void test();
+  }, [test]);
+
+  return (
+    <>
+      <h3 className="ai-subhead">Decisions</h3>
+      <p className="hint">
+        Optional. <a href="https://github.com/receptron/laya" target="_blank" rel="noreferrer">Laya</a>{' '}
+        suggests a deck and type for new papers, sorts your highlights into a literature
+        matrix, sharpens feed triage and notices off-task tabs during focus. It needs about 2 GB of
+        memory; start it with <code>node scripts/laya-server/server.mjs</code>. Leave the address
+        empty to turn it off.
+      </p>
+      <TextRow
+        id="laya-url"
+        label="Laya address"
+        placeholder={LAYA_URL_DEFAULT}
+        value={url}
+        onCommit={(layaUrl) => void patchSettings({ layaUrl })}
+      />
+      {url && (
+        <div className="setting-row">
+          <span>
+            {status === null
+              ? 'Checking…'
+              : !status.ok
+                ? 'Laya is not answering'
+                : status.ready
+                  ? 'Ready'
+                  : 'Loading the model (the first start downloads 1.7 GB)'}
+          </span>
+          <button type="button" onClick={() => void test()}>
+            Test again
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

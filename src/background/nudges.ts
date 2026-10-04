@@ -19,7 +19,7 @@ import { driftedAway, keyMatchesUrl } from '../shared/youtube';
 const MIN_PERCENT = 5;
 const MAX_PERCENT = 90;
 const MIN_ACTIVE_SECONDS = 30;
-const GLOBAL_NUDGE_GAP_MS = 10 * 60 * 1000;
+export const GLOBAL_NUDGE_GAP_MS = 10 * 60 * 1000;
 
 const alarmName = (key: string) => ALARMS.nudgePrefix + key;
 const notificationName = (key: string) => NOTIFICATION_IDS.nudgePrefix + key;
