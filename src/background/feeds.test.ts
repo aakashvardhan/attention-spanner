@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyMarkAllRead, mergeFeedItems, openArticle } from './feeds';
+import { appendRead, applyMarkAllRead, mergeFeedItems, openArticle } from './feeds';
 import type { FeedItem } from '../shared/types';
 
 /** `n` orders both the id and the pubDate, so "newest" is unambiguous in assertions */
@@ -81,5 +81,12 @@ describe('openArticle', () => {
     await openArticle('https://arxiv.org/pdf/2406.09246', null, true);
     expect(create).toHaveBeenCalledWith({ url: 'https://www.alphaxiv.org/abs/2406.09246' });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('appendRead', () => {
+  it('appends new ids once, in order, and evicts the oldest past the cap', () => {
+    expect(appendRead(['a', 'b'], ['b', 'c', 'd', 'c'], 3)).toEqual(['b', 'c', 'd']);
+    expect(appendRead([], [], 3)).toEqual([]);
   });
 });

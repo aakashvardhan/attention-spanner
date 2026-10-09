@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyProgress, FeedItem, Paper } from '../types';
-import { byRelevance, interestProfile, muteMatcher, normalizeTopics, rankItems, unreadItems, type ProfileEntry } from './triage';
+import {
+  alsoLabel,
+  byRelevance,
+  clusterPicks,
+  interestProfile,
+  muteMatcher,
+  normalizeTopics,
+  rankItems,
+  unreadItems,
+  type Pick,
+  type ProfileEntry,
+} from './triage';
 
 const item = (id: string, title: string): FeedItem => ({
   id,
@@ -81,14 +92,14 @@ describe('rankItems', () => {
   it('falls back to feed order, with no reason claimed, when there is no profile', () => {
     const picks = rankItems(items, (i) => vectors[i.id], [], () => undefined, 2);
     expect(picks).toEqual([
-      { item: items[0], because: null },
-      { item: items[1], because: null },
+      { item: items[0], because: null, also: [] },
+      { item: items[1], because: null, also: [] },
     ]);
   });
 });
 
 describe('byRelevance', () => {
-  const picks = ['a', 'b', 'c'].map((id) => ({ item: item(id, id), because: null }));
+  const picks = ['a', 'b', 'c'].map((id) => ({ item: item(id, id), because: null, also: [] }));
 
   it('puts the item Laya finds most relevant first and keeps k', () => {
     const answers = { 0: { type: 'noul' as const, noul: 0.04 }, 1: { type: 'noul' as const, noul: 0.3 }, 2: { type: 'noul' as const, noul: 0.12 } };
@@ -157,5 +168,43 @@ describe('muteMatcher', () => {
     items.filter(isMuted);
     // ponytail: wall-clock budget with headroom for slow CI runners.
     expect(performance.now() - start).toBeLessThan(50);
+  });
+});
+
+describe('clusterPicks', () => {
+  const pick = (id: string, source = 'Feed'): Pick => ({ item: { ...item(id, `t${id}`), source }, because: null, also: [] });
+  const vectors: Record<string, number[]> = { a: [1, 0, 0], b: [0.99, 0.05, 0], c: [0, 1, 0], d: [0.98, 0.1, 0] };
+  const vectorOf = (i: FeedItem) => vectors[i.id];
+
+  it('folds near-duplicates into the first, highest-ranked pick, keeping rank order', () => {
+    const out = clusterPicks([pick('a'), pick('c'), pick('b'), pick('d')], vectorOf);
+    expect(out.map((p) => [p.item.id, p.also.map((x) => x.id)])).toEqual([
+      ['a', ['b', 'd']],
+      ['c', []],
+    ]);
+  });
+
+  it('leaves picks without a vector alone and respects the threshold', () => {
+    expect(clusterPicks([pick('a'), pick('x'), pick('b')], vectorOf).map((p) => p.item.id)).toEqual(['a', 'x']);
+    expect(clusterPicks([pick('a'), pick('b')], vectorOf, 0.9999).map((p) => p.item.id)).toEqual(['a', 'b']);
+  });
+
+  it('is empty for no picks', () => {
+    expect(clusterPicks([], vectorOf)).toEqual([]);
+  });
+});
+
+describe('alsoLabel', () => {
+  const withAlso = (sources: string[]): Pick => ({
+    item: { ...item('lead', 'Lead'), source: 'Ars' },
+    because: null,
+    also: sources.map((s, i) => ({ ...item(`x${i}`, 'x'), source: s })),
+  });
+
+  it('counts other sources, and says "similar" when the copies share the lead source', () => {
+    expect(alsoLabel(withAlso([]))).toBe('');
+    expect(alsoLabel(withAlso(['Verge']))).toBe('+1 source');
+    expect(alsoLabel(withAlso(['Verge', 'Wired', 'Verge']))).toBe('+2 sources');
+    expect(alsoLabel(withAlso(['Ars', 'Ars']))).toBe('+2 similar');
   });
 });

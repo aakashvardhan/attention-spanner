@@ -118,14 +118,27 @@ export async function updateBadge(): Promise<void> {
   await chrome.action.setBadgeBackgroundColor({ color: ACCENT_COLOR });
 }
 
-export async function markItemRead(itemId: string): Promise<void> {
-  const { readItems } = await getLocal('readItems');
-  if (readItems.includes(itemId)) return;
-  readItems.push(itemId);
-  if (readItems.length > MAX_READ_ITEMS) {
-    readItems.splice(0, readItems.length - MAX_READ_ITEMS);
+/** Ids appended once each, in order; the oldest fall off past `cap`. */
+export function appendRead(readItems: readonly string[], ids: readonly string[], cap: number): string[] {
+  const next = [...readItems];
+  const have = new Set(next);
+  for (const id of ids) {
+    if (have.has(id)) continue;
+    have.add(id);
+    next.push(id);
   }
-  await setLocal({ readItems });
+  return next.length > cap ? next.slice(next.length - cap) : next;
+}
+
+export async function markItemsRead(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { readItems } = await getLocal('readItems');
+  const next = appendRead(readItems, ids, MAX_READ_ITEMS);
+  if (next.length !== readItems.length || next.some((id, i) => id !== readItems[i])) await setLocal({ readItems: next });
+}
+
+export async function markItemRead(itemId: string): Promise<void> {
+  await markItemsRead([itemId]);
 }
 
 /** Marks everything in the current cache as read — no refetch needed */
@@ -149,10 +162,11 @@ export async function openArticle(
   resume = false,
   readerView = true,
   original = false,
+  alsoReadIds: readonly string[] = [],
 ): Promise<{ ok: boolean }> {
-  if (feedItemId) {
-    await markItemRead(feedItemId);
-  }
+  // The row it was opened from may stand for the same story from other feeds;
+  // reading one reads the story.
+  await markItemsRead([...(feedItemId ? [feedItemId] : []), ...alsoReadIds]);
 
   // A video already open — the one Continue shows as playing — should be
   // brought forward, not duplicated into a second tab.

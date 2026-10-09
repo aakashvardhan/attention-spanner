@@ -54,6 +54,8 @@ export interface Pick {
   item: FeedItem;
   /** The profile entry this item is close to; null when nothing is close */
   because: string | null;
+  /** Other items telling the same story, folded into this row */
+  also: FeedItem[];
 }
 
 /**
@@ -100,11 +102,11 @@ export function rankItems(
     .filter((hit): hit is { item: FeedItem; because: string; score: number } => hit !== null)
     .sort((a, b) => b.score - a.score)
     .slice(0, k)
-    .map(({ item, because, score }) => ({ item, because: score >= minReason ? because : null }));
+    .map(({ item, because, score }) => ({ item, because: score >= minReason ? because : null, also: [] }));
 }
 
 export function newest(items: readonly FeedItem[], k: number): Pick[] {
-  return items.slice(0, k).map((item) => ({ item, because: null }));
+  return items.slice(0, k).map((item) => ({ item, because: null, also: [] }));
 }
 
 /**
@@ -185,4 +187,39 @@ export function muteMatcher(topics: unknown): (item: FeedItem) => boolean {
   const alternatives = clean.map((t) => t.replace(REGEX_SYNTAX, '\\$&').replace(/ /g, '\\s+')).join('|');
   const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${alternatives})(?![\\p{L}\\p{N}_])`, 'iu');
   return (item) => re.test(item.title) || re.test(item.snippet) || re.test(item.source);
+}
+
+/**
+ * Above this cosine two feed items are the same story told by different
+ * sources. ponytail: uncalibrated for nomic-embed-text; measure on real
+ * duplicates if it groups too much or too little.
+ */
+export const SAME_STORY_MIN = 0.85;
+
+/**
+ * Fold each pick into the first earlier pick telling the same story, so the
+ * card's five rows are five stories. Rank order is kept; a pick without a
+ * vector is never folded, since nothing can be said about it.
+ */
+export function clusterPicks(
+  picks: readonly Pick[],
+  vectorOf: (item: FeedItem) => ArrayLike<number> | undefined,
+  min = SAME_STORY_MIN,
+): Pick[] {
+  const leaders: { pick: Pick; vector: ArrayLike<number> | undefined }[] = [];
+  for (const pick of picks) {
+    const vector = vectorOf(pick.item);
+    const home = vector ? leaders.find((l) => l.vector && cosine(vector, l.vector) >= min) : undefined;
+    if (home) home.pick = { ...home.pick, also: [...home.pick.also, pick.item, ...pick.also] };
+    else leaders.push({ pick, vector });
+  }
+  return leaders.map((l) => l.pick);
+}
+
+/** "+2 sources" for the row; "+N similar" when the copies share the lead's source. */
+export function alsoLabel(pick: Pick): string {
+  if (pick.also.length === 0) return '';
+  const others = new Set(pick.also.map((a) => a.source).filter((s) => s !== pick.item.source)).size;
+  if (others === 0) return `+${pick.also.length} similar`;
+  return `+${others} ${others === 1 ? 'source' : 'sources'}`;
 }

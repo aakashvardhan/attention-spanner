@@ -26,7 +26,7 @@ export async function dispatch(
     case 'REFRESH_FEEDS':
       return refreshFeeds();
     case 'OPEN_ARTICLE':
-      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true, msg.original ?? false);
+      return openArticle(msg.url, msg.feedItemId, msg.resume ?? false, msg.readerView ?? true, msg.original ?? false, msg.alsoReadIds ?? []);
     case 'MARK_ALL_READ':
       return markAllRead();
     case 'VALIDATE_FEED':

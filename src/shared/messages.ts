@@ -26,6 +26,8 @@ export type Message =
       readerView?: boolean;
       /** true opens PDFs as themselves too, skipping the PDF reader — Worth reading */
       original?: boolean;
+      /** Same-story items folded into the opened row; marked read with it */
+      alsoReadIds?: string[];
     }
   | { type: 'MARK_ALL_READ' }
   | { type: 'VALIDATE_FEED'; url: string }

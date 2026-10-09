@@ -4,6 +4,8 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { embed, health } from '../../shared/llm/ollama';
 import { recordStat, updateVectors } from '../../shared/llm/store';
 import {
+  alsoLabel,
+  clusterPicks,
   interestProfile,
   itemText,
   muteMatcher,
@@ -16,6 +18,7 @@ import {
 import { dequantize, quantize } from '../../shared/llm/vectors';
 import { sendMessage } from '../../shared/messages';
 import { progressKeyFor } from '../../shared/progress';
+import type { FeedItem } from '../../shared/types';
 
 const SHOWN = 5;
 /** Embedding shortlist handed to Laya for a second opinion, when it is running */
@@ -107,8 +110,11 @@ export function TriageCard() {
           return next;
         });
         const vectorOf = (key: string) => (all[key] ? dequantize(all[key]) : undefined);
-        const shortlist = rankItems(unread, (i) => vectorOf(itemKey(i.id)), profile, (p) => vectorOf(profileKey(p.id)), RERANK_POOL);
-        return { picks: await rerankPicks(settings.layaUrl, shortlist, profile, SHOWN), note: '' };
+        const itemVector = (i: FeedItem) => vectorOf(itemKey(i.id));
+        const shortlist = rankItems(unread, itemVector, profile, (p) => vectorOf(profileKey(p.id)), RERANK_POOL);
+        // Group before Laya, so it reranks stories rather than copies of one.
+        const stories = clusterPicks(shortlist, itemVector);
+        return { picks: await rerankPicks(settings.layaUrl, stories, profile, SHOWN), note: '' };
       } catch {
         return {
           picks: newest(unread, SHOWN),
@@ -133,25 +139,38 @@ export function TriageCard() {
         </p>
       ) : (
         <ul>
-          {picks.map(({ item, because }) => (
-            <li key={item.id}>
-              <button
-                className="edition-story"
-                data-story
-                onClick={() => {
-                  void recordStat({
-                    count: 'triage.opened',
-                    probe: { key: progressKeyFor(item.link), startPercent: 0, recap: false, at: Date.now(), kind: 'triage' },
-                  });
-                  void sendMessage({ type: 'OPEN_ARTICLE', url: item.link, feedItemId: item.id, readerView: false, original: true });
-                }}
-              >
-                <span className="edition-story-title">{item.title}</span>
-                <span className="edition-story-meta">{item.source}</span>
-                {because && <span className="edition-story-why">Because you read {because}</span>}
-              </button>
-            </li>
-          ))}
+          {picks.map((pick) => {
+            const { item, because, also } = pick;
+            return (
+              <li key={item.id}>
+                <button
+                  className="edition-story"
+                  data-story
+                  onClick={() => {
+                    void recordStat({
+                      count: 'triage.opened',
+                      probe: { key: progressKeyFor(item.link), startPercent: 0, recap: false, at: Date.now(), kind: 'triage' },
+                    });
+                    void sendMessage({
+                      type: 'OPEN_ARTICLE',
+                      url: item.link,
+                      feedItemId: item.id,
+                      readerView: false,
+                      original: true,
+                      alsoReadIds: also.map((a) => a.id),
+                    });
+                  }}
+                >
+                  <span className="edition-story-title">{item.title}</span>
+                  <span className="edition-story-meta">
+                    {item.source}
+                    {also.length > 0 && ` ${alsoLabel(pick)}`}
+                  </span>
+                  {because && <span className="edition-story-why">Because you read {because}</span>}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       {note && <p className="relay-triage-note">{note}</p>}
