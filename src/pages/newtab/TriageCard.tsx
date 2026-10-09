@@ -6,6 +6,7 @@ import { recordStat, updateVectors } from '../../shared/llm/store';
 import {
   interestProfile,
   itemText,
+  muteMatcher,
   newest,
   rankItems,
   rerankPicks,
@@ -35,7 +36,17 @@ export function TriageCard() {
   const [papers] = useStorageValue('papers');
   const [readingProgress] = useStorageValue('readingProgress');
 
-  const unread = useMemo(() => unreadItems(cachedItems, readItems, CANDIDATES), [cachedItems, readItems]);
+  // Muted items never reach ranking, so they cost no embeddings either.
+  // settings.mutedTopics keeps its identity until Settings writes a new list.
+  const isMuted = useMemo(() => muteMatcher(settings.mutedTopics), [settings.mutedTopics]);
+  const { unread, mutedCount } = useMemo(() => {
+    const read = new Set(readItems);
+    const kept = cachedItems.filter((item) => !isMuted(item));
+    return {
+      unread: unreadItems(kept, readItems, CANDIDATES),
+      mutedCount: cachedItems.filter((item) => !read.has(item.id) && isMuted(item)).length,
+    };
+  }, [cachedItems, readItems, isMuted]);
   // Recomputed per render, but only its contents (the signature) drive work:
   // readingProgress changes every few seconds while you read in another tab.
   const profile = interestProfile(papers, readingProgress, Date.now());
@@ -117,7 +128,9 @@ export function TriageCard() {
       {picks === null ? (
         <p className="relay-empty">Sorting by what you finish…</p>
       ) : picks.length === 0 ? (
-        <p className="relay-empty">All caught up on your feeds.</p>
+        <p className="relay-empty">
+          {mutedCount > 0 ? 'Nothing new outside your muted topics.' : 'All caught up on your feeds.'}
+        </p>
       ) : (
         <ul>
           {picks.map(({ item, because }) => (
@@ -142,6 +155,19 @@ export function TriageCard() {
         </ul>
       )}
       {note && <p className="relay-triage-note">{note}</p>}
+      {mutedCount > 0 && (
+        <p className="relay-triage-note">
+          {mutedCount} hidden by muted topics.{' '}
+          <button
+            type="button"
+            className="edition-link"
+            aria-label="Edit muted topics"
+            onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/options/index.html#new-tab') })}
+          >
+            Edit
+          </button>
+        </p>
+      )}
     </section>
   );
 }
