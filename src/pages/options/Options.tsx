@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { HYPERFOCUS_MINUTES, SAMPLE_FEEDS } from '../../shared/constants';
+import { HYPERFOCUS_MINUTES } from '../../shared/constants';
+import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -11,6 +12,7 @@ import { LocalAiSection } from './LocalAiSection';
 import { NewTabSection } from './NewTabSection';
 import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
+import { SuggestedFeeds } from './SuggestedFeeds';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
@@ -37,21 +39,30 @@ export function Options() {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const addFeed = async (feedUrl: string) => {
-    try {
-      new URL(feedUrl);
-    } catch {
-      flash('Invalid URL format.', 'error');
+  const addFeed = async (input: string) => {
+    const typed = withScheme(input);
+    if (!typed) {
+      flash('Enter a web address, like lwn.net or https://lwn.net/feed.', 'error');
       return;
     }
-    if (feeds.includes(feedUrl)) {
+    if (feeds.includes(typed)) {
       flash('This feed is already added.', 'error');
       return;
     }
-    setFeedback({ text: 'Validating feed…', kind: 'loading' });
-    const res = await sendMessage({ type: 'VALIDATE_FEED', url: feedUrl });
+    setFeedback({ text: 'Checking the feed...', kind: 'loading' });
+    let feedUrl = typed;
+    let res = await sendMessage({ type: 'VALIDATE_FEED', url: feedUrl });
     if (!res?.valid) {
-      flash('Could not fetch feed. Please check the URL.', 'error');
+      // Not a feed itself: most sites say where theirs is.
+      setFeedback({ text: 'Looking for a feed on that page...', kind: 'loading' });
+      const found = await findFeedOnPage(typed);
+      if (found && found !== typed) {
+        feedUrl = found;
+        res = await sendMessage({ type: 'VALIDATE_FEED', url: feedUrl });
+      }
+    }
+    if (!res?.valid) {
+      flash("Couldn't find a feed there. Check the address, or paste the feed's own URL.", 'error');
       return;
     }
     // Re-read rather than write back the list this render captured: validation
@@ -62,7 +73,7 @@ export function Options() {
       return;
     }
     await setLocal({ feeds: [...live, feedUrl] });
-    flash(res.title ? `Added "${res.title}"!` : 'Feed added successfully!', 'success');
+    flash(res.title ? `Added "${res.title}"` : 'Feed added.', 'success');
     void sendMessage({ type: 'REFRESH_FEEDS' });
   };
 
@@ -160,15 +171,22 @@ export function Options() {
             }}
           >
             <input
-              type="url"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              aria-label="Feed or site address"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter RSS feed URL (e.g., https://example.com/feed.xml)"
+              placeholder="lwn.net, or a feed URL like https://lwn.net/headlines/rss"
               required
             />
             <button type="submit">Add Feed</button>
           </form>
-          {feedback && <p className={`feedback ${feedback.kind}`}>{feedback.text}</p>}
+          {feedback && (
+            <p className={`feedback ${feedback.kind}`} role="status" aria-live="polite">
+              {feedback.text}
+            </p>
+          )}
         </section>
 
         <section className="section" id="your-feeds">
@@ -337,22 +355,7 @@ export function Options() {
           {dataMessage && <p className="feedback success">{dataMessage}</p>}
         </section>
 
-        <section className="section" id="sample-feeds">
-          <h2>Sample Feeds</h2>
-          <p className="hint">Click to add popular feeds:</p>
-          <div className="sample-feeds">
-            {SAMPLE_FEEDS.map((feed) => (
-              <button
-                type="button"
-                key={feed.url}
-                className="sample-feed"
-                onClick={() => void addFeed(feed.url)}
-              >
-                {feed.name}
-              </button>
-            ))}
-          </div>
-        </section>
+        <SuggestedFeeds feeds={feeds} onAdd={addFeed} />
       </main>
     </div>
   );

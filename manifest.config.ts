@@ -9,6 +9,9 @@ import { loadEnv } from 'vite';
 export default defineManifest(async (env) => {
   const vars = loadEnv(env.mode, process.cwd(), '');
   const crxKey = (vars.VITE_CRX_PUBLIC_KEY ?? '').trim();
+  // Playwright cannot click Chrome's permission prompt, so the E2E build grants
+  // history up front. Every other build asks for it on click, in Settings.
+  const e2e = vars.E2E === '1';
 
   return {
     manifest_version: 3,
@@ -50,7 +53,10 @@ export default defineManifest(async (env) => {
       // Read-only: response headers, to spot PDFs served from extensionless URLs
       'webRequest',
       'contextMenus',
+      ...(e2e ? (['history'] as const) : []),
     ],
+    // Read only when you click "Suggest from my history" in Settings.
+    ...(e2e ? {} : { optional_permissions: ['history' as const] }),
     host_permissions: ['<all_urls>'],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'",
