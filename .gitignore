@@ -29,3 +29,6 @@ demo/out/
 
 # Brainstorm mockups from the visual companion.
 .superpowers/
+
+# Throwaway Chrome profiles from /verify runs
+prof-*/
