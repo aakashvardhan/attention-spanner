@@ -8,6 +8,10 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 120_000,
     fileParallelism: false,
-    retry: process.env.CI ? 1 : 0,
+    // No retries: each file shares one browser profile, so a retried test
+    // meets the storage its first attempt left behind. Generous polls instead,
+    // since every check after a service-worker round trip waits on IPC.
+    retry: 0,
+    expect: { poll: { timeout: 5000 } },
   },
 });

@@ -16,7 +16,12 @@ describe('suggested feeds', () => {
     ext.sites.setRoute('beta', '/atom', rss('Beta Feed', ['b1']));
     ext.sites.setRoute('nofeed', '/', html('<h1>No feed here</h1>'));
     ext.sites.setRoute('broken', '/', status(500));
-    visits.push([`${o('alpha')}/`, 6], [`${o('alpha')}/post`, 4], [`${o('beta')}/`, 3], [`${o('nofeed')}/`, 4], [`${o('broken')}/`, 2], [`${o('once')}/`, 1]);
+    // Advertises a feed that has no items, so validation refuses it on add.
+    ext.sites.setRoute('empty', '/', html('<h1>Empty</h1>', '<link rel="alternate" type="application/rss+xml" href="/rss">'));
+    ext.sites.setRoute('empty', '/rss', rss('Empty Feed', []));
+    // Slow enough that a second click lands while the scan is still running.
+    ext.sites.setRoute('slow', '/', (req, res) => void setTimeout(() => html('<h1>Slow</h1>')(req, res), 1500));
+    visits.push([`${o('alpha')}/`, 6], [`${o('alpha')}/post`, 4], [`${o('beta')}/`, 3], [`${o('nofeed')}/`, 4], [`${o('broken')}/`, 2], [`${o('empty')}/`, 2], [`${o('slow')}/`, 2], [`${o('once')}/`, 1]);
     await ext.sw.evaluate(async (list) => {
       for (const [url, n] of list) for (let i = 0; i < n; i++) await chrome.history.addUrl({ url });
     }, visits);
@@ -29,14 +34,56 @@ describe('suggested feeds', () => {
     await page.getByRole('button', { name: 'Suggest from my history' }).click();
     const statusLine = page.locator('#sample-feeds [role="status"]');
     await expect.poll(() => statusLine.innerText(), { timeout: 20_000 }).toBe(
-      "Found 2 feeds on the 4 sites you visit most. 1 couldn't be reached.",
+      "Found 3 feeds on the 6 sites you visit most. 1 couldn't be reached.",
     );
     const chips = page.getByRole('group', { name: 'From your history' }).getByRole('button');
     expect(await chips.allInnerTexts()).toEqual([
       expect.stringMatching(/^alpha\.e2e\.test:\d+ · visited 10 times$/),
       expect.stringMatching(/^beta\.e2e\.test:\d+ · visited 3 times$/),
+      expect.stringMatching(/^empty\.e2e\.test:\d+ · visited 2 times$/),
     ]);
     await expectA11y(page, 'options');
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('clicking again while it scans does not cancel the scan', async () => {
+    const page = await ext.page(PAGES.options);
+    const suggest = page.getByRole('button', { name: 'Suggest from my history' });
+    await suggest.scrollIntoViewIfNeeded();
+    const box = (await suggest.boundingBox())!;
+    // Near the left edge: inside the narrower Cancel that takes the slot mid-scan.
+    const at = [box.x + 16, box.y + box.height / 2] as const;
+    await page.mouse.click(...at);
+    await expect.poll(() => page.locator('#sample-feeds [role="status"]').innerText()).toBe('Checking the sites you visit most...');
+    // The second half of a double-click lands on the same spot, mid-scan.
+    await page.mouse.click(...at);
+    await expect
+      .poll(() => page.locator('#sample-feeds [role="status"]').innerText(), { timeout: 20_000 })
+      .toMatch(/^Found 3 feeds/);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('a chip stays readable while hovered', async () => {
+    const page = await ext.page(PAGES.options);
+    await page.locator('.sample-feed').first().hover();
+    await expectA11y(page, 'options');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.locator('.sample-feed').first().hover();
+    await expectA11y(page, 'options');
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('a suggestion that fails to add says so next to the chips', async () => {
+    const page = await ext.page(PAGES.options);
+    await page.getByRole('button', { name: 'Suggest from my history' }).click();
+    const chip = page.getByRole('group', { name: 'From your history' }).getByRole('button', { name: /^empty/ });
+    await chip.click({ timeout: 20_000 });
+    await expect
+      .poll(() => page.locator('#sample-feeds [role="status"]').innerText(), { timeout: 10_000 })
+      .toContain("Couldn't find a feed there");
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

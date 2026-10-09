@@ -89,11 +89,7 @@ export async function storage<T>(ext: Ext, key: string): Promise<T> {
   return ext.sw.evaluate(async (k) => (await chrome.storage.local.get(k))[k], key) as Promise<T>;
 }
 
-/**
- * Chrome logs a console error for every failed or 4xx/5xx fetch. Tests that
- * point at a dead Ollama port or an erroring fake site pass this to expectClean.
- */
-export const NETWORK_NOISE = [/Failed to load resource/, /net::ERR_/];
+export { NETWORK_NOISE } from './noise';
 
 /** Fails on any console error or uncaught exception not matched by `allow`. */
 export function expectClean(ext: Ext, allow: RegExp[] = []): void {

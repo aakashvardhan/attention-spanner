@@ -9,7 +9,7 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isTypingTarget } from '../../shared/keys';
 import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
-import { unreadItems } from '../../shared/llm/triage';
+import { muteMatcher, unreadItems } from '../../shared/llm/triage';
 import { sendMessage } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import type { ResumableItem } from '../../shared/attention';
@@ -73,7 +73,10 @@ export function Dashboard() {
   const watching = useNowWatching();
   const watchingNow = watching.now;
 
-  const unreadCount = unreadItems(cachedItems, readItems, cachedItems.length).length;
+  // Counts what the feed card can show: muted topics are not "new" to you.
+  const isMuted = useMemo(() => muteMatcher(settings.mutedTopics), [settings.mutedTopics]);
+  const visibleItems = cachedItems.filter((item) => !isMuted(item));
+  const unreadCount = unreadItems(visibleItems, readItems, visibleItems.length).length;
   const status = [
     resumable.length ? `${resumable.length} unfinished` : null,
     unreadCount ? `${unreadCount} new in your feeds` : null,

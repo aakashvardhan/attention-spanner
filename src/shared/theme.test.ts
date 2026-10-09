@@ -86,6 +86,8 @@ describe('theme tokens', () => {
       ['--success', '--success-bg'],
       ['--warning', '--warning-bg'],
       ['--danger', '--danger-bg'],
+      // A hovered chip
+      ['--text-primary', '--accent-border'],
     ];
     for (const [fg, bg] of body) expect(contrast(get(fg), get(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(get('--accent'), get('--bg-page')), 'accent on page').toBeGreaterThanOrEqual(3);

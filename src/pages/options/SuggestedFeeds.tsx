@@ -41,8 +41,11 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * here, in the page, only after Chrome's permission prompt; nothing is kept.
  * The static sample feeds stay underneath for a fresh profile with no history.
  */
-export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url: string) => Promise<void> }) {
+export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url: string) => Promise<string> }) {
   const [scan, setScan] = useState<Scan>({ state: 'idle' });
+  // The outcome of the last chip clicked, said here rather than at the top of
+  // the page where Add Feed's own message lives and nobody down here sees it.
+  const [notice, setNotice] = useState('');
   const controller = useRef<AbortController | null>(null);
 
   // Leaving Settings mid-scan stops the fetches and every state update after it.
@@ -70,6 +73,7 @@ export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url:
     controller.current?.abort();
     const ctrl = new AbortController();
     controller.current = ctrl;
+    setNotice('');
     setScan({ state: 'scanning' });
     try {
       const result = await suggestFeeds(
@@ -94,24 +98,27 @@ export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url:
   };
 
   const suggestions = scan.state === 'done' ? scan.result.suggestions : [];
+  const scanning = scan.state === 'scanning';
+  const add = (url: string) => void onAdd(url).then(setNotice);
 
   return (
     <section className="section" id="sample-feeds">
       <h2>Suggested Feeds</h2>
       <div className="suggest-row">
-        {scan.state === 'scanning' ? (
+        {/* Stays put while scanning, so the second half of a double-click
+            lands on a button that ignores it, never on Cancel. */}
+        <button type="button" className="secondary-btn" aria-disabled={scanning} onClick={() => !scanning && void run()}>
+          Suggest from my history
+        </button>
+        {scanning && (
           <button type="button" className="secondary-btn" onClick={cancel}>
             Cancel
-          </button>
-        ) : (
-          <button type="button" className="secondary-btn" onClick={() => void run()}>
-            Suggest from my history
           </button>
         )}
       </div>
       {/* Always mounted: a live region only announces changes it was present for. */}
       <p className="hint" role="status" aria-live="polite">
-        {statusText(scan)}
+        {notice || statusText(scan)}
       </p>
       {suggestions.length > 0 && (
         <div className="sample-feeds" role="group" aria-label="From your history">
@@ -126,7 +133,7 @@ export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url:
                 className="sample-feed"
                 aria-disabled={following}
                 title={s.feedUrl}
-                onClick={() => !following && void onAdd(s.feedUrl)}
+                onClick={() => !following && add(s.feedUrl)}
               >
                 {following ? `Following ${s.host}` : `${s.host} · visited ${s.visits} times`}
               </button>
@@ -137,7 +144,7 @@ export function SuggestedFeeds({ feeds, onAdd }: { feeds: string[]; onAdd: (url:
       <p className="hint">Or start with a popular feed:</p>
       <div className="sample-feeds">
         {SAMPLE_FEEDS.map((feed) => (
-          <button type="button" key={feed.url} className="sample-feed" onClick={() => void onAdd(feed.url)}>
+          <button type="button" key={feed.url} className="sample-feed" onClick={() => add(feed.url)}>
             {feed.name}
           </button>
         ))}

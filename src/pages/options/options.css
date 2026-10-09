@@ -331,6 +331,8 @@ button:hover {
 
 .sample-feed:hover {
   background: var(--accent-border);
+  /* Without this, button:hover's on-accent (white) text lands on --accent-border. */
+  color: var(--text-primary);
 }
 
 .sample-feed[aria-disabled='true'] {

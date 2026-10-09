@@ -206,6 +206,22 @@ export function isFollowed(host: string, followedHosts: readonly string[]): bool
   return followedHosts.some((f) => f === host || f.endsWith(`.${host}`) || host.endsWith(`.${f}`));
 }
 
+const LOCAL_SUFFIX = /(^|\.)(localhost|local|internal|intranet|lan|home\.arpa)$/i;
+const PRIVATE_V4 = /^(127|10|0)\.|^192\.168\.|^169\.254\.|^172\.(1[6-9]|2\d|3[01])\./;
+
+/**
+ * Only public sites are worth a front-page request. A dev server, the router's
+ * admin page or an intranet wiki in your history never has a feed worth
+ * suggesting, and probing them would surprise anyone (and can raise Chrome's
+ * local-network prompt). IPv6 literals are skipped outright.
+ */
+export function isPublicHost(host: string): boolean {
+  if (host.startsWith('[')) return false;
+  const name = host.replace(/:\d+$/, '');
+  if (!name.includes('.') || LOCAL_SUFFIX.test(name)) return false;
+  return !PRIVATE_V4.test(name);
+}
+
 async function pool<T>(items: readonly T[], size: number, run: (item: T, index: number) => Promise<void>): Promise<void> {
   let next = 0;
   const worker = async () => {
@@ -235,7 +251,7 @@ export async function suggestFeeds(
   const followed = new Set(followedFeeds);
   const followedHosts = followedFeeds.map(hostOf).filter((h): h is string => h !== null);
   const sites = rankDomains(history, now, DISCOVERY.days)
-    .filter((s) => !isFollowed(s.host, followedHosts))
+    .filter((s) => isPublicHost(s.host) && !isFollowed(s.host, followedHosts))
     .slice(0, DISCOVERY.sites);
 
   const found: (string | null)[] = sites.map(() => null);
@@ -275,10 +291,13 @@ export async function suggestFeeds(
 export function withScheme(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed || /\s/.test(trimmed)) return null;
-  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const explicit = /^https?:\/\//i.test(trimmed);
+  const candidate = explicit ? trimmed : `https://${trimmed}`;
   try {
     const url = new URL(candidate);
-    const plausibleHost = url.hostname.includes('.') || url.hostname === 'localhost';
+    // A typed scheme means any host goes (a NAS, an IPv6 literal); a guessed
+    // one needs something that looks like a site, or "hello" becomes a URL.
+    const plausibleHost = explicit || url.hostname.includes('.') || url.hostname === 'localhost';
     return (url.protocol === 'http:' || url.protocol === 'https:') && plausibleHost ? url.href : null;
   } catch {
     return null;

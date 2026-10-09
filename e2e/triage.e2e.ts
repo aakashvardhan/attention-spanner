@@ -27,6 +27,8 @@ describe('triage card and muted topics', () => {
     const card = page.locator('.edition-feed');
     await expect.poll(() => card.locator('.edition-story-title').allInnerTexts()).toEqual(['A new compiler release', 'Rust 2.0 is out']);
     expect(await card.locator('.relay-triage-note').last().innerText()).toContain('3 hidden by muted topics');
+    // The masthead counts what the card can show, not what the reader muted.
+    expect(await page.locator('.edition-dek').innerText()).toContain('2 new in your feeds');
     const opened = ext.ctx.waitForEvent('page');
     await card.getByRole('button', { name: 'Edit muted topics' }).click();
     expect((await opened).url()).toMatch(/options\/index\.html#new-tab$/);

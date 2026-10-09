@@ -236,6 +236,20 @@ describe('suggestFeeds', () => {
     expect(result.checked).toBe(12);
   });
 
+  it('never probes loopback, private-network or intranet hosts', async () => {
+    const asked: string[] = [];
+    const local = ['http://localhost:3000/', 'http://127.0.0.1:8080/', 'http://192.168.1.1/', 'http://10.0.0.5/', 'http://172.20.0.1/',
+      'http://169.254.1.1/', 'http://[::1]:8080/', 'http://router/', 'http://printer.local/', 'https://wiki.corp.internal/', 'http://app.localhost/'];
+    const history = [...local.flatMap(twice), ...twice('https://a.example/')];
+    const fetchPage = async (url: string) => {
+      asked.push(url);
+      return page(url, '');
+    };
+    const result = await suggestFeeds({ ...deps(history, {}), fetchPage }, [], new AbortController().signal);
+    expect(asked).toEqual(['https://a.example/']);
+    expect(result.checked).toBe(1);
+  });
+
   it('empty history checks nothing', async () => {
     expect(await suggestFeeds(deps([], {}), [], new AbortController().signal)).toEqual({ suggestions: [], checked: 0, unreachable: 0 });
   });
@@ -266,6 +280,12 @@ describe('withScheme', () => {
     expect(withScheme('not a site')).toBeNull();
     expect(withScheme('ftp://x.example/')).toBeNull();
     expect(withScheme('javascript:alert(1)')).toBeNull();
+  });
+
+  it('keeps an explicit http(s) URL on an intranet, LAN or IPv6 host', () => {
+    expect(withScheme('http://nas:8080/rss')).toBe('http://nas:8080/rss');
+    expect(withScheme('http://[::1]:8080/feed')).toBe('http://[::1]:8080/feed');
+    expect(withScheme('nas')).toBeNull();
   });
 });
 

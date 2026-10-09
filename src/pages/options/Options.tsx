@@ -39,15 +39,18 @@ export function Options() {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const addFeed = async (input: string) => {
+  /** Adds a feed and returns what happened, in the words shown to the user. */
+  const addFeed = async (input: string): Promise<string> => {
+    const report = (text: string, kind: 'success' | 'error') => {
+      flash(text, kind);
+      return text;
+    };
     const typed = withScheme(input);
     if (!typed) {
-      flash('Enter a web address, like lwn.net or https://lwn.net/feed.', 'error');
-      return;
+      return report('Enter a web address, like lwn.net or https://lwn.net/feed.', 'error');
     }
     if (feeds.includes(typed)) {
-      flash('This feed is already added.', 'error');
-      return;
+      return report('This feed is already added.', 'error');
     }
     setFeedback({ text: 'Checking the feed...', kind: 'loading' });
     let feedUrl = typed;
@@ -62,19 +65,17 @@ export function Options() {
       }
     }
     if (!res?.valid) {
-      flash("Couldn't find a feed there. Check the address, or paste the feed's own URL.", 'error');
-      return;
+      return report("Couldn't find a feed there. Check the address, or paste the feed's own URL.", 'error');
     }
     // Re-read rather than write back the list this render captured: validation
     // above is a network round-trip, so the snapshot can be stale by now.
     const { feeds: live } = await getLocal('feeds');
     if (live.includes(feedUrl)) {
-      flash('This feed is already added.', 'error');
-      return;
+      return report('This feed is already added.', 'error');
     }
     await setLocal({ feeds: [...live, feedUrl] });
-    flash(res.title ? `Added "${res.title}"` : 'Feed added.', 'success');
     void sendMessage({ type: 'REFRESH_FEEDS' });
+    return report(res.title ? `Added "${res.title}"` : 'Feed added.', 'success');
   };
 
   const removeFeed = async (feedUrl: string) => {
