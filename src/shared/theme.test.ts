@@ -80,6 +80,12 @@ describe('theme tokens', () => {
       ['--text-muted', '--bg-subtle'],
       ['--on-accent', '--accent'],
       ['--accent-text', '--bg-surface'],
+      // Status text sits on its own tinted wash (chips, feedback), not on the
+      // page; axe caught two of these below 4.5:1 when only the page was checked.
+      ['--accent-text', '--accent-wash'],
+      ['--success', '--success-bg'],
+      ['--warning', '--warning-bg'],
+      ['--danger', '--danger-bg'],
     ];
     for (const [fg, bg] of body) expect(contrast(get(fg), get(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(get('--accent'), get('--bg-page')), 'accent on page').toBeGreaterThanOrEqual(3);
