@@ -80,6 +80,12 @@ export interface Settings {
   claudeKey: string;
   /** Local Laya sidecar (scripts/laya-server); '' = off */
   layaUrl: string;
+  /**
+   * Topics hidden from the feed card on the new tab: whole words, any case,
+   * matched against title, snippet and source name. Read through
+   * normalizeTopics, which also survives a hand-edited value.
+   */
+  mutedTopics: string[];
 }
 
 export type CloudMode = 'off' | 'ask' | 'public';

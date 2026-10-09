@@ -147,3 +147,42 @@ export function byRelevance(picks: Pick[], answers: Partial<Record<string, LayaA
     .slice(0, k)
     .map(({ pick }) => pick);
 }
+
+export const MUTE_MAX_TOPICS = 100;
+export const MUTE_MAX_LENGTH = 80;
+
+/**
+ * The muted-topics setting as a clean list. Accepts what might really be in
+ * storage: the array this extension writes, a newline string from a
+ * hand-edited profile, or junk, which mutes nothing.
+ */
+export function normalizeTopics(raw: unknown): string[] {
+  const list: unknown[] = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split('\n') : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of list) {
+    if (typeof entry !== 'string') continue;
+    const topic = entry.replace(/\s+/g, ' ').trim().slice(0, MUTE_MAX_LENGTH);
+    const key = topic.toLocaleLowerCase();
+    if (!topic || seen.has(key)) continue;
+    seen.add(key);
+    out.push(topic);
+    if (out.length === MUTE_MAX_TOPICS) break;
+  }
+  return out;
+}
+
+const REGEX_SYNTAX = /[.*+?^${}()|[\]\\]/g;
+
+/**
+ * One compiled test for the whole list. Word edges are Unicode-aware
+ * lookarounds rather than \b, which only knows ASCII letters and would let
+ * "café" match inside "cafés".
+ */
+export function muteMatcher(topics: unknown): (item: FeedItem) => boolean {
+  const clean = normalizeTopics(topics);
+  if (clean.length === 0) return () => false;
+  const alternatives = clean.map((t) => t.replace(REGEX_SYNTAX, '\\$&').replace(/ /g, '\\s+')).join('|');
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${alternatives})(?![\\p{L}\\p{N}_])`, 'iu');
+  return (item) => re.test(item.title) || re.test(item.snippet) || re.test(item.source);
+}

@@ -94,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudMode: 'off',
   claudeKey: '',
   layaUrl: '',
+  mutedTopics: [],
 };
 
 export const DEFAULTS: LocalSchema = {

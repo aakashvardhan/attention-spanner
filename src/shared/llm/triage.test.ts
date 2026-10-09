@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyProgress, FeedItem, Paper } from '../types';
-import { byRelevance, interestProfile, rankItems, unreadItems, type ProfileEntry } from './triage';
+import { byRelevance, interestProfile, muteMatcher, normalizeTopics, rankItems, unreadItems, type ProfileEntry } from './triage';
 
 const item = (id: string, title: string): FeedItem => ({
   id,
@@ -97,5 +97,65 @@ describe('byRelevance', () => {
 
   it('keeps the embedding order where Laya gave no answer', () => {
     expect(byRelevance(picks, {}, 3).map((p) => p.item.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('normalizeTopics', () => {
+  it('trims, collapses spaces, drops blanks and case-insensitive duplicates, keeps order', () => {
+    expect(normalizeTopics(['  Sports ', '', 'sports', 'US   election', 'Election'])).toEqual(['Sports', 'US election', 'Election']);
+  });
+
+  it('reads a stored string as lines and anything else as empty', () => {
+    expect(normalizeTopics('politics\n\ncrypto')).toEqual(['politics', 'crypto']);
+    expect(normalizeTopics(undefined)).toEqual([]);
+    expect(normalizeTopics(42)).toEqual([]);
+    expect(normalizeTopics([1, null, 'ok'])).toEqual(['ok']);
+  });
+
+  it('caps the count and the length of each topic', () => {
+    expect(normalizeTopics(Array.from({ length: 150 }, (_, i) => `t${i}`))).toHaveLength(100);
+    expect(normalizeTopics(['x'.repeat(200)])[0]).toHaveLength(80);
+  });
+});
+
+describe('muteMatcher', () => {
+  const muted = (topics: unknown, title: string, extra: Partial<FeedItem> = {}) => muteMatcher(topics)({ ...item('1', title), ...extra });
+
+  it('matches whole words in any case, in title, snippet or source', () => {
+    expect(muted(['election'], 'The Election results')).toBe(true);
+    expect(muted(['election'], 'Elections are coming')).toBe(false);
+    expect(muted(['ai'], 'He said hello')).toBe(false);
+    expect(muted(['ai'], 'An AI model')).toBe(true);
+    expect(muted(['sports'], 'Quiet', { snippet: 'Sports roundup' })).toBe(true);
+    expect(muted(['The Verge'], 'Anything', { source: 'The Verge' })).toBe(true);
+  });
+
+  it('treats regex characters literally and handles non-English letters', () => {
+    expect(muted(['C++'], 'Modern C++ tips')).toBe(true);
+    expect(muted(['C++'], 'C is fine')).toBe(false);
+    expect(muted(['a.b'], 'axb')).toBe(false);
+    expect(muted(['(draft)'], 'Paper (draft) notes')).toBe(true);
+    expect(muted(['Économie'], "L'économie française")).toBe(true);
+    expect(muted(['café'], 'cafés')).toBe(false);
+  });
+
+  it('matches a multi-word topic across any whitespace', () => {
+    expect(muted(['US election'], 'US\n election night')).toBe(true);
+  });
+
+  it('mutes nothing when there are no topics or the stored value is corrupt', () => {
+    expect(muted([], 'Anything')).toBe(false);
+    expect(muted('', 'Anything')).toBe(false);
+    expect(muted({ bad: true }, 'Anything')).toBe(false);
+  });
+
+  it('checks 300 items against 100 topics in well under 50 ms', () => {
+    const topics = Array.from({ length: 100 }, (_, i) => `topic${i}`);
+    const items = Array.from({ length: 300 }, (_, i) => item(String(i), `Headline number ${i} about things`));
+    const isMuted = muteMatcher(topics);
+    const start = performance.now();
+    items.filter(isMuted);
+    // ponytail: wall-clock budget with headroom for slow CI runners.
+    expect(performance.now() - start).toBeLessThan(50);
   });
 });
