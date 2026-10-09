@@ -121,3 +121,179 @@ export function feedLinks(html: string, base: string): string[] {
   }
   return [...out];
 }
+
+/** How far one "Suggest from my history" run goes. */
+export const DISCOVERY = {
+  days: 7,
+  sites: 12,
+  concurrency: 4,
+  timeoutMs: 8000,
+  /** Feed links live in <head>; half a megabyte is far past it on any real page */
+  maxBytes: 512 * 1024,
+};
+
+export interface FetchedPage {
+  /** Final URL after redirects; relative feed links resolve against it */
+  url: string;
+  status: number;
+  text: string;
+}
+
+/**
+ * GET a page without cookies, reading at most `maxBytes`. Cookies are omitted
+ * so a suggestion never depends on, or reveals, a signed-in session.
+ */
+export async function fetchCapped(url: string, signal: AbortSignal, maxBytes = DISCOVERY.maxBytes): Promise<FetchedPage> {
+  const res = await fetch(url, {
+    signal,
+    credentials: 'omit',
+    redirect: 'follow',
+    headers: { accept: 'text/html,application/xhtml+xml' },
+  });
+  let text = '';
+  if (res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    try {
+      while (bytes < maxBytes) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        // A server may send the whole body as one chunk; keep only what fits.
+        const take = value.subarray(0, maxBytes - bytes);
+        bytes += take.byteLength;
+        text += decoder.decode(take, { stream: true });
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+  return { url: res.url || url, status: res.status, text };
+}
+
+export interface DiscoveryDeps {
+  searchHistory(startTime: number): Promise<HistoryVisit[]>;
+  fetchPage(url: string, signal: AbortSignal): Promise<FetchedPage>;
+  now(): number;
+  /** Per-site timeout; DISCOVERY.timeoutMs unless a test needs it short */
+  timeoutMs?: number;
+}
+
+export interface Suggestion {
+  feedUrl: string;
+  host: string;
+  visits: number;
+}
+
+export interface DiscoveryResult {
+  suggestions: Suggestion[];
+  /** Sites whose front page was asked for */
+  checked: number;
+  /** Of those, how many failed, timed out or answered with an error status */
+  unreachable: number;
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+/** feeds.arstechnica.com follows arstechnica.com, and the other way round. */
+export function isFollowed(host: string, followedHosts: readonly string[]): boolean {
+  return followedHosts.some((f) => f === host || f.endsWith(`.${host}`) || host.endsWith(`.${f}`));
+}
+
+async function pool<T>(items: readonly T[], size: number, run: (item: T, index: number) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      await run(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
+}
+
+/**
+ * Rank the last week of history, skip what is already followed, read the top
+ * sites' front pages, and keep the first feed each one advertises. Results are
+ * in rank order whatever order the fetches finish in. Aborting rejects with
+ * the signal's AbortError; a single site failing never does.
+ */
+export async function suggestFeeds(
+  deps: DiscoveryDeps,
+  followedFeeds: readonly string[],
+  signal: AbortSignal,
+): Promise<DiscoveryResult> {
+  const now = deps.now();
+  const history = await deps.searchHistory(now - DISCOVERY.days * DAY);
+  signal.throwIfAborted();
+
+  const followed = new Set(followedFeeds);
+  const followedHosts = followedFeeds.map(hostOf).filter((h): h is string => h !== null);
+  const sites = rankDomains(history, now, DISCOVERY.days)
+    .filter((s) => !isFollowed(s.host, followedHosts))
+    .slice(0, DISCOVERY.sites);
+
+  const found: (string | null)[] = sites.map(() => null);
+  let unreachable = 0;
+  await pool(sites, DISCOVERY.concurrency, async (site, i) => {
+    signal.throwIfAborted();
+    try {
+      const timeout = AbortSignal.timeout(deps.timeoutMs ?? DISCOVERY.timeoutMs);
+      const fetched = await deps.fetchPage(`${site.origin}/`, AbortSignal.any([signal, timeout]));
+      if (fetched.status >= 400) {
+        unreachable++;
+        return;
+      }
+      found[i] = feedLinks(fetched.text, fetched.url).find((f) => !followed.has(f)) ?? null;
+    } catch {
+      if (signal.aborted) throw signal.reason;
+      unreachable++;
+    }
+  });
+  signal.throwIfAborted();
+
+  const seen = new Set<string>();
+  const suggestions: Suggestion[] = [];
+  sites.forEach((site, i) => {
+    const feedUrl = found[i];
+    if (!feedUrl || seen.has(feedUrl)) return;
+    seen.add(feedUrl);
+    suggestions.push({ feedUrl, host: site.host, visits: site.visits });
+  });
+  return { suggestions, checked: sites.length, unreachable };
+}
+
+/**
+ * What someone typed into Add Feed, as an http(s) URL: `lwn.net` becomes
+ * `https://lwn.net/`. Anything that is not a plausible web address is null.
+ */
+export function withScheme(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    const plausibleHost = url.hostname.includes('.') || url.hostname === 'localhost';
+    return (url.protocol === 'http:' || url.protocol === 'https:') && plausibleHost ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The first feed a page links to, or null if it links none or cannot be read. */
+export async function findFeedOnPage(
+  url: string,
+  fetchPage: (url: string, signal: AbortSignal) => Promise<FetchedPage> = fetchCapped,
+): Promise<string | null> {
+  try {
+    const fetched = await fetchPage(url, AbortSignal.timeout(DISCOVERY.timeoutMs));
+    return fetched.status < 400 ? (feedLinks(fetched.text, fetched.url)[0] ?? null) : null;
+  } catch {
+    return null;
+  }
+}
