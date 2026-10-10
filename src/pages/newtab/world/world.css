@@ -227,7 +227,7 @@
   transition: opacity var(--dur-effect-slow) var(--ease-effect);
 }
 .world-fog {
-  background: radial-gradient(ellipse 36% 44% at 50% 52%, transparent 40%, var(--world-fog) 100%);
+  background: radial-gradient(ellipse 44% 52% at 50% 46%, transparent 60%, var(--world-fog) 100%);
 }
 .world[data-focus] .world-fog {
   opacity: 1;
