@@ -19,6 +19,16 @@ body {
   padding-block: var(--space-6) var(--space-7);
   align-content: start;
 }
+/* The viewfinder corners (Brackets.tsx) hold the window, not the page. */
+.colophon {
+  position: relative;
+}
+.colophon .brackets {
+  position: fixed;
+}
+.colophon-index a {
+  font-family: var(--font-mono);
+}
 
 .colophon-masthead {
   grid-column: 1 / -1;

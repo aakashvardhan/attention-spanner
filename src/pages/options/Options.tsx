@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Brackets } from '../../shared/components/Brackets';
 import { HYPERFOCUS_MINUTES } from '../../shared/constants';
 import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
 import { normalizeBlockDomain } from '../../shared/focusRules';
@@ -116,6 +117,7 @@ export function Options() {
 
   return (
     <div className="colophon grid">
+      <Brackets />
       <header className="colophon-masthead">
         <h1>Settings</h1>
       </header>

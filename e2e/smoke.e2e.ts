@@ -87,6 +87,16 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
+  it('options: the viewfinder frame and the world settings are there', async () => {
+    const page = await ext.page(PAGES.options);
+    expect(await page.locator('.brackets .bracket').count()).toBe(4);
+    expect(await page.getByLabel('New tab', { exact: true }).inputValue()).toBe('flat');
+    expect(await page.getByLabel('Camera', { exact: true }).count()).toBe(1);
+    expect(await page.getByLabel('Ambient motion', { exact: true }).isChecked()).toBe(true);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
   it('blocked page: during focus the robot meets the wall and the detour is refused', async () => {
     await seed(ext, { focusSession: { phaseEndsAt: Date.now() + 20 * 60_000, startedAt: Date.now(), focusMinutes: 25 } });
     const page = await ext.page(PAGES.blocked);
