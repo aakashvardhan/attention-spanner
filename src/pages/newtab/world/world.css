@@ -1,0 +1,12 @@
+/*
+ * The new tab as a world (World.tsx). The frame (top band, bottom band, docks)
+ * is screen-fixed and opaque; the view between them holds the sky and the
+ * scene. Colours and sizes are tokens only (designSystem.test.ts); motion is on
+ * the spring and effects tokens (motion.test.ts, camera.test.ts).
+ */
+.world-sky {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
