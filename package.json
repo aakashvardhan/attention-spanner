@@ -19,7 +19,7 @@
     "fast-xml-parser": "^5.10.1",
     "katex": "^0.18.1",
     "marked": "^18.0.7",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
