@@ -170,3 +170,17 @@ describe('the masthead hover wave', () => {
     expect(span.split('{').length - span.split('}').length).toBeGreaterThan(0);
   });
 });
+
+describe('the reader stays calm', () => {
+  const css = readFileSync(join(ROOT, 'src/pages/reader/reader.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  it('marks the fovea with an edge and never animates it', () => {
+    const at = css.indexOf('.reader-focus-band::before {');
+    const rule = css.slice(at, css.indexOf('}', at));
+    expect(rule).toMatch(/border-left: 2px solid var\(--accent\)/);
+    expect(rule).not.toMatch(/animation|transition/);
+  });
+
+  it('sets the capsule numbers in the telemetry face', () => {
+    expect(css).toMatch(/\.reader-capsule-summary \{[^}]*font-family: var\(--font-mono\);/);
+  });
+});

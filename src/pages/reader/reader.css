@@ -1442,6 +1442,8 @@ body {
   background: none;
   color: inherit;
   font: inherit;
+  /* Telemetry: page and percent are measurements, set in a fixed width. */
+  font-family: var(--font-mono);
   cursor: pointer;
 }
 
@@ -1587,6 +1589,15 @@ body {
     var(--reading-dim) calc(40% + 64px),
     var(--reading-dim) 100%
   );
+}
+/* The fovea: the sharp centre of vision, marked on its left edge and still. */
+.reader-focus-band::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(40% - 32px);
+  height: 64px;
+  border-left: 2px solid var(--accent);
 }
 @media (prefers-reduced-motion: reduce) {
   .reader-root[data-focus-line] .article-block:not([data-current]) {
