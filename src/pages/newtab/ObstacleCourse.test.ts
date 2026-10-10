@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAR, courseFor, figureAt, poseFor, runnersAt, solidAt } from './ObstacleCourse';
+import { BAR, courseFor, figureAt, groundAt, plannedPath, poseFor, runnersAt, solidAt } from './ObstacleCourse';
 
 // Every drawn point of the runner, in course coordinates, for each x along it.
 function* runner(width: number) {
@@ -66,5 +66,25 @@ describe('ObstacleCourse', () => {
         for (const g of gaps) expect(g).toBeCloseTo((w + 40) / xs.length, 6);
       }
     }
+  });
+});
+
+describe('plannedPath', () => {
+  const course = courseFor(960);
+
+  it('is empty on flat ground: nothing to plan', () => {
+    expect(plannedPath(0, course, 20)).toEqual([]);
+  });
+
+  it('sketches the next jump before the runner gets there, starting where it stands', () => {
+    const crate = course.find((o) => o.kind === 'crate')!;
+    const path = plannedPath(crate.x - 30, course);
+    expect(path.length).toBeGreaterThan(0);
+    expect(path[0][0]).toBe(crate.x - 30);
+    expect(Math.max(...path.map(([, y]) => y))).toBeGreaterThan(0);
+  });
+
+  it('never plans a foot below the ground', () => {
+    for (let x = 0; x < 900; x += 7) for (const [px, y] of plannedPath(x, course)) expect(y).toBeGreaterThanOrEqual(groundAt(px, course) - 2); // the figure tests' landing tolerance
   });
 });

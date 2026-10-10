@@ -127,6 +127,22 @@ export function figureAt(x: number, course: Obstacle[]): Figure {
   return { lift: groundAt(x, course), air: 0, crouch: 0 };
 }
 
+/**
+ * The world model's guess at the next few steps: where the feet will be over
+ * the next `ahead` px, sampled every `step`. Empty on flat ground, where there
+ * is nothing to plan. The runner draws it faintly before it jumps.
+ */
+export function plannedPath(x: number, course: Obstacle[], ahead = 60, step = 4): Pt[] {
+  const points: Pt[] = [];
+  let airborne = false;
+  for (let d = 0; d <= ahead; d += step) {
+    const f = figureAt(x + d, course);
+    if (f.air > 0) airborne = true;
+    points.push([x + d, f.lift]);
+  }
+  return airborne ? points : [];
+}
+
 /** How tall the figure stands for a given crouch. */
 export function heightFor(crouch: number): number {
   return TALL - (TALL - LOW) * crouch;
@@ -287,6 +303,19 @@ export function ObstacleCourse() {
         const f = figureAt(rx, course);
         const pose = poseFor((rx / STRIDE) * Math.PI * 2, f);
         const at = ([px, py]: Pt): Pt => [rx + px, f.lift + py];
+        const plan = plannedPath(rx, course);
+        if (plan.length) {
+          ctx.save();
+          ctx.setLineDash([2, 3]);
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = color('--accent');
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(plan[0][0], plan[0][1]);
+          for (const [px, py] of plan) ctx.lineTo(px, py);
+          ctx.stroke();
+          ctx.restore();
+        }
         ctx.beginPath();
         ctx.moveTo(...at(pose.neck));
         ctx.lineTo(...at(pose.hip));
@@ -297,7 +326,8 @@ export function ObstacleCourse() {
         }
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(...at(pose.head), 2.5, 0, Math.PI * 2);
+        const [hx, hy] = at(pose.head);
+        ctx.rect(hx - 3, hy - 2.5, 6, 5);
         ctx.fill();
       }
 
