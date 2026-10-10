@@ -88,7 +88,20 @@ export function Sky({ location }: { location: string }) {
     };
 
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    // A still sky repaints when the theme or the window changes under it.
+    const repaint = () => {
+      if (running) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(draw);
+    };
+    const theme = new MutationObserver(repaint);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    addEventListener('resize', repaint);
+    return () => {
+      cancelAnimationFrame(raf);
+      theme.disconnect();
+      removeEventListener('resize', repaint);
+    };
   }, [running, code]);
 
   return <canvas ref={ref} className="world-sky" data-running={running || undefined} aria-hidden="true" />;

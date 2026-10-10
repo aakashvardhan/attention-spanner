@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ASK_TIMEOUT_MS,
   FEELING_QUESTION,
@@ -50,6 +50,8 @@ const CHECK_MS = 360;
 
 /** The unsent draft, kept across a remount (switching between world and flat), never stored. */
 let draftMemo = '';
+/** Whether the box had focus when a view switch unmounted it, so typing carries on. */
+let draftFocused = false;
 
 /**
  * Type whatever is looping, park it, and the box clears. Past dumps sit behind
@@ -93,6 +95,17 @@ export function BrainDump() {
   const warmed = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Layout cleanup runs before React removes the box, while it still has focus.
+  useLayoutEffect(() => {
+    const box = inputRef.current;
+    if (draftFocused && box) {
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+    }
+    return () => {
+      draftFocused = document.activeElement === inputRef.current;
+    };
+  }, []);
   /** The ask in flight. A new ask, a pick-up or leaving the page cancels it, so two never race. */
   const inFlight = useRef<AbortController | null>(null);
   useEffect(() => () => inFlight.current?.abort(), []);

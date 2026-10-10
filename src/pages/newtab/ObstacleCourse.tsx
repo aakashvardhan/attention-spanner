@@ -345,9 +345,13 @@ export function ObstacleCourse() {
       }
     };
     addEventListener('resize', onResize);
+    // The still frame repaints in a theme switched underneath it, too.
+    const theme = new MutationObserver(onResize);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     return () => {
       cancelAnimationFrame(raf);
       removeEventListener('resize', onResize);
+      theme.disconnect();
     };
   }, [running]);
 

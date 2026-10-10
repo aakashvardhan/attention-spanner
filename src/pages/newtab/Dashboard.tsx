@@ -90,6 +90,18 @@ export function Dashboard() {
   const narrow = useMedia(NARROW_QUERY);
   const view = viewMode(settings.worldView, reduced, narrow);
   const [stepping, setStepping] = useState(false);
+  // One step in at a time: a second click mid-dolly opens (and marks read) nothing.
+  const steppingNow = useRef(false);
+  const beginStep = () => {
+    if (steppingNow.current) return false;
+    steppingNow.current = true;
+    setStepping(true);
+    return true;
+  };
+  const endStep = () => {
+    steppingNow.current = false;
+    setStepping(false);
+  };
   const quote = quoteOfDay(localDate());
 
   // Step in: the camera dollies forward, the story's title is named for the
@@ -98,7 +110,6 @@ export function Dashboard() {
   const stepInto = async (url: string, from: Element | null) => {
     const title = from?.querySelector<HTMLElement>('.edition-headline, .relay-row-title, .edition-story-title');
     if (title) title.style.viewTransitionName = 'story-title';
-    setStepping(true);
     const glide = view === 'world' && settings.comfort === 'recommended';
     await new Promise((r) => setTimeout(r, glide ? tokenMs('--dur-smooth') : 0));
     location.assign(url);
@@ -112,8 +123,11 @@ export function Dashboard() {
 
   const openArticleHere = async (request: Omit<Extract<Message, { type: 'OPEN_ARTICLE' }>, 'type' | 'here'>, newTab: boolean) => {
     if (newTab) return void sendMessage({ type: 'OPEN_ARTICLE', ...request });
-    const res = await sendMessage({ type: 'OPEN_ARTICLE', ...request, here: true });
+    if (!beginStep()) return;
+    const res = await sendMessage({ type: 'OPEN_ARTICLE', ...request, here: true }).catch(() => null);
+    // No URL: an open video tab was focused instead, or the open failed.
     if (res?.url) await stepInto(res.url, lastStory.current);
+    else endStep();
   };
 
   const openPick = (pick: Pick, newTab: boolean) =>
@@ -126,7 +140,7 @@ export function Dashboard() {
     if (item.paper) {
       const url = paperOpenUrl(item.paper, alt);
       if (newTab) void chrome.tabs.create({ url });
-      else void stepInto(url, lastStory.current);
+      else if (beginStep()) void stepInto(url, lastStory.current);
     } else if (item.progress) {
       const context = resumeContextFromProgress(item.progress);
       void openArticleHere({ url: context.url, feedItemId: null, resume: true, readerView: false }, newTab);

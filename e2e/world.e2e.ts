@@ -8,6 +8,7 @@ const OFF = { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', mutedTopics: [] };
 describe('the new tab as a world', () => {
   let ext: Ext;
   const urls: string[] = [];
+  const feedUrl: Record<string, string> = {};
 
   beforeAll(async () => {
     ext = await launch();
@@ -15,6 +16,10 @@ describe('the new tab as a world', () => {
       const url = `${ext.sites.origin('article')}/${name}`;
       ext.sites.setRoute('article', `/${name}`, html(`<h1>${name}</h1>`));
       urls.push(url);
+    }
+    for (const id of ['a', 'b']) {
+      ext.sites.setRoute('news', `/${id}`, html(`<h1>${id}</h1>`));
+      feedUrl[id] = `${ext.sites.origin('news')}/${id}`;
     }
   });
   afterAll(async () => ext.close());
@@ -27,7 +32,7 @@ describe('the new tab as a world', () => {
         [urls[1]]: article(urls[1], 'Second story', { updatedAt: Date.now() - 86_400_000 }),
         [urls[2]]: article(urls[2], 'Third story', { updatedAt: Date.now() - 5 * 86_400_000 }),
       },
-      cachedItems: [feedItem('a', 'Feed one'), feedItem('b', 'Feed two')],
+      cachedItems: [feedItem('a', 'Feed one', { link: feedUrl.a }), feedItem('b', 'Feed two', { link: feedUrl.b })],
       readItems: [],
       focusSession: null,
     });
@@ -97,9 +102,10 @@ describe('the new tab as a world', () => {
     const second = page.locator('[data-story]', { hasText: 'Second story' });
     await second.focus();
     expect(await page.evaluate(() => document.activeElement?.textContent)).toContain('Second story');
-    await page.keyboard.press('Tab');
-    const next = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest('[data-place]')?.textContent ?? '');
-    expect(next).toMatch(/Third story|Recap/);
+    // Tab past this panel's own controls: the next place is the next on the path.
+    const place = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest('[data-place]')?.textContent ?? '');
+    for (let i = 0; i < 6 && (await place()).includes('Second story'); i++) await page.keyboard.press('Tab');
+    expect(await place()).toContain('Third story');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
@@ -175,6 +181,83 @@ describe('the new tab as a world', () => {
     const light = await read();
     await seed(ext, { settings: { ...OFF, worldView: 'world', theme: 'dark' } });
     await expect.poll(read).not.toBe(light);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('a click at normal speed on a panel that is not locked opens that story', async () => {
+    const page = await ext.page(PAGES.newtab);
+    const feed = page.locator('[data-story]', { hasText: 'Feed two' });
+    await feed.waitFor();
+    // A point where this panel is on top: the nearer feed panel covers part of it.
+    const [x, y] = await feed.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      for (let fx = 0.95; fx > 0; fx -= 0.05)
+        for (let fy = 0.2; fy < 1; fy += 0.2) {
+          const px = r.left + r.width * fx;
+          const py = r.top + r.height * fy;
+          if (el.contains(document.elementFromPoint(px, py))) return [px, py];
+        }
+      return [NaN, NaN];
+    });
+    expect(Number.isNaN(x)).toBe(false);
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(120);
+    await page.mouse.up();
+    // The camera steps into the panel that was clicked, not back to the lead.
+    await page.waitForTimeout(250);
+    expect(await page.locator('.world-place[data-locked]').getAttribute('data-place')).toBe('feed:b');
+    await page.waitForURL(feedUrl.b);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('a second click while stepping in opens nothing else', async () => {
+    const page = await ext.page(PAGES.newtab);
+    await page.locator('[data-story]', { hasText: 'Feed two' }).waitFor();
+    await page.evaluate(() => {
+      const story = (text: string) => [...document.querySelectorAll<HTMLElement>('[data-story]')].find((el) => el.textContent?.includes(text))!;
+      story('Feed two').click();
+      story('Feed one').click();
+    });
+    await page.waitForURL(feedUrl.b);
+    expect(await storage<string[]>(ext, 'readItems')).toEqual(['b']);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('with ambient motion off, the still sky repaints on a theme switch', async () => {
+    await seed(ext, { settings: { ...OFF, worldView: 'world', ambientMotion: false, theme: 'light' } });
+    const page = await ext.page(PAGES.newtab);
+    const pixel = () => page.locator('.world-sky').evaluate((c) => [...(c as HTMLCanvasElement).getContext('2d')!.getImageData(2, 2, 1, 1).data].join());
+    const light = await pixel();
+    await seed(ext, { settings: { ...OFF, worldView: 'world', ambientMotion: false, theme: 'dark' } });
+    await expect.poll(pixel).not.toBe(light);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('typing in the brain dump survives the window narrowing to the flat view', async () => {
+    const page = await ext.page(PAGES.newtab);
+    const box = page.getByPlaceholder(/Whatever is looping/);
+    await box.click();
+    await page.keyboard.type('call');
+    await page.setViewportSize({ width: 800, height: 900 });
+    await expect.poll(() => page.locator('main.edition').count()).toBe(1);
+    await page.keyboard.type(' mom');
+    expect(await page.getByPlaceholder(/Whatever is looping/).inputValue()).toBe('call mom');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('walking to the far end of the feed lane moves the camera, never scrolls the view', async () => {
+    const page = await ext.page(PAGES.newtab);
+    await page.locator('[data-story]').first().waitFor();
+    for (let i = 0; i < 6; i++) await page.keyboard.press('j');
+    await page.waitForTimeout(700);
+    expect(await page.locator('.world-view').evaluate((v) => [v.scrollLeft, v.scrollTop])).toEqual([0, 0]);
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

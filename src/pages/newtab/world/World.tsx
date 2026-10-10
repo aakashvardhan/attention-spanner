@@ -22,6 +22,8 @@ import { tokenMs } from './view';
 /** Stands a place's foot (bottom centre) on its spot, label above the panel. */
 const stand = (p: { x: number; z: number; yaw: number }) => ({ transform: `${placeTransform(p)} translate(-50%, -100%)` });
 
+const NO_PICKS: Pick[] = [];
+
 export interface WorldProps {
   status: string;
   resumable: ResumableItem[];
@@ -42,10 +44,15 @@ export interface WorldProps {
  * never moves. The camera follows keyboard focus and nothing else.
  */
 export function World(props: WorldProps) {
-  const { resumable, settings, focus, stepping } = props;
+  const { settings, focus, stepping } = props;
   const triage = useTriage();
   const ambient = useAmbient();
-  const picks = triage.picks ?? [];
+  // Stepping in marks the story read, which drops it from the feed; the scene
+  // holds still until the tab navigates so the camera keeps its target.
+  const live = { resumable: props.resumable, picks: triage.picks ?? NO_PICKS };
+  const frozen = useRef(live);
+  if (!stepping) frozen.current = live;
+  const { resumable, picks } = frozen.current;
 
   const { placed, overflow } = useMemo(
     () =>
@@ -100,7 +107,15 @@ export function World(props: WorldProps) {
         <div
           className="world-scene"
           style={{ transform: sceneTransform(camera, stepping ? CAMERA.stepDepth : CAMERA.viewDepth) }}
+          // The camera follows keyboard focus only: a mouse press focuses the
+          // button too, and gliding under the pointer would lose the click.
+          // A click locks its own panel as it opens.
           onFocusCapture={(e) => {
+            if (!(e.target as HTMLElement).matches(':focus-visible')) return;
+            const key = (e.target as HTMLElement).closest<HTMLElement>('[data-place]')?.dataset.place;
+            if (key) setTarget(key);
+          }}
+          onClickCapture={(e) => {
             const key = (e.target as HTMLElement).closest<HTMLElement>('[data-place]')?.dataset.place;
             if (key) setTarget(key);
           }}
