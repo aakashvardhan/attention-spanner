@@ -849,7 +849,7 @@ ol {
   filter: blur(3px);
   opacity: 0.7;
   pointer-events: none;
-  animation: dump-orbit 2.4s linear infinite;
+  animation: dump-orbit 2.4s linear infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-word {
   display: inline-block;
@@ -913,14 +913,14 @@ ol {
   background: var(--accent-border);
 }
 .dump-shimmer span {
-  animation: dump-shimmer 1.6s linear infinite;
+  animation: dump-shimmer 1.6s linear infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-chip,
 .dump-chip-sep {
   animation: dump-chip-in var(--dur-snappy) var(--spring-bouncy) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-chip.is-active .dump-chip-dot {
-  animation: dump-pulse 1.2s var(--ease-out) infinite;
+  animation: dump-pulse 1.2s var(--ease-out) infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-trace[open] .dump-trace-lines li {
   animation: dump-rise var(--dur-smooth) var(--spring-smooth) calc(var(--i) * 40ms) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
@@ -1504,7 +1504,7 @@ ol {
   animation: heat-pop var(--dur-bouncy) var(--spring-bouncy) backwards;
   animation-delay: calc(240ms + var(--w) * 8ms + var(--d) * 12ms);
   transition:
-    background-color var(--dur-smooth) var(--spring-smooth) calc(var(--w) * 6ms),
+    background-color var(--dur-effect-slow) var(--ease-effect) calc(var(--w) * 6ms),
     transform var(--dur-snappy) var(--spring-snappy);
 }
 @media (prefers-reduced-motion: no-preference) {

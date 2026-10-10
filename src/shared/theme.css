@@ -105,6 +105,15 @@
   --spring-bouncy: linear(0, 0.045, 0.153, 0.293, 0.441, 0.582, 0.706, 0.81, 0.892, 0.953, 0.995, 1.023, 1.038, 1.045, 1.046, 1.042, 1.036, 1.03, 1.023, 1.017, 1.011, 1.007, 1.004, 1.001, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 1);
   --dur-bouncy: 660ms;
 
+  /* Effects motion: fog, vignette, fades and colour. Never a spring: a colour
+     has no momentum. Spatial motion (the camera, the lock) stays on springs. */
+  --ease-effect: cubic-bezier(0.2, 0, 0, 1);
+  --dur-effect-fast: 120ms;
+  --dur-effect-slow: 480ms;
+
+  /* Telemetry: numbers that are measurements read best in a fixed width. */
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
   /* Paper and ink. */
   --bg-page: #f5f0e6;
   --bg-surface: #fbf8f2;
