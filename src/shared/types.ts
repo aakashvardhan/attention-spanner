@@ -311,7 +311,13 @@ export interface Dump {
   kind?: 'task' | 'recurring';
   /** When the last step was ticked off; a recurring dump is due again the next local day */
   lastDoneAt?: number;
+  /** Set on a point the dump was sorted into: the dump it came from */
+  parentId?: string;
+  /** The point's Eisenhower quadrant; a note is a feeling or thought, not a task */
+  quadrant?: Quadrant;
 }
+
+export type Quadrant = 'do' | 'schedule' | 'delegate' | 'drop' | 'note';
 
 export interface DayActivity {
   /** Distinct papers read that day */

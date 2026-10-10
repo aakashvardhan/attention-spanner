@@ -4,18 +4,25 @@ import {
   FEELING_QUESTION,
   MAX_DUMP_CHARS,
   MAX_STEP_TRIES,
+  QUADRANTS,
   RECURRING_QUESTION,
+  SORT_SYSTEM,
   STEP_SIZE_QUESTION,
+  addBullets,
   askErrorMessage,
+  bulletsOf,
   completeStep,
   doneToday,
   hoursShare,
   isDue,
   isOnlyFeeling,
   isRecurring,
+  isTask,
   isTooBig,
   keepAfterRetries,
+  nextOpenBullet,
   parkDump,
+  parseBullets,
   parseNextStep,
   removeDump,
   retryPrompt,
@@ -44,7 +51,9 @@ const CHECK_MS = 360;
 /**
  * Type whatever is looping, park it, and the box clears. Past dumps sit behind
  * a closed "Parked (N)" so the page never lists your open loops back at you.
- * The local model then offers one small next step; tick it off and it offers
+ * The local model first sorts the dump into points by the Eisenhower matrix,
+ * most important first; each task point then gets its own loop, in that order.
+ * Per loop it offers one small next step; tick it off and it offers
  * the next, until it says there is nothing left and the loop is closed. A dump
  * Laya reads as recurring ("get better at leetcode") never closes on its own:
  * it gets one step a day, each about 1% further, and on a new day that step
@@ -72,6 +81,8 @@ export function BrainDump() {
   const [justDone, setJustDone] = useState<number | null>(null);
   /** "Parked." confirms a park; a practice that surfaced on its own was not just parked */
   const [justParked, setJustParked] = useState(false);
+  /** The model is sorting the dump into points; the working card says so */
+  const [sorting, setSorting] = useState(false);
   const warmed = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -81,9 +92,19 @@ export function BrainDump() {
   const surfaced = useRef(false);
 
   const parked = dumps.find((d) => d.id === parkedId);
+  /** The dump a point came from, or the parked dump itself */
+  const root = parked?.parentId ? dumps.find((d) => d.id === parked.parentId) : parked;
+  const points = root ? bulletsOf(dumps, root.id) : [];
+  /** A sorted dump with no task left open: its points are the whole story */
+  const isRoot = points.length > 0 && parked === root;
   /** A practice whose step for today is done: it rests until tomorrow */
   const restingToday = parked?.kind === 'recurring' && parked.nextStep === undefined && doneToday(parked, Date.now());
-  const stepLabel = parked?.kind === 'recurring' ? `Today's 1% · Day ${(parked.done?.length ?? 0) + 1}` : 'Next step';
+  const stepLabel = sorting
+    ? 'Sorting · Eisenhower matrix'
+    : `${parked?.quadrant ? `${QUADRANTS[parked.quadrant]} · ` : ''}${
+        parked?.kind === 'recurring' ? `Today's 1% · Day ${(parked.done?.length ?? 0) + 1}` : 'Next step'
+      }`;
+  const upNext = root && live === null ? nextOpenBullet(dumps, root.id, Date.now()) : undefined;
   const cloudReady = settings.cloudMode !== 'off' && settings.claudeKey !== '' && navigator.onLine;
 
   // ponytail: read-modify-write from the page, so two new tabs writing in the
@@ -117,10 +138,10 @@ export function BrainDump() {
     if (up) void askNextStep(next[0]);
   };
 
-  /** Probed only when a dump is opened, not on every new tab. */
+  /** Probed only when a dump is opened, not on every new tab. A sorted dump opens at its most important open point. */
   const pickUp = async (id: string) => {
     inFlight.current?.abort();
-    setParkedId(id);
+    setParkedId(nextOpenBullet(dumps, id, Date.now())?.id ?? id);
     setLive(null);
     setError('');
     setTrace([]);
@@ -128,6 +149,7 @@ export function BrainDump() {
     setChecking(false);
     setJustDone(null);
     setJustParked(false);
+    setSorting(false);
     // No chat model picked means you chose no local AI: say nothing. A picked one that
     // cannot answer gets a reason, or "Parked." alone would hide why no step came.
     if (!settings.ollamaChatModel) {
@@ -170,8 +192,58 @@ export function BrainDump() {
     const who = cloud ? 'Claude' : 'Ollama';
     const model = cloud ? `Claude · ${CLAUDE_MODELS.quick}` : `Ollama · ${settings.ollamaChatModel}`;
     try {
+      const ask = (system: string, prompt: string, instruction: string) => {
+        const timeout = AbortSignal.timeout(ASK_TIMEOUT_MS);
+        timeout.addEventListener('abort', () => (timedOut = true));
+        const signal = AbortSignal.any([ctrl.signal, timeout]);
+        return cloud
+          ? claudeStream({
+              apiKey: settings.claudeKey,
+              model: CLAUDE_MODELS.quick,
+              system,
+              document: prompt,
+              prompt: instruction,
+              signal,
+              onText,
+            })
+          : chat({
+              url: settings.ollamaUrl,
+              model: settings.ollamaChatModel,
+              messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt },
+              ],
+              signal,
+              onText,
+              // A short imperative needs no reasoning: under 1 s instead of ~17 s, same steps on the bench.
+              // ponytail: the sort runs without thinking too; turn it on for the sort if the order reads wrong.
+              think: false,
+            });
+      };
+
+      // A fresh dump is sorted first; with two or more points, the loop runs on the first open task instead.
+      if (!dump.parentId && !dump.done?.length && !bulletsOf(dumps, dump.id).length) {
+        log(`Sort · ${who} sorting by the Eisenhower matrix…`);
+        setSorting(true);
+        const start = performance.now();
+        const bullets = parseBullets(await ask(SORT_SYSTEM, dump.text, 'Reply with the sorted points.'));
+        if (!current()) return;
+        setSorting(false);
+        if (bullets.length < 2) {
+          log(`Sort · ${bullets.length ? 'one point' : 'no points read'}, the dump as it is, ${took(start)}`, true);
+        } else {
+          const tasks = bullets.filter((b) => isTask(b.quadrant)).length;
+          log(`Sort · ${bullets.length} points, ${tasks} to act on, ${took(start)}`, true);
+          const next = await save((list) => addBullets(list, dump.id, bullets, Date.now()));
+          const first = next && nextOpenBullet(next, dump.id, Date.now());
+          if (!first || !current()) return;
+          setParkedId(first.id);
+          dump = first;
+        }
+      }
       const layaUp = await layaReady(settings.layaUrl);
-      const askFeeling = !dump.done?.length;
+      // A sorted point was already judged a task, so only a whole dump is screened for a feeling.
+      const askFeeling = !dump.done?.length && !dump.quadrant;
       const askKind = dump.kind === undefined;
       if (!layaUp) {
         log(settings.layaUrl ? `Laya · not running, ${who} alone` : `Laya · off, ${who} alone`);
@@ -226,34 +298,6 @@ export function BrainDump() {
           true,
         );
       }
-      const ask = (prompt: string) => {
-        const timeout = AbortSignal.timeout(ASK_TIMEOUT_MS);
-        timeout.addEventListener('abort', () => (timedOut = true));
-        const signal = AbortSignal.any([ctrl.signal, timeout]);
-        return cloud
-          ? claudeStream({
-              apiKey: settings.claudeKey,
-              model: CLAUDE_MODELS.quick,
-              system: systemFor(dump),
-              document: prompt,
-              prompt: dump.kind === 'recurring' ? "Reply with today's session." : 'Reply with the next step.',
-              signal,
-              onText,
-            })
-          : chat({
-              url: settings.ollamaUrl,
-              model: settings.ollamaChatModel,
-              messages: [
-                { role: 'system', content: systemFor(dump) },
-                { role: 'user', content: prompt },
-              ],
-              signal,
-              onText,
-              // One short imperative needs no reasoning: under 1 s instead of ~17 s, same steps on the bench.
-              think: false,
-            });
-      };
-
       // The self-check loop: every step is checked before you see it, and a
       // failing one is sent back with the reason, up to MAX_STEP_TRIES.
       let step: string | null = null;
@@ -263,7 +307,13 @@ export function BrainDump() {
         log(`${model} · try ${attempt}, working…`);
         setLive('');
         const start = performance.now();
-        const reply = parseNextStep(await ask(retryPrompt(dump, rejected)));
+        const reply = parseNextStep(
+          await ask(
+            systemFor(dump),
+            retryPrompt(dump, rejected),
+            dump.kind === 'recurring' ? "Reply with today's session." : 'Reply with the next step.',
+          ),
+        );
         let why: string | null;
         let size = '';
         if (!reply) {
@@ -319,12 +369,14 @@ export function BrainDump() {
         await save((list) => setNextStep(list, dump.id, kept));
         return;
       }
+      if (lines.at(-1)?.startsWith('Sort ·')) log('Sort · failed', true);
       log(`${model} · no answer`, lines.at(-1)?.startsWith(model));
       setError(askErrorMessage(err, who, timedOut));
     } finally {
       if (inFlight.current === ctrl) {
         inFlight.current = null;
         setLive(null);
+        setSorting(false);
       }
     }
   };
@@ -363,6 +415,17 @@ export function BrainDump() {
     void askNextStep(dump, true);
   };
 
+  /** On to the next most important point; Claude stays in use if you sent this dump there. */
+  const openNext = async (point: Dump) => {
+    const cloud = viaCloud;
+    const up = await pickUp(point.id);
+    if (point.nextStep !== undefined) return;
+    if (cloud) askClaude(point);
+    else if (up) void askNextStep(point);
+  };
+
+  const roots = dumps.filter((d) => !d.parentId);
+
   return (
     <section ref={sectionRef} className="edition-dump" aria-labelledby="dump-title">
       <p id="dump-title" className="edition-kicker">
@@ -396,12 +459,12 @@ export function BrainDump() {
           Park it
         </button>
         {parked && justParked && <span className="edition-dump-note">Parked.</span>}
-        {parked && aiUp && parked.nextStep === undefined && live === null && !restingToday && (
+        {parked && !isRoot && aiUp && parked.nextStep === undefined && live === null && !restingToday && (
           <button type="button" className="relay-recap-toggle" onClick={() => void askNextStep(parked)}>
             One next step
           </button>
         )}
-        {parked && cloudReady && parked.nextStep === undefined && live === null && (!aiUp || error) && (
+        {parked && !isRoot && cloudReady && parked.nextStep === undefined && live === null && (!aiUp || error) && (
           <button type="button" className="relay-recap-toggle" onClick={() => askClaude(parked)}>
             Ask Claude Haiku
           </button>
@@ -409,6 +472,27 @@ export function BrainDump() {
       </div>
       {parked && (
         <div className="dump-loop">
+          {points.length > 0 && (
+            <ol className="dump-points" aria-label="Sorted by importance">
+              {points.map((point) => (
+                <li
+                  key={point.id}
+                  className={
+                    point.id === parked.id
+                      ? 'dump-point is-current'
+                      : !isTask(point.quadrant)
+                        ? 'dump-point is-aside'
+                        : point.nextStep === null
+                          ? 'dump-point is-closed'
+                          : 'dump-point'
+                  }
+                >
+                  <span className="dump-point-tag">{QUADRANTS[point.quadrant ?? 'note']}</span>
+                  <span>{point.text}</span>
+                </li>
+              ))}
+            </ol>
+          )}
           {parked.done?.length ? (
             <ol className="dump-done" aria-label="Steps done">
               {parked.done.length > SHOWN_DONE && (
@@ -486,6 +570,10 @@ export function BrainDump() {
                 <p className="dump-card-note">Tomorrow's 1% comes on its own.</p>
               </div>
             </div>
+          ) : isRoot ? (
+            <div className="dump-card is-closed" role="status">
+              <p className="dump-card-text">{pointsText(points)}</p>
+            </div>
           ) : parked.nextStep === null ? (
             <div className={parked.done?.length ? 'dump-card is-closed has-ring' : 'dump-card is-closed'} role="status">
               {parked.done?.length ? (
@@ -506,6 +594,11 @@ export function BrainDump() {
             </div>
           ) : null}
 
+          {upNext && upNext.id !== parked.id && (parked.nextStep === null || restingToday || isRoot) && (
+            <button type="button" className="relay-recap-toggle dump-next" onClick={() => void openNext(upNext)}>
+              Next: {upNext.text}
+            </button>
+          )}
           {trace.length > 0 && <TraceRow lines={trace} />}
         </div>
       )}
@@ -515,39 +608,49 @@ export function BrainDump() {
         </p>
       )}
 
-      {dumps.length > 0 && (
+      {roots.length > 0 && (
         <details className="edition-dump-parked">
           <summary>
             Parked (
-            <span key={dumps.length} className="dump-count">
-              {dumps.length}
+            <span key={roots.length} className="dump-count">
+              {roots.length}
             </span>
             )
           </summary>
           <ul>
-            {dumps.map((dump) => (
-              <li key={dump.id}>
-                <span className="edition-dump-note">{formatRelativeDate(new Date(dump.createdAt))}</span>
-                <p className="edition-dump-text">{dump.text}</p>
-                {dump.nextStep !== undefined && <p className="edition-dump-note">{stepText(dump)}</p>}
-                {dump.nextStep !== null && dump.id !== parkedId && (
+            {roots.map((dump) => {
+              const its = bulletsOf(dumps, dump.id);
+              const open = its.length
+                ? nextOpenBullet(dumps, dump.id, Date.now()) !== undefined
+                : dump.nextStep !== null;
+              return (
+                <li key={dump.id}>
+                  <span className="edition-dump-note">{formatRelativeDate(new Date(dump.createdAt))}</span>
+                  <p className="edition-dump-text">{dump.text}</p>
+                  {its.length > 0 ? (
+                    <p className="edition-dump-note">{pointsText(its)}</p>
+                  ) : (
+                    dump.nextStep !== undefined && <p className="edition-dump-note">{stepText(dump)}</p>
+                  )}
+                  {open && dump.id !== root?.id && (
+                    <button
+                      type="button"
+                      className="relay-recap-toggle edition-dump-delete"
+                      onClick={() => void pickUp(dump.id)}
+                    >
+                      Pick up
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="relay-recap-toggle edition-dump-delete"
-                    onClick={() => void pickUp(dump.id)}
+                    onClick={() => void save((list) => removeDump(list, dump.id))}
                   >
-                    Pick up
+                    Delete
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="relay-recap-toggle edition-dump-delete"
-                  onClick={() => void save((list) => removeDump(list, dump.id))}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
@@ -604,8 +707,16 @@ function flyToParked(input: HTMLTextAreaElement, section: HTMLElement, text: str
     const root = getComputedStyle(document.documentElement);
     const flight = ghost.animate(
       [
-        { transform: 'translate(0, 0) scale(1)', opacity: 1, filter: 'blur(0)' },
-        { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0, filter: 'blur(2px)' },
+        {
+          transform: 'translate(0, 0) scale(1)',
+          opacity: 1,
+          filter: 'blur(0)',
+        },
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(0.2)`,
+          opacity: 0,
+          filter: 'blur(2px)',
+        },
       ],
       {
         duration: cssMs(root.getPropertyValue('--dur-smooth'), 520) * 1.4,
@@ -630,7 +741,9 @@ function cssMs(value: string, fallback: number): number {
 function closedText(dump: Dump): string {
   const n = dump.done?.length ?? 0;
   if (dump.kind === 'recurring') return `Practice closed · ${n} day${n === 1 ? '' : 's'}`;
-  return n ? `Loop closed · ${n} step${n === 1 ? '' : 's'}` : NOTHING_TO_DO;
+  if (n) return `Loop closed · ${n} step${n === 1 ? '' : 's'}`;
+  // A sorted point is a task by the sort's call, so closing it is not "nothing to act on".
+  return dump.parentId ? 'Loop closed' : NOTHING_TO_DO;
 }
 
 function CheckMark() {
@@ -679,6 +792,13 @@ function TraceRow({ lines }: { lines: string[] }) {
       </ol>
     </details>
   );
+}
+
+function pointsText(points: readonly Dump[]): string {
+  const tasks = points.filter((p) => isTask(p.quadrant));
+  const closed = tasks.filter((p) => p.nextStep === null).length;
+  const n = `${points.length} point${points.length === 1 ? '' : 's'}`;
+  return tasks.length ? `${n} · ${closed} of ${tasks.length} tasks closed` : `${n} · ${NOTHING_TO_DO}`;
 }
 
 function stepText(dump: Dump): string {
