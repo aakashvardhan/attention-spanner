@@ -2,7 +2,7 @@ import { LAYA_BIG_STEP_MIN, LAYA_FEELING_MIN, LAYA_RECURRING_MIN } from './const
 import { localDate } from './format';
 import { confident, type LayaAnswer, type LayaQuestion } from './llm/laya';
 import { OllamaError } from './llm/ollama';
-import type { Dump } from './types';
+import type { Dump, Quadrant } from './types';
 
 /**
  * The brain dump: get a loop out of your head and park it. Parked dumps stay
@@ -232,6 +232,86 @@ export function nextStepPrompt(dump: Dump): string {
   return `${dump.text}\n\nAlready done:\n${dump.done.map((s) => `- ${s}`).join('\n')}`;
 }
 
+/**
+ * A fresh dump is sorted before any step is asked: split into points and
+ * ordered by the Eisenhower matrix, so the loops close in the order that
+ * matters. Do now, schedule and delegate are tasks and each gets its own loop;
+ * a drop or a note is listed and left alone.
+ */
+export const SORT_SYSTEM =
+  'Sort this brain dump with the Eisenhower matrix. Split it into separate points, one per line, ' +
+  'each under 12 words, keeping the names, dates and details a point needs to stand alone. ' +
+  'Start each line with one label: DO (urgent and important), SCHEDULE (important, not urgent), ' +
+  'DELEGATE (urgent, someone else can do it), DROP (neither urgent nor important), ' +
+  'or NOTE (a feeling or thought, not a task). Most important first. ' +
+  'Format: LABEL: point. No other text, no advice.';
+
+/** Display order, most important first; the labels are what the card shows. */
+export const QUADRANTS: Record<Quadrant, string> = {
+  do: 'Do now',
+  schedule: 'Schedule',
+  delegate: 'Delegate',
+  drop: 'Drop',
+  note: 'Note',
+};
+const RANK = Object.keys(QUADRANTS) as Quadrant[];
+
+export function isTask(quadrant: Quadrant | undefined): boolean {
+  return quadrant === 'do' || quadrant === 'schedule' || quadrant === 'delegate';
+}
+
+const MAX_BULLETS = 12;
+const LABELLED = /^(?:[-*•]|\d+[.)])?\s*\**(DO|SCHEDULE|PLAN|DELEGATE|DROP|NOTE)\**\s*[:—–-]\s*(.+)$/i;
+
+/** The model's labelled lines, sorted by quadrant (stable, so its own order holds within one). Other lines are chatter. */
+export function parseBullets(reply: string): { text: string; quadrant: Quadrant }[] {
+  const seen = new Set<string>();
+  const bullets: { text: string; quadrant: Quadrant }[] = [];
+  for (const line of reply.replace(/<think>[\s\S]*?<\/think>/g, '').split('\n')) {
+    const m = LABELLED.exec(line.trim());
+    if (!m) continue;
+    const label = m[1].toLowerCase();
+    const quadrant = (label === 'plan' ? 'schedule' : label) as Quadrant;
+    const text = m[2].replace(/^[*_"'“]+|[*_"'”]+$/g, '').trim().slice(0, MAX_STEP_CHARS);
+    const key = normal(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    bullets.push({ text: text[0].toUpperCase() + text.slice(1), quadrant });
+  }
+  return bullets.sort((a, b) => RANK.indexOf(a.quadrant) - RANK.indexOf(b.quadrant)).slice(0, MAX_BULLETS);
+}
+
+/** Files the points right under their dump, in order. Only a task's loop is left to ask. */
+export function addBullets(
+  list: readonly Dump[],
+  parentId: string,
+  bullets: readonly { text: string; quadrant: Quadrant }[],
+  now: number,
+): Dump[] {
+  const points: Dump[] = bullets.map(({ text, quadrant }) => ({
+    id: crypto.randomUUID(),
+    text,
+    createdAt: now,
+    parentId,
+    quadrant,
+    ...(isTask(quadrant) ? {} : { nextStep: null }),
+  }));
+  const at = list.findIndex((d) => d.id === parentId) + 1;
+  return [...list.slice(0, at), ...points, ...list.slice(at)];
+}
+
+/** A dump's points, most important first; empty when it was never split. */
+export function bulletsOf(list: readonly Dump[], rootId: string): Dump[] {
+  return list.filter((d) => d.parentId === rootId);
+}
+
+/** The most important point whose loop is still open, skipping a practice that is done for today. */
+export function nextOpenBullet(list: readonly Dump[], rootId: string, now: number): Dump | undefined {
+  return bulletsOf(list, rootId).find(
+    (d) => d.nextStep !== null && !(d.kind === 'recurring' && d.nextStep === undefined && doneToday(d, now)),
+  );
+}
+
 /** Ticks off the current step; the next one is left unasked. */
 export function completeStep(list: readonly Dump[], id: string, now = Date.now()): Dump[] {
   return list.map((d) =>
@@ -262,7 +342,7 @@ export function parkDump(list: readonly Dump[], text: string, now: number): Dump
 }
 
 export function removeDump(list: readonly Dump[], id: string): Dump[] {
-  return list.filter((d) => d.id !== id);
+  return list.filter((d) => d.id !== id && d.parentId !== id);
 }
 
 export function setNextStep(list: readonly Dump[], id: string, step: string | null): Dump[] {

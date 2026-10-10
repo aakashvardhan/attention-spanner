@@ -23,6 +23,10 @@ import {
   setNextStep,
   stepProblem,
   traceStages,
+  addBullets,
+  bulletsOf,
+  nextOpenBullet,
+  parseBullets,
 } from './brainDump';
 
 describe('parkDump', () => {
@@ -415,5 +419,74 @@ describe('recurring dumps — one step a day, each a little further', () => {
     expect(isDue({ ...practice, nextStep: null }, now)).toBe(false);
     expect(isDue(base, now)).toBe(false);
     expect(isDue(practice, now)).toBe(true);
+  });
+});
+
+describe('parseBullets', () => {
+  it('reads labelled points and orders them by quadrant, keeping the model order within one', () => {
+    const reply = [
+      'NOTE: Anxious about the deadline',
+      '- SCHEDULE: Start the thesis outline',
+      '**DO**: Email Prof. Lee about the extension',
+      '2. DROP: Reorganise the bookmarks',
+      'DELEGATE — Ask Sam to book the room',
+      'DO: Pay the rent',
+    ].join('\n');
+    expect(parseBullets(reply)).toEqual([
+      { text: 'Email Prof. Lee about the extension', quadrant: 'do' },
+      { text: 'Pay the rent', quadrant: 'do' },
+      { text: 'Start the thesis outline', quadrant: 'schedule' },
+      { text: 'Ask Sam to book the room', quadrant: 'delegate' },
+      { text: 'Reorganise the bookmarks', quadrant: 'drop' },
+      { text: 'Anxious about the deadline', quadrant: 'note' },
+    ]);
+  });
+
+  it('drops a leaked think block, chatter, empty and repeated points, and caps the count', () => {
+    const reply = `<think>DO: not this</think>Here is the sort:\nDO:\nDO: Pay rent\nDO: pay rent.\n${'PLAN: x\n'.repeat(3)}`;
+    expect(parseBullets(reply)).toEqual([
+      { text: 'Pay rent', quadrant: 'do' },
+      { text: 'X', quadrant: 'schedule' },
+    ]);
+    const many = Array.from({ length: 30 }, (_, i) => `DO: task ${i}`).join('\n');
+    expect(parseBullets(many).length).toBeLessThanOrEqual(12);
+  });
+});
+
+describe('addBullets / bulletsOf / nextOpenBullet', () => {
+  const list = parkDump(parkDump([], 'older', 1), 'pay rent, feel bad, email Lee', 2);
+  const root = list[0];
+  const sorted = addBullets(
+    list,
+    root.id,
+    [
+      { text: 'Pay rent', quadrant: 'do' },
+      { text: 'Email Lee', quadrant: 'schedule' },
+      { text: 'Feeling bad', quadrant: 'note' },
+    ],
+    3,
+  );
+
+  it('files the points under the dump in order, with nothing to act on in a note or a drop', () => {
+    const points = bulletsOf(sorted, root.id);
+    expect(points.map((d) => [d.text, d.quadrant, d.parentId, d.nextStep])).toEqual([
+      ['Pay rent', 'do', root.id, undefined],
+      ['Email Lee', 'schedule', root.id, undefined],
+      ['Feeling bad', 'note', root.id, null],
+    ]);
+    expect(bulletsOf(sorted, list[1].id)).toEqual([]);
+  });
+
+  it('opens the most important task still open, skipping a closed one and a practice resting today', () => {
+    const [pay, email] = bulletsOf(sorted, root.id);
+    expect(nextOpenBullet(sorted, root.id, 4)?.id).toBe(pay.id);
+    const payClosed = setNextStep(sorted, pay.id, null);
+    expect(nextOpenBullet(payClosed, root.id, 4)?.id).toBe(email.id);
+    const resting = payClosed.map((d) => (d.id === email.id ? { ...d, kind: 'recurring' as const, lastDoneAt: 4 } : d));
+    expect(nextOpenBullet(resting, root.id, 4)).toBeUndefined();
+  });
+
+  it('deletes the points with their dump', () => {
+    expect(removeDump(sorted, root.id).map((d) => d.text)).toEqual(['older']);
   });
 });
