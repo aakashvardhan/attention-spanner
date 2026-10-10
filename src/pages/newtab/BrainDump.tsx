@@ -48,6 +48,9 @@ const SHOWN_DONE = 3;
 /** How long the check fills before the step moves into the done list, so the tap reads as done */
 const CHECK_MS = 360;
 
+/** The unsent draft, kept across a remount (switching between world and flat), never stored. */
+let draftMemo = '';
+
 /**
  * Type whatever is looping, park it, and the box clears. Past dumps sit behind
  * a closed "Parked (N)" so the page never lists your open loops back at you.
@@ -65,7 +68,11 @@ const CHECK_MS = 360;
 export function BrainDump() {
   const [settings, settingsLoaded] = useSettings();
   const [dumps, dumpsLoaded] = useStorageValue('dumps');
-  const [text, setText] = useState('');
+  const [text, setTextState] = useState(() => draftMemo);
+  const setText = (next: string) => {
+    draftMemo = next;
+    setTextState(next);
+  };
   const [parkedId, setParkedId] = useState<string | null>(null);
   const [aiUp, setAiUp] = useState(false);
   /** The model's reply while it streams; null when nothing is in flight */

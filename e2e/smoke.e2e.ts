@@ -14,7 +14,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await seed(ext, {
       // Nothing listens on port 9: every run sees "Ollama is off", whether or
       // not the machine running the suite has a real Ollama on 11434.
-      settings: { ollamaUrl: 'http://127.0.0.1:9' },
+      settings: { ollamaUrl: 'http://127.0.0.1:9', worldView: 'flat' },
       readingProgress: {
         [leadUrl]: article(leadUrl, 'The lead story', { updatedAt: Date.now() - 60_000 }),
         [`${leadUrl}2`]: article(`${leadUrl}2`, 'The second story'),

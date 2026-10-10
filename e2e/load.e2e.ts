@@ -41,7 +41,7 @@ describe('load: a heavy profile stays fast', () => {
       decks: [deck],
       papers: Array.from({ length: 200 }, (_, i) => paper(String(i), `Paper ${i}`)),
       feeds: Array.from({ length: 150 }, (_, i) => `http://feed${i}.e2e.test/rss`),
-      settings: { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', mutedTopics: Array.from({ length: 100 }, (_, i) => `topic${i}`) },
+      settings: { ollamaUrl: 'http://127.0.0.1:9', worldView: 'flat', layaUrl: '', mutedTopics: Array.from({ length: 100 }, (_, i) => `topic${i}`) },
     });
   });
   afterAll(async () => ext.close());

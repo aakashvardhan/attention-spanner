@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { skyFor } from './sky';
+import { skyFor } from './skyState';
 
 describe('skyFor', () => {
   it('puts the sun on its arc by the hour, and none at night', () => {

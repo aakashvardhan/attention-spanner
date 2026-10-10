@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAmbient } from '../../../shared/hooks/useAmbient';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { usableReading } from '../Weather';
-import { skyFor } from './sky';
+import { skyFor } from './skyState';
 
 const FRAME_MS = 33;
 
@@ -27,6 +27,9 @@ export function Sky({ location }: { location: string }) {
     let t = 0;
 
     const draw = (now: number) => {
+      // React removes the canvas at commit but cancels this frame later, in
+      // the passive cleanup; a detached canvas has no tokens to paint with.
+      if (!canvas.isConnected) return;
       if (running) raf = requestAnimationFrame(draw);
       if (running && now - last < FRAME_MS) return;
       t += last ? Math.min(now - last, 100) / 1000 : 0;

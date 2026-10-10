@@ -1,27 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resumableItems, resumeContextFromProgress } from '../../shared/attention';
-import { PAPERS_PAGE_PATH } from '../../shared/constants';
 import { localDate } from '../../shared/format';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
+import { useMedia } from '../../shared/hooks/useMedia';
 import { useNowWatching } from '../../shared/hooks/useNowWatching';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isTypingTarget } from '../../shared/keys';
 import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
-import { muteMatcher, unreadItems } from '../../shared/llm/triage';
+import { muteMatcher, unreadItems, type Pick } from '../../shared/llm/triage';
 import { sendMessage } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
+import { patchSettings } from '../../shared/storage';
 import type { ResumableItem } from '../../shared/attention';
 import type { ResumeTarget } from '../../shared/types';
 import { ActivityHeatmap } from './ActivityHeatmap';
-import { BookmarksPanel } from './BookmarksPanel';
 import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
+import { EditionIndex } from './EditionIndex';
 import { Hero } from './Hero';
 import { NowWatching } from './NowWatching';
 import { quoteOfDay } from './quotes';
 import { TriageCard } from './TriageCard';
+import { World } from './world/World';
+import { NARROW_QUERY, REDUCED_QUERY, viewMode } from './world/view';
 
 /**
  * The new tab as a front page. The masthead is the greeting; the lead story is
@@ -84,7 +87,23 @@ export function Dashboard() {
     .filter(Boolean)
     .join(' · ');
 
-  const open = (item: ResumableItem, alt: boolean) => {
+  const reduced = useMedia(REDUCED_QUERY);
+  const narrow = useMedia(NARROW_QUERY);
+  const view = viewMode(settings.worldView, reduced, narrow);
+  const [stepping] = useState(false); // Task 8 drives this
+  const quote = quoteOfDay(localDate());
+
+  const openPick = (pick: Pick, _newTab: boolean) =>
+    void sendMessage({
+      type: 'OPEN_ARTICLE',
+      url: pick.item.link,
+      feedItemId: pick.item.id,
+      readerView: false,
+      original: true,
+      alsoReadIds: pick.also.map((a) => a.id),
+    });
+
+  const open = (item: ResumableItem, alt: boolean, _newTab = false) => {
     if (item.paper) void chrome.tabs.create({ url: paperOpenUrl(item.paper, alt) });
     else if (item.progress) void openResume(resumeContextFromProgress(item.progress));
   };
@@ -95,6 +114,11 @@ export function Dashboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
+      if (e.key === 'v' && !reduced && !narrow) {
+        e.preventDefault();
+        void patchSettings({ worldView: settings.worldView === 'world' ? 'flat' : 'world' });
+        return;
+      }
       const stories = [...document.querySelectorAll<HTMLElement>('[data-story]')];
       if (stories.length === 0) return;
       if (e.key === 'j' || e.key === 'k') {
@@ -109,7 +133,25 @@ export function Dashboard() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selected]);
+  }, [selected, settings.worldView, reduced, narrow]);
+
+  if (view === 'world') {
+    return (
+      <World
+        status={status}
+        resumable={resumable}
+        now={watchingNow}
+        watching={watching}
+        papers={papers}
+        focus={focus}
+        settings={settings}
+        quote={quote}
+        stepping={stepping}
+        onOpen={open}
+        onOpenPick={openPick}
+      />
+    );
+  }
 
   return (
     <main className="edition grid">
@@ -131,7 +173,7 @@ export function Dashboard() {
                 selected={selected === 0}
                 item={resumable[0]}
                 now={watchingNow}
-                onOpen={(alt) => open(resumable[0], alt)}
+                onOpen={(alt, newTab) => open(resumable[0], alt, newTab)}
               />
             </ul>
             {resumable.length > 1 && (
@@ -139,7 +181,7 @@ export function Dashboard() {
                 <p className="edition-kicker edition-also">Also unfinished</p>
                 <ul className="edition-also-list">
                   {(showAll ? resumable.slice(1) : resumable.slice(1, RESUME_VISIBLE)).map((item) => (
-                    <ContinueRow key={item.key} item={item} now={watchingNow} onOpen={(alt) => open(item, alt)} />
+                    <ContinueRow key={item.key} item={item} now={watchingNow} onOpen={(alt, newTab) => open(item, alt, newTab)} />
                   ))}
                 </ul>
               </>
@@ -160,38 +202,13 @@ export function Dashboard() {
 
       <aside className="edition-side">
         <BrainDump />
-        <TriageCard />
-        <p className="edition-quote">{quoteOfDay(localDate())}</p>
+        <TriageCard onOpen={openPick} />
+        <p className="edition-quote">{quote}</p>
       </aside>
 
       <ActivityHeatmap papers={papers} />
 
-      <footer className="edition-index">
-        <BookmarksPanel />
-        <div className="edition-actions">
-          <button
-            className="edition-link"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL(PAPERS_PAGE_PATH) })}
-          >
-            Papers
-          </button>
-          <button className="edition-link" onClick={() => void chrome.runtime.openOptionsPage()}>
-            Settings
-          </button>
-          {focus.active ? (
-            <span className="edition-focus-live">
-              Focus <strong>{focus.countdown}</strong>
-              <button className="edition-pill" onClick={() => void focus.stop(true)}>
-                Stop
-              </button>
-            </span>
-          ) : (
-            <button className="edition-pill" onClick={() => void focus.start(settings.focusMinutes)}>
-              Start {settings.focusMinutes}-minute focus
-            </button>
-          )}
-        </div>
-      </footer>
+      <EditionIndex />
     </main>
   );
 }

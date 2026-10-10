@@ -34,3 +34,12 @@ export function cameraFor(target: Placement | null): Camera {
 export function sceneTransform(c: Camera, depth = CAMERA.viewDepth): string {
   return `rotateY(${-c.yaw}deg) translate3d(${-c.x}px, 0px, ${-c.z - depth}px)`;
 }
+
+/**
+ * Walked past: nearer than where the camera stands to look at the target.
+ * Such a panel would loom between the eye and the locked one, so it fades;
+ * it stays focusable, and focusing it makes it the target again.
+ */
+export function isBehind(p: { z: number }, target: { z: number } | null): boolean {
+  return target !== null && p.z - target.z > CAMERA.viewDepth;
+}
