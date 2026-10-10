@@ -1,0 +1,160 @@
+<h2>Prototype: the new tab as a world you stand in</h2>
+<p class="subtitle">Click inside the world, then use <b>J / K</b> to walk between things, <b>Enter</b> to step into one, <b>F</b> for focus, <b>V</b> for flat view. Clicking any object walks you to it.</p>
+
+<style>
+  .w { position: relative; height: 560px; overflow: hidden; border-radius: 8px; perspective: 900px; perspective-origin: 50% 38%; background: #e9e1d3; outline: none; user-select: none; color: #2a2420; }
+  .w * { box-sizing: border-box; }
+  .w .serif { font-family: 'Iowan Old Style', Georgia, serif; }
+  .w .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .02em; }
+  #sky { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .scene { position: absolute; left: 50%; top: 52%; width: 0; height: 0; transform-style: preserve-3d; transition: transform 760ms cubic-bezier(.22,1.18,.36,1); }
+  .ground { position: absolute; width: 4000px; height: 4000px; left: -2000px; top: -2000px; transform: translateY(150px) rotateX(90deg); background:
+      repeating-linear-gradient(0deg, rgba(42,36,32,.13) 0 1px, transparent 1px 80px),
+      repeating-linear-gradient(90deg, rgba(42,36,32,.13) 0 1px, transparent 1px 80px),
+      radial-gradient(circle at 50% 50%, #efe8db 0%, #e6dccb 45%, rgba(230,220,203,0) 70%); }
+  .path { position: absolute; width: 120px; height: 2400px; left: -60px; top: -2200px; transform: translateY(149px) rotateX(90deg); transform-origin: 50% 100%; background: linear-gradient(0deg, rgba(180,85,47,.18), rgba(180,85,47,0)); border-left: 1px dashed rgba(180,85,47,.5); border-right: 1px dashed rgba(180,85,47,.5); }
+  .tile { position: absolute; width: 64px; height: 64px; left: -32px; top: -32px; }
+  .obj { position: absolute; transform-style: preserve-3d; cursor: pointer; transition: opacity 500ms ease, filter 500ms ease; }
+  .wcard { width: 300px; transform: translate(-50%, -100%); background: rgba(250,246,238,.94); border: 1px solid #d6ccbc; padding: 14px 16px 12px; box-shadow: 0 30px 40px -30px rgba(42,36,32,.45); position: relative; }
+  .wcard .k { font-size: 9px; color: #b4552f; font-weight: 700; }
+  .wcard .t { font-size: 18px; line-height: 1.2; margin: 4px 0 8px; }
+  .wcard .meta { font-size: 9px; color: #7a6d62; }
+  .bar { position: relative; height: 4px; background: #ddd3c4; margin: 8px 0 4px; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: #b4552f; }
+  .bar u { position: absolute; top: -4px; height: 12px; right: 0; border-top: 1px dashed #b4552f; background: linear-gradient(90deg, rgba(180,85,47,.18), rgba(180,85,47,.02)); }
+  .pole { position: absolute; left: 50%; top: 0; width: 1px; height: 150px; background: rgba(42,36,32,.25); }
+  .shadow { position: absolute; left: -110px; top: 140px; width: 220px; height: 20px; border-radius: 50%; background: radial-gradient(rgba(42,36,32,.22), transparent 70%); }
+  .feed .wcard { width: 220px; padding: 10px 12px; }
+  .feed .wcard .t { font-size: 13px; }
+  .obj.sel .wcard { border-color: #b4552f; box-shadow: inset 0 0 0 1px #b4552f, 0 30px 40px -30px rgba(42,36,32,.45); animation: lockin 420ms cubic-bezier(.2,1.5,.4,1); }
+  .tag { position: absolute; left: 0; top: 10px; transform: translateX(-50%); background: #b4552f; color: #fff; font: 700 9px ui-monospace, monospace; padding: 2px 6px; white-space: nowrap; opacity: 0; transition: opacity 300ms; }
+  .obj.sel .tag { opacity: 1; }
+  .w.flat .tag { display: none; }
+  @keyframes lockin { from { box-shadow: inset 0 0 0 8px rgba(180,85,47,.0), 0 30px 40px -30px rgba(42,36,32,.45); } 40% { box-shadow: inset 0 0 0 4px rgba(180,85,47,.5), 0 30px 40px -30px rgba(42,36,32,.45); } }
+  .hud { position: absolute; inset: 0; pointer-events: none; }
+  .hud .b { position: absolute; width: 22px; height: 22px; border: 0 solid #2a2420; opacity: .55; }
+  .hud .tl { top: 10px; left: 10px; border-width: 1.5px 0 0 1.5px } .hud .tr { top: 10px; right: 10px; border-width: 1.5px 1.5px 0 0 }
+  .hud .bl { bottom: 10px; left: 10px; border-width: 0 0 1.5px 1.5px } .hud .br { bottom: 10px; right: 10px; border-width: 0 1.5px 1.5px 0 }
+  .hud .top { position: absolute; top: 14px; left: 40px; right: 40px; display: flex; justify-content: space-between; font-size: 10px; color: #5c524a; }
+  .hud .mast { position: absolute; top: 30px; left: 0; right: 0; text-align: center; font-size: 22px; }
+  .hud .bottom { position: absolute; bottom: 14px; left: 40px; right: 40px; display: flex; justify-content: space-between; font-size: 10px; color: #5c524a; }
+  .tunnel { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 55% 60% at 50% 50%, rgba(42,36,32,0) 55%, rgba(42,36,32,.38) 100%); opacity: 0; transition: opacity 180ms ease-out; }
+  .w.moving .tunnel { opacity: 1; transition-duration: 120ms; }
+  .w.comfort .scene { transition: none; }
+  .w.comfort .scene.blink { animation: blink 260ms ease; }
+  @keyframes blink { 0% { opacity: 1 } 40% { opacity: 0 } 60% { opacity: 0 } 100% { opacity: 1 } }
+  .fog { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 34% 40% at 50% 46%, rgba(233,225,211,0) 40%, rgba(233,225,211,.96) 100%); opacity: 0; transition: opacity 900ms ease; }
+  .w.focus .fog { opacity: 1; }
+  .w.focus .obj:not(.sel) { opacity: .08; }
+  .enter { position: absolute; inset: 0; background: #fffdf8; opacity: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; flex-direction: column; transition: opacity 420ms ease 380ms; }
+  .w.inside .enter { opacity: 1; pointer-events: auto; }
+  .enter p { max-width: 520px; font-size: 14px; line-height: 1.7; color: #4b433d; }
+  /* Flat view: same DOM, transforms off */
+  .w.flat { perspective: none; overflow-y: auto; background: #f4efe4; }
+  .w.flat #sky, .w.flat .ground, .w.flat .path, .w.flat .tiles, .w.flat .fog, .w.flat .pole, .w.flat .shadow { display: none; }
+  .w.flat .scene { position: static; width: auto; height: auto; transform: none !important; padding: 80px 40px 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .w.flat .obj { position: static; transform: none !important; }
+  .w.flat .wcard { transform: none; width: auto; box-shadow: none; }
+  .ctrl { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .ctrl button { font: 12px ui-monospace, monospace; padding: 5px 10px; border: 1px solid #b9ad9d; background: #f4efe4; border-radius: 99px; cursor: pointer; color: #2a2420; }
+  @media (prefers-reduced-motion: reduce) { .scene, .obj, .fog, .enter { transition: none !important; } .obj.sel .wcard { animation: none; } }
+</style>
+
+<div class="w" id="w" tabindex="0">
+  <canvas id="sky"></canvas>
+  <div class="scene" id="scene">
+    <div class="ground"></div>
+    <div class="path"></div>
+    <div class="tiles" id="tiles"></div>
+  </div>
+  <div class="fog"></div><div class="tunnel"></div>
+  <div class="hud mono">
+    <div class="b tl"></div><div class="b tr"></div><div class="b bl"></div><div class="b br"></div>
+    <div class="top"><span>EGO · SUN 04 OCT · 12:50</span><span>79°F · PARTLY CLOUDY · SAN JOSE</span></div>
+    <div class="mast serif">The Afternoon Edition</div>
+    <div class="bottom"><span id="tele">OBJ 3 · FEED 5 · RECORD 298</span><span id="mode">WORLD · J/K walk · Enter step in · F focus · V flat</span></div>
+  </div>
+  <div class="enter" id="enter">
+    <div class="mono" style="font-size:10px;color:#b4552f;margin-bottom:8px" id="enterK">INSIDE · PAPER · p4/19</div>
+    <p class="serif" id="enterT">The loss scales as a power-law with model size, dataset size, and the amount of compute used for training, with some trends spanning more than seven orders of magnitude.</p>
+    <div class="mono" style="font-size:10px;color:#7a6d62;margin-top:10px">Esc · step back out (in the real extension this is the reader page)</div>
+  </div>
+</div>
+<div class="ctrl">
+  <button onclick="move(-1)">K · back</button><button onclick="move(1)">J · next</button><button onclick="enter()">Enter · step in</button><button onclick="toggle('focus')">F · focus</button><button onclick="toggle('flat')">V · flat view</button><button onclick="pauseSky()" id="pz">Pause ambient</button><button onclick="comfort()" id="cf">Comfort: Recommended</button>
+</div>
+
+<script>
+(function () {
+  const OBJS = [
+    { k: 'CONTINUE · PAPER', t: 'Scaling Laws for Neural Language Models', m: 'Page 4 of 19 · last touched 10 min ago', p: 26, x: 0, z: 0, l: 'LOCK · PAPER 26% · rollout 38m ±9', in: 'The loss scales as a power-law with model size, dataset size, and the amount of compute used for training.' },
+    { k: 'UNFINISHED · ARTICLE', t: 'Why reward models overfit, and what to do about it', m: 'Distill · 2 days away', p: 42, x: -360, z: -520, l: 'LOCK · ARTICLE 42% · 11 min left', in: 'A reward model is a learned proxy, and every proxy breaks when you optimize hard against it.' },
+    { k: 'UNFINISHED · ARTICLE', t: 'LLM-powered autonomous agents', m: "Lil'Log · 6 days away", p: 15, x: 340, z: -1050, l: 'LOCK · ARTICLE 15% · 24 min left', in: 'Building agents with an LLM as its core controller is a cool concept.' },
+    { feed: 1, k: 'FEED · rel 0.82', t: 'The bitter lesson, revisited', m: 'Distill · because you read Scaling Laws', x: 820, z: -300, l: 'LOCK · FEED · rel 0.82', in: 'Seventy years of AI research, one lesson.' },
+    { feed: 1, k: 'FEED · rel 0.77', t: 'A field guide to mechanistic interpretability', m: 'Transformer Circuits', x: 900, z: -700, l: 'LOCK · FEED · rel 0.77', in: 'What it means to reverse-engineer a network.' },
+    { feed: 1, k: 'FEED · rel 0.71', t: 'Why long context is not memory', m: "Lil'Log", x: 980, z: -1100, l: 'LOCK · FEED · rel 0.71', in: 'Context windows grew; recall did not.' },
+  ];
+  const scene = document.getElementById('scene'), w = document.getElementById('w');
+  let sel = 0;
+  OBJS.forEach((o, i) => {
+    const el = document.createElement('div');
+    el.className = 'obj' + (o.feed ? ' feed' : '');
+    el.style.transform = `translate3d(${o.x}px, 150px, ${o.z}px)` + (o.feed ? ' rotateY(-22deg)' : '');
+    el.innerHTML = `<div class="pole"></div><div class="shadow"></div><div class="wcard"><div class="k mono">${o.k}</div><div class="t serif">${o.t}</div>${o.p != null ? `<div class="bar"><i style="width:${o.p}%"></i><u style="left:${o.p}%"></u></div>` : ''}<div class="meta mono">${o.m}</div></div><div class="tag">${o.l}</div>`;
+    el.onclick = (e) => { e.stopPropagation(); if (sel === i) enter(); else go(i); };
+    scene.appendChild(el);
+    o.el = el;
+  });
+  // The year as terrain: raised tiles on the ground to the left of the path.
+  const tiles = document.getElementById('tiles');
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 18; c++) {
+    const v = (r * 31 + c * 17) % 11; const h = v > 8 ? 46 : v > 5 ? 22 : v > 3 ? 8 : 0;
+    const t = document.createElement('div'); t.className = 'tile';
+    t.style.transform = `translate3d(${-760 + r * 74}px, ${149 - h}px, ${-300 - c * 74}px) rotateX(90deg)`;
+    t.style.background = h > 40 ? '#b4552f' : h > 20 ? '#cf8a68' : h ? '#dfb79f' : 'rgba(42,36,32,.06)';
+    t.style.boxShadow = h ? '0 0 0 1px rgba(255,255,255,.4)' : 'none';
+    tiles.appendChild(t);
+  }
+  function go(i) {
+    sel = (i + OBJS.length) % OBJS.length;
+    const o = OBJS[sel];
+    const yaw = o.feed ? -14 : 0;
+    scene.style.transform = `rotateY(${yaw}deg) translate3d(${-o.x}px, 0, ${-o.z - 160}px)`;
+    OBJS.forEach((p, j) => p.el.classList.toggle('sel', j === sel));
+    if (w.classList.contains('comfort')) { scene.classList.remove('blink'); void scene.offsetWidth; scene.classList.add('blink'); } else { w.classList.add('moving'); clearTimeout(go.t); go.t = setTimeout(() => w.classList.remove('moving'), 640); }
+    document.getElementById('tele').textContent = `OBJ 3 · FEED 5 · d=${Math.round(Math.hypot(o.x, o.z) / 100)}m from start`;
+  }
+  window.move = (d) => go(sel + d);
+  window.comfort = () => { w.classList.toggle('comfort'); document.getElementById('cf').textContent = 'Comfort: ' + (w.classList.contains('comfort') ? 'Comfortable (snap)' : 'Recommended (glide + vignette)'); };
+  window.enter = () => { const o = OBJS[sel]; document.getElementById('enterK').textContent = 'INSIDE · ' + o.k; document.getElementById('enterT').textContent = o.in; scene.style.transform += ' translateZ(420px)'; w.classList.add('inside'); };
+  const out = () => { w.classList.remove('inside'); go(sel); };
+  window.toggle = (c) => { w.classList.toggle(c); document.getElementById('mode').textContent = (w.classList.contains('flat') ? 'FLAT' : 'WORLD') + (w.classList.contains('focus') ? ' · FOCUS 23:41' : '') + ' · J/K walk · Enter step in · F focus · V flat'; };
+  w.addEventListener('keydown', (e) => {
+    if (e.key === 'j') move(1); else if (e.key === 'k') move(-1);
+    else if (e.key === 'Enter') enter(); else if (e.key === 'Escape') out();
+    else if (e.key === 'f') toggle('focus'); else if (e.key === 'v') toggle('flat'); else return;
+    e.preventDefault();
+  });
+  document.getElementById('enter').onclick = out;
+  go(0);
+
+  // Sky: afternoon gradient, a sun where the clock says, clouds that drift (partly cloudy).
+  const cv = document.getElementById('sky'), cx = cv.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let paused = reduce, t = 0;
+  const clouds = Array.from({ length: 6 }, (_, i) => ({ x: i * 190, y: 30 + (i * 37) % 90, s: 0.6 + (i % 3) * 0.3 }));
+  window.pauseSky = () => { paused = !paused; document.getElementById('pz').textContent = paused ? 'Resume ambient' : 'Pause ambient'; };
+  function frame() {
+    const W = cv.width = w.clientWidth, H = cv.height = w.clientHeight;
+    const g = cx.createLinearGradient(0, 0, 0, H * 0.62);
+    g.addColorStop(0, '#cfd8dc'); g.addColorStop(0.7, '#ece4d6'); g.addColorStop(1, '#e9e1d3');
+    cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = 'rgba(255,236,200,.9)'; cx.beginPath(); cx.arc(W * 0.72, H * 0.18, 26, 0, 7); cx.fill();
+    cx.fillStyle = 'rgba(255,255,255,.75)';
+    for (const c of clouds) { const x = ((c.x + t * 0.15 * c.s) % (W + 200)) - 100; cx.beginPath(); cx.ellipse(x, c.y, 60 * c.s, 14 * c.s, 0, 0, 7); cx.ellipse(x + 30 * c.s, c.y - 8 * c.s, 40 * c.s, 12 * c.s, 0, 0, 7); cx.fill(); }
+    if (!paused) t++;
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>

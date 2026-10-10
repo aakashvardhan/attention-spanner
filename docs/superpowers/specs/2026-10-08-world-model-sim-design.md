@@ -1,8 +1,9 @@
 # World model: the extension as a place you stand in
 
-*2026-10-08. Approved section by section in brainstorming; prototype at
-`.superpowers/brainstorm/21835-1791517487/content/world-prototype-v6.html`
-in the history-feeds worktree.*
+*2026-10-08. Approved section by section in brainstorming. The throwaway
+prototype is `2026-10-08-world-model-prototype.html` beside this file (an HTML
+fragment from the brainstorm companion; open it in a browser, click inside the
+world, then J/K, Enter, F, V).*
 
 ## Idea
 
