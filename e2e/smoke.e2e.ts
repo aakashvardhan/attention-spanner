@@ -68,11 +68,20 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.keyboard.press('k');
 
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    const opened = ext.ctx.waitForEvent('page');
     await page.keyboard.press('Enter');
+    await page.waitForURL(leadUrl);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('new tab: ⌘/Ctrl-click opens a story in a new tab and leaves this one', async () => {
+    const page = await ext.page(PAGES.newtab);
+    const opened = ext.ctx.waitForEvent('page');
+    await page.locator('[data-story]').first().click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
     const tab = await opened;
     await tab.waitForLoadState();
     expect(tab.url()).toBe(leadUrl);
+    expect(page.url()).toContain('newtab');
     expectClean(ext, NETWORK_NOISE);
     await tab.close();
     await page.close();

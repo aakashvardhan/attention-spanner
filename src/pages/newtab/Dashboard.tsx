@@ -10,11 +10,10 @@ import { useTheme } from '../../shared/hooks/useTheme';
 import { isTypingTarget } from '../../shared/keys';
 import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
 import { muteMatcher, unreadItems, type Pick } from '../../shared/llm/triage';
-import { sendMessage } from '../../shared/messages';
+import { sendMessage, type Message } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import { patchSettings } from '../../shared/storage';
 import type { ResumableItem } from '../../shared/attention';
-import type { ResumeTarget } from '../../shared/types';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
@@ -24,7 +23,7 @@ import { NowWatching } from './NowWatching';
 import { quoteOfDay } from './quotes';
 import { TriageCard } from './TriageCard';
 import { World } from './world/World';
-import { NARROW_QUERY, REDUCED_QUERY, viewMode } from './world/view';
+import { NARROW_QUERY, REDUCED_QUERY, tokenMs, viewMode } from './world/view';
 
 /**
  * The new tab as a front page. The masthead is the greeting; the lead story is
@@ -90,22 +89,48 @@ export function Dashboard() {
   const reduced = useMedia(REDUCED_QUERY);
   const narrow = useMedia(NARROW_QUERY);
   const view = viewMode(settings.worldView, reduced, narrow);
-  const [stepping] = useState(false); // Task 8 drives this
+  const [stepping, setStepping] = useState(false);
   const quote = quoteOfDay(localDate());
 
-  const openPick = (pick: Pick, _newTab: boolean) =>
-    void sendMessage({
-      type: 'OPEN_ARTICLE',
-      url: pick.item.link,
-      feedItemId: pick.item.id,
-      readerView: false,
-      original: true,
-      alsoReadIds: pick.also.map((a) => a.id),
-    });
+  // Step in: the camera dollies forward, the story's title is named for the
+  // view transition into the reader's title, then this tab navigates. A cut
+  // (Comfortable, or the flat view) skips the dolly's wait.
+  const stepInto = async (url: string, from: Element | null) => {
+    const title = from?.querySelector<HTMLElement>('.edition-headline, .relay-row-title, .edition-story-title');
+    if (title) title.style.viewTransitionName = 'story-title';
+    setStepping(true);
+    const glide = view === 'world' && settings.comfort === 'recommended';
+    await new Promise((r) => setTimeout(r, glide ? tokenMs('--dur-smooth') : 0));
+    location.assign(url);
+  };
+  const lastStory = useRef<Element | null>(null);
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => (lastStory.current = (e.target as Element).closest('[data-story]'));
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
 
-  const open = (item: ResumableItem, alt: boolean, _newTab = false) => {
-    if (item.paper) void chrome.tabs.create({ url: paperOpenUrl(item.paper, alt) });
-    else if (item.progress) void openResume(resumeContextFromProgress(item.progress));
+  const openArticleHere = async (request: Omit<Extract<Message, { type: 'OPEN_ARTICLE' }>, 'type' | 'here'>, newTab: boolean) => {
+    if (newTab) return void sendMessage({ type: 'OPEN_ARTICLE', ...request });
+    const res = await sendMessage({ type: 'OPEN_ARTICLE', ...request, here: true });
+    if (res?.url) await stepInto(res.url, lastStory.current);
+  };
+
+  const openPick = (pick: Pick, newTab: boolean) =>
+    void openArticleHere(
+      { url: pick.item.link, feedItemId: pick.item.id, readerView: false, original: true, alsoReadIds: pick.also.map((a) => a.id) },
+      newTab,
+    );
+
+  const open = (item: ResumableItem, alt: boolean, newTab = false) => {
+    if (item.paper) {
+      const url = paperOpenUrl(item.paper, alt);
+      if (newTab) void chrome.tabs.create({ url });
+      else void stepInto(url, lastStory.current);
+    } else if (item.progress) {
+      const context = resumeContextFromProgress(item.progress);
+      void openArticleHere({ url: context.url, feedItemId: null, resume: true, readerView: false }, newTab);
+    }
   };
 
   // J/K walk every story on the page (lead, also-unfinished, feed); Enter with
@@ -216,12 +241,3 @@ export function Dashboard() {
 /** Rows shown before "Show all": enough to choose from, few enough to scan. */
 const RESUME_VISIBLE = 6;
 
-async function openResume(context: ResumeTarget) {
-  await sendMessage({
-    type: 'OPEN_ARTICLE',
-    url: context.url,
-    feedItemId: null,
-    resume: true,
-    readerView: false,
-  });
-}

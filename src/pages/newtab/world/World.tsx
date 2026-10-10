@@ -17,6 +17,7 @@ import { TriageRow, useTriage } from '../TriageCard';
 import { CAMERA, cameraFor, isBehind, sceneTransform } from './camera';
 import { placeStories, placeTransform, SIGN_OFFSET, WATCHING } from './layout';
 import { Sky } from './Sky';
+import { tokenMs } from './view';
 
 /** Stands a place's foot (bottom centre) on its spot, label above the panel. */
 const stand = (p: { x: number; z: number; yaw: number }) => ({ transform: `${placeTransform(p)} translate(-50%, -100%)` });
@@ -74,9 +75,7 @@ export function World(props: WorldProps) {
     }
     if (settings.comfort !== 'recommended') return;
     setMoving(true);
-    // Chrome re-serializes the token: 520ms reads back as ".52s".
-    const raw = getComputedStyle(document.documentElement).getPropertyValue('--dur-smooth').trim();
-    const ms = (raw.endsWith('ms') ? parseFloat(raw) : parseFloat(raw) * 1000) || 520;
+    const ms = tokenMs('--dur-smooth') || 520;
     const timer = setTimeout(() => setMoving(false), ms);
     return () => clearTimeout(timer);
   }, [lockedKey, settings.comfort]);

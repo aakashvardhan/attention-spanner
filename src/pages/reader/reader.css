@@ -1593,3 +1593,21 @@ body {
     transition: none;
   }
 }
+
+/* Stepping in: a same-tab navigation morphs the story's title into the
+   reader's (Dashboard names it at click time). */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-group(story-title) {
+  animation-duration: var(--dur-smooth);
+  animation-timing-function: var(--spring-smooth);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(story-title) {
+    animation: none;
+  }
+}
+.reader-title {
+  view-transition-name: story-title;
+}

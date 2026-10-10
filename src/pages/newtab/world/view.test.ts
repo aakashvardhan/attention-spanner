@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { viewMode } from './view';
+import { parseDuration, viewMode } from './view';
 import { ambientRunning } from '../../../shared/hooks/useAmbient';
 
 describe('viewMode', () => {
@@ -11,6 +11,14 @@ describe('viewMode', () => {
   it('is always flat under Reduce Motion or in a narrow window', () => {
     expect(viewMode('world', true, false)).toBe('flat');
     expect(viewMode('world', false, true)).toBe('flat');
+  });
+});
+
+describe('parseDuration', () => {
+  it('reads a CSS time in ms, however Chrome serialized it', () => {
+    expect(parseDuration('.52s')).toBe(520);
+    expect(parseDuration(' 520ms ')).toBe(520);
+    expect(parseDuration('')).toBe(0);
   });
 });
 

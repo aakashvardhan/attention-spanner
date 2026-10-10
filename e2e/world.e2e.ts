@@ -44,6 +44,19 @@ describe('the new tab as a world', () => {
     await page.close();
   });
 
+  it('Enter steps into the lead in this tab', async () => {
+    const page = await ext.page(PAGES.newtab);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.press('Enter');
+    await page.waitForURL(urls[0]);
+    // Back again (from the back/forward cache or not), the camera stands where it was.
+    await page.goBack();
+    await page.locator('main.world').waitFor();
+    expect(await page.locator('main.world[data-stepping]').count()).toBe(0);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
   it('lists the same stories in the same order as the flat view (parity)', async () => {
     const page = await ext.page(PAGES.newtab);
     await page.locator('[data-story]').first().waitFor();

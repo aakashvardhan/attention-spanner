@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NETWORK_NOISE, PAGES, expectA11y, expectClean, launch, seed, storage, type Ext } from './harness';
 import { startOllamaMock } from './ollamaMock';
 import { article, feedItem } from './seed';
+import { html } from './sites';
 
 const OFF = { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', worldView: 'flat' }; // nothing listens on port 9
 
@@ -59,10 +60,15 @@ describe('triage card and muted topics', () => {
     const axis = (i: number) => Array.from({ length: 8 }, (_, j) => (j === i ? 1 : 0));
     const ollama = await startOllamaMock({ fusion: axis(0), compiler: axis(1), rust: axis(2) });
     const finished = article('http://read.e2e.test/x', 'Notes on fusion energy', { completedAt: Date.now() - 3_600_000, maxPercent: 100 });
+    // Opening steps this tab into the story, so its links need a server.
+    const link = (id: string) => {
+      ext.sites.setRoute('news', `/${id}`, html(`<h1>${id}</h1>`));
+      return `${ext.sites.origin('news')}/${id}`;
+    };
     const story = [
-      feedItem('f1', 'Fusion breakthrough at NIF', { source: 'Ars' }),
-      feedItem('f2', 'NIF fusion milestone', { source: 'Verge' }),
-      feedItem('f3', 'Fusion record announced', { source: 'Wired' }),
+      feedItem('f1', 'Fusion breakthrough at NIF', { source: 'Ars', link: link('f1') }),
+      feedItem('f2', 'NIF fusion milestone', { source: 'Verge', link: link('f2') }),
+      feedItem('f3', 'Fusion record announced', { source: 'Wired', link: link('f3') }),
     ];
     await seed(ext, {
       cachedItems: [...story, feedItem('o1', 'A compiler release'), feedItem('o2', 'Rust 2.0 is out')],
@@ -76,9 +82,8 @@ describe('triage card and muted topics', () => {
     const fusionRow = rows.filter({ hasText: 'Fusion' });
     expect(await fusionRow.locator('.edition-story-meta').innerText()).toMatch(/\+2 sources$/);
 
-    const opened = ext.ctx.waitForEvent('page');
     await fusionRow.click();
-    await (await opened).close();
+    await page.waitForURL(/news\.e2e\.test:\d+\/f\d/);
     await expect.poll(() => storage<string[]>(ext, 'readItems')).toEqual(expect.arrayContaining(['f1', 'f2', 'f3']));
     expectClean(ext, NETWORK_NOISE);
     await page.close();

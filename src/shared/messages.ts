@@ -20,6 +20,8 @@ export type Message =
   | {
       type: 'OPEN_ARTICLE';
       url: string;
+      /** Navigate the sender's own tab: the response carries the URL instead of a new tab opening */
+      here?: boolean;
       feedItemId: string | null;
       resume?: boolean;
       /** false opens the page as itself instead of in the reader — saved links */
@@ -106,7 +108,7 @@ export type Message =
 
 export interface MessageResponses {
   REFRESH_FEEDS: { ok: boolean; itemCount: number; newCount: number; failedCount: number };
-  OPEN_ARTICLE: { ok: boolean };
+  OPEN_ARTICLE: { ok: boolean; url?: string };
   MARK_ALL_READ: { ok: boolean; count: number };
   VALIDATE_FEED: { ok: boolean; valid: boolean; title: string | null };
   START_FOCUS: { ok: boolean };

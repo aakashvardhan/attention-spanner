@@ -189,7 +189,7 @@ export function ReaderToolbar({
           </button>
         )}
         <div className="reader-document-title">
-          <h1 title={title}>{title}</h1>
+          <h1 title={title} className="reader-title">{title}</h1>
           <span>{pageNoun === 'page' ? 'PDF document' : 'Reader'}</span>
         </div>
       </div>
