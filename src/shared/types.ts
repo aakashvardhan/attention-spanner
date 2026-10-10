@@ -86,6 +86,12 @@ export interface Settings {
    * normalizeTopics, which also survives a hand-edited value.
    */
   mutedTopics: string[];
+  /** New tab as a world you stand in, or the flat Edition. World falls back to flat under Reduce Motion or in a narrow window. */
+  worldView: 'world' | 'flat';
+  /** Camera moves: 'recommended' glides with an edge vignette, 'comfortable' cuts straight there. */
+  comfort: 'recommended' | 'comfortable';
+  /** Sky, clouds and the masthead runners move. Paused during focus and under Reduce Motion regardless. */
+  ambientMotion: boolean;
 }
 
 export type CloudMode = 'off' | 'ask' | 'public';

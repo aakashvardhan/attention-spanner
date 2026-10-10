@@ -32,6 +32,41 @@ export function NewTabSection({ settings }: { settings: Settings }) {
         needs no account and no location permission — leave it empty for no weather.
       </p>
       <MutedTopicsRow value={normalizeTopics(settings.mutedTopics)} />
+      <div className="setting-row">
+        <label htmlFor="world-view">New tab</label>
+        <select
+          id="world-view"
+          value={settings.worldView}
+          onChange={(e) => void patchSettings({ worldView: e.target.value as Settings['worldView'] })}
+        >
+          <option value="world">World (step through what you read)</option>
+          <option value="flat">Flat (the Edition)</option>
+        </select>
+      </div>
+      <div className="setting-row">
+        <label htmlFor="world-comfort">Camera</label>
+        <select
+          id="world-comfort"
+          value={settings.comfort}
+          onChange={(e) => void patchSettings({ comfort: e.target.value as Settings['comfort'] })}
+        >
+          <option value="recommended">Glide, with a dimmed edge while moving</option>
+          <option value="comfortable">Cut straight there (most comfortable)</option>
+        </select>
+      </div>
+      <div className="setting-row">
+        <label htmlFor="ambient-motion">Ambient motion</label>
+        <input
+          id="ambient-motion"
+          type="checkbox"
+          checked={settings.ambientMotion}
+          onChange={(e) => void patchSettings({ ambientMotion: e.target.checked })}
+        />
+      </div>
+      <p className="hint">
+        The world turns flat under your system's Reduce Motion and in narrow windows. Ambient motion is the
+        sky and the runners; it pauses during focus sessions either way.
+      </p>
     </section>
   );
 }

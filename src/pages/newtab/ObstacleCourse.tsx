@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useAmbient } from '../../shared/hooks/useAmbient';
 
 /**
  * A line-drawn obstacle course along the masthead's bottom lane: a group of stick
@@ -9,8 +10,9 @@ import { useEffect, useRef } from 'react';
  * course and the figure's path are pure functions the test can check: feet
  * never inside an obstacle, head never through the bar. Colours are read from
  * the theme tokens on every frame, so light, dark and a theme switched in
- * Options all follow without a reload. Reduced motion gets one still frame,
- * mid-jump.
+ * Options all follow without a reload. When ambient motion is off (the
+ * setting, a focus session, Reduce Motion, a hidden tab) it holds one still
+ * frame, mid-jump.
  */
 export type Kind = 'spikes' | 'crate' | 'bar' | 'ramp';
 export interface Obstacle {
@@ -197,13 +199,14 @@ function mix(a: Pose, b: Pose, t: number): Pose {
 }
 
 export function ObstacleCourse() {
+  const { running } = useAmbient();
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const still = !running;
     let course: Obstacle[] = [];
     let width = 0;
     let raf = 0;
@@ -227,7 +230,7 @@ export function ObstacleCourse() {
         width = w;
         course = courseFor(w);
       }
-      if (reduced) x = course.length ? course[0].x + 40 : w / 2;
+      if (still) x = course.length ? course[0].x + 40 : w / 2;
       else x += (SPEED * dt) / 1000;
 
       const css = getComputedStyle(canvas);
@@ -298,14 +301,14 @@ export function ObstacleCourse() {
         ctx.fill();
       }
 
-      if (reduced) cancelAnimationFrame(raf);
+      if (still) cancelAnimationFrame(raf);
     };
 
     // rAF already stops in a hidden tab; the dt cap keeps the runner from
     // teleporting when it comes back.
     raf = requestAnimationFrame(draw);
     const onResize = () => {
-      if (reduced) {
+      if (still) {
         last = 0;
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(draw);
@@ -316,7 +319,7 @@ export function ObstacleCourse() {
       cancelAnimationFrame(raf);
       removeEventListener('resize', onResize);
     };
-  }, []);
+  }, [running]);
 
   return <canvas ref={ref} className="edition-scene" aria-hidden="true" />;
 }
