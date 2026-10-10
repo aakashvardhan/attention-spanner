@@ -17,7 +17,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
     "fast-xml-parser": "^5.10.1",
-    "katex": "^0.18.1",
+    "katex": "^0.18.2",
     "marked": "^18.0.7",
     "pdfjs-dist": "^6.1.200",
     "react": "^19.0.0",
