@@ -47,6 +47,19 @@ export function Blocked() {
   return (
     <div className="blocked grid">
       <div className="blocked-inner">
+        <p className="blocked-telemetry">OBSTACLE · {host ?? 'this site'} · PATH BLOCKED</p>
+        <svg className="blocked-robot" viewBox="0 0 240 72" aria-hidden="true">
+          <line className="blocked-ground" x1="0" y1="64" x2="240" y2="64" />
+          <rect className="blocked-wall" x="148" y="20" width="16" height="44" />
+          <path className="blocked-detour" d="M104 60 Q136 0 184 60" />
+          <g className="blocked-bot">
+            <rect x="72" y="40" width="20" height="16" rx="4" />
+            <circle cx="82" cy="48" r="2.5" />
+            <line x1="82" y1="40" x2="82" y2="32" />
+            <line x1="76" y1="56" x2="76" y2="64" />
+            <line x1="88" y1="56" x2="88" y2="64" />
+          </g>
+        </svg>
         <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
         <p className="blocked-sub">Focus mode — back off in</p>
         <p className="blocked-countdown">{focus.countdown}</p>

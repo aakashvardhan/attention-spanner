@@ -14,7 +14,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await seed(ext, {
       // Nothing listens on port 9: every run sees "Ollama is off", whether or
       // not the machine running the suite has a real Ollama on 11434.
-      settings: { ollamaUrl: 'http://127.0.0.1:9' },
+      settings: { ollamaUrl: 'http://127.0.0.1:9', worldView: 'flat' },
       readingProgress: {
         [leadUrl]: article(leadUrl, 'The lead story', { updatedAt: Date.now() - 60_000 }),
         [`${leadUrl}2`]: article(`${leadUrl}2`, 'The second story'),
@@ -68,13 +68,44 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.keyboard.press('k');
 
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    const opened = ext.ctx.waitForEvent('page');
     await page.keyboard.press('Enter');
+    await page.waitForURL(leadUrl);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('new tab: ⌘/Ctrl-click opens a story in a new tab and leaves this one', async () => {
+    const page = await ext.page(PAGES.newtab);
+    const opened = ext.ctx.waitForEvent('page');
+    await page.locator('[data-story]').first().click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
     const tab = await opened;
     await tab.waitForLoadState();
     expect(tab.url()).toBe(leadUrl);
+    expect(page.url()).toContain('newtab');
     expectClean(ext, NETWORK_NOISE);
     await tab.close();
+    await page.close();
+  });
+
+  it('options: the viewfinder frame and the world settings are there', async () => {
+    const page = await ext.page(PAGES.options);
+    expect(await page.locator('.brackets .bracket').count()).toBe(4);
+    expect(await page.getByLabel('New tab', { exact: true }).inputValue()).toBe('flat');
+    expect(await page.getByLabel('Camera', { exact: true }).count()).toBe(1);
+    expect(await page.getByLabel('Ambient motion', { exact: true }).isChecked()).toBe(true);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('blocked page: during focus the robot meets the wall and the detour is refused', async () => {
+    await seed(ext, { focusSession: { phaseEndsAt: Date.now() + 20 * 60_000, startedAt: Date.now(), focusMinutes: 25 } });
+    const page = await ext.page(PAGES.blocked);
+    expect(await page.locator('svg.blocked-robot').count()).toBe(1);
+    expect(await page.locator('.blocked-telemetry').innerText()).toBe('OBSTACLE · example.com · PATH BLOCKED');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await page.locator('.blocked-bot').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await seed(ext, { focusSession: null });
+    expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
 

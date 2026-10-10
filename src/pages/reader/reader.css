@@ -1442,6 +1442,8 @@ body {
   background: none;
   color: inherit;
   font: inherit;
+  /* Telemetry: page and percent are measurements, set in a fixed width. */
+  font-family: var(--font-mono);
   cursor: pointer;
 }
 
@@ -1588,8 +1590,35 @@ body {
     var(--reading-dim) 100%
   );
 }
+/* The fovea: the sharp centre of vision, marked on its left edge and still. */
+.reader-focus-band::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(40% - 32px);
+  height: 64px;
+  border-left: 2px solid var(--accent);
+}
 @media (prefers-reduced-motion: reduce) {
   .reader-root[data-focus-line] .article-block:not([data-current]) {
     transition: none;
   }
+}
+
+/* Stepping in: a same-tab navigation morphs the story's title into the
+   reader's (Dashboard names it at click time). */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-group(story-title) {
+  animation-duration: var(--dur-smooth);
+  animation-timing-function: var(--spring-smooth);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(story-title) {
+    animation: none;
+  }
+}
+.reader-title {
+  view-transition-name: story-title;
 }

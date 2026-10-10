@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appendRead, applyMarkAllRead, mergeFeedItems, openArticle } from './feeds';
 import type { FeedItem } from '../shared/types';
 
@@ -81,6 +81,33 @@ describe('openArticle', () => {
     await openArticle('https://arxiv.org/pdf/2406.09246', null, true);
     expect(create).toHaveBeenCalledWith({ url: 'https://www.alphaxiv.org/abs/2406.09246' });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('openArticle in the same tab', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns the destination instead of creating a tab, and registers the tab it came from', async () => {
+    const create = vi.fn(async () => ({}));
+    const sessionSet = vi.fn(async () => undefined);
+    vi.stubGlobal('chrome', {
+      tabs: { create, query: vi.fn(async () => []) },
+      storage: { local: { get: vi.fn(async () => ({ readItems: [] })), set: vi.fn(async () => undefined) }, session: { get: vi.fn(async () => ({})), set: sessionSet } },
+    });
+    const res = await openArticle('https://arxiv.org/pdf/2406.09246', null, false, true, false, [], 7);
+    expect(create).not.toHaveBeenCalled();
+    expect(res).toEqual({ ok: true, url: expect.stringContaining('alphaxiv.org') });
+  });
+
+  it('returns no url when an existing video tab is focused', async () => {
+    // focusExistingVideoTab finds the tab: tabs.query returns it.
+    vi.stubGlobal('chrome', {
+      tabs: { create: vi.fn(), query: vi.fn(async () => [{ id: 3, windowId: 1, url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }]), update: vi.fn(async () => ({})) },
+      windows: { update: vi.fn(async () => ({})) },
+      storage: { local: { get: vi.fn(async () => ({ readItems: [] })), set: vi.fn() }, session: { get: vi.fn(async () => ({})), set: vi.fn() } },
+    });
+    const res = await openArticle('https://www.youtube.com/watch?v=dQw4w9WgXcQ', null, false, true, false, [], 7);
+    expect(res).toEqual({ ok: true });
   });
 });
 

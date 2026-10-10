@@ -17,7 +17,7 @@ const STEP: Record<string, number> = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7,
  * set as a section of the edition. Cells pop in as a wave on load and the
  * colour sweeps across the weeks when the metric changes.
  */
-export function ActivityHeatmap({ papers }: { papers: Paper[] }) {
+export function ActivityHeatmap({ papers, terrain = false }: { papers: Paper[]; terrain?: boolean }) {
   const [log] = useStorageValue('activity');
   const [metric, setMetric] = useState<ActivityMetric>('all');
   const model = useMemo(() => buildHeatModel(log, papers, metric, new Date()), [log, papers, metric]);
@@ -60,6 +60,20 @@ export function ActivityHeatmap({ papers }: { papers: Paper[] }) {
       : metric === 'focus'
         ? `${plural(model.focus, 'focus session')} finished in the last year`
         : `${plural(model.papers, 'paper')} and ${plural(model.focus, 'focus session')} in the last year`;
+
+  // The world lays the year down as ground: the grid only, labelled for screen
+  // readers with the headline. The metric switch and legend stay in the flat view.
+  if (terrain) {
+    return (
+      <section className="heat heat--terrain" aria-label={headline}>
+        <div className="heat-grid heat-grid--terrain">
+          {days.map((day) => (
+            <span key={day.date} className="heat-cell" data-level={day.level ?? undefined} />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="heat" aria-labelledby="heat-title">

@@ -17,7 +17,7 @@ const REDUCE = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{/g;
 const selectorsOf = (text: string) => text.split(',').map((s) => s.replace(/\s+/g, ' ').trim());
 
 /** Selectors of rules that use a spring token but are not stilled under Reduce Motion. */
-export function unstilled(source: string): string[] {
+export function unstilled(source: string, moves = (body: string) => body.includes('var(--spring-')): string[] {
   const EXEMPT = '__motion_exempt__';
   let css = source.replace(/\/\*[^*]*motion-exempt:[\s\S]*?\*\//g, EXEMPT).replace(/\/\*[\s\S]*?\*\//g, '');
   const stilled = new Set<string>();
@@ -33,11 +33,39 @@ export function unstilled(source: string): string[] {
   }
   const out: string[] = [];
   for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (rule[2].includes('var(--spring-') && !rule[2].includes(EXEMPT))
+    if (moves(rule[2]) && !rule[2].includes(EXEMPT))
       out.push(...selectorsOf(rule[1]).filter((s) => !stilled.has(s)));
   }
   return out;
 }
+
+const EFFECT_PROPS = new Set([
+  'opacity', 'filter', 'backdrop-filter', 'color', 'background', 'background-color',
+  'border-color', 'box-shadow', 'outline-color', 'fill', 'stroke',
+]);
+
+/**
+ * Transition parts that put a spring on an effect. A colour or a fade has no
+ * momentum, so it eases on the effects tokens (Material 3 Expressive's
+ * spatial/effects split). Commas inside var() and calc() do not split parts.
+ */
+export function motionTokenMisuse(source: string): string[] {
+  const EXEMPT = '__motion_exempt__';
+  const css = source.replace(/\/\*[^*]*motion-exempt:[\s\S]*?\*\//g, EXEMPT).replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: string[] = [];
+  for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (rule[2].includes(EXEMPT)) continue;
+    for (const m of rule[2].matchAll(/transition\s*:\s*([^;]+);?/g)) {
+      for (const part of m[1].split(/,(?![^(]*\))/)) {
+        const text = part.trim().replace(/\s+/g, ' ');
+        if (EFFECT_PROPS.has(text.split(' ')[0]) && text.includes('var(--spring-')) out.push(text);
+      }
+    }
+  }
+  return out;
+}
+
+const infinite = (body: string) => /\binfinite\b/.test(body);
 
 function cssFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -79,9 +107,45 @@ describe('unstilled', () => {
   });
 });
 
+describe('motionTokenMisuse', () => {
+  it('flags a spring on an effect, including inside a list', () => {
+    expect(
+      motionTokenMisuse('.a { transition: transform 1s var(--spring-snappy), opacity var(--dur-snappy) var(--spring-snappy); }'),
+    ).toEqual(['opacity var(--dur-snappy) var(--spring-snappy)']);
+  });
+
+  it('accepts effects on the effects tokens and springs on movement, commas inside calls included', () => {
+    expect(
+      motionTokenMisuse(
+        '.a { transition: opacity var(--dur-effect-fast) var(--ease-effect), transform var(--dur-snappy) var(--spring-snappy) calc(var(--i) * 4ms); }',
+      ),
+    ).toEqual([]);
+  });
+
+  it('skips a rule carrying a motion-exempt reason', () => {
+    expect(motionTokenMisuse('.a { transition: color 1s var(--spring-smooth); /* motion-exempt: why */ }')).toEqual([]);
+  });
+});
+
+describe('unstilled infinite animations', () => {
+  it('flags an infinite animation Reduce Motion does not still, and accepts a stilled or exempt one', () => {
+    expect(unstilled('.s { animation: spin 1s linear infinite; }', infinite)).toEqual(['.s']);
+    expect(unstilled('.s { animation: spin 1s linear infinite; }\n@media (prefers-reduced-motion: reduce) { .s { animation: none; } }', infinite)).toEqual([]);
+    expect(unstilled('.s { animation: spin 1s linear infinite; /* motion-exempt: why */ }', infinite)).toEqual([]);
+  });
+});
+
 describe('every stylesheet', () => {
   it.each(cssFiles(join(ROOT, 'src')))('%s stills its springs under reduced motion', (file) => {
     expect(unstilled(readFileSync(join(ROOT, file), 'utf8'))).toEqual([]);
+  });
+
+  it.each(cssFiles(join(ROOT, 'src')))('%s keeps springs off colour, opacity and filter', (file) => {
+    expect(motionTokenMisuse(readFileSync(join(ROOT, file), 'utf8'))).toEqual([]);
+  });
+
+  it.each(cssFiles(join(ROOT, 'src')))('%s stills its infinite animations under reduced motion', (file) => {
+    expect(unstilled(readFileSync(join(ROOT, file), 'utf8'), infinite)).toEqual([]);
   });
 });
 
@@ -104,5 +168,19 @@ describe('the masthead hover wave', () => {
     // Still open: more braces opened than closed since the media query began.
     const span = before.slice(opened);
     expect(span.split('{').length - span.split('}').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the reader stays calm', () => {
+  const css = readFileSync(join(ROOT, 'src/pages/reader/reader.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  it('marks the fovea with an edge and never animates it', () => {
+    const at = css.indexOf('.reader-focus-band::before {');
+    const rule = css.slice(at, css.indexOf('}', at));
+    expect(rule).toMatch(/border-left: 2px solid var\(--accent\)/);
+    expect(rule).not.toMatch(/animation|transition/);
+  });
+
+  it('sets the capsule numbers in the telemetry face', () => {
+    expect(css).toMatch(/\.reader-capsule-summary \{[^}]*font-family: var\(--font-mono\);/);
   });
 });

@@ -260,6 +260,20 @@ ol {
 .edition-lead .relay-row-meter {
   width: 100%;
 }
+/* The rest of the bar, forecast at your own pace: a dashed band from where
+   you are to the end. Only drawn when there is a pace to forecast from.
+   Scoped under the meter to outrank the fill's `> span` rule. */
+.relay-row-meter {
+  position: relative;
+}
+.relay-row-meter > .relay-row-forecast {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  height: auto;
+  border-top: 1px dashed var(--accent);
+  background: var(--accent-wash);
+}
 .relay-row-meter > span {
   display: block;
   height: 100%;
@@ -849,7 +863,7 @@ ol {
   filter: blur(3px);
   opacity: 0.7;
   pointer-events: none;
-  animation: dump-orbit 2.4s linear infinite;
+  animation: dump-orbit 2.4s linear infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-word {
   display: inline-block;
@@ -913,14 +927,14 @@ ol {
   background: var(--accent-border);
 }
 .dump-shimmer span {
-  animation: dump-shimmer 1.6s linear infinite;
+  animation: dump-shimmer 1.6s linear infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-chip,
 .dump-chip-sep {
   animation: dump-chip-in var(--dur-snappy) var(--spring-bouncy) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-chip.is-active .dump-chip-dot {
-  animation: dump-pulse 1.2s var(--ease-out) infinite;
+  animation: dump-pulse 1.2s var(--ease-out) infinite; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 .dump-trace[open] .dump-trace-lines li {
   animation: dump-rise var(--dur-smooth) var(--spring-smooth) calc(var(--i) * 40ms) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
@@ -1504,7 +1518,7 @@ ol {
   animation: heat-pop var(--dur-bouncy) var(--spring-bouncy) backwards;
   animation-delay: calc(240ms + var(--w) * 8ms + var(--d) * 12ms);
   transition:
-    background-color var(--dur-smooth) var(--spring-smooth) calc(var(--w) * 6ms),
+    background-color var(--dur-effect-slow) var(--ease-effect) calc(var(--w) * 6ms),
     transform var(--dur-snappy) var(--spring-snappy);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -1704,4 +1718,19 @@ ol {
 .dump-next {
   justify-self: start;
   text-align: left;
+}
+
+/* Stepping in: a same-tab navigation morphs the story's title into the
+   reader's (Dashboard names it at click time). */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-group(story-title) {
+  animation-duration: var(--dur-smooth);
+  animation-timing-function: var(--spring-smooth);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(story-title) {
+    animation: none;
+  }
 }

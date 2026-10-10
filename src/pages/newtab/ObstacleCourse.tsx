@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useAmbient } from '../../shared/hooks/useAmbient';
 
 /**
  * A line-drawn obstacle course along the masthead's bottom lane: a group of stick
@@ -9,8 +10,9 @@ import { useEffect, useRef } from 'react';
  * course and the figure's path are pure functions the test can check: feet
  * never inside an obstacle, head never through the bar. Colours are read from
  * the theme tokens on every frame, so light, dark and a theme switched in
- * Options all follow without a reload. Reduced motion gets one still frame,
- * mid-jump.
+ * Options all follow without a reload. When ambient motion is off (the
+ * setting, a focus session, Reduce Motion, a hidden tab) it holds one still
+ * frame, mid-jump.
  */
 export type Kind = 'spikes' | 'crate' | 'bar' | 'ramp';
 export interface Obstacle {
@@ -125,6 +127,22 @@ export function figureAt(x: number, course: Obstacle[]): Figure {
   return { lift: groundAt(x, course), air: 0, crouch: 0 };
 }
 
+/**
+ * The world model's guess at the next few steps: where the feet will be over
+ * the next `ahead` px, sampled every `step`. Empty on flat ground, where there
+ * is nothing to plan. The runner draws it faintly before it jumps.
+ */
+export function plannedPath(x: number, course: Obstacle[], ahead = 60, step = 4): Pt[] {
+  const points: Pt[] = [];
+  let airborne = false;
+  for (let d = 0; d <= ahead; d += step) {
+    const f = figureAt(x + d, course);
+    if (f.air > 0) airborne = true;
+    points.push([x + d, f.lift]);
+  }
+  return airborne ? points : [];
+}
+
 /** How tall the figure stands for a given crouch. */
 export function heightFor(crouch: number): number {
   return TALL - (TALL - LOW) * crouch;
@@ -197,13 +215,14 @@ function mix(a: Pose, b: Pose, t: number): Pose {
 }
 
 export function ObstacleCourse() {
+  const { running } = useAmbient();
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const still = !running;
     let course: Obstacle[] = [];
     let width = 0;
     let raf = 0;
@@ -227,7 +246,7 @@ export function ObstacleCourse() {
         width = w;
         course = courseFor(w);
       }
-      if (reduced) x = course.length ? course[0].x + 40 : w / 2;
+      if (still) x = course.length ? course[0].x + 40 : w / 2;
       else x += (SPEED * dt) / 1000;
 
       const css = getComputedStyle(canvas);
@@ -284,6 +303,19 @@ export function ObstacleCourse() {
         const f = figureAt(rx, course);
         const pose = poseFor((rx / STRIDE) * Math.PI * 2, f);
         const at = ([px, py]: Pt): Pt => [rx + px, f.lift + py];
+        const plan = plannedPath(rx, course);
+        if (plan.length) {
+          ctx.save();
+          ctx.setLineDash([2, 3]);
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = color('--accent');
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(plan[0][0], plan[0][1]);
+          for (const [px, py] of plan) ctx.lineTo(px, py);
+          ctx.stroke();
+          ctx.restore();
+        }
         ctx.beginPath();
         ctx.moveTo(...at(pose.neck));
         ctx.lineTo(...at(pose.hip));
@@ -294,29 +326,34 @@ export function ObstacleCourse() {
         }
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(...at(pose.head), 2.5, 0, Math.PI * 2);
+        const [hx, hy] = at(pose.head);
+        ctx.rect(hx - 3, hy - 2.5, 6, 5);
         ctx.fill();
       }
 
-      if (reduced) cancelAnimationFrame(raf);
+      if (still) cancelAnimationFrame(raf);
     };
 
     // rAF already stops in a hidden tab; the dt cap keeps the runner from
     // teleporting when it comes back.
     raf = requestAnimationFrame(draw);
     const onResize = () => {
-      if (reduced) {
+      if (still) {
         last = 0;
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(draw);
       }
     };
     addEventListener('resize', onResize);
+    // The still frame repaints in a theme switched underneath it, too.
+    const theme = new MutationObserver(onResize);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     return () => {
       cancelAnimationFrame(raf);
       removeEventListener('resize', onResize);
+      theme.disconnect();
     };
-  }, []);
+  }, [running]);
 
   return <canvas ref={ref} className="edition-scene" aria-hidden="true" />;
 }

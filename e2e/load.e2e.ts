@@ -41,7 +41,7 @@ describe('load: a heavy profile stays fast', () => {
       decks: [deck],
       papers: Array.from({ length: 200 }, (_, i) => paper(String(i), `Paper ${i}`)),
       feeds: Array.from({ length: 150 }, (_, i) => `http://feed${i}.e2e.test/rss`),
-      settings: { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', mutedTopics: Array.from({ length: 100 }, (_, i) => `topic${i}`) },
+      settings: { ollamaUrl: 'http://127.0.0.1:9', worldView: 'flat', layaUrl: '', mutedTopics: Array.from({ length: 100 }, (_, i) => `topic${i}`) },
     });
   });
   afterAll(async () => ext.close());
@@ -77,6 +77,22 @@ describe('load: a heavy profile stays fast', () => {
     expect(Date.now() - start).toBeLessThan(BUDGET.settingsMs);
     expect((await page.getByLabel('Hide from your feeds').inputValue()).split('\n')).toHaveLength(100);
     expect(await longestTask(page)).toBeLessThan(BUDGET.longestTaskMs);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('the world with a heavy profile shows its lead within budget and walks smoothly', async () => {
+    await seed(ext, { settings: { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', worldView: 'world', mutedTopics: [] } });
+    const page = await ext.ctx.newPage();
+    const start = Date.now();
+    await page.goto(`chrome-extension://${ext.id}/${PAGES.newtab}`);
+    await page.locator('.world-place[data-locked]').waitFor();
+    expect(Date.now() - start).toBeLessThan(BUDGET.firstStoryMs);
+    const walk = Date.now();
+    for (let i = 0; i < 8; i++) await page.keyboard.press('j');
+    expect(Date.now() - walk).toBeLessThan(BUDGET.twentyStepsMs);
+    expect(await longestTask(page)).toBeLessThan(BUDGET.longestTaskMs);
+    await seed(ext, { settings: { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', worldView: 'flat', mutedTopics: Array.from({ length: 100 }, (_, i) => `topic${i}`) } });
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

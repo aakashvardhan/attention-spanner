@@ -163,7 +163,8 @@ export async function openArticle(
   readerView = true,
   original = false,
   alsoReadIds: readonly string[] = [],
-): Promise<{ ok: boolean }> {
+  hereTabId?: number,
+): Promise<{ ok: boolean; url?: string }> {
   // The row it was opened from may stand for the same story from other feeds;
   // reading one reads the story.
   await markItemsRead([...(feedItemId ? [feedItemId] : []), ...alsoReadIds]);
@@ -175,6 +176,18 @@ export async function openArticle(
     return { ok: true };
   }
 
+  // From the new tab: hand back where to go, so the page steps into it in its
+  // own tab (Chrome's new tab does the same). Tracking registers that tab.
+  const go = async (destination: string, register: { key: string; resume: boolean } | null) => {
+    if (hereTabId !== undefined) {
+      if (register) await registerOpenedTab(hereTabId, register.key, register.resume);
+      return { ok: true, url: destination };
+    }
+    const tab = await chrome.tabs.create({ url: destination });
+    if (register && tab.id !== undefined) await registerOpenedTab(tab.id, register.key, register.resume);
+    return { ok: true };
+  };
+
   // PDFs go to the reader either way: Chrome's built-in viewer can't be
   // tracked at all, so the alternative is no progress and no resume.
   // `original` (Worth reading) opts out, interceptors included — they would
@@ -183,25 +196,16 @@ export async function openArticle(
     await bypassPdfReader(url);
   } else if (isPdfUrl(url)) {
     // arXiv PDFs go to alphaXiv, as the PDF interceptor does.
-    await chrome.tabs.create({ url: alphaxivUrl(url) ?? readerPageUrl(url) });
-    return { ok: true };
+    return go(alphaxivUrl(url) ?? readerPageUrl(url), null);
   }
   // Saved links pass readerView: false. shouldOpenInReader is true for nearly
   // every non-PDF page, and a link to Gmail or a dashboard is somewhere you go,
   // not something you read — it should open as itself.
   if (readerView && shouldOpenInReader(url)) {
-    const readerTab = await chrome.tabs.create({ url: articleReaderUrl(url) });
     // Registered so progress lands on the key of the link that was clicked; the
     // reader can only report the URL it was handed, which a redirect changes.
-    if (readerTab.id !== undefined) {
-      await registerOpenedTab(readerTab.id, url, false);
-    }
-    return { ok: true };
+    return go(articleReaderUrl(url), { key: url, resume: false });
   }
 
-  const tab = await chrome.tabs.create({ url });
-  if (tab.id !== undefined) {
-    await registerOpenedTab(tab.id, url, resume);
-  }
-  return { ok: true };
+  return go(url, { key: url, resume });
 }

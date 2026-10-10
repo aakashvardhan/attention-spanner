@@ -16,7 +16,6 @@ import {
   type Pick,
 } from '../../shared/llm/triage';
 import { dequantize, quantize } from '../../shared/llm/vectors';
-import { sendMessage } from '../../shared/messages';
 import { progressKeyFor } from '../../shared/progress';
 import type { FeedItem } from '../../shared/types';
 
@@ -32,7 +31,74 @@ const CANDIDATES = 60;
  * to show them; this card is that somewhere, and it stays a short list on
  * purpose. With no local model it still works, newest first, and says so.
  */
-export function TriageCard() {
+export function TriageCard({ onOpen }: { onOpen: (pick: Pick, newTab: boolean) => void }) {
+  const { picks, note, mutedCount, hasItems } = useTriage();
+  // No feeds, nothing to triage: no card, rather than an empty one.
+  if (!hasItems) return null;
+
+  return (
+    <section className="edition-feed" aria-labelledby="triage-title">
+      <h2 id="triage-title" className="edition-kicker">From your feeds</h2>
+      {picks === null ? (
+        <p className="relay-empty">Sorting by what you finish…</p>
+      ) : picks.length === 0 ? (
+        <p className="relay-empty">
+          {mutedCount > 0 ? 'Nothing new outside your muted topics.' : 'All caught up on your feeds.'}
+        </p>
+      ) : (
+        <ul>
+          {picks.map((pick) => (
+            <li key={pick.item.id}>
+              <TriageRow pick={pick} onOpen={onOpen} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {note && <p className="relay-triage-note">{note}</p>}
+      {mutedCount > 0 && (
+        <p className="relay-triage-note">
+          {mutedCount} hidden by muted topics.{' '}
+          <button
+            type="button"
+            className="edition-link"
+            aria-label="Edit muted topics"
+            onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/options/index.html#new-tab') })}
+          >
+            Edit
+          </button>
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** One feed story; opening it is the caller's (same tab or new, decided by Dashboard). */
+export function TriageRow({ pick, onOpen }: { pick: Pick; onOpen: (pick: Pick, newTab: boolean) => void }) {
+  const { item, because, also } = pick;
+  return (
+    <button
+      className="edition-story"
+      data-story
+      onClick={(e) => {
+        void recordStat({
+          count: 'triage.opened',
+          probe: { key: progressKeyFor(item.link), startPercent: 0, recap: false, at: Date.now(), kind: 'triage' },
+        });
+        onOpen(pick, e.metaKey || e.ctrlKey);
+      }}
+    >
+      <span className="edition-story-title">{item.title}</span>
+      <span className="edition-story-meta">
+        {item.source}
+        {also.length > 0 && ` ${alsoLabel(pick)}`}
+      </span>
+      {because && <span className="edition-story-why">Because you read {because}</span>}
+    </button>
+  );
+}
+
+/** The ranking behind the feed card, shared by the flat Edition and the world. */
+export function useTriage(): { picks: Pick[] | null; note: string; mutedCount: number; hasItems: boolean } {
   const [settings, settingsLoaded] = useSettings();
   const [cachedItems, itemsLoaded] = useStorageValue('cachedItems');
   const [readItems] = useStorageValue('readItems');
@@ -125,68 +191,5 @@ export function TriageCard() {
     // `signature` stands in for unread, profile and the model.
   }, [signature, settingsLoaded, itemsLoaded, settings.ollamaUrl, settings.layaUrl]);
 
-  // No feeds, nothing to triage: no card, rather than an empty one.
-  if (!itemsLoaded || cachedItems.length === 0) return null;
-
-  return (
-    <section className="edition-feed" aria-labelledby="triage-title">
-      <h2 id="triage-title" className="edition-kicker">From your feeds</h2>
-      {picks === null ? (
-        <p className="relay-empty">Sorting by what you finish…</p>
-      ) : picks.length === 0 ? (
-        <p className="relay-empty">
-          {mutedCount > 0 ? 'Nothing new outside your muted topics.' : 'All caught up on your feeds.'}
-        </p>
-      ) : (
-        <ul>
-          {picks.map((pick) => {
-            const { item, because, also } = pick;
-            return (
-              <li key={item.id}>
-                <button
-                  className="edition-story"
-                  data-story
-                  onClick={() => {
-                    void recordStat({
-                      count: 'triage.opened',
-                      probe: { key: progressKeyFor(item.link), startPercent: 0, recap: false, at: Date.now(), kind: 'triage' },
-                    });
-                    void sendMessage({
-                      type: 'OPEN_ARTICLE',
-                      url: item.link,
-                      feedItemId: item.id,
-                      readerView: false,
-                      original: true,
-                      alsoReadIds: also.map((a) => a.id),
-                    });
-                  }}
-                >
-                  <span className="edition-story-title">{item.title}</span>
-                  <span className="edition-story-meta">
-                    {item.source}
-                    {also.length > 0 && ` ${alsoLabel(pick)}`}
-                  </span>
-                  {because && <span className="edition-story-why">Because you read {because}</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {note && <p className="relay-triage-note">{note}</p>}
-      {mutedCount > 0 && (
-        <p className="relay-triage-note">
-          {mutedCount} hidden by muted topics.{' '}
-          <button
-            type="button"
-            className="edition-link"
-            aria-label="Edit muted topics"
-            onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/options/index.html#new-tab') })}
-          >
-            Edit
-          </button>
-        </p>
-      )}
-    </section>
-  );
+  return { picks, note, mutedCount, hasItems: itemsLoaded && cachedItems.length > 0 };
 }

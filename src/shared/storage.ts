@@ -95,6 +95,9 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeKey: '',
   layaUrl: '',
   mutedTopics: [],
+  worldView: 'world',
+  comfort: 'recommended',
+  ambientMotion: true,
 };
 
 export const DEFAULTS: LocalSchema = {

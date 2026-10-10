@@ -31,6 +31,12 @@ describe('leadStatus', () => {
     expect(leadStatus(article(Date.now() - 2 * 3_600_000))).toBe('42% read · opened 2h ago');
   });
 
+  it('adds your pace to an article when there is enough reading to measure it', () => {
+    const a = article(Date.now() - 2 * 3_600_000);
+    const read = { ...a, progress: { ...a.progress!, activeSeconds: 600, maxPercent: 40 } } as ResumableItem;
+    expect(leadStatus(read)).toMatch(/^40% read · opened .* · ≈15 min at your pace$/);
+  });
+
   it('gives a video its position and length', () => {
     expect(leadStatus(video)).toBe('2:05 of 10:00');
   });

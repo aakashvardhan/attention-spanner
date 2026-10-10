@@ -7,7 +7,7 @@ import { cachedAi } from '../../shared/llm/generate';
 import { recapRequest, wantsRecap } from '../../shared/llm/recap';
 import { recordStat } from '../../shared/llm/store';
 import { sendMessage } from '../../shared/messages';
-import { progressKeyFor } from '../../shared/progress';
+import { paceLabel, paceMinutesLeft, progressKeyFor } from '../../shared/progress';
 import type { VideoProgress } from '../../shared/types';
 import { isWatchingNow, livePositionSeconds } from '../../shared/youtube';
 import { Icon } from './Icon';
@@ -24,7 +24,8 @@ export function leadStatus(item: ResumableItem): string {
     return `${formatWatchTime(progress.positionSeconds)} of ${formatWatchTime(progress.durationSeconds)}`;
   }
   const opened = formatRelativeDate(new Date(item.updatedAt)).replace(/^Just now$/, 'just now');
-  return `${Math.round(progress?.maxPercent ?? 0)}% read · opened ${opened}`;
+  const pace = progress ? paceLabel(paceMinutesLeft(progress)) : '';
+  return [`${Math.round(progress?.maxPercent ?? 0)}% read`, `opened ${opened}`, pace].filter(Boolean).join(' · ');
 }
 
 export function kickerFor(item: ResumableItem): string {
@@ -54,8 +55,8 @@ export function ContinueRow({
   lead?: boolean;
   /** Where J/K selection sits; Enter with nothing focused opens it. */
   selected?: boolean;
-  /** `alt`: Option/Alt was held, so a paper opens in the reader instead of alphaXiv. */
-  onOpen: (alt: boolean) => void;
+  /** `alt`: Option/Alt held, so a paper opens in the reader instead of alphaXiv; `newTab`: ⌘/Ctrl held. */
+  onOpen: (alt: boolean, newTab: boolean) => void;
 }) {
   const ai = useAi();
   const [open, setOpen] = useState(false);
@@ -64,6 +65,7 @@ export function ContinueRow({
 
   const progressKey = item.paper ? `paper:${item.paper.id}` : item.progress ? progressKeyFor(item.progress.url) : '';
   const percent = item.paper ? item.paper.progressPercent : (item.progress?.maxPercent ?? 0);
+  const pace = item.progress ? paceMinutesLeft(item.progress) : null;
   const video: VideoProgress | null = item.progress?.kind === 'video' ? item.progress : null;
   const eligible = wantsRecap(percent);
 
@@ -113,7 +115,7 @@ export function ContinueRow({
                 at: Date.now(),
               },
             });
-            onOpen(e.altKey);
+            onOpen(e.altKey, e.metaKey || e.ctrlKey);
           }}
         >
           {lead ? (
@@ -123,6 +125,9 @@ export function ContinueRow({
               <span className="edition-lead-status">{leadStatus(item)}</span>
               <span className="relay-row-meter" aria-hidden="true">
                 <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                {pace !== null && (
+                  <span className="relay-row-forecast" style={{ left: `${Math.min(100, Math.max(0, percent))}%` }} />
+                )}
               </span>
               <span className="edition-cta">
                 Pick it back up <kbd>Enter</kbd>
@@ -138,6 +143,9 @@ export function ContinueRow({
               </small>
               <span className="relay-row-meter" aria-hidden="true">
                 <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                {pace !== null && (
+                  <span className="relay-row-forecast" style={{ left: `${Math.min(100, Math.max(0, percent))}%` }} />
+                )}
               </span>
             </span>
           )}

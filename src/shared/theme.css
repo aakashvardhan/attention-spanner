@@ -105,6 +105,15 @@
   --spring-bouncy: linear(0, 0.045, 0.153, 0.293, 0.441, 0.582, 0.706, 0.81, 0.892, 0.953, 0.995, 1.023, 1.038, 1.045, 1.046, 1.042, 1.036, 1.03, 1.023, 1.017, 1.011, 1.007, 1.004, 1.001, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 1);
   --dur-bouncy: 660ms;
 
+  /* Effects motion: fog, vignette, fades and colour. Never a spring: a colour
+     has no momentum. Spatial motion (the camera, the lock) stays on springs. */
+  --ease-effect: cubic-bezier(0.2, 0, 0, 1);
+  --dur-effect-fast: 120ms;
+  --dur-effect-slow: 480ms;
+
+  /* Telemetry: numbers that are measurements read best in a fixed width. */
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
   /* Paper and ink. */
   --bg-page: #f5f0e6;
   --bg-surface: #fbf8f2;
@@ -129,6 +138,16 @@
   --accent-hover: #9a4528;
   --accent-soft: #f7ece4;
   --accent-wash: #f1ddd0;
+  /* The new tab's world (world.css): sky, ground, fog and the moving vignette. */
+  --sky-top: #cfd6d6;
+  --sky-horizon: #efe7d9;
+  --sky-sun: rgba(255, 232, 190, 0.9);
+  --sky-cloud: rgba(255, 255, 255, 0.78);
+  --sky-precip: rgba(90, 102, 112, 0.35);
+  --world-ground: #e8dfcf;
+  --world-grid: rgba(43, 37, 32, 0.12);
+  --world-fog: rgba(233, 225, 211, 0.96);
+  --world-vignette: rgba(43, 37, 32, 0.38);
   --accent-border: #e2b9a3;
   --accent-track: #ecd2c3;
   --accent-text: #9c4a2c;
@@ -235,6 +254,15 @@
   --accent-hover: #f0b79a;
   --accent-soft: #241912;
   --accent-wash: #2e2018;
+  --sky-top: #0d1116;
+  --sky-horizon: #1d1916;
+  --sky-sun: rgba(227, 144, 110, 0.55);
+  --sky-cloud: rgba(236, 228, 216, 0.16);
+  --sky-precip: rgba(236, 228, 216, 0.22);
+  --world-ground: #171412;
+  --world-grid: rgba(236, 228, 216, 0.1);
+  --world-fog: rgba(14, 12, 11, 0.96);
+  --world-vignette: rgba(0, 0, 0, 0.6);
   --accent-border: #5a3a2a;
   --accent-track: #3d2a1f;
   --accent-text: #f0b79a;
@@ -365,3 +393,20 @@
     --material-thick: var(--bg-surface);
   }
 }
+
+/* Viewfinder corners (Brackets.tsx): the new tab's world and Settings. */
+.brackets {
+  position: absolute;
+  inset: var(--space-3);
+  pointer-events: none;
+}
+.bracket {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border: 0 solid var(--text-faint);
+}
+.bracket--tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+.bracket--tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+.bracket--bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+.bracket--br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
