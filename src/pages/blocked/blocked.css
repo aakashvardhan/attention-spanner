@@ -88,3 +88,53 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+/* The robot walks to the wall, sketches a detour, the detour fades: no way
+   round. Plays once and stops; under Reduce Motion it is that last frame. */
+.blocked-telemetry {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--focus-accent);
+  margin-bottom: var(--space-3);
+}
+.blocked-robot {
+  width: 240px;
+  height: 72px;
+  margin-bottom: var(--space-4);
+  fill: none;
+  stroke: var(--focus-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.blocked-wall {
+  stroke: var(--focus-accent);
+}
+.blocked-detour {
+  stroke: var(--focus-accent);
+  stroke-dasharray: 4 4;
+  opacity: 0;
+  animation: blocked-plan 1200ms var(--ease-effect) 900ms both;
+}
+.blocked-bot {
+  transform: translateX(44px);
+  animation: blocked-walk var(--dur-bouncy) var(--spring-smooth) both;
+}
+@keyframes blocked-walk {
+  from { transform: translateX(-48px); }
+  to { transform: translateX(44px); }
+}
+@keyframes blocked-plan {
+  0% { opacity: 0; }
+  40%, 70% { opacity: 0.8; }
+  100% { opacity: 0.2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blocked-bot {
+    animation: none;
+  }
+  .blocked-detour {
+    animation: none;
+    opacity: 0.2;
+  }
+}
