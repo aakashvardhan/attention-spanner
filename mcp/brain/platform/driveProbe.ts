@@ -7,7 +7,13 @@ import { parseArgs } from 'node:util';
 import { reportsDir, vaultPath } from '../args';
 
 // A partly synced file reads as invalid JSON; treat it as not there yet.
-const readJson = async (p: string): Promise<any> => readFile(p, 'utf8').then((s) => JSON.parse(s), () => null);
+const readJson = async (p: string): Promise<any> => {
+  try {
+    return JSON.parse(await readFile(p, 'utf8'));
+  } catch {
+    return null;
+  }
+};
 
 /** Mac side: write ping n, wait for pong n. A round trip needs no shared clock. */
 export async function ping(dir: string, o: { rounds: number; gapMs: number; timeoutMs: number; pollMs?: number }): Promise<number[]> {

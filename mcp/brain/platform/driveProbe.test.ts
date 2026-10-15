@@ -28,6 +28,11 @@ describe('ping and pong', () => {
     expect(answered).toBe(2);
     expect(rtts.every(Number.isFinite)).toBe(true);
   });
+  it('treats a half-written ping as not there yet', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'brain-probe-'));
+    await writeFile(join(dir, 'ping.json'), '{"run":"x","se');
+    expect(await pong(dir, { pollMs: 5, maxMs: 100 })).toBe(0);
+  });
   it('ignores a ping left over from an earlier run', async () => {
     dir = await mkdtemp(join(tmpdir(), 'brain-probe-'));
     await writeFile(join(dir, 'ping.json'), JSON.stringify({ run: 'old', seq: 30, done: true }));
