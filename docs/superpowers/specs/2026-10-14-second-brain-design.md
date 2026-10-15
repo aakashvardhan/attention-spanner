@@ -246,12 +246,11 @@ brain/
     notion-map.json  mcp-log.jsonl  import/bookmarks.json (one-time)
 ```
 
-- Each in-scope Notion page's area comes from an **area map** built from
-  the user's own grouping, not Claude's proposal:
-  1. An open card sort: the user groups and names about 40 representative
-     page titles.
-  2. Claude drafts the map from those groups.
-  3. The tree test in Outcomes checks the draft.
+- Each in-scope Notion page's area comes from an **area map**:
+  1. Claude drafts the map from Notion's own page tree. (The open card sort
+     that was to come first was declined by the user on 2026-10-15.)
+  2. The tree test in Outcomes checks the draft; a failed task changes the
+     map, and the test is run again.
 
   The user approves the map before the pilot.
 - The index, search and link resolution ignore `sources/`, `.brain/` and
@@ -730,7 +729,7 @@ Stop points from Milestone 1 scope are marked.
    `.brain/reports/baseline.md`:
    - Usage counts from Chrome's History.
    - The recall benchmark: declined by the user on 2026-10-15.
-   - The card sort.
+   - The card sort: declined by the user on 2026-10-15.
    - Notion's export of the in-scope areas.
    - The Notion link measure from `notion.db`.
 1. **Platform ground truth, about a day.**
