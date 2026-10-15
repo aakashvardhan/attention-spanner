@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { vaultPath } from './args';
 import { workerSearch, type SearchRunner } from './regexSearch';
 import { registerImportTools } from './tools/import';
 import { registerReadTools } from './tools/read';
@@ -20,9 +21,11 @@ export function createServer(vault: Vault, opts: ServerOptions = {}): McpServer 
 }
 
 async function main() {
-  const root = process.env.BRAIN_VAULT;
-  if (!root) {
-    console.error('BRAIN_VAULT is not set: point it at the vault folder.');
+  let root: string;
+  try {
+    root = vaultPath();
+  } catch (e) {
+    console.error((e as Error).message);
     process.exit(1);
   }
   const vault = await Vault.open(root);

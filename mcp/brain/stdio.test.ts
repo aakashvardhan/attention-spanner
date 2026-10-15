@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -48,6 +49,17 @@ describe('the bundled server over stdio', () => {
     await client.callTool({ name: 'create_note', arguments: { title: 'Hello', text: '# Hello\n' } });
     const r = (await client.callTool({ name: 'read_note', arguments: { title: 'Hello' } })) as Text;
     expect(r.content[0].text).toBe('path: Inbox/Hello.md\n\n# Hello\n');
+  });
+  it('exits without creating anything when BRAIN_VAULT reaches it unexpanded', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'brain-cwd-'));
+    try {
+      const r = spawnSync(process.execPath, [join(out, 'server.mjs')], { cwd, env: { ...process.env, BRAIN_VAULT: '${BRAIN_VAULT}' }, input: '', encoding: 'utf8', timeout: 10_000 });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('BRAIN_VAULT was not set where Claude Code started');
+      expect(await readdir(cwd)).toEqual([]);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
   it('stops a catastrophic regex at 2 s and keeps answering', async () => {
     const t0 = Date.now();
