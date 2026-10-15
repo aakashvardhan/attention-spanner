@@ -64,7 +64,7 @@ right. Each stop's gate is the rows that apply to it.
 |---|---|---|
 | The import kept the content | `npm run brain:audit` against Notion's export, and a blind sample the user rates (see Fidelity audit) | Every invariant accounted for; no lost or distorted passage in the sample. |
 | The vault is valid Obsidian | Obsidian's metadata cache, dumped and diffed against our index (`npm run brain:diff-obsidian`) | Zero unresolved links; the same resolved links, headings and tags per file; each difference is fixed or listed as a deliberate deviation. Runs on the real vault at stop A, and in CI against a checked-in dump of the fixture vault with the Obsidian version recorded. |
-| Our parsers read Markdown and YAML correctly | Differential tests: `blocks.ts` and `tables.ts` against `marked` (already a dependency) on the CommonMark and GFM examples; `frontmatter.ts` against `yaml` | The same result on every example inside the subset; anything outside it is refused, never misread. |
+| Our parsers read Markdown and YAML correctly | Differential tests: `blocks.ts` and `tables.ts` against the CommonMark and GFM specs' own expected output for their examples; `frontmatter.ts` against `yaml` | The same result on every example inside the subset; anything outside it is refused, never misread. |
 | Saves survive crashes | The file system under fault injection: a crash at every step of every journaled plan, and `npm run brain:crash` killing Chrome with `kill -9` 1,000 times mid-typing on a copy of the real Drive folder | The file always equals, byte for byte, a version that was saved; recovery loses at most 1.5 s. |
 | Concurrent writers never lose an edit | fast-check model-based tests (`fc.commands`) of Brain page tabs and MCP calls against a reference model of the vault | No sequence diverges from the model, except merges that a snapshot records. |
 | Typing stays smooth | Chrome's Long Animation Frames API and DevTools traces on the user's Mac | The speed budgets in Done when. |
@@ -311,7 +311,7 @@ url: https://arxiv.org/abs/1234.5678     # paper notes only
 - Block references (`^id`) are out of scope. The vault also opens in
   Obsidian.
 
-**Daily note.** Created holding only `# Tuesday, 14 October 2026`.
+**Daily note.** Created holding only `# Wednesday, 14 October 2026`.
 
 ## The import
 
@@ -659,7 +659,7 @@ results" note.
     `idempotentHint` on `daily_note` and the staging tools.
 - **Guards:**
   - Writes under `sources/notion/` and `.brain/` are refused, except
-    staging and the server's own log, journal, `history/`, `import/`, and
+    staging and the server's own log, journal, `history/`, `trash/` (for `delete_note`), `import/`, and
     the `starred.json` update a rename needs.
   - `edit_note` fails with "changed since read, re-read first" when the file
     changed after Claude's last read.
