@@ -4,12 +4,14 @@
  */
 import { cards } from './baseline/cards';
 import { notionLinks } from './baseline/notionLinks';
+import { recall } from './baseline/recall';
 import { usage } from './baseline/usage';
 
 const commands: Record<string, (argv: string[]) => Promise<void>> = {
   usage,
   'notion-links': notionLinks,
   cards,
+  recall,
 };
 
 const [name, ...argv] = process.argv.slice(2);
