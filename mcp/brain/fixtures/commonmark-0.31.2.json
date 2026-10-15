@@ -1,0 +1,686 @@
+[
+ {
+  "example": 43,
+  "section": "Thematic breaks",
+  "markdown": "***\n---\n___\n",
+  "html": "<hr />\n<hr />\n<hr />\n"
+ },
+ {
+  "example": 44,
+  "section": "Thematic breaks",
+  "markdown": "+++\n",
+  "html": "<p>+++</p>\n"
+ },
+ {
+  "example": 45,
+  "section": "Thematic breaks",
+  "markdown": "===\n",
+  "html": "<p>===</p>\n"
+ },
+ {
+  "example": 46,
+  "section": "Thematic breaks",
+  "markdown": "--\n**\n__\n",
+  "html": "<p>--\n**\n__</p>\n"
+ },
+ {
+  "example": 47,
+  "section": "Thematic breaks",
+  "markdown": " ***\n  ***\n   ***\n",
+  "html": "<hr />\n<hr />\n<hr />\n"
+ },
+ {
+  "example": 48,
+  "section": "Thematic breaks",
+  "markdown": "    ***\n",
+  "html": "<pre><code>***\n</code></pre>\n"
+ },
+ {
+  "example": 49,
+  "section": "Thematic breaks",
+  "markdown": "Foo\n    ***\n",
+  "html": "<p>Foo\n***</p>\n"
+ },
+ {
+  "example": 50,
+  "section": "Thematic breaks",
+  "markdown": "_____________________________________\n",
+  "html": "<hr />\n"
+ },
+ {
+  "example": 51,
+  "section": "Thematic breaks",
+  "markdown": " - - -\n",
+  "html": "<hr />\n"
+ },
+ {
+  "example": 52,
+  "section": "Thematic breaks",
+  "markdown": " **  * ** * ** * **\n",
+  "html": "<hr />\n"
+ },
+ {
+  "example": 53,
+  "section": "Thematic breaks",
+  "markdown": "-     -      -      -\n",
+  "html": "<hr />\n"
+ },
+ {
+  "example": 54,
+  "section": "Thematic breaks",
+  "markdown": "- - - -    \n",
+  "html": "<hr />\n"
+ },
+ {
+  "example": 55,
+  "section": "Thematic breaks",
+  "markdown": "_ _ _ _ a\n\na------\n\n---a---\n",
+  "html": "<p>_ _ _ _ a</p>\n<p>a------</p>\n<p>---a---</p>\n"
+ },
+ {
+  "example": 56,
+  "section": "Thematic breaks",
+  "markdown": " *-*\n",
+  "html": "<p><em>-</em></p>\n"
+ },
+ {
+  "example": 57,
+  "section": "Thematic breaks",
+  "markdown": "- foo\n***\n- bar\n",
+  "html": "<ul>\n<li>foo</li>\n</ul>\n<hr />\n<ul>\n<li>bar</li>\n</ul>\n"
+ },
+ {
+  "example": 58,
+  "section": "Thematic breaks",
+  "markdown": "Foo\n***\nbar\n",
+  "html": "<p>Foo</p>\n<hr />\n<p>bar</p>\n"
+ },
+ {
+  "example": 59,
+  "section": "Thematic breaks",
+  "markdown": "Foo\n---\nbar\n",
+  "html": "<h2>Foo</h2>\n<p>bar</p>\n"
+ },
+ {
+  "example": 60,
+  "section": "Thematic breaks",
+  "markdown": "* Foo\n* * *\n* Bar\n",
+  "html": "<ul>\n<li>Foo</li>\n</ul>\n<hr />\n<ul>\n<li>Bar</li>\n</ul>\n"
+ },
+ {
+  "example": 61,
+  "section": "Thematic breaks",
+  "markdown": "- Foo\n- * * *\n",
+  "html": "<ul>\n<li>Foo</li>\n<li>\n<hr />\n</li>\n</ul>\n"
+ },
+ {
+  "example": 62,
+  "section": "ATX headings",
+  "markdown": "# foo\n## foo\n### foo\n#### foo\n##### foo\n###### foo\n",
+  "html": "<h1>foo</h1>\n<h2>foo</h2>\n<h3>foo</h3>\n<h4>foo</h4>\n<h5>foo</h5>\n<h6>foo</h6>\n"
+ },
+ {
+  "example": 63,
+  "section": "ATX headings",
+  "markdown": "####### foo\n",
+  "html": "<p>####### foo</p>\n"
+ },
+ {
+  "example": 64,
+  "section": "ATX headings",
+  "markdown": "#5 bolt\n\n#hashtag\n",
+  "html": "<p>#5 bolt</p>\n<p>#hashtag</p>\n"
+ },
+ {
+  "example": 65,
+  "section": "ATX headings",
+  "markdown": "\\## foo\n",
+  "html": "<p>## foo</p>\n"
+ },
+ {
+  "example": 66,
+  "section": "ATX headings",
+  "markdown": "# foo *bar* \\*baz\\*\n",
+  "html": "<h1>foo <em>bar</em> *baz*</h1>\n"
+ },
+ {
+  "example": 67,
+  "section": "ATX headings",
+  "markdown": "#                  foo                     \n",
+  "html": "<h1>foo</h1>\n"
+ },
+ {
+  "example": 68,
+  "section": "ATX headings",
+  "markdown": " ### foo\n  ## foo\n   # foo\n",
+  "html": "<h3>foo</h3>\n<h2>foo</h2>\n<h1>foo</h1>\n"
+ },
+ {
+  "example": 69,
+  "section": "ATX headings",
+  "markdown": "    # foo\n",
+  "html": "<pre><code># foo\n</code></pre>\n"
+ },
+ {
+  "example": 70,
+  "section": "ATX headings",
+  "markdown": "foo\n    # bar\n",
+  "html": "<p>foo\n# bar</p>\n"
+ },
+ {
+  "example": 71,
+  "section": "ATX headings",
+  "markdown": "## foo ##\n  ###   bar    ###\n",
+  "html": "<h2>foo</h2>\n<h3>bar</h3>\n"
+ },
+ {
+  "example": 72,
+  "section": "ATX headings",
+  "markdown": "# foo ##################################\n##### foo ##\n",
+  "html": "<h1>foo</h1>\n<h5>foo</h5>\n"
+ },
+ {
+  "example": 73,
+  "section": "ATX headings",
+  "markdown": "### foo ###     \n",
+  "html": "<h3>foo</h3>\n"
+ },
+ {
+  "example": 74,
+  "section": "ATX headings",
+  "markdown": "### foo ### b\n",
+  "html": "<h3>foo ### b</h3>\n"
+ },
+ {
+  "example": 75,
+  "section": "ATX headings",
+  "markdown": "# foo#\n",
+  "html": "<h1>foo#</h1>\n"
+ },
+ {
+  "example": 76,
+  "section": "ATX headings",
+  "markdown": "### foo \\###\n## foo #\\##\n# foo \\#\n",
+  "html": "<h3>foo ###</h3>\n<h2>foo ###</h2>\n<h1>foo #</h1>\n"
+ },
+ {
+  "example": 77,
+  "section": "ATX headings",
+  "markdown": "****\n## foo\n****\n",
+  "html": "<hr />\n<h2>foo</h2>\n<hr />\n"
+ },
+ {
+  "example": 78,
+  "section": "ATX headings",
+  "markdown": "Foo bar\n# baz\nBar foo\n",
+  "html": "<p>Foo bar</p>\n<h1>baz</h1>\n<p>Bar foo</p>\n"
+ },
+ {
+  "example": 79,
+  "section": "ATX headings",
+  "markdown": "## \n#\n### ###\n",
+  "html": "<h2></h2>\n<h1></h1>\n<h3></h3>\n"
+ },
+ {
+  "example": 80,
+  "section": "Setext headings",
+  "markdown": "Foo *bar*\n=========\n\nFoo *bar*\n---------\n",
+  "html": "<h1>Foo <em>bar</em></h1>\n<h2>Foo <em>bar</em></h2>\n"
+ },
+ {
+  "example": 81,
+  "section": "Setext headings",
+  "markdown": "Foo *bar\nbaz*\n====\n",
+  "html": "<h1>Foo <em>bar\nbaz</em></h1>\n"
+ },
+ {
+  "example": 82,
+  "section": "Setext headings",
+  "markdown": "  Foo *bar\nbaz*\t\n====\n",
+  "html": "<h1>Foo <em>bar\nbaz</em></h1>\n"
+ },
+ {
+  "example": 83,
+  "section": "Setext headings",
+  "markdown": "Foo\n-------------------------\n\nFoo\n=\n",
+  "html": "<h2>Foo</h2>\n<h1>Foo</h1>\n"
+ },
+ {
+  "example": 84,
+  "section": "Setext headings",
+  "markdown": "   Foo\n---\n\n  Foo\n-----\n\n  Foo\n  ===\n",
+  "html": "<h2>Foo</h2>\n<h2>Foo</h2>\n<h1>Foo</h1>\n"
+ },
+ {
+  "example": 85,
+  "section": "Setext headings",
+  "markdown": "    Foo\n    ---\n\n    Foo\n---\n",
+  "html": "<pre><code>Foo\n---\n\nFoo\n</code></pre>\n<hr />\n"
+ },
+ {
+  "example": 86,
+  "section": "Setext headings",
+  "markdown": "Foo\n   ----      \n",
+  "html": "<h2>Foo</h2>\n"
+ },
+ {
+  "example": 87,
+  "section": "Setext headings",
+  "markdown": "Foo\n    ---\n",
+  "html": "<p>Foo\n---</p>\n"
+ },
+ {
+  "example": 88,
+  "section": "Setext headings",
+  "markdown": "Foo\n= =\n\nFoo\n--- -\n",
+  "html": "<p>Foo\n= =</p>\n<p>Foo</p>\n<hr />\n"
+ },
+ {
+  "example": 89,
+  "section": "Setext headings",
+  "markdown": "Foo  \n-----\n",
+  "html": "<h2>Foo</h2>\n"
+ },
+ {
+  "example": 90,
+  "section": "Setext headings",
+  "markdown": "Foo\\\n----\n",
+  "html": "<h2>Foo\\</h2>\n"
+ },
+ {
+  "example": 91,
+  "section": "Setext headings",
+  "markdown": "`Foo\n----\n`\n\n<a title=\"a lot\n---\nof dashes\"/>\n",
+  "html": "<h2>`Foo</h2>\n<p>`</p>\n<h2>&lt;a title=&quot;a lot</h2>\n<p>of dashes&quot;/&gt;</p>\n"
+ },
+ {
+  "example": 92,
+  "section": "Setext headings",
+  "markdown": "> Foo\n---\n",
+  "html": "<blockquote>\n<p>Foo</p>\n</blockquote>\n<hr />\n"
+ },
+ {
+  "example": 93,
+  "section": "Setext headings",
+  "markdown": "> foo\nbar\n===\n",
+  "html": "<blockquote>\n<p>foo\nbar\n===</p>\n</blockquote>\n"
+ },
+ {
+  "example": 94,
+  "section": "Setext headings",
+  "markdown": "- Foo\n---\n",
+  "html": "<ul>\n<li>Foo</li>\n</ul>\n<hr />\n"
+ },
+ {
+  "example": 95,
+  "section": "Setext headings",
+  "markdown": "Foo\nBar\n---\n",
+  "html": "<h2>Foo\nBar</h2>\n"
+ },
+ {
+  "example": 96,
+  "section": "Setext headings",
+  "markdown": "---\nFoo\n---\nBar\n---\nBaz\n",
+  "html": "<hr />\n<h2>Foo</h2>\n<h2>Bar</h2>\n<p>Baz</p>\n"
+ },
+ {
+  "example": 97,
+  "section": "Setext headings",
+  "markdown": "\n====\n",
+  "html": "<p>====</p>\n"
+ },
+ {
+  "example": 98,
+  "section": "Setext headings",
+  "markdown": "---\n---\n",
+  "html": "<hr />\n<hr />\n"
+ },
+ {
+  "example": 99,
+  "section": "Setext headings",
+  "markdown": "- foo\n-----\n",
+  "html": "<ul>\n<li>foo</li>\n</ul>\n<hr />\n"
+ },
+ {
+  "example": 100,
+  "section": "Setext headings",
+  "markdown": "    foo\n---\n",
+  "html": "<pre><code>foo\n</code></pre>\n<hr />\n"
+ },
+ {
+  "example": 101,
+  "section": "Setext headings",
+  "markdown": "> foo\n-----\n",
+  "html": "<blockquote>\n<p>foo</p>\n</blockquote>\n<hr />\n"
+ },
+ {
+  "example": 102,
+  "section": "Setext headings",
+  "markdown": "\\> foo\n------\n",
+  "html": "<h2>&gt; foo</h2>\n"
+ },
+ {
+  "example": 103,
+  "section": "Setext headings",
+  "markdown": "Foo\n\nbar\n---\nbaz\n",
+  "html": "<p>Foo</p>\n<h2>bar</h2>\n<p>baz</p>\n"
+ },
+ {
+  "example": 104,
+  "section": "Setext headings",
+  "markdown": "Foo\nbar\n\n---\n\nbaz\n",
+  "html": "<p>Foo\nbar</p>\n<hr />\n<p>baz</p>\n"
+ },
+ {
+  "example": 105,
+  "section": "Setext headings",
+  "markdown": "Foo\nbar\n* * *\nbaz\n",
+  "html": "<p>Foo\nbar</p>\n<hr />\n<p>baz</p>\n"
+ },
+ {
+  "example": 106,
+  "section": "Setext headings",
+  "markdown": "Foo\nbar\n\\---\nbaz\n",
+  "html": "<p>Foo\nbar\n---\nbaz</p>\n"
+ },
+ {
+  "example": 107,
+  "section": "Indented code blocks",
+  "markdown": "    a simple\n      indented code block\n",
+  "html": "<pre><code>a simple\n  indented code block\n</code></pre>\n"
+ },
+ {
+  "example": 108,
+  "section": "Indented code blocks",
+  "markdown": "  - foo\n\n    bar\n",
+  "html": "<ul>\n<li>\n<p>foo</p>\n<p>bar</p>\n</li>\n</ul>\n"
+ },
+ {
+  "example": 109,
+  "section": "Indented code blocks",
+  "markdown": "1.  foo\n\n    - bar\n",
+  "html": "<ol>\n<li>\n<p>foo</p>\n<ul>\n<li>bar</li>\n</ul>\n</li>\n</ol>\n"
+ },
+ {
+  "example": 110,
+  "section": "Indented code blocks",
+  "markdown": "    <a/>\n    *hi*\n\n    - one\n",
+  "html": "<pre><code>&lt;a/&gt;\n*hi*\n\n- one\n</code></pre>\n"
+ },
+ {
+  "example": 111,
+  "section": "Indented code blocks",
+  "markdown": "    chunk1\n\n    chunk2\n  \n \n \n    chunk3\n",
+  "html": "<pre><code>chunk1\n\nchunk2\n\n\n\nchunk3\n</code></pre>\n"
+ },
+ {
+  "example": 112,
+  "section": "Indented code blocks",
+  "markdown": "    chunk1\n      \n      chunk2\n",
+  "html": "<pre><code>chunk1\n  \n  chunk2\n</code></pre>\n"
+ },
+ {
+  "example": 113,
+  "section": "Indented code blocks",
+  "markdown": "Foo\n    bar\n\n",
+  "html": "<p>Foo\nbar</p>\n"
+ },
+ {
+  "example": 114,
+  "section": "Indented code blocks",
+  "markdown": "    foo\nbar\n",
+  "html": "<pre><code>foo\n</code></pre>\n<p>bar</p>\n"
+ },
+ {
+  "example": 115,
+  "section": "Indented code blocks",
+  "markdown": "# Heading\n    foo\nHeading\n------\n    foo\n----\n",
+  "html": "<h1>Heading</h1>\n<pre><code>foo\n</code></pre>\n<h2>Heading</h2>\n<pre><code>foo\n</code></pre>\n<hr />\n"
+ },
+ {
+  "example": 116,
+  "section": "Indented code blocks",
+  "markdown": "        foo\n    bar\n",
+  "html": "<pre><code>    foo\nbar\n</code></pre>\n"
+ },
+ {
+  "example": 117,
+  "section": "Indented code blocks",
+  "markdown": "\n    \n    foo\n    \n\n",
+  "html": "<pre><code>foo\n</code></pre>\n"
+ },
+ {
+  "example": 118,
+  "section": "Indented code blocks",
+  "markdown": "    foo  \n",
+  "html": "<pre><code>foo  \n</code></pre>\n"
+ },
+ {
+  "example": 119,
+  "section": "Fenced code blocks",
+  "markdown": "```\n<\n >\n```\n",
+  "html": "<pre><code>&lt;\n &gt;\n</code></pre>\n"
+ },
+ {
+  "example": 120,
+  "section": "Fenced code blocks",
+  "markdown": "~~~\n<\n >\n~~~\n",
+  "html": "<pre><code>&lt;\n &gt;\n</code></pre>\n"
+ },
+ {
+  "example": 121,
+  "section": "Fenced code blocks",
+  "markdown": "``\nfoo\n``\n",
+  "html": "<p><code>foo</code></p>\n"
+ },
+ {
+  "example": 122,
+  "section": "Fenced code blocks",
+  "markdown": "```\naaa\n~~~\n```\n",
+  "html": "<pre><code>aaa\n~~~\n</code></pre>\n"
+ },
+ {
+  "example": 123,
+  "section": "Fenced code blocks",
+  "markdown": "~~~\naaa\n```\n~~~\n",
+  "html": "<pre><code>aaa\n```\n</code></pre>\n"
+ },
+ {
+  "example": 124,
+  "section": "Fenced code blocks",
+  "markdown": "````\naaa\n```\n``````\n",
+  "html": "<pre><code>aaa\n```\n</code></pre>\n"
+ },
+ {
+  "example": 125,
+  "section": "Fenced code blocks",
+  "markdown": "~~~~\naaa\n~~~\n~~~~\n",
+  "html": "<pre><code>aaa\n~~~\n</code></pre>\n"
+ },
+ {
+  "example": 126,
+  "section": "Fenced code blocks",
+  "markdown": "```\n",
+  "html": "<pre><code></code></pre>\n"
+ },
+ {
+  "example": 127,
+  "section": "Fenced code blocks",
+  "markdown": "`````\n\n```\naaa\n",
+  "html": "<pre><code>\n```\naaa\n</code></pre>\n"
+ },
+ {
+  "example": 128,
+  "section": "Fenced code blocks",
+  "markdown": "> ```\n> aaa\n\nbbb\n",
+  "html": "<blockquote>\n<pre><code>aaa\n</code></pre>\n</blockquote>\n<p>bbb</p>\n"
+ },
+ {
+  "example": 129,
+  "section": "Fenced code blocks",
+  "markdown": "```\n\n  \n```\n",
+  "html": "<pre><code>\n  \n</code></pre>\n"
+ },
+ {
+  "example": 130,
+  "section": "Fenced code blocks",
+  "markdown": "```\n```\n",
+  "html": "<pre><code></code></pre>\n"
+ },
+ {
+  "example": 131,
+  "section": "Fenced code blocks",
+  "markdown": " ```\n aaa\naaa\n```\n",
+  "html": "<pre><code>aaa\naaa\n</code></pre>\n"
+ },
+ {
+  "example": 132,
+  "section": "Fenced code blocks",
+  "markdown": "  ```\naaa\n  aaa\naaa\n  ```\n",
+  "html": "<pre><code>aaa\naaa\naaa\n</code></pre>\n"
+ },
+ {
+  "example": 133,
+  "section": "Fenced code blocks",
+  "markdown": "   ```\n   aaa\n    aaa\n  aaa\n   ```\n",
+  "html": "<pre><code>aaa\n aaa\naaa\n</code></pre>\n"
+ },
+ {
+  "example": 134,
+  "section": "Fenced code blocks",
+  "markdown": "    ```\n    aaa\n    ```\n",
+  "html": "<pre><code>```\naaa\n```\n</code></pre>\n"
+ },
+ {
+  "example": 135,
+  "section": "Fenced code blocks",
+  "markdown": "```\naaa\n  ```\n",
+  "html": "<pre><code>aaa\n</code></pre>\n"
+ },
+ {
+  "example": 136,
+  "section": "Fenced code blocks",
+  "markdown": "   ```\naaa\n  ```\n",
+  "html": "<pre><code>aaa\n</code></pre>\n"
+ },
+ {
+  "example": 137,
+  "section": "Fenced code blocks",
+  "markdown": "```\naaa\n    ```\n",
+  "html": "<pre><code>aaa\n    ```\n</code></pre>\n"
+ },
+ {
+  "example": 138,
+  "section": "Fenced code blocks",
+  "markdown": "``` ```\naaa\n",
+  "html": "<p><code> </code>\naaa</p>\n"
+ },
+ {
+  "example": 139,
+  "section": "Fenced code blocks",
+  "markdown": "~~~~~~\naaa\n~~~ ~~\n",
+  "html": "<pre><code>aaa\n~~~ ~~\n</code></pre>\n"
+ },
+ {
+  "example": 140,
+  "section": "Fenced code blocks",
+  "markdown": "foo\n```\nbar\n```\nbaz\n",
+  "html": "<p>foo</p>\n<pre><code>bar\n</code></pre>\n<p>baz</p>\n"
+ },
+ {
+  "example": 141,
+  "section": "Fenced code blocks",
+  "markdown": "foo\n---\n~~~\nbar\n~~~\n# baz\n",
+  "html": "<h2>foo</h2>\n<pre><code>bar\n</code></pre>\n<h1>baz</h1>\n"
+ },
+ {
+  "example": 142,
+  "section": "Fenced code blocks",
+  "markdown": "```ruby\ndef foo(x)\n  return 3\nend\n```\n",
+  "html": "<pre><code class=\"language-ruby\">def foo(x)\n  return 3\nend\n</code></pre>\n"
+ },
+ {
+  "example": 143,
+  "section": "Fenced code blocks",
+  "markdown": "~~~~    ruby startline=3 $%@#$\ndef foo(x)\n  return 3\nend\n~~~~~~~\n",
+  "html": "<pre><code class=\"language-ruby\">def foo(x)\n  return 3\nend\n</code></pre>\n"
+ },
+ {
+  "example": 144,
+  "section": "Fenced code blocks",
+  "markdown": "````;\n````\n",
+  "html": "<pre><code class=\"language-;\"></code></pre>\n"
+ },
+ {
+  "example": 145,
+  "section": "Fenced code blocks",
+  "markdown": "``` aa ```\nfoo\n",
+  "html": "<p><code>aa</code>\nfoo</p>\n"
+ },
+ {
+  "example": 146,
+  "section": "Fenced code blocks",
+  "markdown": "~~~ aa ``` ~~~\nfoo\n~~~\n",
+  "html": "<pre><code class=\"language-aa\">foo\n</code></pre>\n"
+ },
+ {
+  "example": 147,
+  "section": "Fenced code blocks",
+  "markdown": "```\n``` aaa\n```\n",
+  "html": "<pre><code>``` aaa\n</code></pre>\n"
+ },
+ {
+  "example": 219,
+  "section": "Paragraphs",
+  "markdown": "aaa\n\nbbb\n",
+  "html": "<p>aaa</p>\n<p>bbb</p>\n"
+ },
+ {
+  "example": 220,
+  "section": "Paragraphs",
+  "markdown": "aaa\nbbb\n\nccc\nddd\n",
+  "html": "<p>aaa\nbbb</p>\n<p>ccc\nddd</p>\n"
+ },
+ {
+  "example": 221,
+  "section": "Paragraphs",
+  "markdown": "aaa\n\n\nbbb\n",
+  "html": "<p>aaa</p>\n<p>bbb</p>\n"
+ },
+ {
+  "example": 222,
+  "section": "Paragraphs",
+  "markdown": "  aaa\n bbb\n",
+  "html": "<p>aaa\nbbb</p>\n"
+ },
+ {
+  "example": 223,
+  "section": "Paragraphs",
+  "markdown": "aaa\n             bbb\n                                       ccc\n",
+  "html": "<p>aaa\nbbb\nccc</p>\n"
+ },
+ {
+  "example": 224,
+  "section": "Paragraphs",
+  "markdown": "   aaa\nbbb\n",
+  "html": "<p>aaa\nbbb</p>\n"
+ },
+ {
+  "example": 225,
+  "section": "Paragraphs",
+  "markdown": "    aaa\nbbb\n",
+  "html": "<pre><code>aaa\n</code></pre>\n<p>bbb</p>\n"
+ },
+ {
+  "example": 226,
+  "section": "Paragraphs",
+  "markdown": "aaa     \nbbb     \n",
+  "html": "<p>aaa<br />\nbbb</p>\n"
+ },
+ {
+  "example": 227,
+  "section": "Blank lines",
+  "markdown": "  \n\naaa\n  \n\n# aaa\n\n  \n",
+  "html": "<p>aaa</p>\n<h1>aaa</h1>\n"
+ }
+]
