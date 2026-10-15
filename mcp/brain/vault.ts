@@ -41,7 +41,13 @@ export class Vault {
     const v = new Vault(root, opts.now ?? (() => new Date()));
     if (opts.maintain !== false) {
       await v.fs.sweepTmp();
-      await recover(v.fs);
+      // Only this server writes journals, for plans it already checked; an interrupted promote must be able to finish into sources/.
+      v.promoting = true;
+      try {
+        await recover(v.fs);
+      } finally {
+        v.promoting = false;
+      }
       await v.sweepHistory();
     }
     await v.refresh();

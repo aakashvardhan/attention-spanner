@@ -27,6 +27,14 @@ describe('import tools', () => {
     for (const path of ['.brain/x.md', '.obsidian/a.md', 'attachments/a.md', 'a.txt', 'A/B: c.md']) expect((await t.call('stage_note', { area: 'pilot', path, text: '' })).error, path).toBe(true);
     expect((await t.call('stage_attachment', { area: 'pilot', url: 'http://file.notion.so/x.png', filename: 'x.png' })).text).toBe('Only https URLs are fetched.');
   });
+  it('refuses folder, source and attachment names Windows cannot hold', async () => {
+    t = await testServer({}, { fetch: fakeFetch });
+    for (const path of ['Career: 2026/A.md', 'sources/notion/Q: A (abc).md']) expect((await t.call('stage_note', { area: 'pilot', path, text: '' })).error, path).toBe(true);
+    expect(await t.call('stage_attachment', { area: 'pilot', url: 'https://file.notion.so/x.png', filename: 'Shot 10:30.png' })).toEqual({
+      text: '"Shot 10:30.png" cannot be a file name on Windows; use "Shot 10-30.png".',
+      error: true,
+    });
+  });
   it('promotes only what a passing audit covered, then empties staging', async () => {
     t = await testServer({ '.brain/reports/.keep': '', 'Concepts/Sigmoid.md': '# Old sigmoid\n' }, { fetch: fakeFetch });
     await t.call('stage_note', { area: 'pilot', path: 'Concepts/Sigmoid.md', text: '# Sigmoid, merged\n' });

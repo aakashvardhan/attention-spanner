@@ -31,6 +31,8 @@ export function registerWriteTools(server: McpServer, vault: Vault): void {
     async ({ date }) =>
       write(async () => {
         const d = date ? new Date(`${date}T12:00:00`) : vault.now();
+        // JavaScript rolls 30 February over into March, so check the date survives the round trip.
+        if (date && (Number.isNaN(d.getTime()) || ymd(d) !== date)) return fail(`"${date}" is not a date.`);
         const path = dailyPath(d);
         if (!(await vault.fs.exists(path))) {
           await vault.fs.writeText(path, dailyText(d));

@@ -21,6 +21,12 @@ describe('write tools', () => {
     expect((await t.call('daily_note')).text).toBe('path: daily/2026-10-14.md\n\n# Wednesday, 14 October 2026\n');
     expect((await t.call('daily_note')).text).toBe('path: daily/2026-10-14.md\n\n# Wednesday, 14 October 2026\n');
   });
+  it('refuses a date that does not exist instead of creating a junk daily note', async () => {
+    t = await testServer({});
+    expect(await t.call('daily_note', { date: '2026-13-45' })).toEqual({ text: '"2026-13-45" is not a date.', error: true });
+    expect(await t.call('daily_note', { date: '2026-02-30' })).toEqual({ text: '"2026-02-30" is not a date.', error: true });
+    expect(await t.vault.fs.list('daily')).toEqual([]);
+  });
   it('creates notes in Inbox, moves an unsafe title into aliases, and refuses a clash', async () => {
     t = await testServer({ 'Concepts/Sigmoid.md': '# Sigmoid\n' });
     expect((await t.call('create_note', { title: 'Idea', text: '# Idea\n' })).text).toBe('Created Inbox/Idea.md.');

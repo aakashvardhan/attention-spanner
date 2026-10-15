@@ -10,17 +10,27 @@ const AREA = /^[\p{L}\p{N}][\p{L}\p{N} _&-]{0,60}$/u;
 const MAX_BYTES = 100 * 1024 * 1024;
 const sha256 = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 
+/** The name with its extension set aside, made safe for Windows, Drive and links; equal to `name` when it already is. */
+const safeName = (name: string, folder = '') => {
+  const dot = name.lastIndexOf('.');
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+  return safeTitle(stem, folder).title + ext;
+};
+
 /** Where a staged note may go: a note or .base anywhere notes live, or a verbatim page under sources/notion/. */
 function stagePathProblem(path: string): string | null {
   const parts = path.split('/');
   if (parts.some((p) => p === '' || p === '.' || p === '..') || path.includes('\\')) return 'not a vault path';
   if (/^(\.brain|\.obsidian|attachments)(\/|$)/i.test(path)) return 'that folder is not staged through stage_note';
   if (!/\.(md|base)$/i.test(path)) return 'only .md and .base files are staged as notes';
-  if (/\.md$/i.test(path) && !/^sources\//i.test(path)) {
-    const title = titleOf(path);
-    const safe = safeTitle(title, parts.slice(0, -1).join('/')).title;
-    if (safe !== title) return `"${title}" cannot be a file name; use "${safe}" and keep the original in aliases`;
+  // Every folder and file name syncs to Windows through Drive, sources/ included.
+  for (let i = 0; i < parts.length - 1; i++) {
+    const safe = safeTitle(parts[i]).title;
+    if (safe !== parts[i]) return `folder "${parts[i]}" cannot be a name on Windows; use "${safe}"`;
   }
+  const name = parts[parts.length - 1];
+  const safe = safeName(name, parts.slice(0, -1).join('/'));
+  if (safe !== name) return /^sources\//i.test(path) ? `"${name}" cannot be a file name on Windows; use "${safe}"` : `"${titleOf(path)}" cannot be a file name; use "${titleOf(safe)}" and keep the original in aliases`;
   return null;
 }
 
@@ -54,6 +64,8 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
       guard(vault, async () => {
         if (!url.startsWith('https://')) return fail('Only https URLs are fetched.');
         if (/[/\\]|^\.|\0/.test(filename)) return fail(`"${filename}" is not a file name.`);
+        const safe = safeName(filename, 'attachments');
+        if (safe !== filename) return fail(`"${filename}" cannot be a file name on Windows; use "${safe}".`);
         const res = await fetchImpl(url, { signal: AbortSignal.timeout(60_000) });
         if (!res.ok) return fail(`Download failed with HTTP ${res.status}; fetch a fresh signed URL from Notion and retry.`);
         const bytes = new Uint8Array(await res.arrayBuffer());

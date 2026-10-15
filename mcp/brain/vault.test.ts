@@ -69,6 +69,16 @@ describe('Vault', () => {
     expect(v.entries.has('done.md')).toBe(true);
     expect(await v.fs.list('')).toEqual(['done.md']);
   });
+  it('finishes an interrupted promote on open, even though it writes sources/', async () => {
+    const staged = '.brain/staging/pilot/sources/notion/P (1).md';
+    root = await writeVault({
+      [staged]: 'raw',
+      '.brain/journal/p.json': JSON.stringify({ plan: { id: 'p', label: 'promote pilot', steps: [{ op: 'copy', from: staged, to: 'sources/notion/P (1).md' }, { op: 'remove', path: staged }] }, done: 0 }),
+    });
+    const v = await Vault.open(root, { now });
+    expect(await v.fs.readText('sources/notion/P (1).md')).toBe('raw');
+    expect(await v.fs.exists(staged)).toBe(false);
+  });
   it('runs serial work in order, even after a failure', async () => {
     root = await writeVault({});
     const v = await Vault.open(root, { now });
