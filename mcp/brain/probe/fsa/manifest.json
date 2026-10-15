@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Brain FSA probe (dev only)",
+  "version": "0.0.1",
+  "description": "Measures File System Access behaviour on a folder you pick. Never shipped.",
+  "action": {},
+  "background": { "service_worker": "sw.js" }
+}
