@@ -1,9 +1,10 @@
 # Second brain: an Obsidian-style vault that replaces Notion
 
 *2026-10-14. Milestone 1 in full; later milestones scoped only. Decided
-in two interviews; every choice below was the user's unless marked
-"default" (decided by Claude, open to overrule) or "assumption" (unverified
-fact, with a test or spike that checks it).*
+in three interviews, the third after reverse engineering Obsidian and Notion
+(see "What we took from Obsidian and Notion"); every choice below was the
+user's unless marked "default" (decided by Claude, open to overrule) or
+"assumption" (unverified fact, with a test or spike that checks it).*
 
 ## Why
 
@@ -32,7 +33,11 @@ commit that ships milestone 1.
 | Structure | Folders by area, plus MOCs and a `Home.md` map. Links are title-only. Lectures, books, courses and videos are split into atomic concept notes; meetings, projects and research, templates and reference pages stay whole. |
 | Import | Done by Claude through the Notion MCP, written via the vault MCP into staging, promoted one area at a time. |
 | Scope of import | Knowledge notes, projects and research, and the knowledge pages of the `notes` ("raw brain dump") database. Not personal or life pages, task boards, Housing, HW7 or `Account Informations`. The Links database goes to the extension's bookmarks. The job tracker waits for milestone 5. |
-| Graph view | None. Connections show as backlinks and unlinked mentions. |
+| Graph view | None. Connections show as backlinks, unlinked mentions, hover previews and note embeds. |
+| External edits | Obsidian's way: snapshot, then auto-merge your unsaved edits onto the disk version, then a notice. No conflict UI. |
+| History | Obsidian's file recovery: local snapshots every 5 minutes, kept 7 days, plus the MCP server's pre-write copies in `.brain/history/`. |
+| Databases | Rows become notes with typed properties; each Notion database becomes an Obsidian Bases `.base` file, so Obsidian renders the views today and milestone 5 reads the same files. |
+| Editor extras | From Notion: slash menu, block moves, table grid, properties panel. From Obsidian: hover preview, note embeds, outline, starred notes, templates. A `>` command mode in the switcher. All in stop D. |
 | Redis | Rejected: a browser cannot speak the Redis protocol. Resuming work and the AI cache travel through local IndexedDB and `.brain/` in the Drive folder. |
 | Branch | Work happens on `second-brain`, cut from `main`, and ships to public `main`. The vault path, Firebase config and API keys are all supplied by the user; none of the user's notes enter the repo. |
 
@@ -41,10 +46,10 @@ commit that ships milestone 1.
 | # | Milestone | Contents |
 |---|---|---|
 | **1** | **Vault, import, links** | This spec. |
-| 2 | Sync and collaboration | A Yjs CRDT per note; live co-editing, comments, version history and auto-merge across machines over a **bring-your-own Firebase** project (Realtime Database). Off until a user pastes a Firebase config. Replaces milestone 1's three-way merge. |
+| 2 | Sync and collaboration | A Yjs CRDT per note; live co-editing, comments, version history and auto-merge across machines over a **bring-your-own Firebase** project (Realtime Database). Off until a user pastes a Firebase config. Replaces milestone 1's auto-merge. Version history gains cross-device sync. |
 | 3 | Brain AI | Claude Haiku (`claude-haiku-5-5`) first, Ollama fallback, user-supplied key. Semantic link suggestions, ask-my-notes, cleanup suggestions. Every note may be sent. Results cached in `.brain/ai-cache/` by content hash. The existing reader AI (recap, triage) stays Ollama. |
 | 4 | Resurfacing | New-tab note card (spaced, weighted by links), related notes in the reader, highlights into notes, flashcards from notes. |
-| 5 | Job tracker | Import the Notion Job tracker (Job Title, Employer, Application URL, Applied On, Comment, Status) and add a table view: sort, filter, inline cell edit, add row. Status keeps Notion's groups: to do, in progress, complete. The Notion follow-up timing that hangs off Applied On must be replaced. Notion is fully retired at the end of this milestone. |
+| 5 | Job tracker and views | Import the Notion Job tracker (Job Title, Employer, Application URL, Applied On, Comment, Status) as a `.base` plus row notes, and render `.base` files in the extension: table (sort, filter, inline cell edit, add row), then real board and calendar layouts for the views milestone 1 imported as grouped and sorted tables. Status keeps Notion's groups: to do, in progress, complete. The Notion follow-up timing that hangs off Applied On must be replaced. Notion is fully retired at the end of this milestone. |
 | 6 | Mobile | Not planned. |
 
 Milestones 2 to 5 each get their own spec before work starts.
@@ -61,8 +66,13 @@ Milestones 2 to 5 each get their own spec before work starts.
   - quick switcher and search
   - daily notes and tasks
   - rename, move and delete
+  - auto-merge and version history
   - resuming where you left off
   - entry points
+  - editor extras: slash menu, block moves, table grid, properties panel,
+    hover preview, note embeds, outline, starred notes, templates, `>`
+    commands
+  - `.base` files listed as rows
 
 ### Stop points
 
@@ -73,8 +83,9 @@ on a later one.
 | Stop | You have |
 |---|---|
 | A. After the MCP server and full import | A complete, organized vault that works in Claude Code (through the MCP server) and in Obsidian. The Links handoff file is written. |
-| B. After the read-only Brain page | Browse, tree, switcher, search, backlinks, mentions, and PDFs opening in the reader, all inside the extension. Notion Links imported into bookmarks. |
-| C. After editing | Full milestone 1. |
+| B. After the read-only Brain page | Browse, tree, switcher, search, backlinks, mentions, and PDFs opening in the reader, all inside the extension. Notion Links imported into bookmarks. `.base` files listed as rows. |
+| C. After core editing | Writing moves off Notion: editor, autosave, auto-merge, history, crash recovery, tasks, rename (notes and headings), move, delete, daily notes. |
+| D. After the editor extras | Full milestone 1: slash menu, block moves, table grid, properties panel, hover preview, note embeds, outline, starred notes, templates, `>` commands. |
 
 ### Done when
 
@@ -82,10 +93,15 @@ on a later one.
    - the last note shows within 300 ms of a warm page open
    - switcher results in 50 ms
    - search in 150 ms for queries without regex
-   - no frame over 16 ms while typing in live preview
+   - no frame over 16 ms while typing in live preview, including in a
+     table grid and next to embeds
+   - (Default) a hover preview shows within 100 ms, from the index cache
 2. **Zero loss:**
    - killing Chrome mid-typing loses at most the last 1.5 s
-   - no rename or move ever leaves a broken link (property tests)
+   - no rename or move of a note or heading ever leaves a broken link,
+     including links in properties and embeds (property tests)
+   - every auto-merge, failed save and Claude write is preceded by a
+     snapshot that restores the previous text
 3. **Import verified:**
    - every in-scope Notion page appears in a coverage report with no
      failures
@@ -102,11 +118,14 @@ Google Drive  My Drive/brain/   (layout under File conventions)
 src/shared/brain/            pure, no I/O, unit and property tested
   frontmatter.ts  links.ts  rename.ts (rename + move)  mentions.ts
   query.ts (Obsidian search parser)  search.ts  blocks.ts (paragraphs, tasks)
-  merge3.ts  names.ts (sanitise, NFC, collisions)  plan.ts (plans + journal)
+  merge.ts (auto-merge)  names.ts (sanitise, NFC, collisions)  plan.ts (plans + journal)
+  properties.ts (typed values, types.json)  base.ts (.base subset: parse, filter, sort)
+  tables.ts (markdown table <-> grid)  templates.ts ({{date}} {{time}} {{title}})
 
 src/pages/brain/   Chrome                 mcp/brain/server.ts   Node, stdio
   vault.ts   File System Access I/O        fs I/O on BRAIN_VAULT
   index.ts   IndexedDB index + cache       in-memory index, rebuilt on start
+  history.ts IndexedDB snapshots           pre-write copy to .brain/history/
   Editor.tsx CodeMirror live preview       per-path write lock
   Tree.tsx   folder tree (ARIA tree)       write log, path guards
   Brain.tsx  note, panels, switcher
@@ -126,10 +145,16 @@ tested implementation.
 - `@modelcontextprotocol/sdk` and its peer `zod` (new, MCP server only):
   protocol framing and tool schemas.
 - `fast-check` (new, dev only): property tests with shrinking.
+- `diff-match-patch` (new, about 20 KB): the auto-merge and the history
+  diff view. It is what Obsidian ships for both (observed in its bundle), so
+  the merge behaves as it does there.
+- `yaml` (new, no dependencies): `.base` files are nested YAML that Obsidian
+  may rewrite in any style, so the flat parser cannot read them. Used for
+  `.base` only.
 - Reused: `katex` (math), `esbuild` (bundles the server to one `.mjs`
   file), `vitest`, `playwright`, `axe-core`.
-- Not added: a YAML library. Frontmatter is a flat subset we write ourselves,
-  parsed by `frontmatter.ts`.
+- Frontmatter stays a flat subset we write ourselves, parsed by
+  `frontmatter.ts`, because saves must round-trip byte for byte.
 
 **Manifest changes.**
 
@@ -152,13 +177,17 @@ brain/
   Research/Meetings/  Research/Projects/
   Career/
   Learning/<Source>/              Karpathy/, Goodfellow/, YouTube/ ... (source MOC + per-chapter/video notes)
-  Reference/                      templates, guides, source lists (kept whole)
+  Reference/                      guides, source lists (kept whole)
+  Reference/Templates/            templates for the Insert template command
   Topics/                         topic MOCs (the 9 Notion tags: AI & ML, Robotics, ...)
+  <area>/<Database>/ + <area>/<Database>.base   row notes and their views
   daily/YYYY-MM-DD.md
   attachments/                    images and PDFs, original names, " 2" suffix on clash
   sources/notion/                 "<Title> (<notion id>).md", Notion's markup exactly as fetched
   .brain/
     staging/<area>/  reports/  trash/<date>/  journal/  devices/<id>.json
+    history/<date>/  (MCP pre-write copies, 7 days)
+    starred.json  types.json
     notion-map.json  mcp-log.jsonl  import/bookmarks.json (one-time)
 ```
 
@@ -199,14 +228,25 @@ url: https://arxiv.org/abs/1234.5678     # paper notes only
   `project`, `person`, `meeting`, `paper`, `reference`. Topics are MOCs in
   `Topics/`.
 - Unknown fields are kept untouched when a note is saved.
+- **Typed properties** (database rows and anything the properties panel
+  edits). Values stay flat: no nested maps. The types are Obsidian's: text,
+  list, number, checkbox, date (`2026-02-11`), datetime
+  (`2026-02-11T09:30`). A property's type is stored once for the vault in
+  `.brain/types.json`; a property not listed there is typed from its first
+  value. Links inside properties (`"[[Employer X]]"`) are real links:
+  backlinks include them and renames rewrite them.
+- **Starred notes** live in `.brain/starred.json`, an ordered list of
+  titles. A rename updates the entry.
 
 **Body syntax.**
 
 - Links: `[[Title]]`, `[[Title|text]]`, `[[Title#Heading]]`.
 - Embeds: `![[file.png]]` and `![[file.pdf]]`, resolved inside
-  `attachments/`.
+  `attachments/`. Note embeds: `![[Title]]` and `![[Title#Heading]]` show
+  that note, or that heading's section, inline and read-only.
 - Tasks: `- [ ]` and `- [x]`.
-- Callouts: `> [!note]`.
+- Callouts: `> [!note]`, collapsible as `> [!note]-` (closed) and
+  `> [!note]+` (open). Notion toggles become collapsible callouts.
 - Block references (`^id`) are out of scope. The vault also opens in
   Obsidian.
 
@@ -221,9 +261,55 @@ url: https://arxiv.org/abs/1234.5678     # paper notes only
 | Lectures, courses, books, video notes | Split into concept notes in `Concepts/` plus a source MOC (course or source folder) that keeps the lecture's order and links each concept. |
 | Meetings | Kept whole, one note each, `YYYY-MM-DD <who>` in `Research/Meetings/`, linking the concepts and projects they mention. |
 | Projects and research | Kept whole in `Research/Projects/` or `Career/`, linking concepts. |
-| Templates and reference | Kept whole in `Reference/`. |
+| Templates and reference | Kept whole: templates in `Reference/Templates/`, the rest in `Reference/`. |
 | `notes` ("raw brain dump") database | Only pages with real knowledge content, by kind as above. Pure link dumps ("Links to visit") and open-loop pages are skipped and listed in the report. |
 | Paper notes | Kept whole, tagged `paper`, with `url:` set to the arXiv or DOI link. |
+| Meeting transcriptions (28 Notion AI blocks) | The meeting note keeps Notion's summary and the user's notes; the full transcript goes in a closed `> [!quote]- Transcript` callout at the end. |
+| Databases in scope (inline or full page) | Each row becomes a note in `<area>/<Database>/` with typed properties; the database becomes `<area>/<Database>.base` holding every Notion view of it. The `notes` ("raw brain dump") database is the exception: its kept pages are filed by kind and it gets no `.base`. |
+
+**Block mapping** (from the block types found in the user's Notion cache).
+
+| Notion block | Becomes |
+|---|---|
+| Text, headings, bulleted and numbered lists, quote, divider, code, equation, image, file, PDF, video | The matching markdown; files into `attachments/`. |
+| To-do | `- [ ]` / `- [x]`. |
+| Simple table | A markdown table; the first row becomes the header row. Line breaks inside a cell become `<br>`. |
+| Toggle | A closed collapsible callout. |
+| Callout | `> [!note]`, or the callout type closest to its icon. |
+| Link to page, page mention | `[[Title]]`. |
+| Bookmark, embed, external object | A markdown link with the page title. |
+| Columns | Flattened into one column, left to right; listed in the coverage report. |
+| Button, table of contents, synced-block copy indicator | Dropped; listed in the coverage report. |
+
+**Database properties.**
+
+| Notion property | Frontmatter |
+|---|---|
+| Title | The filename. |
+| Text, URL, email, phone, select, status, person | text |
+| Multi-select | list (in its own property, never `tags`) |
+| Number | number |
+| Checkbox | checkbox |
+| Date | date, or datetime when it has a time; a range becomes two properties, `<name>` and `<name> end`. |
+| Relation | list of `"[[Title]]"` links |
+| Created time, last edited time | `created` (date), the other dropped |
+| Files | list of `"[[attachments/…]]"` embeds |
+| Rollup, formula, created by, last edited by, last visited | Dropped; listed in the coverage report. A rollup or formula with a direct Bases equivalent becomes a formula in the `.base`. |
+
+**Database views.**
+
+| Notion view | `.base` view |
+|---|---|
+| Table | `table`, same column order, sort and filter |
+| List | `list` |
+| Gallery | `cards` |
+| Board | `table` grouped by the board's column property |
+| Calendar | `table` sorted by its date property |
+
+Filters are written only with `file.inFolder`, `file.hasTag`,
+`file.hasLink`, `file.hasProperty` and plain property comparisons (all
+observed in Obsidian 1.13's Bases code), so the extension's subset reader
+understands every `.base` the import writes.
 
 **Merging concepts.**
 
@@ -295,18 +381,27 @@ MOC at their original position.
      whose modification time or size changed, and sweep trash older than
      30 days.
 4. **Layout.**
-   - Left: the folder tree (ARIA tree, collapsible, Inbox count).
+   - Left: Starred (drag to reorder, star from the note's menu or the
+     `>` commands), then the folder tree (ARIA tree, collapsible, Inbox
+     count).
    - Centre: one note, with back and forward.
-   - Right: backlinks, then unlinked mentions, each mention with a
-     one-click "link".
+   - Right: outline (the note's headings, click to jump), backlinks, then
+     unlinked mentions, each mention with a one-click "link".
 5. **Keys** (taken over only while the Brain page has focus):
    - Cmd+O: switcher. Notes are ranked above daily notes. Typing a title
      that does not exist and pressing Enter creates it in `Inbox/`. Chrome
      reserves Cmd+N, so there is no new-note key.
+   - `>` as the first character turns the switcher into the command list,
+     as in VS Code: every action on the page (rename, move, delete, star,
+     daily note, history, insert template, toggle panels, reconnect vault)
+     with its key shown.
    - Cmd+[ and Cmd+]: back and forward.
    - Cmd+Shift+M: Move to (fuzzy folder picker).
    - Cmd+Shift+F: search.
-   - (Assumption) Chrome lets a page capture all four keys; an e2e test
+   - Alt+Up and Alt+Down: move the current paragraph, list item (with its
+     children) or table row.
+   - Cmd held while hovering a link: hover preview.
+   - (Assumption) Chrome lets a page capture all of these; an e2e test
      checks each one.
 6. **Edit.**
    - The buffer goes to IndexedDB 300 ms after each change.
@@ -325,49 +420,113 @@ MOC at their original position.
    - code blocks with syntax highlighting
    - tables
    - links (`[[` autocomplete creates a missing note in `Inbox/`)
-   - callouts
+   - callouts, collapsible ones folding with the spring tokens
    - **clickable task checkboxes**
+   - note embeds, read-only, with an "open" link. (Default) Nesting stops
+     at 3 levels, and an embed that loops back shows as a plain link.
 
    PDF embeds show as a card that opens the file in the extension's PDF
    reader.
-8. **External change** (Claude Code, the other machine):
+8. **External change** (Claude Code, the other machine). This is the
+   behaviour observed in Obsidian 1.13.
    - The open file's modification time is checked on focus and every 5 s
      while visible.
    - If the buffer equals the base: quiet reload with an "updated" toast.
-   - Otherwise `merge3(base, mine, theirs)` runs. A clean merge applies; a
-     conflict shows inline with "keep mine" and "keep theirs".
+   - Otherwise: snapshot the buffer, then `merge(base, mine, theirs)`,
+     which turns your edits since the base into a patch and applies it,
+     fuzzily, to the disk version. A notice says "Changed on disk; your
+     edits were merged" with a "View history" link. There is no conflict
+     UI; a bad merge is undone from history.
    - (Default) External changes never enter your undo history; Cmd+Z only
      reverts your own edits.
 9. **Crash recovery.** A buffered draft that differs from the file is
-   restored through the same merge.
-10. **Two tabs.** `navigator.locks` gives one tab per note the writer role.
+   restored through the same merge, after a snapshot.
+10. **Version history.** This follows Obsidian's file recovery.
+    - A snapshot of each changed note every 5 minutes, kept 7 days, in
+      IndexedDB on this device. A snapshot is also taken before every
+      merge, every failed save and every reload caused by an external
+      change.
+    - The MCP server copies a file into `.brain/history/<date>/` before it
+      changes or deletes it, kept 7 days. These show on both machines.
+    - The History panel (a `>` command, and the link in the merge notice)
+      lists both kinds, newest first. It shows a line diff with changed
+      words highlighted and unchanged runs folded, and has a Restore
+      button. A restore is itself an edit, so it can be undone.
+11. **Two tabs.** `navigator.locks` gives one tab per note the writer role.
     The other follows read-only and takes over when the writer closes.
-11. **Rename and move.**
+12. **Rename and move.**
     - Renaming asks first ("Update 14 links in 9 notes?"), then journals the
-      plan: write the new file, rewrite the linking notes, remove the old
+      plan: write the new file, rewrite the linking notes (body links,
+      embeds, links in properties, `.brain/starred.json`), remove the old
       file.
+    - Editing a heading that other notes link to or embed asks the same
+      question when the cursor leaves the heading line, and rewrites
+      `[[Title#Heading]]` and `![[Title#Heading]]` through the same plan.
     - Moving only relocates the file; no link changes, because links are
       title-only.
     - A capitalisation-only rename goes through a temporary name.
     - (Assumption) `move()` support on local folder handles is unverified,
       so both use copy then remove.
-12. **Delete.** Copy to `.brain/trash/<date>/`, then remove.
-13. **Where you left off.**
+13. **Delete.** Copy to `.brain/trash/<date>/`, then remove.
+14. **Where you left off.**
     - Cursor and scroll position go to IndexedDB.
     - The last note goes to `.brain/devices/<id>.json` on note switch or when
       leaving the page.
     - (Default) The device id is a random UUID in `chrome.storage.local`.
-14. **Papers.**
+15. **Papers.**
     - A note with `url:` matching a papers-library entry shows an "Open in
       papers" chip.
     - The papers page shows "Notes" on an entry whose URL is in the vault
       index.
     - Matching happens at runtime by normalised URL (`urlNormalize.ts`). No
       ids are stored.
+16. **`.base` files** (stop B).
+    - Opening one lists its rows as note links, using its filters, sort
+      and grouping (first view, with a view picker), plus "Open in
+      Obsidian" (`obsidian://open`) for the full view.
+    - `base.ts` reads the subset the import writes. A `.base` that uses
+      anything else (formulas, other functions) lists every row with a
+      note saying the filter was not applied. It never errors.
+    - The extension does not edit `.base` files in milestone 1.
 
-**Index entry:** path, title, aliases, tags, outgoing links, headings,
-blocks (paragraphs and list items), tasks with their state, modification
-time, size, text. Backlinks are derived from outgoing links.
+**Editor extras** (stop D).
+
+- **Slash menu.** `/` at the start of a line or after a space opens a menu:
+  heading 1 to 3, to-do, bulleted and numbered list, callout, collapsible
+  callout, quote, code block, math block, table, divider, image, link,
+  embed note, template. It inserts plain markdown. Escape, or a space
+  straight after `/`, types a literal slash.
+- **Block moves.** Alt+Up and Alt+Down, and a drag handle shown on hover in
+  the left margin, move a paragraph, a list item with its children, or a
+  table row. Undo restores the order.
+- **Table grid.** In live preview a table is edited as a grid: Tab and
+  Shift+Tab move between cells, Enter goes down a row, and a menu adds or
+  removes rows and columns and sets alignment. Columns are padded only
+  where you edit, so untouched rows keep their exact bytes. Raw markdown
+  shows while the cursor is on the delimiter row.
+- **Properties panel.** The frontmatter shows as a form at the top of the
+  note: date picker, checkbox, number field, list chips, and `[[` link
+  autocomplete in text and list values. "Add property" offers the names in
+  use. A raw YAML toggle is always there. Frontmatter outside the flat
+  subset shows raw, read-only, with a warning.
+- **Hover preview.** Hold Cmd over a link to see the target note, or its
+  heading's section, in a popover rendered from the index cache. Moving
+  into the popover keeps it open; clicking opens the note.
+- **Templates.** "Insert template" (from the slash menu or the `>`
+  commands) lists `Reference/Templates/` and inserts the chosen note at the
+  cursor, filling `{{date}}`, `{{time}}` and `{{title}}` the way
+  Obsidian's Templates plugin does, so the same templates work there.
+
+**Index entry:** path, title, aliases, tags, typed properties, outgoing
+links (body, embeds and properties), headings, blocks (paragraphs and list
+items), tasks with their state, modification time, size, content hash,
+text. Backlinks are derived from outgoing links.
+
+(Default) As in Obsidian's metadata cache, IndexedDB holds two stores: path
+to modification time, size and hash; and hash to parsed entry. A file is
+re-read only when its modification time or size changed, and re-parsed only
+when its hash is new. A Drive re-download that touches the time but not the
+content costs one read and no parse.
 
 **Search: Obsidian query syntax.**
 
@@ -404,12 +563,18 @@ results" note.
     every time.
 - **Guards:**
   - Writes under `sources/notion/` and `.brain/` are refused, except
-    staging and the server's own log, journal and `import/`.
+    staging and the server's own log, journal, `history/`, `import/`, and
+    the `starred.json` update a rename needs.
   - `edit_note` fails with "changed since read, re-read first" when the file
     changed after Claude's last read.
   - A per-path lock serialises parallel calls.
   - Writes go to a temporary file that is then renamed into place. Every
     write is logged.
+  - Before any write, rename or delete changes an existing file, the old
+    file is copied to `.brain/history/<date>/`. The server sweeps copies
+    older than 7 days on start.
+  - Rename rewrites links in properties, embeds and `.brain/starred.json`,
+    the same plan the Brain page runs.
 
 ## Error handling
 
@@ -422,7 +587,13 @@ Data-loss paths are handled in full. Each row has a test.
 | Drive offline, or a streamed file not yet downloaded | 5 s read timeout, then the cached copy with an "offline copy" badge; writes buffered and retried. |
 | Write fails (disk full, file locked) | Persistent "Not saved, retrying" state; never shows saved falsely; offers an export of the buffer to Downloads. |
 | IndexedDB quota exceeded | Buffer kept in memory, banner shown, export offered. |
-| Drive conflict copy (`Note (1).md`) or partial sync | Found during reconcile; offered as a three-way merge; never deleted automatically. |
+| Drive conflict copy (`Note (1).md`) or partial sync | Found during reconcile; snapshot, then merged by the same auto-merge with a notice; the copy goes to trash, never deleted outright. |
+| Auto-merge produces odd text (overlapping edits) | A snapshot always exists from just before; the notice links to History; Restore is one click. |
+| Conflict copy of `.brain/starred.json` or `.brain/types.json` | Merged key by key (Obsidian merges JSON this way in its sync); for a key set on both sides, this device's value wins. |
+| Snapshot storage over quota | Oldest snapshots evicted first; a snapshot taken before a merge or Claude write is never evicted before 7 days. |
+| `.base` with unsupported expressions, or invalid YAML | Rows listed unfiltered with a note, or the raw file with a warning; never a crash. |
+| Embed loop or deep nesting | Stops at 3 levels; a loop renders as a plain link. |
+| Heading rename collides with an existing heading in the note | Links resolve to the first match, as Obsidian does; the rename prompt warns. |
 | Clocks differ between machines | Modification times compared for equality only, never for order. |
 | Rename, move or promote interrupted | The journal finishes or rolls back the plan on the next start. |
 | Rename onto an existing title or alias; move onto a clashing name | Refused, naming the clash. |
@@ -445,14 +616,14 @@ typecheck, `npm test` and the build; `e2e` runs Playwright in Chromium.
 
 | Category | Content | Runs in |
 |---|---|---|
-| Unit | Frontmatter round-trip is byte-identical; links; rename and move plans; names (NFC, sanitising, length, case); mentions; the query parser (every operator, every error); search ranking; blocks and tasks; merge3; journal replay; URL matching for papers. | `check` |
-| Property | `fast-check` with a fixed seed in CI and the seed printed on failure. **Invariants:** after any sequence of create, rename, move, delete and edit, no link is broken and every backlink is symmetric; `parse(serialize(x))` equals `x`; merge3 keeps every non-conflicting edit from both sides and never invents text; replaying a journal after a crash at any step leaves either the start state or the end state; query parse then print gives back an equivalent query. | `check` |
+| Unit | Frontmatter round-trip is byte-identical; typed properties and types.json; links (body, embeds, properties); rename and move plans, including heading renames; names (NFC, sanitising, length, case); mentions; the query parser (every operator, every error); search ranking; blocks and tasks; block moves; merge; journal replay; URL matching for papers; `base.ts` against every view shape the import writes; table grid edits; template variables; the Notion block, property and view mappings. | `check` |
+| Property | `fast-check` with a fixed seed in CI and the seed printed on failure. **Invariants:** after any sequence of create, rename (note or heading), move, delete and edit, no link or embed is broken and every backlink is symmetric; `parse(serialize(x))` equals `x`; merge returns theirs when mine equals base, mine when theirs equals base, and keeps both edits when they touch paragraphs that are apart; replaying a journal after a crash at any step leaves either the start state or the end state; query parse then print gives back an equivalent query; a table grid edit changes only the rows it touched; a block move followed by its reverse gives back the original bytes. | `check` |
 | Concurrency | Brain page and MCP editing one note. Two Brain tabs. Parallel MCP calls. A fake Drive agent in tests that delays copies, makes conflict copies and delivers partial files. Crash injection at every journal step. | `check` (Node on temp folders) and `e2e` |
 | Load | Generated vaults of 500, 5,000 and 20,000 notes in nested area folders: index build, tree render, switcher, search (plain and with operators), opening the last note, longest task while typing. CI fails at about 3x the real budgets, following `e2e/load.e2e.ts`; `npm run bench:brain` checks the real budgets locally. | New `e2e/brainLoad.e2e.ts` |
-| Regression | Every fixed bug gets a failing test first (CLAUDE.md section V). A **synthetic** fixture vault (areas, LaTeX, images, PDFs, lecture MOCs, merged concepts with a disagreement callout, tasks, clashing titles, accents, emoji, a paper with `url:`) with checked-in expected index and search output. None of the user's notes are in the repo. | `check` |
+| Regression | Every fixed bug gets a failing test first (CLAUDE.md section V). A **synthetic** fixture vault (areas, LaTeX, images, PDFs, lecture MOCs, merged concepts with a disagreement callout, tasks, clashing titles, accents, emoji, a paper with `url:`, a database folder with a `.base`, collapsible callouts, note embeds, a template) with checked-in expected index and search output. None of the user's notes are in the repo. | `check` |
 | Edge cases | Every row of the error-handling table. | Both |
-| E2E | The Brain page in real Chromium. The native folder picker cannot be automated, so tests give the page a folder from the browser's private file storage (OPFS), which has the same handle interface. The real `vault.ts` runs against it. Also covered: the bookmarks handoff, the papers chip, the omnibox, and an axe check against `e2e/a11yBaseline.ts`. | `e2e` |
-| Manual, before milestone 1 is done | On Mac and Windows: Drive stream-mode reads, a forced conflict copy, the network dropped mid-save, permission revoked mid-session, both shortcuts. | Checklist |
+| E2E | The Brain page in real Chromium. The native folder picker cannot be automated, so tests give the page a folder from the browser's private file storage (OPFS), which has the same handle interface. The real `vault.ts` runs against it. Also covered: the bookmarks handoff, the papers chip, the omnibox, the merge notice and History restore, the slash menu, block moves by key and by drag, the table grid, the properties panel, hover preview, embeds, starring, templates, `>` commands, and an axe check against `e2e/a11yBaseline.ts`. | `e2e` |
+| Manual, before milestone 1 is done | On Mac and Windows: Drive stream-mode reads, a forced conflict copy (auto-merged, then restored from History), a Claude edit restored from `.brain/history/` on Windows, the network dropped mid-save, permission revoked mid-session, both shortcuts, a `.base` opened in both the extension and Obsidian. | Checklist |
 
 ## Build order
 
@@ -471,10 +642,15 @@ Stop points from Milestone 1 scope are marked.
    `bookmarks.json`. **Stop A.**
 7. Brain page, read-only: vault I/O, index, tree, note view, switcher,
    search, panels, PDFs into the reader, papers chip, entry points,
-   onboarding, Options section, bookmarks handoff. **Stop B.**
-8. Brain page, editing: editor, autosave, merge, recovery, locks, tasks,
-   rename, move, delete, daily notes. Then e2e, load and the manual
-   checklist. **Stop C.**
+   onboarding, Options section, bookmarks handoff, `.base` row lists.
+   **Stop B.**
+8. Brain page, core editing: editor, autosave, auto-merge, history,
+   recovery, locks, tasks, rename (notes and headings), move, delete, daily
+   notes. Then e2e, load and the manual checklist for this stage. **Stop C.**
+9. Editor extras: outline, starred, `>` commands, hover preview, note
+   embeds, slash menu, templates, block moves, properties panel, table grid
+   (roughly cheapest first). Then their e2e and the full manual checklist.
+   **Stop D.**
 
 ## Out of scope for milestone 1
 
@@ -482,9 +658,13 @@ Stop points from Milestone 1 scope are marked.
   (milestone 2).
 - All AI (milestone 3).
 - New-tab card, reader strip, highlights and flashcards (milestone 4).
-- The job tracker and the table UI (milestone 5).
+- The job tracker, the table UI, and board and calendar layouts
+  (milestone 5). Editing `.base` files in the extension.
 - Graph view, mobile, block references, note tabs and split panes,
-  drag-and-drop in the tree, and the MCP server on Windows.
+  drag-and-drop in the tree (Starred reorders by drag; the tree does not),
+  editable embeds (Notion's synced blocks), page icons and covers, and the
+  MCP server on Windows.
+- Reading or writing Obsidian's own `.obsidian/` config.
 
 ## Open risks
 
@@ -494,7 +674,34 @@ Stop points from Milestone 1 scope are marked.
 - The full atomic rewrite with merged concepts edits the user's words across
   hundreds of pages. Mitigated by verbatim sources, coverage reports, merge
   logs, the disagreement rule and the pilot; not eliminated.
-- Two writers, the Brain page and the MCP server, with only a three-way
-  merge between them until milestone 2.
+- Two writers, the Brain page and the MCP server, with only a fuzzy
+  auto-merge between them until milestone 2. Overlapping edits can merge
+  oddly and without a prompt; every merge is preceded by a snapshot and
+  announced, so it is recoverable, not prevented.
 - Notion stays partly live (unfrozen areas, the job tracker) until milestone
   5, so for a while the source of truth depends on the area.
+- Milestone 1 roughly doubled in the third interview. Stop D holds the
+  additions, so stops A to C ship first and stay usable on their own.
+- `.base` is Obsidian's format, not a published standard; it may change.
+  The import writes a small subset, and fixture tests pin what the
+  extension reads.
+
+## What we took from Obsidian and Notion
+
+The installed apps were read with REA static analysis and plain text
+search. Nothing was run, and no page content was read from the Notion
+cache, only its schema and type counts.
+
+| Source | Observed | Used for |
+|---|---|---|
+| Obsidian 1.13.7 (`obsidian-1.13.7.asar`, sha256 `a52a7daf…059d`) | Autosave debounced 2 s; on a failed save, a snapshot and an error notice. | Autosave and the failed-save row. |
+| | External change with unsaved edits: `patch_apply(patch_make(base, diff(base, mine)), disk)` with diff-match-patch, then a "file changed" notice; no conflict UI. | External change. |
+| | File recovery: snapshots every 5 min, kept 7 days, in IndexedDB indexed by path and time; also taken before its sync overwrites a file; a line diff view with word highlights and folded runs. | Version history. |
+| | Metadata cache in IndexedDB: path to (mtime, size, hash), and hash to parsed metadata; a re-parse only on change. | The index stores. |
+| | Search operators: `file path content match-case ignore-case line block section task task-todo task-done tag`. | Confirms the search section. |
+| | Bases: `.base` keys `views filters display properties formulas newItemFolder newItemTemplate`; views `table cards list map` with `filters groupBy order sort limit summaries`; functions `file.inFolder hasTag hasLink hasProperty`; property types `text multitext number checkbox date datetime aliases tags`. | Databases, typed properties, `base.ts`. |
+| | Its sync merges JSON files key by key and keeps a conflicted copy. | The `.brain/*.json` conflict row. |
+| Notion 7.35.1 (`app.asar`, sha256 `b0c0a08e…b3d8`), local `notion.db` schema | Every block is a record with id, parent, ordered children, version and trash fields; about half carry CRDT text. | Supports Yjs in milestone 2; why block refs stay out of a markdown vault. |
+| | Unsent edits queue in a `transactions` table; permanent failures go to `unretryable_failed_transactions`, kept, not dropped. | Matches buffered writes plus export on failure. |
+| | The user's content by type: 1,931 images, 1,053 table rows in 98 tables, 648 to-dos, 196 equations, 192 code blocks, 81 page links, 33 columns in 13 layouts, 28 callouts, 28 transcriptions, 11 toggles; views 42 table, 9 list, 8 board, 7 gallery, 2 calendar; properties mostly text, select, status, number, date, relation. | Block, property and view mappings. |
+| Product behaviour, not code | Notion's slash menu, block drag, properties at the top of a page, favorites; Obsidian's hover preview, embeds, outline, bookmarks, Templates plugin. | Editor extras. |
