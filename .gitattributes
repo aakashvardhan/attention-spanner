@@ -1,0 +1,2 @@
+# The fixture vault must keep its bytes exactly, CRLF note included.
+mcp/brain/fixtures/vault/** -text

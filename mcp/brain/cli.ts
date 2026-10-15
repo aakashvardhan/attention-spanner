@@ -8,9 +8,11 @@ import { recall } from './baseline/recall';
 import { baseline } from './baseline/report';
 import { treeTest } from './baseline/treeTest';
 import { usage } from './baseline/usage';
+import { diffObsidianCmd } from './diffObsidian';
 import { driveProbe } from './platform/driveProbe';
 
 const commands: Record<string, (argv: string[]) => Promise<void>> = {
+  'diff-obsidian': diffObsidianCmd,
   'drive-probe': driveProbe,
   usage,
   'notion-links': notionLinks,

@@ -1,0 +1,9 @@
+filters:
+  and:
+    - file.inFolder("Career/Jobs")
+views:
+  - type: table
+    name: All jobs
+    order:
+      - file.name
+      - status

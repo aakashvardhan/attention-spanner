@@ -38,3 +38,7 @@ e2e/out/
 
 # Bundled brain CLI and MCP server (npm run build:mcp)
 dist-mcp/
+
+# Obsidian's own files when the fixture vault is opened to regenerate its dump
+mcp/brain/fixtures/vault/.obsidian/
+mcp/brain/fixtures/vault/.brain/
