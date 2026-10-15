@@ -3,6 +3,7 @@
  * timestamps, and the link measure over Notion's own block records. Nothing
  * here reads a file; the commands do that.
  */
+import type { NBlock } from './notionDb';
 
 export interface PageVisits { visits: number; weeks: Record<string, number>; lastVisit: string }
 
@@ -55,6 +56,70 @@ export function aggregateVisits(visits: { id: string | null; ms: number }[]): Re
     if (new Date(v.ms).toISOString() > p.lastVisit) p.lastVisit = new Date(v.ms).toISOString();
   }
   return out;
+}
+
+const PAGE_TYPES = new Set(['page', 'collection_view_page']);
+const MENTION = /\["p","([0-9a-f-]{36})"/g;
+
+/** Pages a block links to: a link-to-page block, or page mentions in its text and properties. */
+export function linkTargets(b: NBlock): string[] {
+  const out: string[] = [];
+  if (b.type === 'alias' && b.format) {
+    try {
+      const id = JSON.parse(b.format)?.alias_pointer?.id;
+      if (typeof id === 'string') out.push(id);
+    } catch {
+      // A malformed format is not a link.
+    }
+  }
+  if (b.properties) for (const m of b.properties.matchAll(MENTION)) out.push(m[1]);
+  return out;
+}
+
+/**
+ * The spec's Connections baseline: of the in-scope pages, the share with at
+ * least one link in and one link out. Database rows hang off a collection, not
+ * a block, so `collectionParents` carries them up to the page that holds it.
+ */
+export function linkMeasure(
+  blocks: NBlock[],
+  collectionParents: Map<string, string>,
+  scope: { roots?: string[]; exclude?: string[] } = {},
+): { pages: number; connected: number; share: number } {
+  const byId = new Map(blocks.map((b) => [b.id, b]));
+  const parent = (id: string) => byId.get(id)?.parent_id ?? collectionParents.get(id) ?? null;
+  const roots = new Set(scope.roots ?? []);
+  const exclude = new Set(scope.exclude ?? []);
+  const inScope = (id: string): boolean => {
+    for (let cur: string | null = id, i = 0; cur && i < 500; cur = parent(cur), i++) {
+      if (exclude.has(cur)) return false;
+      if (roots.has(cur)) return true;
+    }
+    return roots.size === 0;
+  };
+  const pageOf = (id: string): string | null => {
+    for (let cur: string | null = id, i = 0; cur && i < 500; cur = parent(cur), i++) {
+      const b = byId.get(cur);
+      if (b && PAGE_TYPES.has(b.type)) return b.id;
+    }
+    return null;
+  };
+  const pages = blocks.filter((b) => b.alive && PAGE_TYPES.has(b.type) && inScope(b.id)).map((b) => b.id);
+  const scoped = new Set(pages);
+  const out = new Set<string>();
+  const into = new Set<string>();
+  for (const b of blocks) {
+    if (!b.alive) continue;
+    const src = pageOf(b.id);
+    if (!src || !scoped.has(src)) continue;
+    for (const t of linkTargets(b)) {
+      if (t === src || !scoped.has(t)) continue;
+      out.add(src);
+      into.add(t);
+    }
+  }
+  const connected = pages.filter((p) => out.has(p) && into.has(p)).length;
+  return { pages: pages.length, connected, share: pages.length ? connected / pages.length : 0 };
 }
 
 /** Notion keeps a title as runs of [text, annotations]; only the text matters here. */
