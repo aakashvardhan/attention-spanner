@@ -2,12 +2,14 @@
  * One entry for the brain's local tools: `node dist-mcp/cli.mjs <command> [flags]`.
  * Each command writes only under <vault>/.brain/reports/, or prints.
  */
+import { cards } from './baseline/cards';
 import { notionLinks } from './baseline/notionLinks';
 import { usage } from './baseline/usage';
 
 const commands: Record<string, (argv: string[]) => Promise<void>> = {
   usage,
   'notion-links': notionLinks,
+  cards,
 };
 
 const [name, ...argv] = process.argv.slice(2);
