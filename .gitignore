@@ -35,3 +35,6 @@ prof-*/
 
 # Browser-suite screenshots and traces
 e2e/out/
+
+# Bundled brain CLI and MCP server (npm run build:mcp)
+dist-mcp/
