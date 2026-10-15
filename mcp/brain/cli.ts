@@ -8,8 +8,10 @@ import { recall } from './baseline/recall';
 import { baseline } from './baseline/report';
 import { treeTest } from './baseline/treeTest';
 import { usage } from './baseline/usage';
+import { driveProbe } from './platform/driveProbe';
 
 const commands: Record<string, (argv: string[]) => Promise<void>> = {
+  'drive-probe': driveProbe,
   usage,
   'notion-links': notionLinks,
   cards,
