@@ -2,7 +2,8 @@
 
 *2026-10-14. Milestone 1 in full; later milestones scoped only. Decided
 in three interviews, the third after reverse engineering Obsidian and Notion
-(see "What we took from Obsidian and Notion"); every choice below was the
+(see "What we took from Obsidian and Notion", which also covers Gloss);
+every choice below was the
 user's unless marked "default" (decided by Claude, open to overrule) or
 "assumption" (unverified fact, with a test or spike that checks it).*
 
@@ -47,8 +48,8 @@ commit that ships milestone 1.
 |---|---|---|
 | **1** | **Vault, import, links** | This spec. |
 | 2 | Sync and collaboration | A Yjs CRDT per note; live co-editing, comments, version history and auto-merge across machines over a **bring-your-own Firebase** project (Realtime Database). Off until a user pastes a Firebase config. Replaces milestone 1's auto-merge. Version history gains cross-device sync. |
-| 3 | Brain AI | Claude Haiku (`claude-haiku-5-5`) first, Ollama fallback, user-supplied key. Semantic link suggestions, ask-my-notes, cleanup suggestions. Every note may be sent. Results cached in `.brain/ai-cache/` by content hash. The existing reader AI (recap, triage) stays Ollama. |
-| 4 | Resurfacing | New-tab note card (spaced, weighted by links), related notes in the reader, highlights into notes, flashcards from notes. |
+| 3 | Brain AI | Claude Haiku (`claude-haiku-5-5`) first, Ollama fallback, user-supplied key. Semantic link suggestions, ask-my-notes, cleanup suggestions. Every note may be sent. Ask-my-notes puts the notes it sends in a prompt-cached system message and cites them as `[[Note#Heading]]`, clickable in the Brain page and valid in Obsidian; it may cite only notes it was sent (Gloss's rule for paragraphs). Results cached in `.brain/ai-cache/` by content hash. The existing reader AI (recap, triage) stays Ollama. |
+| 4 | Resurfacing | New-tab note card, related notes in the reader, highlights into notes, flashcards from notes. **Daily review** on Gloss's schedule: 5 a day, a kept item returns after 3, 7, 16, 35, 75, then 160 days, "done" retires it; it draws on reader highlights (state on the annotation) and vault notes weighted by links (state in `.brain/review.json`, keyed by title, so reviewing never rewrites a note; renames update it). **Highlights into notes**: one note per text, `Learning/Reading/<Title>.md`, tagged `reference`, with `url` (matched to the papers library like paper notes), highlights as blockquotes in reading order with your sticky note under each. The reader owns only the section between `<!-- reader:start -->` and `<!-- reader:end -->` and regenerates it; text outside the markers is never touched. |
 | 5 | Job tracker and views | Import the Notion Job tracker (Job Title, Employer, Application URL, Applied On, Comment, Status) as a `.base` plus row notes, and render `.base` files in the extension: table (sort, filter, inline cell edit, add row), then real board and calendar layouts for the views milestone 1 imported as grouped and sorted tables. Status keeps Notion's groups: to do, in progress, complete. The Notion follow-up timing that hangs off Applied On must be replaced. Notion is fully retired at the end of this milestone. |
 | 6 | Mobile | Not planned. |
 
@@ -561,6 +562,10 @@ results" note.
   - **Import:** `stage_note` and `stage_attachment` are allowlisted for the
     import session only, in `settings.local.json`. `promote_staging` asks
     every time.
+  - (Default) Every tool declares MCP annotations, as Gloss's server does:
+    `readOnlyHint` on the read tools, `destructiveHint` on `rename_note`,
+    `move_note`, `delete_note`, `write_note` and `promote_staging`, and
+    `idempotentHint` on `daily_note` and the staging tools.
 - **Guards:**
   - Writes under `sources/notion/` and `.brain/` are refused, except
     staging and the server's own log, journal, `history/`, `import/`, and
@@ -704,4 +709,5 @@ cache, only its schema and type counts.
 | Notion 7.35.1 (`app.asar`, sha256 `b0c0a08e…b3d8`), local `notion.db` schema | Every block is a record with id, parent, ordered children, version and trash fields; about half carry CRDT text. | Supports Yjs in milestone 2; why block refs stay out of a markdown vault. |
 | | Unsent edits queue in a `transactions` table; permanent failures go to `unretryable_failed_transactions`, kept, not dropped. | Matches buffered writes plus export on failure. |
 | | The user's content by type: 1,931 images, 1,053 table rows in 98 tables, 648 to-dos, 196 equations, 192 code blocks, 81 page links, 33 columns in 13 layouts, 28 callouts, 28 transcriptions, 11 toggles; views 42 table, 9 list, 8 board, 7 gallery, 2 calendar; properties mostly text, select, status, number, date, relation. | Block, property and view mappings. |
+| Gloss (github.com/Nutlope/gloss at `54b13b8`, source read; no license, so ideas only, no code) | Highlights exported as one Markdown note per text in reading order; a daily review of 5 highlights on 3/7/16/35/75/160-day steps with state on the highlight; the whole text in a cached system prompt with `[¶n]` citations limited to paragraphs sent; MCP tools with read-only and destructive hints. | Milestones 3 and 4; MCP annotations. |
 | Product behaviour, not code | Notion's slash menu, block drag, properties at the top of a page, favorites; Obsidian's hover preview, embeds, outline, bookmarks, Templates plugin. | Editor extras. |
