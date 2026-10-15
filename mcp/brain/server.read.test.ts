@@ -4,7 +4,7 @@ import { testServer } from './testServer';
 const FILES = {
   'Home.md': '---\ntags: [moc]\n---\n# Home\n\n- [[Sigmoid]]\n- [[Missing]]\n',
   'Concepts/Sigmoid.md': '---\naliases: [Logistic function]\n---\n# Sigmoid\n\nThe logistic curve.\n',
-  'School/Lecture 3.md': '---\nsources: ["[[Sigmoid]]"]\n---\n# Lecture 3\n\nCovers [[Logistic function]] today.\n',
+  'School/Lecture 3.md': '---\nsources: ["[[Sigmoid]]"]\n---\n# Lecture 3\n\nCovers [[Sigmoid]] today, not [[Logistic function]].\n',
 };
 let t: Awaited<ReturnType<typeof testServer>>;
 afterEach(async () => t?.close());
@@ -36,7 +36,7 @@ describe('read tools', () => {
     t = await testServer(FILES);
     expect((await t.call('backlinks', { title: 'Sigmoid' })).text.split('\n').sort()).toEqual([
       'Home (Home.md): - [[Sigmoid]]',
-      'Lecture 3 (School/Lecture 3.md): Covers [[Logistic function]] today.',
+      'Lecture 3 (School/Lecture 3.md): Covers [[Sigmoid]] today, not [[Logistic function]].',
       'Lecture 3 (School/Lecture 3.md): property "sources"',
     ]);
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseNote } from './frontmatter';
-import { propertyLinks, resolve, retarget, wikiLinks, type Targets } from './links';
+import { buildEntry, targetsOf } from './entry';
+import { propertyLinks, resolve, retarget, wikiLinks } from './links';
 import { titleKey } from './names';
 
 describe('wikiLinks', () => {
@@ -30,19 +31,21 @@ describe('wikiLinks', () => {
 });
 
 describe('resolve', () => {
-  const t: Targets = {
-    notes: new Map([
-      [titleKey('Sigmoid'), 'Concepts/Sigmoid.md'],
-      [titleKey('Logistic function'), 'Concepts/Sigmoid.md'],
-      [titleKey('Café'), 'Concepts/Café.md'],
-      [titleKey('Lecture 3.5'), 'School/Lecture 3.5.md'],
-    ]),
-    files: new Map([[titleKey('sigmoid.png'), 'attachments/sigmoid.png']]),
-  };
+  const t = targetsOf(
+    [
+      buildEntry('Concepts/Sigmoid.md', '---\naliases: [Logistic function]\n---\n# Sigmoid\n'),
+      buildEntry('Concepts/Cafe\u0301.md', '# Cafe\u0301\n'),
+      buildEntry('School/Lecture 3.5.md', '# Lecture 3.5\n'),
+    ],
+    ['attachments/sigmoid.png'],
+  );
   const link = (s: string) => wikiLinks(s)[0];
-  it('finds notes by title or alias, ignoring case', () => {
+  it('finds notes by title, ignoring case', () => {
     expect(resolve(link('[[sigmoid]]'), 'x.md', t)).toBe('Concepts/Sigmoid.md');
-    expect(resolve(link('[[Logistic Function|f]]'), 'x.md', t)).toBe('Concepts/Sigmoid.md');
+  });
+  it('leaves a link to an alias unresolved, as Obsidian does, while the alias still counts as a taken name', () => {
+    expect(resolve(link('[[Logistic Function|f]]'), 'x.md', t)).toBeNull();
+    expect(t.notes.get(titleKey('Logistic function'))).toBe('Concepts/Sigmoid.md');
   });
   it('resolves an NFC link to a file macOS lists in NFD', () => {
     expect(resolve(link('[[Café]]'), 'x.md', t)).toBe('Concepts/Café.md');

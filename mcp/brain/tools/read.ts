@@ -58,7 +58,7 @@ export function registerReadTools(server: McpServer, vault: Vault, runRegex: Sea
     'backlinks',
     {
       title: 'Notes that link here',
-      description: 'List the notes that link to a note (by title, alias, embed or property), each with the line or property the link is in.',
+      description: 'List the notes that link to a note (by title, embed or property), each with the line or property the link is in. As in Obsidian, [[alias]] is not a link; write [[Title|alias]].',
       inputSchema: { title: z.string().min(1) },
       annotations: READ,
     },

@@ -1,0 +1,242 @@
+{
+ "obsidian": "1.8.10",
+ "at": "2026-10-15T17:34:10.646Z",
+ "files": {
+  "daily/2026-10-14.md": {
+   "headings": [
+    {
+     "text": "Wednesday, 14 October 2026",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {},
+   "unresolved": {}
+  },
+  "Topics/AI & ML.md": {
+   "headings": [
+    {
+     "text": "AI & ML",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "moc"
+   ],
+   "resolved": {
+    "Concepts/Sigmoid.md": 1,
+    "Research/Papers/Attention is all you need.md": 1
+   },
+   "unresolved": {}
+  },
+  "School/DL Class/DL Class.md": {
+   "headings": [
+    {
+     "text": "DL Class",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "moc"
+   ],
+   "resolved": {
+    "School/DL Class/DL Class – Lecture 3.md": 1
+   },
+   "unresolved": {}
+  },
+  "School/DL Class/DL Class – Lecture 3.md": {
+   "headings": [
+    {
+     "text": "DL Class – Lecture 3",
+     "level": 1
+    },
+    {
+     "text": "Summary",
+     "level": 2
+    }
+   ],
+   "tags": [
+    "lecture"
+   ],
+   "resolved": {
+    "Concepts/Sigmoid.md": 2,
+    "Concepts/Gradient descent.md": 1,
+    "School/DL Class/DL Class – Lecture 3.md": 1
+   },
+   "unresolved": {}
+  },
+  "School/DATA 220/DATA 220 – Lecture 3.md": {
+   "headings": [
+    {
+     "text": "DATA 220 – Lecture 3",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "lecture"
+   ],
+   "resolved": {},
+   "unresolved": {
+    "Logistic function": 1
+   }
+  },
+  "Research/Papers/Attention is all you need.md": {
+   "headings": [
+    {
+     "text": "Attention is all you need",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "paper"
+   ],
+   "resolved": {
+    "attachments/paper.pdf": 1
+   },
+   "unresolved": {}
+  },
+  "Reference/Templates/Meeting.md": {
+   "headings": [
+    {
+     "text": "{{title}}",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {},
+   "unresolved": {}
+  },
+  "Inbox/Inbox note.md": {
+   "headings": [
+    {
+     "text": "Inbox note",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {
+    "Concepts/Sigmoid.md": 1
+   },
+   "unresolved": {
+    "Missing note": 1
+   }
+  },
+  "Home.md": {
+   "headings": [
+    {
+     "text": "Home",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "moc"
+   ],
+   "resolved": {
+    "School/DL Class/DL Class.md": 1,
+    "Topics/AI & ML.md": 1,
+    "Inbox/Inbox note.md": 1
+   },
+   "unresolved": {}
+  },
+  "Concepts/Windows note.md": {
+   "headings": [
+    {
+     "text": "Windows note",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {
+    "Concepts/Café.md": 1
+   },
+   "unresolved": {}
+  },
+  "Concepts/Sigmoid.md": {
+   "headings": [
+    {
+     "text": "Sigmoid",
+     "level": 1
+    },
+    {
+     "text": "Definition",
+     "level": 2
+    },
+    {
+     "text": "Uses",
+     "level": 2
+    }
+   ],
+   "tags": [
+    "concept"
+   ],
+   "resolved": {
+    "School/DL Class/DL Class – Lecture 3.md": 2,
+    "School/DATA 220/DATA 220 – Lecture 3.md": 1,
+    "Concepts/Gradient descent.md": 1,
+    "attachments/sigmoid.png": 1
+   },
+   "unresolved": {
+    "Logistic function": 1
+   }
+  },
+  "Concepts/Notes on 𝑥 and 𝔼.md": {
+   "headings": [
+    {
+     "text": "Notes on 𝑥 and 𝔼",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {
+    "Concepts/Sigmoid.md": 1
+   },
+   "unresolved": {}
+  },
+  "Concepts/Gradient descent.md": {
+   "headings": [
+    {
+     "text": "Gradient descent",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "concept",
+    "optimisation"
+   ],
+   "resolved": {
+    "Concepts/Café.md": 1,
+    "School/DL Class/DL Class – Lecture 3.md": 1,
+    "Concepts/Sigmoid.md": 2
+   },
+   "unresolved": {}
+  },
+  "Concepts/Café.md": {
+   "headings": [
+    {
+     "text": "Café",
+     "level": 1
+    }
+   ],
+   "tags": [
+    "concept"
+   ],
+   "resolved": {
+    "Concepts/Gradient descent.md": 1
+   },
+   "unresolved": {}
+  },
+  "Career/Jobs/Acme.md": {
+   "headings": [
+    {
+     "text": "Acme",
+     "level": 1
+    }
+   ],
+   "tags": [],
+   "resolved": {
+    "Concepts/Gradient descent.md": 1
+   },
+   "unresolved": {}
+  }
+ }
+}

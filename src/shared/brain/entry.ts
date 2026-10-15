@@ -55,12 +55,13 @@ export function buildEntry(path: string, text: string): IndexEntry {
 }
 
 export function targetsOf(entries: IndexEntry[], files: Iterable<string>): Targets {
-  const notes = new Map<string, string>();
-  for (const e of entries) if (!notes.has(titleKey(e.title))) notes.set(titleKey(e.title), e.path);
+  const titles = new Map<string, string>();
+  for (const e of entries) if (!titles.has(titleKey(e.title))) titles.set(titleKey(e.title), e.path);
+  const notes = new Map(titles);
   for (const e of entries) for (const a of e.aliases) if (!notes.has(titleKey(a))) notes.set(titleKey(a), e.path);
   const byName = new Map<string, string>();
   for (const f of files) byName.set(titleKey(f.slice(f.lastIndexOf('/') + 1)), f);
-  return { notes, files: byName };
+  return { titles, notes, files: byName };
 }
 
 export function backlinks(entries: Iterable<IndexEntry>, t: Targets): Map<string, { from: string; link: Link }[]> {

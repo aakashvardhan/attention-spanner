@@ -37,15 +37,15 @@ describe('inlineTags', () => {
 
 describe('targets, backlinks and duplicates', () => {
   const a = buildEntry('Concepts/Sigmoid.md', SIGMOID);
-  const b = buildEntry('School/Lecture 3.md', '# Lecture 3\n\n[[Logistic function]] and [[Missing]].\n');
+  const b = buildEntry('School/Lecture 3.md', '# Lecture 3\n\n[[Sigmoid]], [[Logistic function]] and [[Missing]].\n');
   const c = buildEntry('Inbox/Logistic function.md', '# A note whose title is another note\'s alias\n');
   it('lets a title win over an alias', () => {
     expect(targetsOf([a, b, c], []).notes.get('logistic function')).toBe('Inbox/Logistic function.md');
     expect(targetsOf([a, b], []).notes.get('logistic function')).toBe('Concepts/Sigmoid.md');
   });
-  it('derives backlinks, property links included, unresolved ones left out', () => {
+  it('derives backlinks, property links included, unresolved and alias links left out', () => {
     const bl = backlinks([a, b], targetsOf([a, b], []));
-    expect(bl.get('Concepts/Sigmoid.md')?.map((x) => x.from)).toEqual(['School/Lecture 3.md']);
+    expect(bl.get('Concepts/Sigmoid.md')?.map((x) => x.link.target)).toEqual(['Sigmoid']);
     expect(bl.get('School/Lecture 3.md')?.map((x) => x.link.property)).toEqual(['sources']);
   });
   it('finds two files with one title', () => {
