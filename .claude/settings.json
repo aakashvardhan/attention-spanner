@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__brain__search",
+      "mcp__brain__read_note",
+      "mcp__brain__backlinks",
+      "mcp__brain__list_moc",
+      "mcp__brain__list_folder"
+    ],
+    "deny": [
+      "Read(~/Library/CloudStorage/**/.brain/reports/recall-questions.md)",
+      "Read(//**/.brain/reports/recall-questions.md)"
+    ]
+  }
+}
