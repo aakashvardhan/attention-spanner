@@ -9,12 +9,14 @@ export interface BaselineInputs {
   recall?: { tool: string; date: string; n: number; successRate: number; medianMs: number | null };
   cards?: { groups: number; cards: number };
   exportPath?: string;
+  /** Measures the user chose not to run, so their rows never read as pending. */
+  declined?: string[];
 }
 
 const pct = (x: number, digits = 0) => `${(x * 100).toFixed(digits)}%`;
 
 export function baselineMarkdown(i: BaselineInputs): string {
-  const row = (name: string, value: string | undefined) => `| ${name} | ${value ?? 'not run yet'} |`;
+  const row = (name: string, value: string | undefined, key = '') => `| ${name} | ${value ?? (i.declined?.includes(key) ? 'declined by the user' : 'not run yet')} |`;
   return [
     '# Baseline',
     '',
@@ -22,13 +24,14 @@ export function baselineMarkdown(i: BaselineInputs): string {
     '',
     '| Measure | Result |',
     '|---|---|',
-    row('Usage', i.usage && `${i.usage.visits} visits to ${i.usage.pages} Notion pages in Chrome history`),
-    row('Connections (Notion)', i.links && `${i.links.connected} of ${i.links.pages} pages link both ways (${pct(i.links.share, 1)})`),
+    row('Usage', i.usage && `${i.usage.visits} visits to ${i.usage.pages} Notion pages in Chrome history`, 'usage'),
+    row('Connections (Notion)', i.links && `${i.links.connected} of ${i.links.pages} pages link both ways (${pct(i.links.share, 1)})`, 'links'),
     row(
       'Fast recall (Notion)',
       i.recall && `${pct(i.recall.successRate)} found, median ${i.recall.medianMs === null ? '-' : (i.recall.medianMs / 1000).toFixed(1) + ' s'} (${i.recall.n} questions, ${i.recall.date})`,
+      'recall',
     ),
-    row('Card sort', i.cards && `${i.cards.cards} cards in ${i.cards.groups} groups`),
+    row('Card sort', i.cards && `${i.cards.cards} cards in ${i.cards.groups} groups`, 'cards'),
     row('Notion export (fidelity reference)', i.exportPath),
     '',
   ].join('\n');
@@ -37,7 +40,7 @@ export function baselineMarkdown(i: BaselineInputs): string {
 const json = async <T>(path: string): Promise<T | undefined> => readFile(path, 'utf8').then((s) => JSON.parse(s) as T, () => undefined);
 
 export async function baseline(argv: string[]): Promise<void> {
-  const { values } = parseArgs({ args: argv, options: { vault: { type: 'string' }, export: { type: 'string' } } });
+  const { values } = parseArgs({ args: argv, options: { vault: { type: 'string' }, export: { type: 'string' }, declined: { type: 'string', multiple: true } } });
   const reports = await reportsDir(vaultPath(values.vault));
   const usage = await json<{ pages: Record<string, { visits: number }> }>(join(reports, 'baseline-usage.json'));
   const recalls = await json<NonNullable<BaselineInputs['recall']>[]>(join(reports, 'recall-summary.json'));
@@ -48,6 +51,7 @@ export async function baseline(argv: string[]): Promise<void> {
     recall: recalls?.filter((r) => r.tool === 'notion').at(-1),
     cards: sort && { groups: sort.groups.length, cards: sort.groups.reduce((a, g) => a + g.cards.length, 0) },
     exportPath: values.export,
+    declined: values.declined,
   });
   await writeFile(join(reports, 'baseline.md'), md);
   console.log(md);

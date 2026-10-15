@@ -34,7 +34,7 @@ in `.brain/reports/` in the vault, never in the repo.
 
 | Goal | Measure | Baseline | Target |
 |---|---|---|---|
-| Fast recall | The **recall benchmark**: 25 questions the user actually needed answered from their notes in the last six months, written by the user (helped by the usage counts below) and frozen before the import. Success means the right note is open within 60 s; the time is recorded. Claude does not see the questions until the import is done, so the import cannot be tuned to them. | Run in the Notion desktop app with its search. | Stop B: success rate and median time no worse than Notion. Stop D: better on both. |
+| Fast recall | The **recall benchmark**: 25 questions the user actually needed answered from their notes in the last six months, written by the user (helped by the usage counts below) and frozen before the import. Success means the right note is open within 60 s; the time is recorded. Claude does not see the questions until the import is done, so the import cannot be tuned to them. **Declined by the user on 2026-10-15**, so there is no Notion baseline. | Not taken. | Fast recall rests on the search and switcher speed budgets in Done when, and on the tree test. |
 | Connections | The share of in-scope notes with at least one link in and one link out, and the count of unresolved links, **as Obsidian reports them**. | The same share for the in-scope Notion pages, from page mentions, link-to-page blocks and relations in `notion.db`. | Higher than Notion; zero unresolved links. |
 | Cleanup (a structure the user can follow) | A **tree test**: 15 "where would you find…" tasks answered by browsing folder names only, scored on success and directness (first path taken was right). | Run on the proposed area map, before the pilot. | (Default) 80% success and 70% directness: on the map before the pilot, and again on the real vault at stop B. A failed task changes the map, and the test is run again. |
 | Resurfacing (milestone 4; only the baseline now) | Notes older than 30 days opened per week. | Chrome's visit history to notion.so pages, reduced to counts per page id per week. | Set in milestone 4's spec against this baseline. From stop B the Brain page counts note opens per day per device in IndexedDB, so the number exists when milestone 4 starts. |
@@ -69,7 +69,7 @@ right. Each stop's gate is the rows that apply to it.
 | Concurrent writers never lose an edit | fast-check model-based tests (`fc.commands`) of Brain page tabs and MCP calls against a reference model of the vault | No sequence diverges from the model, except merges that a snapshot records. |
 | Typing stays smooth | Chrome's Long Animation Frames API and DevTools traces on the user's Mac | The speed budgets in Done when. |
 | The pages are accessible | axe, plus a VoiceOver pass against WCAG 2.2 AA | Nothing beyond `e2e/a11yBaseline.ts`; every Brain page action reachable by keyboard and announced. |
-| The brain beats Notion for this user | The recall benchmark, tree test and link measure | The targets in Outcomes. |
+| The brain beats Notion for this user | The tree test and link measure (the recall benchmark was declined) | The targets in Outcomes. |
 
 ## Decisions
 
@@ -162,8 +162,8 @@ on a later one.
    - the pilot area and the merge logs are approved, and so is the area
      map, after its tree test
 4. **Manual checklist** passes on Mac and Windows (see Testing).
-5. **Outcomes:** the recall benchmark, tree test and link targets in
-   Outcomes are met.
+5. **Outcomes:** the tree test and link targets in Outcomes are met.
+   The recall benchmark was declined on 2026-10-15.
 
 ## Architecture
 
@@ -729,8 +729,7 @@ Stop points from Milestone 1 scope are marked.
 0. **Baseline, before any code.** All of these go to
    `.brain/reports/baseline.md`:
    - Usage counts from Chrome's History.
-   - The user writes and freezes the recall benchmark, then runs it in
-     Notion.
+   - The recall benchmark: declined by the user on 2026-10-15.
    - The card sort.
    - Notion's export of the in-scope areas.
    - The Notion link measure from `notion.db`.
@@ -765,9 +764,8 @@ Stop points from Milestone 1 scope are marked.
      and logs each friction as one dated line in a `Brain diary` note.
    - The extras (outline, starred, `>` commands, hover preview, note embeds,
      slash menu, templates, block moves, properties panel, table grid) are
-     built in the order the diary and the recall benchmark's misses call
-     for.
-   - An extra that neither one mentions is flagged for the user to keep or
+     built in the order the diary calls for.
+   - An extra the diary does not mention is flagged for the user to keep or
      drop before it is built.
    - Then their e2e and the full manual checklist. **Stop D.**
 

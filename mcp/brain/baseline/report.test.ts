@@ -14,4 +14,9 @@ describe('baselineMarkdown', () => {
     expect(md).toContain('| Card sort | not run yet |');
     expect(md).toContain('~/Documents/notion-export/2026-10-15');
   });
+  it('marks a measure the user declined as declined, not as pending', () => {
+    const md = baselineMarkdown({ declined: ['recall'] });
+    expect(md).toContain('| Fast recall (Notion) | declined by the user |');
+    expect(md).toContain('| Usage | not run yet |');
+  });
 });
