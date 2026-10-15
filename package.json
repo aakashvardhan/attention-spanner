@@ -13,7 +13,7 @@
     "package": "node scripts/package.mjs",
     "build:e2e": "E2E=1 npm run build",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "build:mcp": "esbuild mcp/brain/cli.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist-mcp --out-extension:.js=.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=error",
+    "build:mcp": "esbuild mcp/brain/cli.ts mcp/brain/server.ts mcp/brain/searchWorker.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist-mcp --out-extension:.js=.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=error",
     "brain": "npm run -s build:mcp && node dist-mcp/cli.mjs"
   },
   "dependencies": {
