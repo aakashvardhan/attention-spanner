@@ -2,10 +2,15 @@
 
 *2026-10-14. Milestone 1 in full; later milestones scoped only. Decided
 in three interviews, the third after reverse engineering Obsidian and Notion
-(see "What we took from Obsidian and Notion", which also covers Gloss);
-every choice below was the
-user's unless marked "default" (decided by Claude, open to overrule) or
-"assumption" (unverified fact, with a test or spike that checks it).*
+(see "What we took from Obsidian and Notion", which also covers Gloss).
+Every choice below was the user's unless marked "default" (decided by
+Claude, open to overrule) or "assumption" (unverified fact, with a test or
+spike that checks it).*
+
+*Revised the same day to be evidence-led, not larger. Success is measured
+against a Notion baseline (Outcomes), each claim is checked against the
+rawest source available (Ground truth), and every part is judged by
+something other than Claude or the user (Oracles).*
 
 ## Why
 
@@ -20,6 +25,51 @@ This reverses the v22 stance (commit `74ed9ef`, "Cut everything Notion
 already does"). The extension becomes the notebook. The comment at
 `src/shared/brainDump.ts:11` ("this is not a notebook") changes in the same
 commit that ships milestone 1.
+
+## Outcomes
+
+The four goals are measured, with a baseline taken in Notion before any
+code is written (build order step 0). Questions, raw data and results live
+in `.brain/reports/` in the vault, never in the repo.
+
+| Goal | Measure | Baseline | Target |
+|---|---|---|---|
+| Fast recall | The **recall benchmark**: 25 questions the user actually needed answered from their notes in the last six months, written by the user (helped by the usage counts below) and frozen before the import. Success means the right note is open within 60 s; the time is recorded. Claude does not see the questions until the import is done, so the import cannot be tuned to them. | Run in the Notion desktop app with its search. | Stop B: success rate and median time no worse than Notion. Stop D: better on both. |
+| Connections | The share of in-scope notes with at least one link in and one link out, and the count of unresolved links, **as Obsidian reports them**. | The same share for the in-scope Notion pages, from page mentions, link-to-page blocks and relations in `notion.db`. | Higher than Notion; zero unresolved links. |
+| Cleanup (a structure the user can follow) | A **tree test**: 15 "where would you find…" tasks answered by browsing folder names only, scored on success and directness (first path taken was right). | Run on the proposed area map, before the pilot. | (Default) 80% success and 70% directness: on the map before the pilot, and again on the real vault at stop B. A failed task changes the map, and the test is run again. |
+| Resurfacing (milestone 4; only the baseline now) | Notes older than 30 days opened per week. | Chrome's visit history to notion.so pages, reduced to counts per page id per week. | Set in milestone 4's spec against this baseline. From stop B the Brain page counts note opens per day per device in IndexedDB, so the number exists when milestone 4 starts. |
+
+## Ground truth
+
+Each claim this spec rests on is checked against the rawest source
+available, not against a summary of it, including Claude's summaries
+elsewhere in this document.
+
+| Question | Raw source | Not |
+|---|---|---|
+| What the Notion content says | Notion's own workspace export (HTML), made by the user from Notion's settings, kept in a local folder outside the vault and never committed. The block records in `notion.db` are a cross-check. | The Notion MCP's converted Markdown, which is what the import itself reads. |
+| What the user actually uses | Chrome's History database, a copy queried read-only with the user's go-ahead, reduced to visit counts per Notion page id; every other URL is discarded. Also Notion's own visit records where the cache has them, and the extension's reading and annotation data. | Interview answers about use. |
+| Can Chrome pick and write the Drive folder | Chromium's blocked-path list in its File System Access permission code and its swap-file (`.crswap`) write path, for the installed Chrome version; then the step 1 harness. | A guess, or a 10-minute spike. |
+| How Drive for desktop behaves | Measured on both machines by the step 1 harness: the sync delay from Mac to Windows, whether modification times survive, conflict-copy names when both sides edit offline, what reading an online-only file through a folder handle does, and how a rename arrives on the other side. | Drive's help pages. |
+| How Obsidian resolves links, headings, tags and properties | Obsidian itself, running on the vault, through `app.metadataCache` in its developer console, and its published typings (the `obsidian` npm package). | Claude's reading of its minified bundle. |
+| Markdown and YAML rules | The CommonMark and GFM specs' example suites, and the YAML test suite for the frontmatter subset. | Recollection. |
+| Review scheduling (milestone 4) | The FSRS model, and the user's own logged review outcomes. | Gloss's hand-picked intervals alone. |
+
+## Oracles
+
+Something other than Claude or the user decides whether each part is
+right. Each stop's gate is the rows that apply to it.
+
+| Claim | Judge | Pass |
+|---|---|---|
+| The import kept the content | `npm run brain:audit` against Notion's export, and a blind sample the user rates (see Fidelity audit) | Every invariant accounted for; no lost or distorted passage in the sample. |
+| The vault is valid Obsidian | Obsidian's metadata cache, dumped and diffed against our index (`npm run brain:diff-obsidian`) | Zero unresolved links; the same resolved links, headings and tags per file; each difference is fixed or listed as a deliberate deviation. Runs on the real vault at stop A, and in CI against a checked-in dump of the fixture vault with the Obsidian version recorded. |
+| Our parsers read Markdown and YAML correctly | Differential tests: `blocks.ts` and `tables.ts` against `marked` (already a dependency) on the CommonMark and GFM examples; `frontmatter.ts` against `yaml` | The same result on every example inside the subset; anything outside it is refused, never misread. |
+| Saves survive crashes | The file system under fault injection: a crash at every step of every journaled plan, and `npm run brain:crash` killing Chrome with `kill -9` 1,000 times mid-typing on a copy of the real Drive folder | The file always equals, byte for byte, a version that was saved; recovery loses at most 1.5 s. |
+| Concurrent writers never lose an edit | fast-check model-based tests (`fc.commands`) of Brain page tabs and MCP calls against a reference model of the vault | No sequence diverges from the model, except merges that a snapshot records. |
+| Typing stays smooth | Chrome's Long Animation Frames API and DevTools traces on the user's Mac | The speed budgets in Done when. |
+| The pages are accessible | axe, plus a VoiceOver pass against WCAG 2.2 AA | Nothing beyond `e2e/a11yBaseline.ts`; every Brain page action reachable by keyboard and announced. |
+| The brain beats Notion for this user | The recall benchmark, tree test and link measure | The targets in Outcomes. |
 
 ## Decisions
 
@@ -49,7 +99,7 @@ commit that ships milestone 1.
 | **1** | **Vault, import, links** | This spec. |
 | 2 | Sync and collaboration | A Yjs CRDT per note; live co-editing, comments, version history and auto-merge across machines over a **bring-your-own Firebase** project (Realtime Database). Off until a user pastes a Firebase config. Replaces milestone 1's auto-merge. Version history gains cross-device sync. |
 | 3 | Brain AI | Claude Haiku (`claude-haiku-5-5`) first, Ollama fallback, user-supplied key. Semantic link suggestions, ask-my-notes, cleanup suggestions. Every note may be sent. Ask-my-notes puts the notes it sends in a prompt-cached system message and cites them as `[[Note#Heading]]`, clickable in the Brain page and valid in Obsidian; it may cite only notes it was sent (Gloss's rule for paragraphs). Results cached in `.brain/ai-cache/` by content hash. The existing reader AI (recap, triage) stays Ollama. |
-| 4 | Resurfacing | New-tab note card, related notes in the reader, highlights into notes, flashcards from notes. **Daily review** on Gloss's schedule: 5 a day, a kept item returns after 3, 7, 16, 35, 75, then 160 days, "done" retires it; it draws on reader highlights (state on the annotation) and vault notes weighted by links (state in `.brain/review.json`, keyed by title, so reviewing never rewrites a note; renames update it). **Highlights into notes**: one note per text, `Learning/Reading/<Title>.md`, tagged `reference`, with `url` (matched to the papers library like paper notes), highlights as blockquotes in reading order with your sticky note under each. The reader owns only the section between `<!-- reader:start -->` and `<!-- reader:end -->` and regenerates it; text outside the markers is never touched. |
+| 4 | Resurfacing | New-tab note card, related notes in the reader, highlights into notes, flashcards from notes. **Daily review** on Gloss's schedule: 5 a day, a kept item returns after 3, 7, 16, 35, 75, then 160 days, "done" retires it; every review outcome is logged to `.brain/review-log.jsonl` so FSRS (`ts-fsrs`) can be fitted to the user's own outcomes and compared with the fixed steps, and switching needs the user's yes; it draws on reader highlights (state on the annotation) and vault notes weighted by links (state in `.brain/review.json`, keyed by title, so reviewing never rewrites a note; renames update it). **Highlights into notes**: one note per text, `Learning/Reading/<Title>.md`, tagged `reference`, with `url` (matched to the papers library like paper notes), highlights as blockquotes in reading order with your sticky note under each. The reader owns only the section between `<!-- reader:start -->` and `<!-- reader:end -->` and regenerates it; text outside the markers is never touched. |
 | 5 | Job tracker and views | Import the Notion Job tracker (Job Title, Employer, Application URL, Applied On, Comment, Status) as a `.base` plus row notes, and render `.base` files in the extension: table (sort, filter, inline cell edit, add row), then real board and calendar layouts for the views milestone 1 imported as grouped and sorted tables. Status keeps Notion's groups: to do, in progress, complete. The Notion follow-up timing that hangs off Applied On must be replaced. Notion is fully retired at the end of this milestone. |
 | 6 | Mobile | Not planned. |
 
@@ -78,7 +128,8 @@ Milestones 2 to 5 each get their own spec before work starts.
 ### Stop points
 
 Each stop leaves something usable. Before the next stage starts, the stop
-is tested and documented in the Brain page's how-to note. No stage depends
+is tested, passes its judges in Oracles, and is documented in the Brain
+page's how-to note. No stage depends
 on a later one.
 
 | Stop | You have |
@@ -104,12 +155,15 @@ on a later one.
    - every auto-merge, failed save and Claude write is preceded by a
      snapshot that restores the previous text
 3. **Import verified:**
+   - every area passes its fidelity audit (invariants and blind sample)
+   - Obsidian reports zero unresolved links and agrees with our index
    - every in-scope Notion page appears in a coverage report with no
      failures
-   - the pilot area is approved
-   - the merge logs are reviewed
-   - the area map is approved
+   - the pilot area and the merge logs are approved, and so is the area
+     map, after its tree test
 4. **Manual checklist** passes on Mac and Windows (see Testing).
+5. **Outcomes:** the recall benchmark, tree test and link targets in
+   Outcomes are met.
 
 ## Architecture
 
@@ -192,8 +246,14 @@ brain/
     notion-map.json  mcp-log.jsonl  import/bookmarks.json (one-time)
 ```
 
-- Each in-scope Notion page's area comes from an **area map**, a table
-  Claude proposes and the user approves before the pilot.
+- Each in-scope Notion page's area comes from an **area map** built from
+  the user's own grouping, not Claude's proposal:
+  1. An open card sort: the user groups and names about 40 representative
+     page titles.
+  2. Claude drafts the map from those groups.
+  3. The tree test in Outcomes checks the draft.
+
+  The user approves the map before the pilot.
 - The index, search and link resolution ignore `sources/`, `.brain/` and
   `attachments/`.
 - Files that are binary, not UTF-8, symlinks, `.DS_Store` or `desktop.ini`
@@ -339,7 +399,37 @@ MOC at their original position.
      sentence, and each disagreement.
 5. The user reviews the staging folder in the free Obsidian app, used only
    for review.
-6. `promote_staging` runs as a journaled plan. Any failure blocks it.
+6. The fidelity audit runs. An area is promotable only when it passes.
+7. `promote_staging` runs as a journaled plan. Any failure blocks it.
+
+**Fidelity audit.** The rewrite changes the user's words, so it cannot be
+judged by Claude's own coverage report.
+
+- **Reference:** Notion's export of the area (see Ground truth),
+  independent of the Notion MCP path the import used.
+- **Invariants,** checked by `npm run brain:audit` (a Node script in
+  `mcp/brain/`). Each of these in the export must appear in the vault, or
+  in the coverage report's drop list with a reason:
+  - every URL
+  - every equation, by its LaTeX source
+  - every code block, with whitespace normalised
+  - every number inside a sentence
+  - every image, by the SHA-256 of its bytes
+- **Sentence map:** the script splits the export into sentences
+  (`Intl.Segmenter`, NFC) and records, for each, the vault sentence it
+  overlaps most and the overlap score. The score is reported and used to
+  pick the sample. It is never a pass mark, because the rewrite is meant
+  to change words.
+- **Blind sample:** a seeded script, not Claude, draws the passages: 30
+  from the pilot and 60 from the other areas. Half are drawn uniformly at
+  random and half from the lowest overlap scores. The user sees each source
+  passage next to where it went, without Claude's notes, and marks it
+  kept, lost or distorted.
+- **Acceptance:** zero defects in the sample.
+  - By the rule of three, zero defects bounds the defect rate below 10% at
+    95% confidence for 30 passages, and below 5% for 60.
+  - Any defect means: fix the rule that caused it, rerun the area, and
+    draw a fresh sample.
 
 **Order.**
 
@@ -490,7 +580,8 @@ MOC at their original position.
       note saying the filter was not applied. It never errors.
     - The extension does not edit `.base` files in milestone 1.
 
-**Editor extras** (stop D).
+**Editor extras** (stop D). The stop C diary sets their order and
+confirms each is needed (Build order step 9).
 
 - **Slash menu.** `/` at the start of a line or after a space opens a menu:
   heading 1 to 3, to-do, bulleted and numbered list, callout, collapsible
@@ -624,21 +715,38 @@ typecheck, `npm test` and the build; `e2e` runs Playwright in Chromium.
 | Unit | Frontmatter round-trip is byte-identical; typed properties and types.json; links (body, embeds, properties); rename and move plans, including heading renames; names (NFC, sanitising, length, case); mentions; the query parser (every operator, every error); search ranking; blocks and tasks; block moves; merge; journal replay; URL matching for papers; `base.ts` against every view shape the import writes; table grid edits; template variables; the Notion block, property and view mappings. | `check` |
 | Property | `fast-check` with a fixed seed in CI and the seed printed on failure. **Invariants:** after any sequence of create, rename (note or heading), move, delete and edit, no link or embed is broken and every backlink is symmetric; `parse(serialize(x))` equals `x`; merge returns theirs when mine equals base, mine when theirs equals base, and keeps both edits when they touch paragraphs that are apart; replaying a journal after a crash at any step leaves either the start state or the end state; query parse then print gives back an equivalent query; a table grid edit changes only the rows it touched; a block move followed by its reverse gives back the original bytes. | `check` |
 | Concurrency | Brain page and MCP editing one note. Two Brain tabs. Parallel MCP calls. A fake Drive agent in tests that delays copies, makes conflict copies and delivers partial files. Crash injection at every journal step. | `check` (Node on temp folders) and `e2e` |
-| Load | Generated vaults of 500, 5,000 and 20,000 notes in nested area folders: index build, tree render, switcher, search (plain and with operators), opening the last note, longest task while typing. CI fails at about 3x the real budgets, following `e2e/load.e2e.ts`; `npm run bench:brain` checks the real budgets locally. | New `e2e/brainLoad.e2e.ts` |
+| Load | Generated vaults of 500, 5,000 and 20,000 notes in nested area folders: index build, tree render, switcher, search (plain and with operators), opening the last note, the longest animation frame while typing (Long Animation Frames API). CI fails at about 3x the real budgets, following `e2e/load.e2e.ts`; `npm run bench:brain` checks the real budgets locally. | New `e2e/brainLoad.e2e.ts` |
 | Regression | Every fixed bug gets a failing test first (CLAUDE.md section V). A **synthetic** fixture vault (areas, LaTeX, images, PDFs, lecture MOCs, merged concepts with a disagreement callout, tasks, clashing titles, accents, emoji, a paper with `url:`, a database folder with a `.base`, collapsible callouts, note embeds, a template) with checked-in expected index and search output. None of the user's notes are in the repo. | `check` |
 | Edge cases | Every row of the error-handling table. | Both |
+| Oracles | The checks in Oracles that need none of the user's data: the Obsidian-dump diff of the fixture vault, the parser differentials, the model-based concurrency tests. The audit, the crash harness and the diff of the real vault run locally only. | `check`, and local |
 | E2E | The Brain page in real Chromium. The native folder picker cannot be automated, so tests give the page a folder from the browser's private file storage (OPFS), which has the same handle interface. The real `vault.ts` runs against it. Also covered: the bookmarks handoff, the papers chip, the omnibox, the merge notice and History restore, the slash menu, block moves by key and by drag, the table grid, the properties panel, hover preview, embeds, starring, templates, `>` commands, and an axe check against `e2e/a11yBaseline.ts`. | `e2e` |
-| Manual, before milestone 1 is done | On Mac and Windows: Drive stream-mode reads, a forced conflict copy (auto-merged, then restored from History), a Claude edit restored from `.brain/history/` on Windows, the network dropped mid-save, permission revoked mid-session, both shortcuts, a `.base` opened in both the extension and Obsidian. | Checklist |
+| Manual, before milestone 1 is done | On Mac and Windows: Drive stream-mode reads, a forced conflict copy (auto-merged, then restored from History), a Claude edit restored from `.brain/history/` on Windows, the network dropped mid-save, permission revoked mid-session, both shortcuts, a `.base` opened in both the extension and Obsidian, a VoiceOver pass of the Brain page. | Checklist |
 
 ## Build order
 
 Stop points from Milestone 1 scope are marked.
 
-1. **Spike, about 10 minutes.** Can `showDirectoryPicker()` on an extension
-   page open, read and write
-   `~/Library/CloudStorage/GoogleDrive-…/My Drive/brain`? It is unverified
-   whether Chrome allows this folder. Fallback: switch Drive to Mirror mode
-   with the folder outside `~/Library`.
+0. **Baseline, before any code.** All of these go to
+   `.brain/reports/baseline.md`:
+   - Usage counts from Chrome's History.
+   - The user writes and freezes the recall benchmark, then runs it in
+     Notion.
+   - The card sort.
+   - Notion's export of the in-scope areas.
+   - The Notion link measure from `notion.db`.
+1. **Platform ground truth, about a day.**
+   - Read Chromium's blocked-path list and swap-file write path for the
+     installed Chrome version.
+   - Then the harness: does `showDirectoryPicker()` on an extension page
+     open, read and write `~/Library/CloudStorage/GoogleDrive-…/My
+     Drive/brain`?
+   - Measure on Mac and Windows the Drive behaviours listed in Ground
+     truth.
+   - The results go into a "Measured platform" table added at the end of
+     this spec. Every assumption and error-table row that rests on them is
+     rechecked.
+   - Fallback if Chrome blocks the folder: switch Drive to Mirror mode, with
+     the folder outside `~/Library`.
 2. `src/shared/brain/*`, test first: unit, property and fixture tests.
 3. MCP server, plus its concurrency and guard tests; register it.
 4. Area map and naming list, approved by the user.
@@ -652,10 +760,16 @@ Stop points from Milestone 1 scope are marked.
 8. Brain page, core editing: editor, autosave, auto-merge, history,
    recovery, locks, tasks, rename (notes and headings), move, delete, daily
    notes. Then e2e, load and the manual checklist for this stage. **Stop C.**
-9. Editor extras: outline, starred, `>` commands, hover preview, note
-   embeds, slash menu, templates, block moves, properties panel, table grid
-   (roughly cheapest first). Then their e2e and the full manual checklist.
-   **Stop D.**
+9. **Editor extras, after a two-week diary at stop C.**
+   - The user does real writing in the Brain page, with Notion still open,
+     and logs each friction as one dated line in a `Brain diary` note.
+   - The extras (outline, starred, `>` commands, hover preview, note embeds,
+     slash menu, templates, block moves, properties panel, table grid) are
+     built in the order the diary and the recall benchmark's misses call
+     for.
+   - An extra that neither one mentions is flagged for the user to keep or
+     drop before it is built.
+   - Then their e2e and the full manual checklist. **Stop D.**
 
 ## Out of scope for milestone 1
 
@@ -673,7 +787,11 @@ Stop points from Milestone 1 scope are marked.
 
 ## Open risks
 
-- The Chrome folder picker under `~/Library/CloudStorage` (spike, step 1).
+- The Chrome folder picker under `~/Library/CloudStorage`: settled by
+  Chromium's source and the step 1 harness, before step 2.
+- The outcome targets can fail even when every engineering check passes.
+  That is the point of measuring them; a miss at stop B is reported with
+  the benchmark's misses before stop C starts.
 - Drive stream mode: first reads can be slow or fail offline. The user marks
   `brain/` "Available offline" in Drive.
 - The full atomic rewrite with merged concepts edits the user's words across
