@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { workerSearch, type SearchRunner } from './regexSearch';
+import { registerImportTools } from './tools/import';
 import { registerReadTools } from './tools/read';
 import { registerWriteTools } from './tools/write';
 import { Vault } from './vault';
@@ -13,6 +14,7 @@ export function createServer(vault: Vault, opts: ServerOptions = {}): McpServer 
   const server = new McpServer({ name: 'brain', version: '1.0.0' });
   registerReadTools(server, vault, opts.runRegex ?? workerSearch(new URL('./searchWorker.mjs', import.meta.url)));
   registerWriteTools(server, vault);
+  registerImportTools(server, vault, opts.fetch);
   return server;
 }
 
