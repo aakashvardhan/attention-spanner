@@ -5,6 +5,7 @@
 import { cards } from './baseline/cards';
 import { notionLinks } from './baseline/notionLinks';
 import { recall } from './baseline/recall';
+import { baseline } from './baseline/report';
 import { treeTest } from './baseline/treeTest';
 import { usage } from './baseline/usage';
 
@@ -14,6 +15,7 @@ const commands: Record<string, (argv: string[]) => Promise<void>> = {
   cards,
   recall,
   'tree-test': treeTest,
+  baseline,
 };
 
 const [name, ...argv] = process.argv.slice(2);
