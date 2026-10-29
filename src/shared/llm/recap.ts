@@ -1,5 +1,5 @@
 import { LOCAL_CONTEXT_CHARS } from '../constants';
-import type { AiRequest } from './generate';
+import { MATH_RULE, type AiRequest } from './generate';
 import type { AiSource } from './route';
 
 /**
@@ -11,7 +11,7 @@ export const RECAP_SYSTEM =
   'You help a reader who has ADHD get back into a document they stopped partway through. ' +
   'Using only the text given, write exactly three short Markdown bullet points: what the ' +
   'part they read covered, in order, with the last bullet saying where they stopped. ' +
-  'Plain and concrete. No preamble, no headings, no advice, no emoji.';
+  'Plain and concrete. No preamble, no headings, no advice, no emoji.' + MATH_RULE;
 
 /** Worth a recap: started in earnest, not essentially finished. */
 export function wantsRecap(percent: number): boolean {
@@ -57,5 +57,23 @@ export function recapRequest(opts: {
     // Bucketed to tens: a recap at 41% is still right at 47%, and regenerating
     // on every scroll would make the cache useless.
     cacheKey: `${opts.key}:${Math.floor(opts.percent / 10)}`,
+  };
+}
+
+export const VIDEO_SUMMARY_SYSTEM =
+  'You summarize a video from its transcript for a viewer who has ADHD, so they can decide ' +
+  'whether to watch it and know what they will get. Using only the transcript given, write ' +
+  'one plain sentence on what the video is about, then 3 to 6 short Markdown bullet points ' +
+  'with its main points in order. No preamble, no headings, no advice, no emoji.';
+
+/** The whole video, from its transcript: unlike a recap, not cut at what was watched. */
+export function videoSummaryRequest(opts: { key: string; passages: string[] }): AiRequest {
+  return {
+    task: 'summarize',
+    source: 'youtube',
+    system: VIDEO_SUMMARY_SYSTEM,
+    passages: opts.passages,
+    prompt: 'Summarize this video.',
+    cacheKey: `${opts.key}:summary`,
   };
 }

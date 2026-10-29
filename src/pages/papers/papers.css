@@ -562,58 +562,124 @@ a.pp-row-title:hover {
   gap: var(--space-3);
 }
 
-/* Highlight matrix (PaperMatrix.tsx) */
+/* Thinking record (PaperRecord.tsx) and today's question (PaperDeckView.tsx) */
 
-.pp-matrix {
+.pp-deck-xp {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+}
+
+.pp-today-kicker {
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pp-today-q {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.pp-today-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pp-today-actions input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.pp-record {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.pp-matrix-bar {
+.pp-record-verdict {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.pp-record-pills {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.pp-matrix-scroll {
-  overflow-x: auto;
-}
-
-.pp-matrix-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-}
-
-.pp-matrix-table th,
-.pp-matrix-table td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  text-align: left;
-  vertical-align: top;
-  min-width: 160px;
-}
-
-.pp-matrix-table thead th {
+.pp-pill {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
   font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.pp-matrix-table td a {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+.pp-record-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.pp-record-col h3 {
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid currentColor;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pp-record-col-claims h3 {
+  color: var(--text-primary);
+}
+
+.pp-record-col-doubts h3 {
+  color: var(--accent-text);
+}
+
+.pp-record-col-open h3 {
+  color: var(--warning);
+}
+
+.pp-record-item {
+  display: block;
+  padding-block: var(--space-1);
   color: var(--text-primary);
   text-decoration: none;
 }
 
-.pp-matrix-table td a:hover {
-  color: var(--accent-text);
+.pp-record-text {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.pp-record-meta,
+.pp-record-none {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .library-hint {

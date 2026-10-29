@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Annotation, Provocation } from '../src/shared/types';
 import { PAGES, launch, seed, shot, storage, type Ext } from './harness';
+import { deck, paper } from './seed';
 
 /**
  * The PDF reader asks instead of answering: a tagged highlight draws a
@@ -163,6 +164,43 @@ describe('reader: provocations', () => {
       el.scrollTop = third.offsetTop;
     });
     await expect.poll(centrePage).toBeGreaterThan(1);
+    await page.close();
+  });
+
+  it('deck shows claims, doubts and open questions; answering today\'s question gives 10 XP', async () => {
+    const now = Date.now();
+    const hl = (id: string, tag: 'claim' | 'doubt', page: number, text: string, note: string): Annotation => ({
+      id, tag, docKey: 'k', docUrl: pdfUrl, paperId: 'p1', kind: 'highlight', text, note, createdAt: now, updatedAt: now,
+      color: tag === 'claim' ? 'blue' : 'pink',
+      anchor: { kind: 'pdf', page, rects: [], x: 0, y: 0 },
+    });
+    const open: Provocation = {
+      id: 'v1', docKey: 'k', paperId: 'p1', page: 6, kind: 'equation', question: 'Why does the loss need a square root?',
+      answer: '', status: 'open', annotationId: null, xp: 0, createdAt: now, updatedAt: now,
+    };
+    await seed(ext, {
+      decks: [deck],
+      papers: [paper('1', 'Attention Is All You Need', { id: 'p1', verdict: 'Convincing on translation only.', pass: 2 })],
+      annotations: [hl('a1', 'claim', 3, 'Self-attention beats recurrence', 'p3 note'), hl('a2', 'doubt', 4, 'BLEU is enough', 'weak metric')],
+      provocations: [open],
+    });
+    const page = await ext.page(`${PAGES.papers}#deck=e2e-deck`);
+    await page.getByRole('button', { name: 'Details' }).click();
+    const record = page.locator('.pp-record');
+    await expect.poll(() => record.textContent()).toContain('Self-attention beats recurrence');
+    const text = (await record.textContent()) ?? '';
+    expect(text).toContain('BLEU is enough');
+    expect(text).toContain('Why does the loss need a square root?');
+    expect(text).toContain('Convincing on translation only.');
+    expect(text).toContain('1 still open');
+    const card = page.locator('.pp-today');
+    expect(await card.textContent()).toContain('Why does the loss need a square root?');
+    await shot(page, 'deck-record');
+
+    await card.getByRole('textbox').fill('It keeps units consistent');
+    await card.getByRole('button', { name: 'Answer in one line' }).click();
+    await expect.poll(() => page.locator('.pp-deck-head').textContent()).toContain('10 XP');
+    await expect.poll(() => record.textContent()).not.toContain('still open');
     await page.close();
   });
 });

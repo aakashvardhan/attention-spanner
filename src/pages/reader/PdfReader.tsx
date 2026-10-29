@@ -65,6 +65,8 @@ export function PdfReader({ src }: { src: string }) {
     [paper],
   );
 
+  // #page=N (deck deep link) wins over the saved position.
+  const hashPage = useMemo(() => Number(/page=(\d+)/.exec(location.hash)?.[1]) || 0, []);
   const [position, setPosition] = useState<PdfPosition>({ page: 1, offset: 0 });
   const [zoom, setZoom] = useState(1);
   // Closed by default: the rail on the left edge is the outline at rest.
@@ -422,7 +424,7 @@ export function PdfReader({ src }: { src: string }) {
               pageSizes={state.pageSizes}
               zoom={zoom}
               onZoom={setZoom}
-              initialPosition={paper?.pdf ? { page: paper.pdf.page, offset: paper.pdf.offset } : null}
+              initialPosition={hashPage ? { page: hashPage, offset: 0 } : paper?.pdf ? { page: paper.pdf.page, offset: paper.pdf.offset } : null}
               onRestored={onRestored}
               onPosition={onPosition}
               handleRef={viewportRef}

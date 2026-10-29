@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { formatRelativeDate } from '../../../shared/format';
 import { paperOpenUrl } from '../../../shared/pdf';
 import type { Deck, Paper, PaperDraft, PaperStatus } from '../../../shared/types';
+import type { PaperThinking } from '../../../shared/thinking';
 import { PaperForm } from './PaperForm';
+import { PaperRecord } from './PaperRecord';
 
 const STATUS_LABEL: Record<PaperStatus, string> = {
   'to-read': 'To read',
@@ -10,8 +12,8 @@ const STATUS_LABEL: Record<PaperStatus, string> = {
   read: 'Read',
 };
 
-/** Alt/Option-click opens the reader instead of alphaXiv (and stops Chrome's Alt-click download). */
-function openInReaderOnAlt(e: React.MouseEvent, paper: Paper) {
+/** Alt/Option-click opens alphaXiv instead of the reader (and stops Chrome's Alt-click download). */
+function openInAlphaxivOnAlt(e: React.MouseEvent, paper: Paper) {
   if (!e.altKey) return;
   e.preventDefault();
   void chrome.tabs.create({ url: paperOpenUrl(paper, true) });
@@ -19,11 +21,13 @@ function openInReaderOnAlt(e: React.MouseEvent, paper: Paper) {
 
 export function PaperRow({
   paper,
+  thinking,
   decks,
   onUpdate,
   onDelete,
 }: {
   paper: Paper;
+  thinking: PaperThinking;
   decks: Deck[];
   onUpdate: (id: string, patch: Partial<PaperDraft>) => Promise<{ ok: boolean; error?: string }>;
   onDelete: (id: string) => Promise<unknown>;
@@ -79,7 +83,7 @@ export function PaperRow({
               target="_blank"
               rel="noreferrer"
               title="Option/Alt-click to open in the reader"
-              onClick={(e) => openInReaderOnAlt(e, paper)}
+              onClick={(e) => openInAlphaxivOnAlt(e, paper)}
             >
               {paper.title}
             </a>
@@ -149,6 +153,7 @@ export function PaperRow({
 
       {expanded && (
         <div className="pp-details">
+          <PaperRecord paper={paper} thinking={thinking} />
           {paper.abstract && (
             <p className="pp-detail">
               <span className="row-label">Abstract</span>
@@ -167,11 +172,9 @@ export function PaperRow({
       <div className="pp-row-foot">
         <span className="pp-updated">Updated {formatRelativeDate(new Date(paper.updatedAt))}</span>
         <div className="pp-row-actions">
-          {(paper.abstract || paper.relevance) && (
-            <button className="ghost-btn" onClick={() => setExpanded((v) => !v)}>
-              {expanded ? 'Less' : 'Details'}
-            </button>
-          )}
+          <button className="ghost-btn" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Less' : 'Details'}
+          </button>
           {paper.url && (
             <a
               className="ghost-btn"
@@ -179,7 +182,7 @@ export function PaperRow({
               target="_blank"
               rel="noreferrer"
               title="Option/Alt-click to open in the reader"
-              onClick={(e) => openInReaderOnAlt(e, paper)}
+              onClick={(e) => openInAlphaxivOnAlt(e, paper)}
             >
               Open ↗
             </a>
