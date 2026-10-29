@@ -180,6 +180,7 @@ export function PdfReader({ src }: { src: string }) {
     [docKey, src],
   );
 
+  const [restored, setRestored] = useState(false);
   const provocations = useProvocations({
     docKey,
     paperId: paper?.id ?? null,
@@ -191,6 +192,7 @@ export function PdfReader({ src }: { src: string }) {
     source: sourceForUrl(src),
     annotations: docAnnotations,
     paper,
+    restored,
     jump: (page) => viewportRef.current?.scrollToPosition(page, 0),
   });
   const { raiseForSelection } = provocations;
@@ -299,6 +301,7 @@ export function PdfReader({ src }: { src: string }) {
       live.current.position = pos;
     }
     live.current.restored = true;
+    setRestored(true);
   }, []);
 
   // Leaving the tab (or closing it) flushes the latest position immediately.

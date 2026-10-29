@@ -1872,6 +1872,8 @@ body {
 }
 
 /* Pass 3: the page fades into the page background under one question. */
+/* The page stays live: only the card takes the pointer, so wheel, keys and
+   the scrollbar still reach the viewport. */
 .pass-lock {
   position: absolute;
   inset: 0;
@@ -1879,13 +1881,21 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-8) var(--space-4); /* clears the capsule */
+  pointer-events: none;
 }
 
-.pass-lock-fade {
+.pass-lock-card {
+  pointer-events: auto;
+}
+
+/* In the page list, from the locked page's bottom down. */
+.reader-lock-fade {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent, var(--bg-page) 55%);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  background: linear-gradient(to bottom, transparent, var(--bg-page) var(--space-8));
 }
 
 .provoke-card.pass-lock-card {

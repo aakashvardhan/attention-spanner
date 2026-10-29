@@ -28,6 +28,8 @@ import { ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
 
 /** Vertical gap between pages, and padding above the first / below the last. */
 const PAGE_GAP = 16;
+/** Share of the viewport under a locked page's bottom for the lock card (under 0.5 keeps the middle on the page). */
+const LOCK_ROOM = 0.45;
 /** Pages within this margin of the viewport get (and keep) a rendered canvas. */
 const RENDER_MARGIN = '1500px 0px';
 /**
@@ -337,12 +339,16 @@ export function PdfViewport({
   const lastPosRef = useRef<PdfPosition>({ page: 1, offset: 0 });
   const lockRef = useRef(lockAfterPage);
   lockRef.current = lockAfterPage;
-  /** The furthest scrollTop the lock allows: the locked page's bottom at the viewport's bottom. */
+  /**
+   * The furthest scrollTop the lock allows: the locked page's bottom a little
+   * above the viewport's bottom, leaving a faded strip under it for the lock's
+   * card, while the viewport's middle stays on the locked page.
+   */
   const lockMax = (el: HTMLElement) => {
     const page = lockRef.current;
     if (page == null || tops.length === 0) return Infinity;
     const i = Math.min(tops.length, Math.max(1, page)) - 1;
-    return Math.max(tops[i], tops[i] + heights[i] - el.clientHeight);
+    return Math.max(tops[i], tops[i] + heights[i] - el.clientHeight * (1 - LOCK_ROOM));
   };
 
   /** anchorY: where in the viewport the position lands; the middle by default. */
@@ -784,13 +790,23 @@ export function PdfViewport({
         aria-label="PDF document"
         tabIndex={0}
         onScroll={handleScroll}
-        inert={lockAfterPage != null}
         onPointerUp={handlePointerUp}
         onMouseOver={handleCitationOver}
         onMouseOut={handleCitationOut}
         onClick={handleCitationClick}
       >
         <div className="reader-page-list" ref={listRef} style={{ height: totalHeight, width: listWidth }}>
+          {lockAfterPage != null && scale > 0 && lockAfterPage <= tops.length && (
+            // Pass 3: what lies past the locked page fades out; the page itself stays clear.
+            <div
+              className="reader-lock-fade"
+              aria-hidden="true"
+              style={{
+                top: tops[lockAfterPage - 1] + heights[lockAfterPage - 1],
+                height: totalHeight - tops[lockAfterPage - 1] - heights[lockAfterPage - 1],
+              }}
+            />
+          )}
           {scale > 0 &&
             pageSizes.map((size, i) => {
               const page = i + 1;

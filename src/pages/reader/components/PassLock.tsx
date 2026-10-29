@@ -3,8 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
 /**
- * Pass 3's pause: the page fades out under one question, and a sentence of
- * the reader's own (three words or more) lets them carry on.
+ * Pass 3's pause: one question about the page just read, and a sentence of the
+ * reader's own (three words or more) lets them carry on. The page above stays
+ * readable and scrollable (the viewport fades what lies past it); only this
+ * card takes the pointer. The question may still change (an AI one replacing
+ * the fallback) until the reader types; from then on the shown one is final
+ * and is the one handed back.
  */
 export function PassLock({
   question,
@@ -12,18 +16,19 @@ export function PassLock({
   onUnsure,
 }: {
   question: string;
-  onContinue: (answer: string) => void;
-  onUnsure: () => void;
+  onContinue: (answer: string, question: string) => void;
+  onUnsure: (question: string) => void;
 }) {
   const [answer, setAnswer] = useState('');
+  const [frozen, setFrozen] = useState<string | null>(null);
+  const shown = frozen ?? question;
   const ready = words(answer) >= 3;
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => field.current?.focus(), []);
-  const submit = () => ready && onContinue(answer.trim());
+  const submit = () => ready && onContinue(answer.trim(), shown);
   return (
     <div className="pass-lock">
-      <div className="pass-lock-fade" aria-hidden="true" />
-      <div className="provoke-card pass-lock-card" role="dialog" aria-modal="true" aria-label="Scrolling paused">
+      <div className="provoke-card pass-lock-card" role="dialog" aria-label="Scrolling paused">
         <p className="provoke-kicker">
           <svg className="pass-lock-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -31,7 +36,7 @@ export function PassLock({
           </svg>
           Pass 3 · scrolling paused
         </p>
-        <p className="provoke-question">{question}</p>
+        <p className="provoke-question">{shown}</p>
         <textarea
           className="provoke-answer"
           rows={2}
@@ -39,7 +44,10 @@ export function PassLock({
           value={answer}
           placeholder="Your answer, in a sentence"
           aria-label="Your answer"
-          onChange={(e) => setAnswer(e.target.value)}
+          onChange={(e) => {
+            if (frozen === null && e.target.value) setFrozen(question);
+            setAnswer(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -49,7 +57,7 @@ export function PassLock({
         />
         <div className="provoke-foot">
           <span className="pass-lock-hint">One sentence unlocks the page.</span>
-          <button type="button" className="ghost-btn" onClick={onUnsure}>
+          <button type="button" className="ghost-btn" onClick={() => onUnsure(shown)}>
             I don't know yet
           </button>
           <button type="button" className="fc-primary-btn" disabled={!ready} onClick={submit}>

@@ -1,5 +1,6 @@
 import { MIN_PAGE_CHARS } from '../../shared/constants';
-import type { ReadingPass } from '../../shared/types';
+import { XP } from '../../shared/thinking';
+import type { Provocation, ReadingPass } from '../../shared/types';
 
 // A line needs at least one STRONG char (operator or Greek); WEAK ones only add weight.
 const STRONG = /[=≤≥≈≠±×÷∑∏∫∂∇√∞∈∉⊂⊆∪∩∀∃→←↔⇒‖α-ωΑ-Ω]/g;
@@ -27,4 +28,48 @@ export function shouldLock(o: {
 }): boolean {
   if (o.pass !== 3 || o.pageText.length < MIN_PAGE_CHARS) return false;
   return mathBlock(o.pageText) !== '' || o.openOnPage || !o.lockedSections.has(o.section);
+}
+
+/**
+ * Pass 3 locks the page being left: settling forward from `left` into a later
+ * page asks whether `left` needed justifying. The first settle (left null, the
+ * page you open on) never locks, and neither does going back.
+ */
+export function pageToLock(o: {
+  left: number | null;
+  page: number;
+  pass: ReadingPass;
+  pageTexts: readonly string[];
+  sectionOf: (page: number) => number;
+  lockedSections: ReadonlySet<number>;
+  /** Pages already justified (this session, or by a stored answer) */
+  justified: ReadonlySet<number>;
+  /** Pages with an open or unsure record */
+  openPages: ReadonlySet<number>;
+}): number | null {
+  const { left } = o;
+  if (left === null || o.page <= left || o.justified.has(left)) return null;
+  const locks = shouldLock({
+    pass: o.pass,
+    pageText: o.pageTexts[left - 1] ?? '',
+    section: o.sectionOf(left),
+    lockedSections: o.lockedSections,
+    openOnPage: o.openPages.has(left),
+  });
+  return locks ? left : null;
+}
+
+/**
+ * Pages of this document a stored answer already justifies: an answered lock,
+ * or an open record later resolved (it earned the resolve XP, as a lock answer
+ * does). A reopened paper does not lock them again.
+ */
+export function justifiedPages(records: readonly Provocation[], docKey: string): Set<number> {
+  const pages = new Set<number>();
+  for (const p of records) {
+    if (p.docKey !== docKey || p.status !== 'answered') continue;
+    const resolved = p.kind !== 'counterpoint' && p.kind !== 'verdict' && p.xp === XP.resolve;
+    if (p.kind === 'lock' || resolved) pages.add(p.page);
+  }
+  return pages;
 }

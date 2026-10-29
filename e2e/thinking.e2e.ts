@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { annotationDocKey } from '../src/shared/annotations';
 import type { Annotation, Provocation } from '../src/shared/types';
 import { PAGES, launch, seed, shot, storage, type Ext } from './harness';
 import { deck, paper } from './seed';
@@ -127,30 +128,54 @@ describe('reader: provocations', () => {
     await page.close();
   });
 
-  it('untracked PDF, pass 3, AI off: the first page locks with the fallback, scrolling stays on page 1, "I don\'t know yet" unlocks and shows Open questions 1', async () => {
-    await seed(ext, { settings: { ollamaUrl: ollama.url, ollamaChatModel: '', layaUrl: '', cloudMode: 'off' } });
+  /** Opens the PDF in pass 3 with AI off, on page 1. */
+  async function openPass3(provocations: Provocation[] = []) {
+    await seed(ext, {
+      settings: { ollamaUrl: ollama.url, ollamaChatModel: '', layaUrl: '', cloudMode: 'off' },
+      provocations,
+    });
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
-
     await page.getByRole('radio', { name: 'Pass 3' }).click();
+    const viewport = page.locator('.reader-viewport');
+    const toPage = (n: number) =>
+      viewport.evaluate((el, n) => {
+        el.scrollTop = el.querySelector<HTMLElement>(`.reader-page[aria-label^="Page ${n} "]`)!.offsetTop;
+      }, n);
     const lock = page.getByRole('dialog', { name: 'Scrolling paused' });
-    await expect.poll(() => lock.textContent()).toContain('What would have to be true for this page’s claim to hold');
+    return { page, viewport, toPage, lock };
+  }
+
+  const record = (p: Partial<Provocation>): Provocation => ({
+    id: 'r1', docKey: annotationDocKey(pdfUrl), paperId: null, page: 1, kind: 'equation', question: 'Why is BLEU enough here?',
+    answer: '', status: 'open', annotationId: null, xp: 0, createdAt: Date.now(), updatedAt: Date.now(), ...p,
+  });
+
+  it('untracked PDF, pass 3, AI off: page 1 never locks on open; settling into page 2 locks page 1, held at its bottom, going back still scrolls, "I don\'t know yet" unlocks', async () => {
+    const { page, viewport, toPage, lock } = await openPass3();
+    // Settled on page 1 well past the settle time: no lock on the page you open on.
+    await page.waitForTimeout(2000);
+    expect(await lock.count()).toBe(0);
+
+    await toPage(2);
+    await expect.poll(() => lock.textContent(), { timeout: 5000 }).toContain('What would have to be true for this page’s claim to hold');
     await shot(page, 'reader-pass-lock');
 
-    // Forward scrolling is clamped to page 1.
-    const viewport = page.locator('.reader-viewport');
-    await viewport.evaluate((el) => {
-      const third = el.querySelector<HTMLElement>('.reader-page[aria-label^="Page 3 "]')!;
-      el.scrollTop = third.offsetTop;
-    });
-    await page.waitForTimeout(300);
-    const centrePage = () =>
+    // Held at page 1's bottom: it is on screen, page 2 is not in the middle.
+    const geometry = () =>
       viewport.evaluate((el) => {
-        const mid = el.scrollTop + el.clientHeight / 2;
-        const pages = [...el.querySelectorAll<HTMLElement>('.reader-page')];
-        return pages.findIndex((p) => p.offsetTop <= mid && mid < p.offsetTop + p.offsetHeight) + 1;
+        const p1 = el.querySelector<HTMLElement>('.reader-page[aria-label^="Page 1 "]')!;
+        return { top: el.scrollTop, mid: el.scrollTop + el.clientHeight / 2, bottom: el.scrollTop + el.clientHeight, p1End: p1.offsetTop + p1.offsetHeight };
       });
-    expect(await centrePage()).toBe(1);
+    await expect.poll(async () => { const g = await geometry(); return g.mid < g.p1End && g.p1End <= g.bottom; }).toBe(true);
+    await toPage(3);
+    await page.waitForTimeout(300);
+    const held = await geometry();
+    expect(held.mid).toBeLessThan(held.p1End);
+
+    // Going back stays possible.
+    await viewport.evaluate((el) => (el.scrollTop -= 400));
+    await expect.poll(async () => (await geometry()).top).toBeLessThan(held.top);
 
     await lock.getByRole('button', { name: "I don't know yet" }).click();
     await expect.poll(() => lock.count()).toBe(0);
@@ -159,11 +184,36 @@ describe('reader: provocations', () => {
     expect(stored).toMatchObject([{ status: 'unsure', page: 1, paperId: null }]);
 
     // Unlocked, it scrolls on.
-    await viewport.evaluate((el) => {
-      const third = el.querySelector<HTMLElement>('.reader-page[aria-label^="Page 3 "]')!;
-      el.scrollTop = third.offsetTop;
-    });
-    await expect.poll(centrePage).toBeGreaterThan(1);
+    await toPage(3);
+    await expect.poll(async () => (await geometry()).mid).toBeGreaterThan(held.p1End);
+    await page.close();
+  });
+
+  it('pass 3: answering the lock resolves the open record on that page (10 XP), with no extra lock record', async () => {
+    const { page, toPage, lock } = await openPass3([record({})]);
+    await page.waitForTimeout(1500);
+    expect(await lock.count()).toBe(0);
+    await toPage(2);
+    const field = lock.getByRole('textbox', { name: 'Your answer' });
+    await expect.poll(() => field.count(), { timeout: 5000 }).toBe(1);
+    await field.fill('The test set shares its domain with training');
+    await lock.getByRole('button', { name: 'Continue reading' }).click();
+    await expect.poll(() => lock.count()).toBe(0);
+    await expect
+      .poll(async () => (await storage<Provocation[]>(ext, 'provocations')).find((p) => p.id === 'r1'))
+      .toMatchObject({ status: 'answered', xp: 10, answer: 'The test set shares its domain with training' });
+    expect((await storage<Provocation[]>(ext, 'provocations')).filter((p) => p.kind === 'lock')).toEqual([]);
+    await page.close();
+  });
+
+  it('pass 3: a page justified in an earlier session does not lock again on reopen', async () => {
+    const { page, toPage, lock } = await openPass3([
+      record({ kind: 'lock', status: 'answered', answer: 'It holds on aligned data', question: 'q' }),
+    ]);
+    await page.waitForTimeout(1500);
+    await toPage(2);
+    await page.waitForTimeout(2500);
+    expect(await lock.count()).toBe(0);
     await page.close();
   });
 
@@ -201,6 +251,7 @@ describe('reader: provocations', () => {
     await card.getByRole('button', { name: 'Answer in one line' }).click();
     await expect.poll(() => page.locator('.pp-deck-head').textContent()).toContain('10 XP');
     await expect.poll(() => record.textContent()).not.toContain('still open');
+
     await page.close();
   });
 });

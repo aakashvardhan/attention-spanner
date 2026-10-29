@@ -16,7 +16,7 @@ import { sendMessage } from '../../shared/messages';
 import { sectionIndexAt, topLevel, type FlatOutlineItem } from '../../shared/pdfOutline';
 import { TAG_COLOR } from '../../shared/thinking';
 import type { Annotation, HighlightTag, Paper, ProvocationDraft, ReadingPass } from '../../shared/types';
-import { mathBlock, shouldLock } from './passGate';
+import { justifiedPages, mathBlock, pageToLock } from './passGate';
 import { TAGS } from './components/ProvocationCard';
 
 /** A page has to hold still this long before it counts as the page you are on. */
@@ -68,6 +68,7 @@ export function useProvocations({
   source,
   annotations,
   paper,
+  restored,
   jump,
 }: {
   docKey: string;
@@ -80,6 +81,8 @@ export function useProvocations({
   source: AiSource;
   annotations: readonly Annotation[];
   paper: Paper | null;
+  /** The viewport has applied the saved position (nothing is judged before) */
+  restored: boolean;
   /** Scroll to a page (Open questions jump there) */
   jump: (page: number) => void;
 }) {
@@ -231,9 +234,37 @@ export function useProvocations({
     return () => window.removeEventListener('pagehide', onPageHide);
   }, []);
 
-  // ---- Settling on a page (pass 2) ---------------------------------------
+  // ---- Pass 3 lock state (evaluated when a page is settled past) ----------
+  const lockAi = useAi();
+  const { start: startLock, dismiss: dismissLock } = lockAi;
+  /** The page being justified, and the open record on it that the answer resolves */
+  const [locked, setLocked] = useState<{ page: number; recordId: string | null } | null>(null);
+  const lockedSections = useRef(new Set<number>());
+  const unlocked = useRef(new Set<number>());
+  const justified = useMemo(() => justifiedPages(all, docKey), [all, docKey]);
+  const sections = useMemo(() => topLevel(outline), [outline]);
+  const doubts = useMemo(
+    () => annotations.filter((a) => a.tag === 'doubt').map((a) => a.note || a.text),
+    [annotations],
+  );
+  const lockLive = useRef({ locked, open, justified, sections, doubts });
+  lockLive.current = { locked, open, justified, sections, doubts };
+
+  // A pass change drops any question still being written for the old pass.
+  const { dismiss: dismissEq } = eqAi;
+  useEffect(() => {
+    dismissLock();
+    dismissEq();
+    setCard((c) => (c?.kind === 'equation' && !c.recordId && c.answer === null ? null : c));
+    // Leaving pass 3 lifts the lock without filing anything.
+    if (pass !== 3) setLocked(null);
+  }, [pass, dismissLock, dismissEq]);
+
+  // ---- Settling on a page --------------------------------------------------
   // Carried over from the old page recap: a page you settle on counts, scrolling
   // past fast does not; only moving forward asks, and each page is asked once.
+  // Nothing counts until the saved position is restored, so the page you open
+  // on is never mistaken for one you scrolled past.
   const [ask, setAsk] = useState<number | null>(null);
   const settled = useRef<number | null>(null);
   const asked = useRef(new Set<number>());
@@ -244,10 +275,32 @@ export function useProvocations({
   passRef.current = pass;
   const { start: startEq } = eqAi;
   useEffect(() => {
-    if (!pageTexts) return;
+    if (!pageTexts || !restored) return;
     const timer = setTimeout(() => {
       const left = settled.current;
       settled.current = page;
+      if (passRef.current === 3) {
+        const l = lockLive.current;
+        if (l.locked !== null) return;
+        const sectionOf = (p: number) => (l.sections.length ? Math.max(0, sectionIndexAt(l.sections, p)) : 0);
+        const n = pageToLock({
+          left,
+          page,
+          pass: 3,
+          pageTexts,
+          sectionOf,
+          lockedSections: new Set([...lockedSections.current, ...[...l.justified].map(sectionOf)]),
+          justified: new Set([...unlocked.current, ...l.justified]),
+          openPages: new Set(l.open.map((p) => p.page)),
+        });
+        if (n === null) return;
+        lockedSections.current.add(sectionOf(n));
+        dismissLock();
+        dismissEq();
+        setLocked({ page: n, recordId: l.open.find((p) => p.page === n)?.id ?? null });
+        void startLock(lockRequest({ key: docKey, page: n, pageText: pageTexts[n - 1] ?? '', doubts: l.doubts, source }));
+        return;
+      }
       if (passRef.current !== 2) return;
       const block = equated.current.has(page) ? '' : mathBlock(pageTexts[page - 1] ?? '');
       const c = cardRef.current;
@@ -264,6 +317,7 @@ export function useProvocations({
           answer: null,
           breakdownAsked: false,
         });
+        dismissEq();
         void startEq(equationRequest({ key: docKey, page, block, source }));
       }
       if (left === null || page <= left || asked.current.has(left)) return;
@@ -271,58 +325,37 @@ export function useProvocations({
       setAsk((pageTexts[left - 1] ?? '').trim().length < MIN_PAGE_CHARS ? null : left);
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [page, pageTexts, docKey, source, startEq]);
+  }, [page, pageTexts, restored, docKey, source, startEq, dismissEq, startLock, dismissLock]);
 
-  // ---- Pass 3 lock -------------------------------------------------------
-  const lockAi = useAi();
-  const { start: startLock } = lockAi;
-  const [locked, setLocked] = useState<number | null>(null);
-  const lockedSections = useRef(new Set<number>());
-  const unlocked = useRef(new Set<number>());
-  const sections = useMemo(() => topLevel(outline), [outline]);
-  const doubts = useMemo(
-    () => annotations.filter((a) => a.tag === 'doubt').map((a) => a.note || a.text),
-    [annotations],
-  );
-  const openRef = useRef(open);
-  openRef.current = open;
-  const doubtsRef = useRef(doubts);
-  doubtsRef.current = doubts;
-  useEffect(() => {
-    // Leaving pass 3 lifts the lock without filing anything.
-    if (locked !== null && pass !== 3) return setLocked(null);
-    if (locked !== null || !pageTexts || unlocked.current.has(page)) return;
-    const pageText = pageTexts[page - 1] ?? '';
-    const section = sections.length ? Math.max(0, sectionIndexAt(sections, page)) : 0;
-    const openOnPage = openRef.current.some((p) => p.page === page);
-    if (!shouldLock({ pass, pageText, section, lockedSections: lockedSections.current, openOnPage })) return;
-    lockedSections.current.add(section);
-    setLocked(page);
-    void startLock(lockRequest({ key: docKey, page, pageText, doubts: doubtsRef.current, source }));
-  }, [pass, page, pageTexts, locked, sections, docKey, source, startLock]);
-
-  // The fixed question shows at once; the AI's replaces it only if it is already there.
+  // The fixed question shows at once; the AI's may replace it until the reader
+  // starts typing (PassLock freezes it then and hands back the one it showed).
   const lockQuestion = settledText(lockAi.view) || FALLBACK.lock;
   const unlock = useCallback(
-    (answer: string | null) => {
+    (answer: string | null, question: string) => {
       if (locked === null) return;
-      void add({
-        kind: 'lock',
-        page: locked,
-        question: lockQuestion,
-        answer: answer ?? '',
-        status: answer === null ? 'unsure' : 'answered',
-      });
-      unlocked.current.add(locked);
-      lockAi.dismiss();
+      const rec = locked.recordId ? open.find((p) => p.id === locked.recordId) : undefined;
+      if (rec) {
+        // The open record that caused the lock is what the answer settles.
+        if (answer !== null) void sendMessage({ type: 'PROV_UPDATE', id: rec.id, patch: { answer, status: 'answered' } });
+        else if (rec.status === 'open') void sendMessage({ type: 'PROV_UPDATE', id: rec.id, patch: { status: 'unsure' } });
+      } else {
+        void add({ kind: 'lock', page: locked.page, question, answer: answer ?? '', status: answer === null ? 'unsure' : 'answered' });
+      }
+      unlocked.current.add(locked.page);
+      dismissLock();
       setLocked(null);
     },
-    [locked, lockQuestion, add, lockAi],
+    [locked, open, add, dismissLock],
   );
   const lock =
     locked === null
       ? null
-      : { page: locked, question: lockQuestion, onContinue: (a: string) => unlock(a), onUnsure: () => unlock(null) };
+      : {
+          page: locked.page,
+          question: lockQuestion,
+          onContinue: (a: string, q: string) => unlock(a, q),
+          onUnsure: (q: string) => unlock(null, q),
+        };
 
   // ---- Capsule prompt: verdict first, then the page one-liner -------------
   const [verdictDone, setVerdictDone] = useState(false);
