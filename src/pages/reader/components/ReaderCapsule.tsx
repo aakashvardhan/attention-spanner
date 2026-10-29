@@ -269,7 +269,7 @@ function CapsulePrompt({
             }}
           />
           <button type="button" className="capsule-prompt-skip" onClick={onSkip}>
-            Skip · goes to Open questions
+            Not now
           </button>
           <button type="button" className="reader-capsule-action" disabled={!answer.trim()} onClick={save}>
             Save ↵

@@ -553,6 +553,9 @@ function Margin({
         tags={card.kind === 'highlight' && !card.tag}
         placeholder="In one line, your own words"
         actionLabel={card.kind === 'highlight' ? 'Save reason' : 'Save answer'}
+        skipLabel={
+          card.kind === 'equation' ? 'Skip · stays in Open questions' : card.kind === 'open' ? 'Not now · stays in Open questions' : 'Not now'
+        }
         onCommit={actions.commit}
         onSkip={actions.skip}
       >

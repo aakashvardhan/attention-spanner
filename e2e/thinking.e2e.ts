@@ -252,6 +252,17 @@ describe('reader: provocations', () => {
     await expect.poll(() => page.locator('.pp-deck-head').textContent()).toContain('10 XP');
     await expect.poll(() => record.textContent()).not.toContain('still open');
 
+    // The verdict edits in place; with no verdict record yet, the save files one (20 XP).
+    await record.getByRole('button', { name: 'Convincing on translation only.' }).click();
+    const verdict = record.getByRole('textbox', { name: 'Your verdict' });
+    await verdict.fill('Convincing on translation, untested elsewhere');
+    await verdict.press('Enter');
+    await expect
+      .poll(async () => (await storage<{ id: string; verdict?: string }[]>(ext, 'papers')).find((p) => p.id === 'p1')?.verdict)
+      .toBe('Convincing on translation, untested elsewhere');
+    await expect
+      .poll(async () => (await storage<Provocation[]>(ext, 'provocations')).filter((p) => p.kind === 'verdict'))
+      .toMatchObject([{ paperId: 'p1', status: 'answered', xp: 20, answer: 'Convincing on translation, untested elsewhere' }]);
     await page.close();
   });
 });

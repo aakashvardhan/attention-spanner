@@ -8,8 +8,8 @@ export const TAGS: { tag: HighlightTag; label: string }[] = [
 ];
 
 /**
- * A question in the margin, answered in the reader's own words. Skipping is
- * not losing it: the caller files it under Open questions.
+ * A question in the margin, answered in the reader's own words. The caller
+ * decides what skipping does and names it in `skipLabel`.
  */
 export function ProvocationCard({
   kicker,
@@ -17,6 +17,7 @@ export function ProvocationCard({
   tags = false,
   placeholder,
   actionLabel,
+  skipLabel,
   onCommit,
   onSkip,
   children,
@@ -27,6 +28,8 @@ export function ProvocationCard({
   tags?: boolean;
   placeholder: string;
   actionLabel: string;
+  /** Says what skipping does: "Not now" stores nothing */
+  skipLabel: string;
   onCommit: (answer: string, tag?: HighlightTag) => void;
   onSkip: () => void;
   /** Extra content between the question and the answer (an equation, a breakdown) */
@@ -77,7 +80,7 @@ export function ProvocationCard({
       />
       <div className="provoke-foot">
         <button type="button" className="provoke-skip" onClick={onSkip}>
-          Skip · stays in Open questions
+          {skipLabel}
         </button>
         <button type="button" className="provoke-action" disabled={!answer.trim()} onClick={commit}>
           {actionLabel}
