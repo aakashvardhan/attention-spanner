@@ -9,6 +9,9 @@ describe('passGate', () => {
     expect(mathBlock('intro\nAlgorithm 1 Train loop\nfor x do')).toMatch(/^Algorithm 1 Train/);
     expect(mathBlock('text\nθ = θ − α∇L(θ) + βΣ_{t}\nmore')).toContain('∇L');
     expect(mathBlock('We set the rate x = 3 and then went on to read more prose here.')).toBe('');
+    expect(mathBlock('| a | b | c | d | e | f | g | h |')).toBe('');
+    expect(mathBlock('Use the (foo_bar) and (baz_qux) helpers (see below) to set x = 3 in the (usual_way) of doing it.')).toBe('');
+    expect(mathBlock('As shown, see Algorithm 1 for details on the method.')).toBe('');
     expect(mathBlock('Algorithm 2 ' + 'x'.repeat(900)).length).toBeLessThanOrEqual(400);
   });
 

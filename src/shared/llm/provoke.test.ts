@@ -22,13 +22,17 @@ describe('provoke', () => {
       expect(r.task).toBe('provoke');
       expect(r.cacheKey).toBeTruthy();
     }
-    expect(reqs[0].system).toContain(NO_ANSWER_RULE);
+    for (const r of reqs) expect(r.system.endsWith(NO_ANSWER_RULE)).toBe(true);
     expect(socraticSystem().endsWith(NO_ANSWER_RULE)).toBe(true);
     const bd = breakdownRequest({ key: 'k', page: 1, block: 'a=b', guess: 'g', source });
     const cp = counterpointRequest({ key: 'k', passage: 'p', reasoning: 'r', source });
     expect([bd.task, cp.task]).toEqual(['provoke', 'provoke']);
     expect(cp.system).toContain('reasoning');
     for (const r of [reqs[0], reqs[1], bd]) expect(r.system).not.toContain('reasoning');
+    for (const r of [bd, cp]) {
+      expect(r.system).toContain('Never answer, summarise, explain or solve');
+      expect(r.system).toContain('No preamble');
+    }
   });
 
   it('parseCounterpoint reads Q/Gap, null for NONE', () => {

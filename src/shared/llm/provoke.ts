@@ -20,8 +20,8 @@ export const FALLBACK = {
 const EQUATION_SYSTEM =
   'You coach someone reading a research paper. You get a block of math from it. Ask one question ' +
   'that makes the reader state in their own words what it does.' +
-  NO_ANSWER_RULE +
-  MATH_RULE;
+  MATH_RULE +
+  NO_ANSWER_RULE;
 
 const BREAKDOWN_SYSTEM =
   'You coach someone reading a research paper. You get a block of math and the reader’s own guess ' +
@@ -33,15 +33,15 @@ const BREAKDOWN_SYSTEM =
 const LOCK_SYSTEM =
   'You coach someone reading a research paper. You get one page and the reader’s doubts so far. ' +
   'Ask one question that makes them test the page’s main claim against those doubts.' +
-  NO_ANSWER_RULE +
-  MATH_RULE;
+  MATH_RULE +
+  NO_ANSWER_RULE;
 
 const COUNTERPOINT_SYSTEM =
   'You check the reader’s reasoning, not the paper. You get a passage and what the reader wrote ' +
   'about it. If their reasoning has one possible gap or fallacy (a confounded comparison, ' +
   'correlation read as cause, overgeneralisation), reply in exactly this form:\n' +
   'Q: <one question of at most 30 words that makes them test it>\nGap: <the gap, named in a few words>\n' +
-  'If it holds, reply exactly NONE. Never answer, summarise or explain. No preamble, no emoji.';
+  'If it holds, reply exactly NONE. Never answer, summarise, explain or solve. No preamble, no emoji.';
 
 export function socraticSystem(): string {
   return (
