@@ -35,10 +35,10 @@ export function paperThinking(
     annotations
       .filter((a) => a.paperId === paperId && a.tag === tag)
       .map((a) => ({ id: a.id, text: a.text, page: pageOf(a), note: a.note }));
-  const item = (p: Provocation, note: string): ThinkingItem => ({ id: p.id, text: p.question, page: p.page, note });
+  const item = (p: Provocation, note: string, text = p.answer): ThinkingItem => ({ id: p.id, text, page: p.page, note });
   const answered = mine.filter((p) => p.status === 'answered');
 
-  const claims = [...tagged('claim'), ...answered.filter((p) => p.kind === 'page').map((p) => item(p, p.answer))];
+  const claims = [...tagged('claim'), ...answered.filter((p) => p.kind === 'page').map((p) => item(p, p.question))];
   const doubts = [
     ...tagged('doubt'),
     ...answered.flatMap((p) =>
@@ -49,7 +49,7 @@ export function paperThinking(
           : [],
     ),
   ];
-  const open = mine.filter((p) => isOpen(p) && p.kind !== 'page').map((p) => item(p, p.answer));
+  const open = mine.filter((p) => isOpen(p) && p.kind !== 'page').map((p) => item(p, p.answer, p.question));
   return {
     claims: claims.sort(byPage),
     doubts: doubts.sort(byPage),
@@ -60,7 +60,7 @@ export function paperThinking(
 
 const RANK: Record<string, number> = { lock: 0, equation: 1 };
 
-/** An open/unsure record from these papers, stable for a local day; doubts' counterpoints first. */
+/** An open/unsure record from these papers, stable for a local day; ordered lock, equation, then others, each by createdAt. */
 export function todaysQuestion(
   paperIds: readonly string[],
   provocations: readonly Provocation[],

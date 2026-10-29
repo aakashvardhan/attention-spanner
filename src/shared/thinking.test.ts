@@ -45,6 +45,8 @@ describe('paperThinking', () => {
     ]);
     expect(t.claims.map((i) => i.page)).toEqual([2, 3, 5]);
     expect(t.claims[2].note).toBe('why');
+    expect(t.claims[1].text).toBe('mine');
+    expect(t.doubts[0].text).toBe('');
     expect(t.doubts.map((i) => i.page)).toEqual([1, 4, 6]);
     expect(t.doubts[0].note).toBe('you revised');
     expect(t.doubts[2].note).toBe('you justified this to unlock pass 3');
