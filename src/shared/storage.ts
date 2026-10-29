@@ -13,6 +13,7 @@ import type {
   FocusSession,
   HighlightRole,
   Paper,
+  Provocation,
   Settings,
   WeatherCache,
 } from './types';
@@ -20,6 +21,7 @@ import type { TranscriptSegment } from './youtubeCaptions';
 
 export interface LocalSchema {
   schemaVersion: number;
+  provocations: Provocation[];
   feeds: string[];
   readItems: string[];
   cachedItems: FeedItem[];
@@ -84,6 +86,8 @@ export const DEFAULT_SETTINGS: Settings = {
   hyperfocusEnabled: true,
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
+  breakMinutes: 10,
+  focusSound: true,
   focusMusicEnabled: false,
   semanticScholarApiKey: '',
   displayName: '',
@@ -91,17 +95,17 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaUrl: 'http://localhost:11434',
   ollamaChatModel: '',
   ollamaEmbedModel: 'nomic-embed-text',
-  cloudMode: 'off',
+  cloudMode: 'all',
   claudeKey: '',
+  geminiKey: '',
   layaUrl: '',
   mutedTopics: [],
-  worldView: 'world',
-  comfort: 'recommended',
   ambientMotion: true,
 };
 
 export const DEFAULTS: LocalSchema = {
   schemaVersion: 23,
+  provocations: [],
   feeds: [],
   readItems: [],
   cachedItems: [],

@@ -47,8 +47,13 @@ export const FOCUS_DNR_ID_LIMIT = 2000;
 export const DAILY_GATE_DNR_ID = 900;
 export const DAILY_GATE_ALLOW_DNR_ID = 901;
 export const FOCUS_DNR_PRIORITY = 300;
+/** Session rules sending PDF navigations to the reader: the redirect, then one allow per bypassed URL. */
+export const PDF_DNR_ID = 3000;
+export const PDF_BYPASS_DNR_ID_BASE = 3001;
 export const BLOCKED_PAGE_PATH = 'src/pages/blocked/index.html';
 export const HOLD_TO_QUIT_MS = 5000;
+/** Offscreen document that plays the Pomodoro chime (background/focus.ts) */
+export const CHIME_PAGE_PATH = 'src/pages/chime/index.html';
 export const FLOWTUNES_URL = 'https://www.flowtunes.app/';
 export const MAX_BOOKMARKS = 200;
 
@@ -120,6 +125,8 @@ export const LAYA_BIG_STEP_MIN = 0.45;
 export const LAYA_RECURRING_MIN = 0.75;
 export const LAYA_URL_DEFAULT = 'http://localhost:11435';
 export const CLAUDE_MODELS = {
-  quick: 'claude-haiku-4-5',
+  quick: 'claude-haiku-5-5',
   deep: 'claude-sonnet-5-5',
 } as const;
+export const MAX_PROVOCATIONS = 5000;
+export const MIN_PAGE_CHARS = 300;

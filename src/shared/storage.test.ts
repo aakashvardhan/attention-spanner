@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  DEFAULTS,
   v12ReadingProgress,
   v22StripSettings,
   v7Annotations,
@@ -191,5 +192,12 @@ describe('v22', () => {
 
   it('leaves a settings object that carries none of the dead fields alone', () => {
     expect(v22StripSettings({ theme: 'light' })).toEqual({ theme: 'light' });
+  });
+});
+
+describe('provocations key', () => {
+  it('defaults provocations to an empty list and keeps schema 23', () => {
+    expect(DEFAULTS.provocations).toEqual([]);
+    expect(DEFAULTS.schemaVersion).toBe(23);
   });
 });

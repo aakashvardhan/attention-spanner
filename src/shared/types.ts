@@ -39,8 +39,8 @@ export interface ResumeTarget {
   positionSeconds?: number;
 }
 
-/** UI color theme; 'system' follows the OS prefers-color-scheme */
-export type ThemeSetting = 'light' | 'dark' | 'system';
+/** UI color theme; paperwhite is a warm e-ink light theme; 'system' follows the OS prefers-color-scheme */
+export type ThemeSetting = 'light' | 'dark' | 'paperwhite' | 'system';
 
 export interface Settings {
   theme: ThemeSetting;
@@ -57,6 +57,10 @@ export interface Settings {
   /** Domains blocked during focus sessions */
   focusBlocklist: string[];
   focusMinutes: number;
+  /** Pomodoro break between focus rounds, unblocked */
+  breakMinutes: number;
+  /** Chime when a focus round or a break ends */
+  focusSound: boolean;
   /** Auto-open Flowtunes in a pinned tab when a focus session starts */
   focusMusicEnabled: boolean;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
@@ -78,6 +82,8 @@ export interface Settings {
   cloudMode: CloudMode;
   /** User's own Anthropic API key; '' = no cloud */
   claudeKey: string;
+  /** User's own Gemini API key; '' = off. Only summarizes a YouTube video whose transcript can't be read. */
+  geminiKey: string;
   /** Local Laya sidecar (scripts/laya-server); '' = off */
   layaUrl: string;
   /**
@@ -86,15 +92,12 @@ export interface Settings {
    * normalizeTopics, which also survives a hand-edited value.
    */
   mutedTopics: string[];
-  /** New tab as a world you stand in, or the flat Edition. World falls back to flat under Reduce Motion or in a narrow window. */
-  worldView: 'world' | 'flat';
-  /** Camera moves: 'recommended' glides with an edge vignette, 'comfortable' cuts straight there. */
-  comfort: 'recommended' | 'comfortable';
-  /** Sky, clouds and the masthead runners move. Paused during focus and under Reduce Motion regardless. */
+  /** The masthead runners move. Paused during focus and under Reduce Motion regardless. */
   ambientMotion: boolean;
 }
 
-export type CloudMode = 'off' | 'ask' | 'public';
+/** 'all' sends every task and source to Claude, private ones included; the rest keep private sources on device. */
+export type CloudMode = 'off' | 'ask' | 'public' | 'all';
 
 /** Per-feature counters and latency samples. Never leaves the device. */
 export interface AiStats {
@@ -159,6 +162,8 @@ export type PaperKind = 'survey' | 'method' | 'benchmark' | 'dataset' | 'positio
 
 export interface Paper extends RecordMeta {
   id: string;
+  pass?: ReadingPass;
+  verdict?: string;
   /** Reuses Deck.id — the same decks as flashcards */
   deckId: string;
   title: string;
@@ -196,6 +201,8 @@ export interface Paper extends RecordMeta {
   updatedAt: number;
   /** Bumped whenever status/progress changes while reading */
   lastReadAt: number | null;
+  /** "Pick it back up" nudge state; absent until the first nudge */
+  nudge?: { count: number; lastAt: number; dismissed: boolean };
 }
 
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
@@ -248,6 +255,7 @@ export type AnnotationAnchor =
 
 export interface Annotation extends RecordMeta {
   id: string;
+  tag?: HighlightTag;
   /** Stable doc identity: paperMatchKey(url) ?? normalized url */
   docKey: string;
   /** The exact document URL the annotation was made on */
@@ -334,14 +342,27 @@ export type Quadrant = 'do' | 'schedule' | 'delegate' | 'drop' | 'note';
 export interface DayActivity {
   /** Distinct papers read that day */
   papers: string[];
-  /** Focus sessions that ran to the end; a stopped one does not count */
+  /** Focus rounds that ran to the end; a stopped one does not count */
   focus: number;
+  /** Minutes clocked in, logged at clock out; absent on days before it shipped */
+  clocked?: number;
 }
 
+/**
+ * A clocked-in shift: Pomodoro rounds, focus then break, until clock out.
+ * Sites are blocked only in the focus phase.
+ */
 export interface FocusSession {
+  /** Clock-in time */
   startedAt: number;
+  phase: 'focus' | 'break';
+  phaseStartedAt: number;
   phaseEndsAt: number;
   focusMinutes: number;
+  /** 1-based round of the shift; a break belongs to the round before it */
+  round: number;
+  /** What the shift is for, in the user's words; drift nudges and the blocked page quote it */
+  intention?: string;
 }
 
 interface ProgressBase {
@@ -391,6 +412,35 @@ export interface VideoProgress extends ProgressBase {
    * absent chapter must render as absence rather than an invented "Chapter 1".
    */
   chapter?: string;
+  /**
+   * Player position when the tab went hidden while the video kept playing —
+   * where attention left a lecture. Cleared by the next report from a visible tab.
+   */
+  lookedAwayAt?: number;
 }
 
 export type AnyProgress = ReadingProgress | VideoProgress;
+export type ReadingPass = 1 | 2 | 3;
+export type HighlightTag = 'claim' | 'evidence' | 'doubt';
+export type ProvocationKind = 'page' | 'equation' | 'lock' | 'counterpoint' | 'verdict';
+/** open = skipped or left unanswered; unsure = "I don't know yet" (also open) */
+export type ProvocationStatus = 'open' | 'unsure' | 'answered';
+export interface Provocation {
+  id: string;
+  docKey: string;
+  paperId: string | null;
+  page: number;
+  kind: ProvocationKind;
+  question: string;
+  answer: string;
+  status: ProvocationStatus;
+  /** counterpoint → the highlight it challenges */
+  annotationId: string | null;
+  /** counterpoint only */
+  response?: 'defended' | 'revised';
+  citedPage?: number;
+  xp: number;
+  createdAt: number;
+  updatedAt: number;
+}
+export type ProvocationDraft = Omit<Provocation, 'id' | 'xp' | 'createdAt' | 'updatedAt'>;
