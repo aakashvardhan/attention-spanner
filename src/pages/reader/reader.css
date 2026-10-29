@@ -652,8 +652,10 @@ body {
   --scale-round-y: 1px;
 }
 
+/* The sharp canvas stacks over its page's thumbnail, by DOM order. */
 .reader-canvas {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   /* A page fades in when its first paint lands instead of popping in. */
@@ -691,6 +693,23 @@ body {
 
 /* Text layer — minimal subset of pdf.js web/pdf_viewer.css `.textLayer` rules.
    Transparent glyphs positioned over the canvas so native selection works. */
+
+/* PDF link annotations, over the text as in Chrome's viewer; invisible until hovered. */
+.reader-links {
+  position: absolute;
+  inset: 0;
+  z-index: 3; /* over the text (2); the annotation layer, later in the DOM, still wins */
+  pointer-events: none;
+}
+.reader-link {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: var(--radius-sm);
+}
+.reader-link:hover,
+.reader-link:focus-visible {
+  background: var(--accent-wash);
+}
 
 .textLayer {
   position: absolute;
@@ -777,7 +796,7 @@ body {
   height: 22px;
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 0;
   background: var(--warning);
-  border: 2px solid var(--pdf-page);
+  border: 2px solid var(--pdf-paper);
   box-shadow: var(--shadow-sm);
 }
 
@@ -892,6 +911,47 @@ body {
 
 .reader-back-btn:hover {
   background: var(--bg-hover);
+}
+
+/* Click-to-define: a fixed width so the loading skeleton has room before text streams in. */
+.define-popover {
+  width: 320px;
+}
+
+/* The previous-page recap sits bottom-left: the left-off recap owns the top
+   right and the related highlight the bottom right. */
+.page-recap {
+  top: auto;
+  right: auto;
+  bottom: calc(var(--space-8) + var(--space-6));
+  left: var(--space-5);
+  width: min(320px, calc(100% - 2 * var(--space-4)));
+}
+
+/* Paperwhite: a duotone laid over the rendered page, between the canvases and
+   the text layer. `screen` lifts black to the warm ink, then `multiply` tints
+   white to the paper, with a faint grain. The canvases stay opaque: blending
+   the canvas itself let the soft thumbnail under it show through as a blurred
+   shadow on every line. The page's transform makes it the blend's boundary. */
+:root[data-theme='paperwhite'] .reader-page::before,
+:root[data-theme='paperwhite'] .reader-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+:root[data-theme='paperwhite'] .reader-page::before {
+  background: var(--pdf-ink);
+  mix-blend-mode: screen;
+}
+
+:root[data-theme='paperwhite'] .reader-page::after {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    var(--pdf-paper);
+  mix-blend-mode: multiply;
 }
 
 /* Night: the chrome is already dark (theme), and the pages follow. Inverting
@@ -1069,6 +1129,8 @@ body {
 
 /* Ask: the find rail's shell, holding one question and its sourced answer. */
 .reader-ask-form { margin-bottom: var(--space-2); }
+.reader-ask-turn { margin-bottom: var(--space-3); }
+.reader-ask-new { margin-left: auto; }
 .reader-ask-question {
   margin: var(--space-3) 0 0;
   font-weight: 700;
@@ -1347,7 +1409,7 @@ body {
   padding: 0 var(--space-2);
   font-size: var(--text-xs);
   border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
+  background: var(--accent-wash);
   color: var(--accent-text);
   border-radius: var(--radius-pill);
   cursor: pointer;
@@ -1621,4 +1683,322 @@ body {
 }
 .reader-title {
   view-transition-name: story-title;
+}
+
+/* Margin provocations: a question asked of the reader, answered in their own
+   words. Questions and answers are set in the display serif; chrome in sans. */
+.provoke-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(320px, calc(100% - 2 * var(--space-4)));
+  box-sizing: border-box;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.provoke-card p {
+  margin: 0;
+}
+
+.provoke-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.provoke-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.provoke-question {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  color: var(--text-primary);
+}
+
+.provoke-gap {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.provoke-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.provoke-tag,
+.annot-tag-btn {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  cursor: pointer;
+}
+
+.provoke-tag:hover,
+.annot-tag-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.provoke-tag[aria-checked='true'] {
+  border-color: var(--accent-border);
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+.provoke-answer {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  resize: vertical;
+}
+
+.provoke-answer:focus {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 0;
+}
+
+.provoke-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.provoke-skip,
+.capsule-prompt-skip {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.provoke-skip:hover,
+.capsule-prompt-skip:hover {
+  color: var(--text-secondary);
+}
+
+.provoke-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.provoke-action:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
+
+.provoke-reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-display);
+}
+
+.provoke-reply span {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
+/* Pass 3: the page fades into the page background under one question. */
+.pass-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+}
+
+.pass-lock-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, var(--bg-page) 55%);
+}
+
+.provoke-card.pass-lock-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: var(--space-6);
+  gap: var(--space-4);
+}
+
+.pass-lock-card .provoke-question {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+}
+
+.pass-lock-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.pass-lock-hint {
+  margin-right: auto;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Capsule: the pass switch and the one-line reflection prompt. */
+.capsule-pass {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+}
+
+.capsule-pass span {
+  margin-right: var(--space-1);
+  color: var(--text-muted);
+}
+
+.capsule-pass button {
+  min-width: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.capsule-pass button[aria-checked='true'] {
+  background: var(--rule);
+  color: var(--bg-page);
+  font-weight: 700;
+}
+
+.capsule-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.capsule-prompt-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.capsule-prompt-input {
+  width: min(360px, 50vw);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+}
+
+.reader-capsule-action:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
+
+/* Tag-first selection menu (PDF) */
+.annot-tag-menu {
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+
+.annot-tag-btn {
+  border-color: transparent;
+}
+
+.annot-tag-question {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Guess-first define */
+.define-guess {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.define-guess-question {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.define-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.define-guess-text {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+}
+
+.reader-open-questions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reader-open-count {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-wash);
+  color: var(--accent-text);
+  font-weight: 700;
 }

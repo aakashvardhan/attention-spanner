@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { formatCitation, type CiteSource, type CiteStyle } from '../../../shared/citeFormats';
 import { NEWTAB_PAGE_PATH } from '../../../shared/constants';
 import { sendMessage } from '../../../shared/messages';
+import { alphaxivUrl } from '../../../shared/pdf';
 import { useSettings } from '../../../shared/hooks/useSettings';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { patchSettings } from '../../../shared/storage';
@@ -57,6 +58,8 @@ export function ReaderToolbar({
   onToggleFind,
   askOpen,
   onToggleAsk,
+  openCount = 0,
+  onNextOpen,
   citation,
 }: {
   title: string;
@@ -82,6 +85,9 @@ export function ReaderToolbar({
   onToggleFind?: () => void;
   askOpen?: boolean;
   onToggleAsk?: () => void;
+  /** Questions skipped or not yet answered; the chip shows only when there are some */
+  openCount?: number;
+  onNextOpen?: () => void;
   /** What "Copy citation" formats (may look it up); absent where there is nothing to cite */
   citation?: () => Promise<CiteSource>;
 }) {
@@ -91,8 +97,11 @@ export function ReaderToolbar({
   const night = pageNoun === 'page' && settings.readerNight && theme.resolved === 'dark';
   const appearance = night ? 'night' : theme.resolved;
   // One patch: two concurrent read-modify-writes of settings would drop one.
-  const setAppearance = (mode: 'light' | 'dark' | 'night') =>
-    void patchSettings({ theme: mode === 'light' ? 'light' : 'dark', readerNight: mode === 'night' });
+  const setAppearance = (mode: 'light' | 'dark' | 'night' | 'paperwhite') =>
+    void patchSettings({
+      theme: mode === 'light' || mode === 'paperwhite' ? mode : 'dark',
+      readerNight: mode === 'night',
+    });
   const [copied, setCopied] = useState<{ style: CiteStyle; label: string } | null>(null);
   const copyCitation = async (style: CiteStyle) => {
     if (!citation) return;
@@ -195,12 +204,17 @@ export function ReaderToolbar({
       </div>
 
       <div className="reader-toolbar-right">
+        {openCount > 0 && onNextOpen && (
+          <button type="button" className="ghost-btn reader-open-questions" onClick={onNextOpen}>
+            Open questions <span className="reader-open-count">{openCount}</span>
+          </button>
+        )}
         {onToggleAsk && (
           <button
             className={askOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
-            aria-label="Ask this document"
+            aria-label="Question it"
             aria-pressed={askOpen}
-            title="Ask this document"
+            title="Question it"
             onClick={onToggleAsk}
           >
             <ToolbarIcon>
@@ -279,6 +293,19 @@ export function ReaderToolbar({
               </button>
               <button
                 role="menuitemradio"
+                aria-checked={appearance === 'paperwhite'}
+                className={appearance === 'paperwhite' ? 'active' : undefined}
+                title="Warm e-ink page, like a Kindle"
+                onClick={() => closeAfter(() => setAppearance('paperwhite'))}
+              >
+                <ToolbarIcon>
+                  <path d="M6 3.5h12v17H6z" />
+                  <path d="M9 8h6M9 11.5h6M9 15h4" />
+                </ToolbarIcon>
+                <span>Paperwhite</span>
+              </button>
+              <button
+                role="menuitemradio"
                 aria-checked={appearance === 'dark'}
                 className={appearance === 'dark' ? 'active' : undefined}
                 onClick={() => closeAfter(() => setAppearance('dark'))}
@@ -320,6 +347,15 @@ export function ReaderToolbar({
               {src && (
                 <>
                   <div className="reader-menu-separator" role="separator" />
+                  {alphaxivUrl(src) && (
+                    <button role="menuitem" onClick={() => closeAfter(() => location.assign(alphaxivUrl(src)!))}>
+                      <ToolbarIcon>
+                        <path d="M14 4h6v6M20 4l-9 9" />
+                        <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+                      </ToolbarIcon>
+                      <span>Open in alphaXiv</span>
+                    </button>
+                  )}
                   <button
                     role="menuitem"
                     onClick={() =>

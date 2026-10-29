@@ -26,7 +26,10 @@ export function OutlineSidebar({
   ai?: AiOutlineSource;
 }) {
   const active = sectionIndexAt(outline, currentPage);
-  const [tab, setTab] = useState<'ai' | 'contents'>(ai ? 'ai' : 'contents');
+  const [tab, setTab] = useState<'ai' | 'contents'>(
+    // The paper's own contents first; the AI outline is for papers without one.
+    outline.length > 0 || !ai ? 'contents' : 'ai',
+  );
   const showTabs = ai && outline.length > 0;
 
   return (

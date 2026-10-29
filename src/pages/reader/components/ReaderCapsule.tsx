@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReadingPass } from '../../../shared/types';
 import { ToolbarIcon, ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
+
+const PASSES: ReadingPass[] = [1, 2, 3];
 
 /**
  * Where you are and how long is left, floating under the page. Click to open
@@ -21,6 +24,9 @@ export function ReaderCapsule({
   onZoom,
   message = null,
   action = null,
+  pass,
+  onPass,
+  prompt = null,
   children,
 }: {
   label: string;
@@ -36,6 +42,11 @@ export function ReaderCapsule({
   onZoom?: (zoom: number) => void;
   message?: string | null;
   action?: { label: string; run: () => void } | null;
+  /** The reading pass; the switch renders only when `onPass` is set */
+  pass?: ReadingPass;
+  onPass?: (pass: ReadingPass) => void;
+  /** One reflection question, answered in place */
+  prompt?: { text: string; onAnswer: (answer: string) => void; onSkip: () => void } | null;
   /** The tracking chip, when the document is not tracked yet */
   children?: ReactNode;
 }) {
@@ -188,8 +199,81 @@ export function ReaderCapsule({
             {label}
           </button>
         )}
+        {!open && onPass && (
+          <div className="capsule-pass" role="radiogroup" aria-label="Reading pass">
+            <span aria-hidden="true">Pass</span>
+            {PASSES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={pass === p}
+                aria-label={`Pass ${p}`}
+                onClick={() => onPass(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+        {!open && !shown && prompt && <CapsulePrompt key={prompt.text} {...prompt} />}
         {children}
       </div>
     </>
+  );
+}
+
+/** At rest one italic line; "Answer" opens a single field. Enter saves, Escape folds it. */
+function CapsulePrompt({
+  text,
+  onAnswer,
+  onSkip,
+}: {
+  text: string;
+  onAnswer: (answer: string) => void;
+  onSkip: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const save = () => {
+    if (answer.trim()) onAnswer(answer.trim());
+  };
+  return (
+    <div className="capsule-prompt" role="group" aria-label="Reflection prompt" data-expanded={expanded || undefined}>
+      {expanded ? (
+        <>
+          <input
+            className="capsule-prompt-input"
+            autoFocus
+            value={answer}
+            placeholder={text}
+            aria-label={text}
+            onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                save();
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setExpanded(false);
+              }
+            }}
+          />
+          <button type="button" className="capsule-prompt-skip" onClick={onSkip}>
+            Skip · goes to Open questions
+          </button>
+          <button type="button" className="reader-capsule-action" disabled={!answer.trim()} onClick={save}>
+            Save ↵
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="capsule-prompt-text">{text}</span>
+          <button type="button" className="reader-capsule-action" onClick={() => setExpanded(true)}>
+            Answer
+          </button>
+        </>
+      )}
+    </div>
   );
 }
