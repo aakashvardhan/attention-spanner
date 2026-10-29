@@ -43,7 +43,7 @@ export interface LocalSchema {
   aiStats: AiStats;
   /** int8 embeddings keyed by FeedItem id or annotation id (llm/vectors.ts) */
   aiVectors: Record<string, string>;
-  /** Laya's reading of each highlight, keyed by annotation id (llm/matrix.ts); a cache */
+  /** Laya's reading of each highlight, keyed by annotation id; a cache. Nothing writes it since llm/matrix.ts was deleted */
   layaRoles: Record<string, HighlightRole>;
   /** Per local day 'YYYY-MM-DD': papers read, focus sessions finished (shared/activity.ts) */
   activity: Record<string, DayActivity>;

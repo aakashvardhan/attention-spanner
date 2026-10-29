@@ -273,7 +273,7 @@ export interface Annotation extends RecordMeta {
   updatedAt: number;
 }
 
-/** What Laya read a highlight as, and how sure it was (llm/matrix.ts). */
+/** What Laya read a highlight as, and how sure it was (the layaRoles cache; its writer, llm/matrix.ts, is gone). */
 export interface HighlightRole {
   role: string;
   p: number;

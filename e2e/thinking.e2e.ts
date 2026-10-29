@@ -119,12 +119,26 @@ describe('reader: provocations', () => {
     const counter = page.getByRole('region', { name: 'Counterpoint' });
     await expect.poll(() => counter.textContent(), { timeout: 10_000 }).toContain('Would it hold if only λ changed?');
     expect(await counter.textContent()).toContain('a confounded comparison.');
+    expect(await counter.textContent()).toContain('Counterpoint · to your doubt');
+    // The card sits off its anchor: it does not overlap the highlighted line.
+    const overlap = await page.evaluate(() => {
+      const c = document.querySelector('.provoke-margin')!.getBoundingClientRect();
+      return [...document.querySelectorAll('.annot-highlight')].some((el) => {
+        const h = el.getBoundingClientRect();
+        return c.left < h.right && h.left < c.right && c.top < h.bottom && h.top < c.bottom;
+      });
+    });
+    expect(overlap).toBe(false);
     await shot(page, 'reader-counterpoint');
     await counter.getByRole('textbox', { name: 'Your reply' }).fill('Fair, it needs a second metric');
     await counter.getByRole('button', { name: 'Revise' }).click();
     await expect
       .poll(async () => (await storage<Provocation[]>(ext, 'provocations')).find((p) => p.kind === 'counterpoint'))
       .toMatchObject({ status: 'answered', response: 'revised', xp: 15, answer: 'Fair, it needs a second metric' });
+    // The revision replaces the reason on the highlight.
+    await expect
+      .poll(async () => (await storage<Annotation[]>(ext, 'annotations')).find((a) => a.text === 'BLEU scores')?.note)
+      .toBe('Fair, it needs a second metric');
     await page.close();
   });
 

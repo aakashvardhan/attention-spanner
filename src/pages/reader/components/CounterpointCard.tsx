@@ -1,15 +1,19 @@
 import { useState } from 'react';
+import type { HighlightTag } from '../../../shared/types';
 
 /**
  * The reader's own reasoning, questioned once. One reply (defend or revise),
  * then the exchange stays on the card read-only: no argument loop.
  */
 export function CounterpointCard({
+  tag,
   question,
   gap,
   onDefend,
   onRevise,
 }: {
+  /** The highlight's tag, named in the kicker */
+  tag: HighlightTag | null;
   question: string;
   /** The possible gap, named in a few words */
   gap: string;
@@ -31,7 +35,7 @@ export function CounterpointCard({
     <section className="provoke-card" role="region" aria-label="Counterpoint">
       <p className="provoke-kicker">
         <span className="provoke-dot" aria-hidden="true" />
-        Counterpoint · to your doubt
+        {tag ? `Counterpoint · to your ${tag}` : 'Counterpoint'}
       </p>
       <p className="provoke-question">{question}</p>
       <p className="provoke-gap">{gap}</p>

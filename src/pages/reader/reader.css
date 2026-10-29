@@ -1835,10 +1835,12 @@ body {
 }
 
 /* The one margin card, top right of the page column. */
+/* Placed by PdfReader's useMarginPlace: beside its anchor, or just under it. */
 .provoke-margin {
   position: absolute;
-  top: calc(var(--space-8) + var(--space-2)); /* below the floating toolbar */
-  right: var(--space-5);
+  top: 0;
+  left: 0;
+  visibility: hidden;
   z-index: 6;
   display: flex;
   flex-direction: column;

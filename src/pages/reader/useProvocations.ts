@@ -204,6 +204,10 @@ export function useProvocations({
   const respond = useCallback(
     (response: 'defended' | 'revised', text: string, citedPage?: number) => {
       if (!card || !cpParsed) return;
+      // A revision replaces the reason on the highlight itself.
+      if (response === 'revised' && card.annotationId) {
+        void sendMessage({ type: 'ANNOT_UPDATE', id: card.annotationId, patch: { note: text } });
+      }
       void add({
         kind: 'counterpoint',
         page: card.page,
@@ -359,7 +363,7 @@ export function useProvocations({
 
   // ---- Capsule prompt: verdict first, then the page one-liner -------------
   const [verdictDone, setVerdictDone] = useState(false);
-  const wantsVerdict = pass >= 2 && pageCount > 0 && page === pageCount && !paper?.verdict && !verdictDone;
+  const wantsVerdict = paper !== null && pass >= 2 && pageCount > 0 && page === pageCount && !paper?.verdict && !verdictDone;
   const capsulePrompt =
     locked !== null
       ? null

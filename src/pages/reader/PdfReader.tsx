@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { annotationDocKey, DEFAULT_ANNOTATION_COLOR, sortAnnotations } from '../../shared/annotations';
 import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import { sendMessage } from '../../shared/messages';
@@ -450,7 +450,13 @@ export function PdfReader({ src }: { src: string }) {
               onTag={(sel, tag) => void highlightSelection(sel, tag, tag !== null)}
               onQuestion={(sel) => void highlightSelection(sel, null, true)}
             />
-            {provocations.margin && <Margin card={provocations.margin} actions={provocations.card} />}
+            {provocations.margin && (
+              <Margin
+                card={provocations.margin}
+                actions={provocations.card}
+                rects={pageAnnotations.find((a) => a.id === provocations.margin?.annotationId)?.anchor.rects ?? null}
+              />
+            )}
             {provocations.lock && (
               <PassLock
                 key={provocations.lock.page}
@@ -534,14 +540,102 @@ export function PdfReader({ src }: { src: string }) {
   );
 }
 
+/** A free margin narrower than this puts the card under its anchor instead of beside it. */
+const MARGIN_MIN = 300;
+const CARD_WIDTH = 320;
+const CARD_GAP = 12;
+
+/** Where the card's subject sits on screen: the highlight's rects, the equation's line, else the page top. */
+function anchorBox(card: MarginCard, rects: AnnotationRect[] | null, pageEl: HTMLElement): { top: number; bottom: number } {
+  const p = pageEl.getBoundingClientRect();
+  if (rects?.length) {
+    return {
+      top: p.top + Math.min(...rects.map((r) => r.y)) * p.height,
+      bottom: p.top + Math.max(...rects.map((r) => r.y + r.h)) * p.height,
+    };
+  }
+  if (card.kind === 'equation') {
+    // ponytail: matches the block's first characters against text-layer spans; misses fall back to the page top.
+    const head = card.passage.replace(/\s+/g, '').slice(0, 8);
+    for (const span of pageEl.querySelectorAll<HTMLElement>('.textLayer span')) {
+      const t = (span.textContent ?? '').replace(/\s+/g, '');
+      if (t.length >= 3 && (t.startsWith(head) || head.startsWith(t))) {
+        const r = span.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      }
+    }
+  }
+  return { top: p.top, bottom: p.top };
+}
+
+/**
+ * Keeps the margin card beside its anchor in the free margin right of the page
+ * column, or, when that margin is too narrow, just below (else above) the
+ * anchor line inside the column: never over the anchor itself.
+ */
+function useMarginPlace(card: MarginCard, rects: AnnotationRect[] | null) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const place = () => {
+      const main = el.offsetParent as HTMLElement | null;
+      const pageEl = document.querySelector<HTMLElement>(`.reader-page[data-page="${card.page}"]`);
+      if (!main || !pageEl) return;
+      const m = main.getBoundingClientRect();
+      const p = pageEl.getBoundingClientRect();
+      const a = anchorBox(card, rects, pageEl);
+      const toolbar = document.querySelector('.reader-toolbar')?.getBoundingClientRect().bottom ?? m.top;
+      const h = el.offsetHeight;
+      const minTop = Math.max(toolbar, m.top) + CARD_GAP;
+      const maxTop = Math.max(minTop, m.bottom - h - CARD_GAP);
+      const clamp = (t: number) => Math.min(Math.max(t, minTop), maxTop);
+      const free = m.right - p.right;
+      let top: number;
+      let left: number;
+      let width: number;
+      if (free >= MARGIN_MIN) {
+        width = Math.min(CARD_WIDTH, free - 2 * CARD_GAP);
+        left = p.right + CARD_GAP;
+        top = clamp(a.top);
+      } else {
+        const colLeft = Math.max(p.left, m.left);
+        const colRight = Math.min(p.right, m.right);
+        width = Math.min(CARD_WIDTH, colRight - colLeft - 2 * CARD_GAP);
+        left = colRight - CARD_GAP - width;
+        const below = a.bottom + CARD_GAP;
+        const above = a.top - CARD_GAP - h;
+        top = below + h <= m.bottom - CARD_GAP ? Math.max(below, minTop) : above >= minTop ? above : clamp(below);
+      }
+      el.style.top = `${top - m.top}px`;
+      el.style.left = `${left - m.left}px`;
+      el.style.width = `${width}px`;
+      el.style.visibility = 'visible';
+    };
+    place();
+    // Capture: the viewport's own scroll does not bubble to the document.
+    document.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      document.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  });
+  return ref;
+}
+
 /** The one margin card: a question, then (once answered) a counterpoint or a breakdown. */
 function Margin({
   card,
   actions,
+  rects,
 }: {
   card: MarginCard;
   actions: ReturnType<typeof useProvocations>['card'];
+  /** The highlight's rects, for placing the card off its anchor */
+  rects: AnnotationRect[] | null;
 }) {
+  const ref = useMarginPlace(card, rects);
   if (!card.question) return null;
   let body;
   if (card.answer === null) {
@@ -566,6 +660,7 @@ function Margin({
     body = (
       <CounterpointCard
         key={card.id}
+        tag={card.tag ?? null}
         question={card.counterpoint.question}
         gap={card.counterpoint.gap}
         onDefend={(text, page) => actions.respond('defended', text, page)}
@@ -601,7 +696,7 @@ function Margin({
     return null;
   }
   return (
-    <div className="provoke-margin">
+    <div className="provoke-margin" ref={ref}>
       {body}
       {card.answer !== null && (
         <button type="button" className="provoke-skip provoke-close" onClick={actions.close}>
