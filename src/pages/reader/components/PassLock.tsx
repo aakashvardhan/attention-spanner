@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -17,11 +17,13 @@ export function PassLock({
 }) {
   const [answer, setAnswer] = useState('');
   const ready = words(answer) >= 3;
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => field.current?.focus(), []);
   const submit = () => ready && onContinue(answer.trim());
   return (
     <div className="pass-lock">
       <div className="pass-lock-fade" aria-hidden="true" />
-      <div className="provoke-card pass-lock-card" role="dialog" aria-label="Scrolling paused">
+      <div className="provoke-card pass-lock-card" role="dialog" aria-modal="true" aria-label="Scrolling paused">
         <p className="provoke-kicker">
           <svg className="pass-lock-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -33,7 +35,7 @@ export function PassLock({
         <textarea
           className="provoke-answer"
           rows={2}
-          autoFocus
+          ref={field}
           value={answer}
           placeholder="Your answer, in a sentence"
           aria-label="Your answer"

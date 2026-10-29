@@ -92,6 +92,8 @@ export function ReaderToolbar({
   citation?: () => Promise<CiteSource>;
 }) {
   const theme = useTheme();
+  // The PDF asks back; the article reader keeps answering.
+  const askLabel = pageNoun === 'page' ? 'Question it' : 'Ask this document';
   const [settings] = useSettings();
   // Night only exists for PDFs: it inverts the rendered pages.
   const night = pageNoun === 'page' && settings.readerNight && theme.resolved === 'dark';
@@ -212,9 +214,9 @@ export function ReaderToolbar({
         {onToggleAsk && (
           <button
             className={askOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
-            aria-label="Question it"
+            aria-label={askLabel}
             aria-pressed={askOpen}
-            title="Question it"
+            title={askLabel}
             onClick={onToggleAsk}
           >
             <ToolbarIcon>

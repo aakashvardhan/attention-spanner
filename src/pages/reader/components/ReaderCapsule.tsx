@@ -51,9 +51,13 @@ export function ReaderCapsule({
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  // While the controls are open, announcements wait: swapping them in would
-  // unmount the button under keyboard focus.
-  const shown = open ? null : message;
+  // Lifted so an announcement can wait while someone is typing an answer.
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const promptText = prompt?.text;
+  useEffect(() => setPromptExpanded(false), [promptText]);
+  // While the controls or the prompt field are open, announcements wait:
+  // swapping them in would unmount the control under keyboard focus.
+  const shown = open || promptExpanded ? null : message;
   const ref = useRef<HTMLDivElement>(null);
   const [pageDraft, setPageDraft] = useState(String(page));
 
@@ -216,7 +220,9 @@ export function ReaderCapsule({
             ))}
           </div>
         )}
-        {!open && !shown && prompt && <CapsulePrompt key={prompt.text} {...prompt} />}
+        {!open && !shown && prompt && (
+          <CapsulePrompt key={prompt.text} {...prompt} expanded={promptExpanded} setExpanded={setPromptExpanded} />
+        )}
         {children}
       </div>
     </>
@@ -228,12 +234,15 @@ function CapsulePrompt({
   text,
   onAnswer,
   onSkip,
+  expanded,
+  setExpanded,
 }: {
   text: string;
   onAnswer: (answer: string) => void;
   onSkip: () => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [answer, setAnswer] = useState('');
   const save = () => {
     if (answer.trim()) onAnswer(answer.trim());
