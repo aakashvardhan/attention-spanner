@@ -603,6 +603,18 @@ a.pp-row-title:hover {
 .pp-today-actions input {
   flex: 1;
   min-width: 200px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.pp-today-actions input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .pp-record {

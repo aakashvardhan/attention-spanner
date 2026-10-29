@@ -1837,7 +1837,7 @@ body {
 /* The one margin card, top right of the page column. */
 .provoke-margin {
   position: absolute;
-  top: var(--space-4);
+  top: calc(var(--space-8) + var(--space-2)); /* below the floating toolbar */
   right: var(--space-5);
   z-index: 6;
   display: flex;
