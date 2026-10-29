@@ -51,7 +51,7 @@ export async function addAnnotation(
 
 export async function updateAnnotation(
   id: string,
-  patch: Partial<Pick<Annotation, 'note' | 'color'>>,
+  patch: Partial<Pick<Annotation, 'note' | 'color' | 'tag'>>,
 ): Promise<AnnotationResult> {
   const { annotations } = await getLocal('annotations');
   const annotation = annotations.find((a) => a.id === id);

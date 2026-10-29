@@ -7,6 +7,8 @@ import type {
   DeckKind,
   Paper,
   PaperDraft,
+  Provocation,
+  ProvocationDraft,
 } from './types';
 import type { TranscriptSegment } from './youtubeCaptions';
 
@@ -33,10 +35,13 @@ export type Message =
     }
   | { type: 'MARK_ALL_READ' }
   | { type: 'VALIDATE_FEED'; url: string }
-  | { type: 'START_FOCUS'; focusMinutes: number }
+  | { type: 'START_FOCUS'; focusMinutes: number; intention?: string }
   | { type: 'STOP_FOCUS'; early: boolean }
+  | { type: 'SKIP_BREAK' }
   | { type: 'ADD_BOOKMARK'; url: string; title: string; groupId: string | null }
   | { type: 'DELETE_BOOKMARK'; id: string }
+  /** The X on a Continue row: forget an article's or video's progress */
+  | { type: 'PROGRESS_DELETE'; url: string }
   | { type: 'MOVE_BOOKMARK'; id: string; groupId: string | null }
   | { type: 'ADD_BOOKMARK_GROUP'; name: string }
   | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
@@ -57,11 +62,17 @@ export type Message =
       pageCount: number;
       offset: number;
       leftOff: string;
+      /** Reading seconds since the last report, for the hyperfocus run */
+      activeSecondsDelta: number;
+      /** The reader tab went hidden or closed: start the come-back nudge */
+      hidden: boolean;
     }
   | { type: 'READER_OPEN_NATIVE'; url: string }
   // Reader annotations (highlights / sticky notes), PDFs and articles alike
   | { type: 'ANNOT_ADD'; draft: AnnotationDraft }
-  | { type: 'ANNOT_UPDATE'; id: string; patch: Partial<Pick<Annotation, 'note' | 'color'>> }
+  | { type: 'ANNOT_UPDATE'; id: string; patch: Partial<Pick<Annotation, 'note' | 'color' | 'tag'>> }
+  | { type: 'PROV_ADD'; draft: ProvocationDraft }
+  | { type: 'PROV_UPDATE'; id: string; patch: Partial<Pick<Provocation, 'answer' | 'status' | 'response' | 'citedPage'>> }
   | { type: 'ANNOT_MOVE'; id: string; x: number; y: number }
   | { type: 'ANNOT_DELETE'; id: string }
   // Content script → service worker
@@ -82,6 +93,8 @@ export type Message =
       watchedSecondsDelta: number;
       /** True when playback stopped (pause/ended/pagehide/navigation) */
       stopped: boolean;
+      /** Player position when the tab went hidden mid-playback; absent while watched */
+      lookedAwayAt?: number;
       title: string;
       channel: string;
       /** Player chapter title; '' when the video has no chapters */
@@ -113,8 +126,10 @@ export interface MessageResponses {
   VALIDATE_FEED: { ok: boolean; valid: boolean; title: string | null };
   START_FOCUS: { ok: boolean };
   STOP_FOCUS: { ok: boolean };
+  SKIP_BREAK: { ok: boolean };
   ADD_BOOKMARK: { ok: boolean; bookmark: BookmarkLink };
   DELETE_BOOKMARK: { ok: boolean };
+  PROGRESS_DELETE: { ok: boolean };
   MOVE_BOOKMARK: { ok: boolean };
   ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
   DELETE_BOOKMARK_GROUP: { ok: boolean };
@@ -129,6 +144,8 @@ export interface MessageResponses {
   ANNOT_UPDATE: { ok: boolean; error?: string };
   ANNOT_MOVE: { ok: boolean; error?: string };
   ANNOT_DELETE: { ok: boolean; error?: string };
+  PROV_ADD: { ok: boolean; provocation?: Provocation; error?: string };
+  PROV_UPDATE: { ok: boolean; xp?: number; error?: string };
   TRACKER_READY: { ok: boolean; resume: ResumeTarget | null };
   PROGRESS_UPDATE: { ok: boolean };
   VIDEO_TRACKER_READY: {

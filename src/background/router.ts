@@ -10,10 +10,11 @@ import {
 } from './bookmarks';
 import { addDeck, deleteDeck } from './flashcards';
 import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
+import { addProvocation, updateProvocation } from './provocations';
 import { addPaper, deletePaper, handleReaderProgress, updatePaper } from './papers';
 import { openNativePdf } from './pdfIntercept';
-import { startFocus, stopFocus } from './focus';
-import { getResumeTarget, handleProgressUpdate } from './tracking';
+import { skipBreak, startFocus, stopFocus } from './focus';
+import { forgetProgress, getResumeTarget, handleProgressUpdate } from './tracking';
 import { transcriptFor } from './videoContext';
 import { focusExistingVideoTab, handleVideoProgress, handleVideoReady } from './videoTracking';
 
@@ -38,10 +39,15 @@ export async function dispatch(
       return startFocus(msg);
     case 'STOP_FOCUS':
       return stopFocus(msg.early);
+    case 'SKIP_BREAK':
+      return skipBreak();
     case 'ADD_BOOKMARK':
       return { ok: true, bookmark: await addBookmark(msg.url, msg.title, msg.groupId) };
     case 'DELETE_BOOKMARK':
       await deleteBookmark(msg.id);
+      return { ok: true };
+    case 'PROGRESS_DELETE':
+      await forgetProgress(msg.url);
       return { ok: true };
     case 'MOVE_BOOKMARK':
       await moveBookmark(msg.id, msg.groupId);
@@ -68,13 +74,17 @@ export async function dispatch(
         pageCount: msg.pageCount,
         offset: msg.offset,
         leftOff: msg.leftOff,
-      });
+      }, { activeSecondsDelta: msg.activeSecondsDelta, hidden: msg.hidden });
     case 'ANNOT_ADD':
       return addAnnotation(msg.draft);
     case 'ANNOT_UPDATE':
       return updateAnnotation(msg.id, msg.patch);
     case 'ANNOT_MOVE':
       return moveAnnotation(msg.id, msg.x, msg.y);
+    case 'PROV_ADD':
+      return addProvocation(msg.draft);
+    case 'PROV_UPDATE':
+      return updateProvocation(msg.id, msg.patch);
     case 'ANNOT_DELETE':
       return deleteAnnotation(msg.id);
     case 'READER_OPEN_NATIVE': {
