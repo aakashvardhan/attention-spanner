@@ -11,13 +11,16 @@ import {
 } from 'react';
 import { TextLayer, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
 import { ANNOTATION_TEXT_MAX_CHARS } from '../../../shared/constants';
-import { mergeLineRects, normalizeRects } from '../../../shared/annotations';
+import { DEFAULT_ANNOTATION_COLOR, mergeLineRects, normalizeRects } from '../../../shared/annotations';
 import { positionFromScroll, type PdfPosition } from '../../../shared/pdf';
-import type { AnnotationColor, AnnotationRect, PdfAnchoredAnnotation } from '../../../shared/types';
+import type { AnnotationColor, AnnotationRect, HighlightTag, PdfAnchoredAnnotation } from '../../../shared/types';
 import type { PdfPageSize } from '../usePdfDocument';
 import { citationHref, resolveCitation, type Reference, type ReferenceIndex } from '../references';
 import { knownTargetFor, type KnownTarget } from '../citationLinks';
 import { MENTION_RE, mentionKey, type FigureKey } from '../figures';
+import { clickedWord } from '../clickedWord';
+import type { AiSource } from '../../../shared/llm/route';
+import { DefinePopover, type DefineTarget } from './DefinePopover';
 import { AnnotationLayer } from './AnnotationLayer';
 import { SelectionMenu } from './SelectionMenu';
 import { CitationTooltip } from './CitationTooltip';
@@ -27,14 +30,29 @@ import { ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
 const PAGE_GAP = 16;
 /** Pages within this margin of the viewport get (and keep) a rendered canvas. */
 const RENDER_MARGIN = '1500px 0px';
+/**
+ * Pages within this wider margin get a cheap 1x thumbnail under the sharp
+ * canvas, so a fast flick shows a soft page sharpening in place (as Preview
+ * does) instead of a blank one. It also warms pdf.js's per-page operator list.
+ */
+const THUMB_MARGIN = '6000px 0px';
+const THUMB_SCALE = 0.3;
 /** Side breathing room around the widest page at fit-width (zoom 1). */
 const PAGE_INSET = 48;
 /** Canvases re-render this long after the last zoom step; CSS stretches the old bitmap until then. */
 const RERENDER_DELAY_MS = 150;
+/** A pinch counts as over once no zoom step has arrived for this long. */
+const PINCH_SETTLE_MS = 150;
 
 /** Navigation glides; restore and zoom re-anchoring never do. */
 function navBehavior(): ScrollBehavior {
   return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+}
+
+/** A text selection, split into rects per page it spans. */
+export interface PdfSelection {
+  text: string;
+  byPage: Map<number, AnnotationRect[]>;
 }
 
 export interface PdfViewportHandle {
@@ -220,6 +238,12 @@ export function PdfViewport({
   references,
   known,
   figures,
+  docKey,
+  source,
+  lockAfterPage = null,
+  selectionMode = 'colors',
+  onTag,
+  onQuestion,
 }: {
   doc: PDFDocumentProxy;
   pageSizes: PdfPageSize[];
@@ -238,7 +262,7 @@ export function PdfViewport({
   activeId: string | null;
   onActivate: (id: string | null) => void;
   noteMode: boolean;
-  onCreateHighlight: (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor) => void;
+  onCreateHighlight: (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor, note?: string) => void;
   onPlaceSticky: (page: number, x: number, y: number) => void;
   onUpdateNote: (id: string, note: string) => void;
   onUpdateColor: (id: string, color: AnnotationColor) => void;
@@ -249,6 +273,15 @@ export function PdfViewport({
   known: Map<string, KnownTarget>;
   /** Where each figure/table caption sits; null until scanned. */
   figures: Map<FigureKey, PdfPosition> | null;
+  /** Click-to-define caches per document and routes by source */
+  docKey: string;
+  source: AiSource;
+  /** Pass 3: nothing past this page's bottom, by scroll or by jump; going back stays allowed */
+  lockAfterPage?: number | null;
+  /** 'tags': the selection menu asks what the passage is (Claim / Evidence / Doubt) */
+  selectionMode?: 'colors' | 'tags';
+  onTag?: (selection: PdfSelection, tag: HighlightTag | null) => void;
+  onQuestion?: (selection: PdfSelection) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -302,12 +335,22 @@ export function PdfViewport({
   }, [pageSizes, scale]);
 
   const lastPosRef = useRef<PdfPosition>({ page: 1, offset: 0 });
+  const lockRef = useRef(lockAfterPage);
+  lockRef.current = lockAfterPage;
+  /** The furthest scrollTop the lock allows: the locked page's bottom at the viewport's bottom. */
+  const lockMax = (el: HTMLElement) => {
+    const page = lockRef.current;
+    if (page == null || tops.length === 0) return Infinity;
+    const i = Math.min(tops.length, Math.max(1, page)) - 1;
+    return Math.max(tops[i], tops[i] + heights[i] - el.clientHeight);
+  };
 
   /** anchorY: where in the viewport the position lands; the middle by default. */
   const scrollToPosition = useCallback(
     (page: number, offset: number, behavior: ScrollBehavior = 'instant', anchorY?: number) => {
       const el = containerRef.current;
       if (!el || tops.length === 0) return;
+      if (lockRef.current != null && page > lockRef.current) return;
       const index = Math.min(tops.length, Math.max(1, page)) - 1;
       const target = Math.max(0, tops[index] + offset * heights[index] - (anchorY ?? el.clientHeight / 2));
       // Chrome's glide lengthens with distance (~1.4s across a paper). Cut to
@@ -349,8 +392,11 @@ export function PdfViewport({
   // anchors on the point under the cursor; the toolbar on the middle.
   const zoomAnchorRef = useRef<{ x: number; y: number; page: number; offset: number; fromCenter: number } | null>(null);
   const prevScaleRef = useRef(0);
+  const listRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (scale > 0 && prevScaleRef.current > 0 && prevScaleRef.current !== scale) {
+      // A pinch's stretch comes off in the same frame the real layout lands.
+      listRef.current!.style.transform = '';
       const anchor = zoomAnchorRef.current;
       zoomAnchorRef.current = null;
       if (anchor) {
@@ -366,28 +412,57 @@ export function PdfViewport({
 
   // Trackpad pinch arrives as ctrl+wheel; ⌘+wheel is the mouse equivalent.
   // Native listener: React's onWheel is passive and can't stop browser zoom.
+  // As in Preview, a pinch only stretches what is painted (a transform, no
+  // layout) and the real zoom lands once the gesture goes quiet.
   const live = useRef({ zoom, scale, tops, heights, listWidth, onZoom });
   live.current = { zoom, scale, tops, heights, listWidth, onZoom };
   useEffect(() => {
     const el = containerRef.current!;
+    const list = listRef.current!;
+    let pinchZoom: number | null = null;
+    let settle = 0;
+    const commit = () => {
+      const l = live.current;
+      const next = pinchZoom!;
+      pinchZoom = null;
+      // Unchanged zoom means no new layout to clear the stretch, so clear it here.
+      if (next === l.zoom) list.style.transform = '';
+      else {
+        l.zoom = next;
+        l.onZoom(next);
+      }
+    };
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const l = live.current;
       if (l.scale <= 0) return;
+      const from = pinchZoom ?? l.zoom;
       const step = Math.max(-25, Math.min(25, e.deltaY));
-      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, l.zoom * Math.exp(-step * 0.01)));
-      if (next === l.zoom) return;
-      const box = el.getBoundingClientRect();
-      const x = e.clientX - box.left;
-      const y = e.clientY - box.top;
-      const pos = positionFromScroll(l.tops, l.heights, el.scrollTop + y);
-      zoomAnchorRef.current = { x, y, ...pos, fromCenter: (el.scrollLeft + x - l.listWidth / 2) / l.scale };
-      l.zoom = next;
-      l.onZoom(next);
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, from * Math.exp(-step * 0.01)));
+      if (next === from) return;
+      if (pinchZoom === null) {
+        // The gesture anchors where it starts; layout holds still until it ends.
+        const box = el.getBoundingClientRect();
+        const lr = list.getBoundingClientRect();
+        const x = e.clientX - box.left;
+        const y = e.clientY - box.top;
+        // The list sits below the viewport's toolbar padding; anchor in its own coordinates.
+        const pad = lr.top - box.top + el.scrollTop;
+        const pos = positionFromScroll(l.tops, l.heights, e.clientY - lr.top);
+        zoomAnchorRef.current = { x, y: y - pad, ...pos, fromCenter: (el.scrollLeft + x - l.listWidth / 2) / l.scale };
+        list.style.transformOrigin = `${e.clientX - lr.left}px ${e.clientY - lr.top}px`;
+      }
+      pinchZoom = next;
+      list.style.transform = `scale(${next / l.zoom})`;
+      clearTimeout(settle);
+      settle = window.setTimeout(commit, PINCH_SETTLE_MS);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      clearTimeout(settle);
+    };
   }, []);
 
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
@@ -405,7 +480,7 @@ export function PdfViewport({
 
   const handleCitationOver = (e: ReactMouseEvent) => {
     if (!references) return;
-    const marker = (e.target as HTMLElement).closest<HTMLElement>('.cite-marker');
+    const marker = markerUnder(e);
     if (!marker) return;
     const refs = resolveCitation(references, {
       labels: marker.dataset.labels ? marker.dataset.labels.split(',') : undefined,
@@ -426,21 +501,81 @@ export function PdfViewport({
   };
 
   const handleCitationOut = (e: ReactMouseEvent) => {
-    if (!(e.target as HTMLElement).closest('.cite-marker')) return;
+    if (!(e.target as HTMLElement).closest('.cite-marker, .reader-link')) return;
     const related = e.relatedTarget as HTMLElement | null;
     if (related?.closest?.('.cite-tooltip')) return;
     scheduleHoverClose();
+  };
+
+  // Clicking a word in the text asks for the meaning of the term it belongs to.
+  // It carries the word's page and boxes, where a kept definition becomes a highlight.
+  const [define, setDefine] = useState<(DefineTarget & { page: number; rects: AnnotationRect[] }) | null>(null);
+  const closeDefine = useCallback(() => setDefine(null), []);
+  const defineAt = (e: ReactMouseEvent) => {
+    // A double or triple click is selecting text, and note mode places pins.
+    if (noteMode || e.detail > 1) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    const span = (e.target as HTMLElement).closest('.textLayer span');
+    const layer = span?.closest('.textLayer');
+    const caret = document.caretPositionFromPoint(e.clientX, e.clientY);
+    if (!span || !layer || !caret || !(caret.offsetNode instanceof Text) || !span.contains(caret.offsetNode)) return;
+    // The page's text as one string, runs joined by a space, so the model reads the whole sentence.
+    const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+    let text = '';
+    let offset = -1;
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (n === caret.offsetNode) offset = text.length + caret.offset;
+      text += `${n.nodeValue ?? ''} `;
+    }
+    // The caret lands on the nearer edge of a glyph: past the last letter when its right half is clicked.
+    const hit = clickedWord(text, offset) ?? clickedWord(text, offset - 1);
+    if (!hit) return;
+    // The word's own boxes; a word split across text runs falls back to the clicked run.
+    const node = caret.offsetNode;
+    const at = node.data.lastIndexOf(hit.word, caret.offset);
+    const range = document.createRange();
+    if (at >= 0 && caret.offset <= at + hit.word.length) {
+      range.setStart(node, at);
+      range.setEnd(node, at + hit.word.length);
+    } else {
+      range.selectNodeContents(span);
+    }
+    const pageEl = span.closest<HTMLElement>('.reader-page')!;
+    const rects = mergeLineRects(normalizeRects([...range.getClientRects()], pageEl.getBoundingClientRect()));
+    const flip = e.clientY < window.innerHeight / 2;
+    setDefine({
+      ...hit,
+      page: Number(pageEl.dataset.page),
+      rects,
+      x: Math.min(Math.max(e.clientX, 184), window.innerWidth - 184),
+      y: flip ? e.clientY + 14 : e.clientY - 14,
+      flip,
+    });
   };
 
   // Where a figure jump left from; the Back button returns there. Chained jumps
   // keep the first spot, the one the reader was actually reading.
   const [backTo, setBackTo] = useState<PdfPosition | null>(null);
 
+  // An internal PDF link (a hyperref citation, a section reference) jumps like
+  // a figure mention does, Back button and all.
+  const followDest = useCallback(
+    async (dest: string | unknown[]) => {
+      const target = await resolveDest(doc, dest);
+      if (!target) return;
+      const here = lastPosRef.current;
+      setBackTo((b) => b ?? here);
+      scrollToPosition(target.page, target.offset, navBehavior(), 24);
+    },
+    [doc, scrollToPosition],
+  );
+
   // Clicking a citation opens its reference; a figure mention jumps to its
   // caption. Skip when the click is part of a text selection so selecting
   // across a marker doesn't navigate.
   const handleCitationClick = (e: ReactMouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || (e.target as HTMLElement).closest('.reader-link')) return;
     const figRef = (e.target as HTMLElement).closest<HTMLElement>('.fig-ref');
     const target = figRef && figures?.get(figRef.dataset.figure ?? '');
     if (target) {
@@ -452,9 +587,12 @@ export function PdfViewport({
       scrollToPosition(target.page, target.offset, navBehavior());
       return;
     }
-    if (!references) return;
     const marker = (e.target as HTMLElement).closest<HTMLElement>('.cite-marker');
-    if (!marker) return;
+    if (!marker) {
+      if (!figRef) defineAt(e);
+      return;
+    }
+    if (!references) return;
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
     const refs = resolveCitation(references, {
@@ -468,8 +606,11 @@ export function PdfViewport({
 
   const rafRef = useRef(0);
   const handleScroll = () => {
+    const box = containerRef.current;
+    if (box && box.scrollTop > lockMax(box)) box.scrollTop = lockMax(box);
     setPendingSelection(null);
     setCitationHover(null);
+    setDefine(null);
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       const el = containerRef.current;
@@ -480,40 +621,44 @@ export function PdfViewport({
     });
   };
 
-  // One observer for all pages; callback refs register/unregister against it.
+  // Two observers for all pages (sharp and thumbnail margins); callback refs
+  // register/unregister against both.
   const [visiblePages, setVisiblePages] = useState<ReadonlySet<number>>(new Set());
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const [nearPages, setNearPages] = useState<ReadonlySet<number>>(new Set());
+  const observersRef = useRef<IntersectionObserver[]>([]);
   const pageEls = useRef(new Map<number, HTMLDivElement>());
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        setVisiblePages((prev) => {
-          const next = new Set(prev);
-          for (const entry of entries) {
-            const page = Number((entry.target as HTMLElement).dataset.page);
-            if (entry.isIntersecting) next.add(page);
-            else next.delete(page);
-          }
-          return next;
-        });
-      },
-      { root: containerRef.current, rootMargin: RENDER_MARGIN },
-    );
-    observerRef.current = observer;
-    for (const el of pageEls.current.values()) observer.observe(el);
+    const track = (setPages: typeof setVisiblePages, rootMargin: string) =>
+      new IntersectionObserver(
+        (entries) => {
+          setPages((prev) => {
+            const next = new Set(prev);
+            for (const entry of entries) {
+              const page = Number((entry.target as HTMLElement).dataset.page);
+              if (entry.isIntersecting) next.add(page);
+              else next.delete(page);
+            }
+            return next;
+          });
+        },
+        { root: containerRef.current, rootMargin },
+      );
+    const observers = [track(setVisiblePages, RENDER_MARGIN), track(setNearPages, THUMB_MARGIN)];
+    observersRef.current = observers;
+    for (const el of pageEls.current.values()) for (const o of observers) o.observe(el);
     return () => {
-      observer.disconnect();
-      observerRef.current = null;
+      for (const o of observers) o.disconnect();
+      observersRef.current = [];
     };
   }, []);
 
   const registerPage = (page: number) => (el: HTMLDivElement | null) => {
     const prev = pageEls.current.get(page);
-    if (prev) observerRef.current?.unobserve(prev);
+    if (prev) for (const o of observersRef.current) o.unobserve(prev);
     if (el) {
       pageEls.current.set(page, el);
-      observerRef.current?.observe(el);
+      for (const o of observersRef.current) o.observe(el);
     } else {
       pageEls.current.delete(page);
     }
@@ -566,6 +711,19 @@ export function PdfViewport({
     });
   };
 
+  // A lock that lands while the page is scrolled past it pulls back at once.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el && el.scrollTop > lockMax(el)) el.scrollTop = lockMax(el);
+  });
+
+  const takeSelection = (run: (sel: PdfSelection) => void) => {
+    if (!pendingSelection) return;
+    run({ text: pendingSelection.text, byPage: pendingSelection.byPage });
+    window.getSelection()?.removeAllRanges();
+    setPendingSelection(null);
+  };
+
   const handlePickColor = (color: AnnotationColor) => {
     if (!pendingSelection) return;
     for (const [page, rects] of pendingSelection.byPage) {
@@ -584,6 +742,7 @@ export function PdfViewport({
       if (e.key === 'Escape') {
         setPendingSelection(null);
         setCitationHover(null);
+        setDefine(null);
       }
     };
     document.addEventListener('selectionchange', onSelectionChange);
@@ -625,12 +784,13 @@ export function PdfViewport({
         aria-label="PDF document"
         tabIndex={0}
         onScroll={handleScroll}
+        inert={lockAfterPage != null}
         onPointerUp={handlePointerUp}
         onMouseOver={handleCitationOver}
         onMouseOut={handleCitationOut}
         onClick={handleCitationClick}
       >
-        <div className="reader-page-list" style={{ height: totalHeight, width: listWidth }}>
+        <div className="reader-page-list" ref={listRef} style={{ height: totalHeight, width: listWidth }}>
           {scale > 0 &&
             pageSizes.map((size, i) => {
               const page = i + 1;
@@ -649,6 +809,7 @@ export function PdfViewport({
                     ['--scale-factor' as string]: String(scale),
                   }}
                 >
+                  {nearPages.has(page) && <PageCanvas doc={doc} pageNumber={page} scale={THUMB_SCALE} thumb />}
                   {visiblePages.has(page) && renderScale > 0 && (
                     <>
                       <PageCanvas doc={doc} pageNumber={page} scale={renderScale} />
@@ -660,6 +821,7 @@ export function PdfViewport({
                         known={known}
                         figures={figures}
                       />
+                      <PageLinkLayer doc={doc} pageNumber={page} scale={renderScale} onDest={followDest} />
                       <AnnotationLayer
                         annotations={annotationsByPage.get(page) ?? []}
                         activeId={activeId}
@@ -694,6 +856,19 @@ export function PdfViewport({
           x={pendingSelection.menuX}
           y={pendingSelection.menuY}
           onPick={handlePickColor}
+          mode={selectionMode}
+          onTag={(tag) => takeSelection((sel) => onTag?.(sel, tag))}
+          onQuestion={() => takeSelection((sel) => onQuestion?.(sel))}
+        />
+      )}
+      {define && (
+        <DefinePopover
+          key={`${define.x},${define.y}`}
+          target={define}
+          docKey={docKey}
+          source={source}
+          onClose={closeDefine}
+          onSave={(note) => onCreateHighlight(define.page, define.rects, define.word, DEFAULT_ANNOTATION_COLOR, note)}
         />
       )}
       {citationHover && (
@@ -715,10 +890,13 @@ function PageCanvas({
   doc,
   pageNumber,
   scale,
+  thumb = false,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
+  /** A soft 1x placeholder under the sharp canvas */
+  thumb?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -729,7 +907,7 @@ function PageCanvas({
       const page = await doc.getPage(pageNumber);
       if (cancelled) return;
       // Cap the backing resolution — full dpr×zoom canvases are megabytes each.
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = thumb ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: scale * dpr });
       // Paint off-screen and swap in when done: resizing the visible canvas
       // clears it, which flashed every page white on each zoom step.
@@ -753,9 +931,9 @@ function PageCanvas({
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [doc, pageNumber, scale]);
+  }, [doc, pageNumber, scale, thumb]);
 
-  return <canvas ref={canvasRef} className="reader-canvas" />;
+  return <canvas ref={canvasRef} className={thumb ? 'reader-canvas reader-thumb' : 'reader-canvas'} />;
 }
 
 /**
@@ -824,4 +1002,126 @@ function PageTextLayer({
   }, [figures, renderGen]);
 
   return <div ref={containerRef} className="textLayer" />;
+}
+
+/**
+ * The citation marker at the pointer. A PDF link usually sits over its
+ * citation, and the link's box takes the hover, so look beneath it.
+ */
+function markerUnder(e: ReactMouseEvent): HTMLElement | null {
+  const target = e.target as HTMLElement;
+  if (!target.closest('.reader-link')) return target.closest<HTMLElement>('.cite-marker');
+  return (
+    document.elementsFromPoint(e.clientX, e.clientY).find((el) => el.classList.contains('cite-marker')) as
+      | HTMLElement
+      | undefined
+  ) ?? null;
+}
+
+/** A link destination as a reader position: the page, and how far down it the target sits. */
+async function resolveDest(doc: PDFDocumentProxy, dest: string | unknown[]): Promise<PdfPosition | null> {
+  try {
+    const explicit = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+    if (!explicit?.length) return null;
+    const [ref, mode, ...args] = explicit as [unknown, { name?: string } | undefined, ...(number | null)[]];
+    const index =
+      typeof ref === 'number' ? ref : await doc.getPageIndex(ref as Parameters<PDFDocumentProxy['getPageIndex']>[0]);
+    const page = await doc.getPage(index + 1);
+    // XYZ is [left, top, zoom], FitH/FitBH are [top]; anything else lands on the page top.
+    const top = mode?.name === 'XYZ' ? args[1] : mode?.name === 'FitH' || mode?.name === 'FitBH' ? args[0] : null;
+    if (typeof top !== 'number') return { page: index + 1, offset: 0 };
+    const viewport = page.getViewport({ scale: 1 });
+    const [, y] = viewport.convertToViewportPoint(0, top);
+    return { page: index + 1, offset: Math.min(1, Math.max(0, y / viewport.height)) };
+  } catch {
+    return null; // a broken destination is a dead link, not a crash
+  }
+}
+
+interface PdfLink {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  url?: string;
+  dest?: string | unknown[];
+}
+
+/**
+ * The page's link annotations (URLs, DOIs, hyperref citations and section
+ * references) as real anchors over the text, as Chrome's viewer has them.
+ * External links open in a new tab; internal ones jump within the reader.
+ */
+function PageLinkLayer({
+  doc,
+  pageNumber,
+  scale,
+  onDest,
+}: {
+  doc: PDFDocumentProxy;
+  pageNumber: number;
+  scale: number;
+  onDest: (dest: string | unknown[]) => void;
+}) {
+  const [links, setLinks] = useState<PdfLink[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const page = await doc.getPage(pageNumber);
+      const annotations = await page.getAnnotations({ intent: 'display' });
+      if (cancelled) return;
+      const viewport = page.getViewport({ scale });
+      const found: PdfLink[] = [];
+      for (const a of annotations) {
+        if (a.subtype !== 'Link' || !(a.url || a.dest)) continue;
+        const [x1, y1] = viewport.convertToViewportPoint(a.rect[0], a.rect[1]);
+        const [x2, y2] = viewport.convertToViewportPoint(a.rect[2], a.rect[3]);
+        found.push({
+          left: Math.min(x1, x2),
+          top: Math.min(y1, y2),
+          width: Math.abs(x2 - x1),
+          height: Math.abs(y2 - y1),
+          url: a.url,
+          dest: a.dest,
+        });
+      }
+      setLinks(found);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, pageNumber, scale]);
+
+  if (!links.length) return null;
+  return (
+    <div className="reader-links">
+      {links.map((link, i) => {
+        const style = { left: link.left, top: link.top, width: link.width, height: link.height };
+        return link.url ? (
+          <a
+            key={i}
+            className="reader-link"
+            style={style}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={link.url}
+          />
+        ) : (
+          <a
+            key={i}
+            className="reader-link"
+            style={style}
+            href="#"
+            aria-label="Go to linked spot in this document"
+            onClick={(e) => {
+              e.preventDefault();
+              onDest(link.dest!);
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }

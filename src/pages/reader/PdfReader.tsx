@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { annotationDocKey, DEFAULT_ANNOTATION_COLOR, sortAnnotations } from '../../shared/annotations';
-import { RecapCard } from '../../shared/components/RecapCard';
 import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import { sendMessage } from '../../shared/messages';
 import { useSettings } from '../../shared/hooks/useSettings';
@@ -11,7 +10,7 @@ import { type PdfPosition } from '../../shared/pdf';
 import { isPdfAnchored } from '../../shared/types';
 import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutline';
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
-import type { AnnotationColor, AnnotationRect, Paper } from '../../shared/types';
+import type { AnnotationColor, AnnotationRect, HighlightTag, Paper, ReadingPass } from '../../shared/types';
 import { useChromeAwake } from './useChromeAwake';
 import { useDriftNudge } from './useDriftNudge';
 import { useFocusLineKey } from './useFocusLineKey';
@@ -23,11 +22,17 @@ import { AnnotationsSidebar } from './components/AnnotationsSidebar';
 import { AskSheet } from './components/AskSheet';
 import { OutlineRail, useSectionToast } from './components/OutlineRail';
 import { OutlineSidebar } from './components/OutlineSidebar';
-import { PdfViewport, type PdfViewportHandle } from './components/PdfViewport';
+import { PdfViewport, type PdfSelection, type PdfViewportHandle } from './components/PdfViewport';
 import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { TrackPrompt, type PaperSeed } from './components/TrackPrompt';
 import { PdfFindPanel } from './components/PdfFindPanel';
+import { PassLock } from './components/PassLock';
+import { ProvocationCard } from './components/ProvocationCard';
+import { CounterpointCard } from './components/CounterpointCard';
+import { socraticSystem } from '../../shared/llm/provoke';
+import { TAG_COLOR } from '../../shared/thinking';
+import { useProvocations, type MarginCard } from './useProvocations';
 
 /** One progress write at most every 5s; position changes in between are dropped. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -49,15 +54,16 @@ export function PdfReader({ src }: { src: string }) {
   const paper = findPaper(papers, src);
   const [settings] = useSettings();
 
-  // The paper's progress before this open, captured once (see ArticleReader).
-  const [openedAt, setOpenedAt] = useState<{ key: string; percent: number } | null>(null);
-  if (openedAt === null && papersLoaded) {
-    setOpenedAt(
-      paper && paper.status !== 'read'
-        ? { key: `paper:${paper.id}`, percent: paper.progressPercent }
-        : { key: '', percent: 0 },
-    );
-  }
+  // Saved on the paper; an untracked PDF holds it for the session.
+  const [sessionPass, setSessionPass] = useState<ReadingPass>(1);
+  const pass = paper?.pass ?? sessionPass;
+  const onPass = useCallback(
+    (next: ReadingPass) => {
+      setSessionPass(next);
+      if (paper) void sendMessage({ type: 'PAPER_UPDATE', id: paper.id, patch: { pass: next } });
+    },
+    [paper],
+  );
 
   const [position, setPosition] = useState<PdfPosition>({ page: 1, offset: 0 });
   const [zoom, setZoom] = useState(1);
@@ -154,7 +160,7 @@ export function PdfReader({ src }: { src: string }) {
   live.current.leftOffFor = leftOffFor;
 
   const createHighlight = useCallback(
-    (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor) => {
+    (page: number, rects: AnnotationRect[], text: string, color: AnnotationColor, note = '') => {
       void sendMessage({
         type: 'ANNOT_ADD',
         draft: {
@@ -165,11 +171,52 @@ export function PdfReader({ src }: { src: string }) {
           anchor: { kind: 'pdf', page, rects, x: 0, y: 0 },
           text,
           color,
-          note: '',
+          note,
         },
       });
     },
     [docKey, src],
+  );
+
+  const provocations = useProvocations({
+    docKey,
+    paperId: paper?.id ?? null,
+    pass,
+    page: position.page,
+    pageCount,
+    pageTexts,
+    outline,
+    source: sourceForUrl(src),
+    annotations: docAnnotations,
+    paper,
+    jump: (page) => viewportRef.current?.scrollToPosition(page, 0),
+  });
+  const { raiseForSelection } = provocations;
+
+  // A tagged or questioned selection: highlight it, then the margin asks why.
+  const highlightSelection = useCallback(
+    async (sel: PdfSelection, tag: HighlightTag | null, ask: boolean) => {
+      let first: { id: string; page: number } | null = null;
+      for (const [page, rects] of sel.byPage) {
+        const res = await sendMessage({
+          type: 'ANNOT_ADD',
+          draft: {
+            docKey,
+            docUrl: src,
+            paperId: live.current.paper?.id ?? null,
+            kind: 'highlight',
+            anchor: { kind: 'pdf', page, rects, x: 0, y: 0 },
+            text: sel.text,
+            color: tag ? TAG_COLOR[tag] : DEFAULT_ANNOTATION_COLOR,
+            note: '',
+            ...(tag ? { tag } : {}),
+          },
+        });
+        if (!first && res.ok && res.annotation) first = { id: res.annotation.id, page };
+      }
+      if (ask && first) raiseForSelection({ annotationId: first.id, page: first.page, text: sel.text, tag });
+    },
+    [docKey, src, raiseForSelection],
   );
 
   const placeSticky = useCallback(
@@ -207,11 +254,12 @@ export function PdfReader({ src }: { src: string }) {
   }, []);
 
   const sendProgress = useCallback(
-    (force = false) => {
+    (force = false, hidden = false) => {
       const l = live.current;
       if (!l.paper || !l.restored || l.pageCount === 0) return;
       const now = Date.now();
       if (!force && now - l.lastSentAt < PROGRESS_THROTTLE_MS) return;
+      const since = l.lastSentAt;
       l.lastSentAt = now;
       void sendMessage({
         type: 'PAPER_READER_PROGRESS',
@@ -221,6 +269,10 @@ export function PdfReader({ src }: { src: string }) {
         pageCount: l.pageCount,
         offset: l.position.offset,
         leftOff: l.leftOffFor(l.position.page),
+        // Credit at most one throttle window, as ArticleReader does, so a
+        // reader left open in the background can't bank hours of reading.
+        activeSecondsDelta: since === 0 ? 0 : Math.min((now - since) / 1000, PROGRESS_THROTTLE_MS / 1000),
+        hidden,
       });
     },
     [src],
@@ -250,9 +302,10 @@ export function PdfReader({ src }: { src: string }) {
   // Leaving the tab (or closing it) flushes the latest position immediately.
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') sendProgress(true);
+      // Hidden starts the come-back nudge; visible again calls it off.
+      sendProgress(true, document.visibilityState === 'hidden');
     };
-    const onPageHide = () => sendProgress(true);
+    const onPageHide = () => sendProgress(true, true);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onPageHide);
     return () => {
@@ -332,6 +385,8 @@ export function PdfReader({ src }: { src: string }) {
         askOpen={panel === 'ask'}
         onToggleAsk={() => setPanel((current) => (current === 'ask' ? 'none' : 'ask'))}
         citation={getCitation}
+        openCount={provocations.open.length}
+        onNextOpen={provocations.nextOpen}
       />
       <div className="reader-body">
         {ready && outlineOpen && (
@@ -383,13 +438,20 @@ export function PdfReader({ src }: { src: string }) {
               references={references}
               known={knownRefs}
               figures={figures}
+              docKey={docKey}
+              source={sourceForUrl(src)}
+              lockAfterPage={provocations.lock?.page ?? null}
+              selectionMode="tags"
+              onTag={(sel, tag) => void highlightSelection(sel, tag, tag !== null)}
+              onQuestion={(sel) => void highlightSelection(sel, null, true)}
             />
-            {openedAt?.key && (
-              <RecapCard
-                progressKey={openedAt.key}
-                percent={openedAt.percent}
-                passages={pageTexts}
-                source={sourceForUrl(src)}
+            {provocations.margin && <Margin card={provocations.margin} actions={provocations.card} />}
+            {provocations.lock && (
+              <PassLock
+                key={provocations.lock.page}
+                question={provocations.lock.question}
+                onContinue={provocations.lock.onContinue}
+                onUnsure={provocations.lock.onUnsure}
               />
             )}
             <RelatedHighlight docKey={docKey} />
@@ -423,8 +485,12 @@ export function PdfReader({ src }: { src: string }) {
             )}
             <ReaderCapsule
               label={capsuleLabel}
-              message={sectionToast ?? drift?.message ?? null}
-              action={drift && !sectionToast ? { label: 'Back', run: drift.back } : null}
+              // While locked the capsule shows only where you are.
+              message={provocations.lock ? null : (sectionToast ?? drift?.message ?? null)}
+              action={drift && !sectionToast && !provocations.lock ? { label: 'Back', run: drift.back } : null}
+              pass={pass}
+              onPass={onPass}
+              prompt={provocations.capsulePrompt}
               progress={progress}
               page={position.page}
               pageCount={pageCount}
@@ -451,12 +517,89 @@ export function PdfReader({ src }: { src: string }) {
             passages={pageTexts}
             source={sourceForUrl(src)}
             passageNoun="page"
+            system={socraticSystem()}
+            thread={false}
             onJump={(index) => viewportRef.current?.scrollToPosition(index + 1, 0)}
             onClose={() => setPanel('none')}
           />
         )}
         {ready && findOpen && <PdfFindPanel pages={pageTexts} onJump={(page) => viewportRef.current?.scrollToPosition(page, 0)} onClose={() => setPanel('none')} />}
       </div>
+    </div>
+  );
+}
+
+/** The one margin card: a question, then (once answered) a counterpoint or a breakdown. */
+function Margin({
+  card,
+  actions,
+}: {
+  card: MarginCard;
+  actions: ReturnType<typeof useProvocations>['card'];
+}) {
+  if (!card.question) return null;
+  let body;
+  if (card.answer === null) {
+    body = (
+      <ProvocationCard
+        key={card.id}
+        kicker={card.kicker}
+        question={card.question}
+        tags={card.kind === 'highlight' && !card.tag}
+        placeholder="In one line, your own words"
+        actionLabel={card.kind === 'highlight' ? 'Save reason' : 'Save answer'}
+        onCommit={actions.commit}
+        onSkip={actions.skip}
+      >
+        {card.kind === 'equation' && <code className="provoke-block">{card.passage}</code>}
+      </ProvocationCard>
+    );
+  } else if (card.counterpoint) {
+    body = (
+      <CounterpointCard
+        key={card.id}
+        question={card.counterpoint.question}
+        gap={card.counterpoint.gap}
+        onDefend={(text, page) => actions.respond('defended', text, page)}
+        onRevise={(text) => actions.respond('revised', text)}
+      />
+    );
+  } else if (card.kind === 'equation') {
+    body = (
+      <section className="provoke-card" role="region" aria-label={card.kicker}>
+        <p className="provoke-kicker">
+          <span className="provoke-dot" aria-hidden="true" />
+          {card.kicker}
+        </p>
+        <p className="provoke-reply">
+          <span>You said</span>
+          {card.answer}
+        </p>
+        {card.breakdown && (
+          <ol className="provoke-breakdown">
+            {card.breakdown.map((q) => (
+              <li key={q}>{q}</li>
+            ))}
+          </ol>
+        )}
+        {card.canBreakDown && (
+          <button type="button" className="ghost-btn" onClick={actions.breakDown}>
+            Break it down
+          </button>
+        )}
+      </section>
+    );
+  } else {
+    return null;
+  }
+  return (
+    <div className="provoke-margin">
+      {body}
+      {card.answer !== null && (
+        <button type="button" className="provoke-skip provoke-close" onClick={actions.close}>
+          Done
+        </button>
+      )}
     </div>
   );
 }

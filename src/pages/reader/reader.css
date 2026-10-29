@@ -920,14 +920,6 @@ body {
 
 /* The previous-page recap sits bottom-left: the left-off recap owns the top
    right and the related highlight the bottom right. */
-.page-recap {
-  top: auto;
-  right: auto;
-  bottom: calc(var(--space-8) + var(--space-6));
-  left: var(--space-5);
-  width: min(320px, calc(100% - 2 * var(--space-4)));
-}
-
 /* Paperwhite: a duotone laid over the rendered page, between the canvases and
    the text layer. `screen` lifts black to the warm ink, then `multiply` tints
    white to the paper, with a faint grain. The canvases stay opaque: blending
@@ -1840,6 +1832,43 @@ body {
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
+}
+
+/* The one margin card, top right of the page column. */
+.provoke-margin {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-5);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  width: min(320px, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100% - 2 * var(--space-4));
+  overflow: auto;
+}
+
+.provoke-margin .provoke-card {
+  width: 100%;
+}
+
+.provoke-block {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.provoke-breakdown {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-family: var(--font-display);
 }
 
 /* Pass 3: the page fades into the page background under one question. */
