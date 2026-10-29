@@ -14,7 +14,7 @@ const LONG = LOCAL_CONTEXT_CHARS + 1;
 
 const PRIVATE: AiSource[] = ['web', 'localFile', 'annotation'];
 const PUBLIC: AiSource[] = ['rss', 'arxiv', 'doi', 'youtube'];
-const TASKS: AiTask[] = ['recap', 'triage', 'summarize', 'ask'];
+const TASKS: AiTask[] = ['recap', 'triage', 'summarize', 'ask', 'provoke'];
 
 describe('route — privacy is absolute', () => {
   // Every combination of environment, task and size: a private source must
@@ -43,8 +43,8 @@ describe('route — privacy is absolute', () => {
 });
 
 describe('route — local first', () => {
-  it('runs anything that fits on device, public or not', () => {
-    for (const source of [...PUBLIC, ...PRIVATE]) {
+  it('runs private content that fits on device, whatever the cloud mode', () => {
+    for (const source of PRIVATE) {
       expect(route({ task: 'ask', source, chars: SHORT }, env)).toMatchObject({
         target: 'ollama',
         retrieval: false,
@@ -52,32 +52,50 @@ describe('route — local first', () => {
     }
   });
 
-  it('never sends recap or triage to the cloud, even long and public', () => {
-    for (const task of ['recap', 'triage'] as const) {
-      expect(route({ task, source: 'arxiv', chars: LONG }, env).target).toBe('ollama');
-      expect(route({ task, source: 'arxiv', chars: SHORT }, { ...env, ollamaUp: false }).target).toBe(
-        'none',
-      );
+  it('runs public content that fits on device in "ask" mode, without a prompt', () => {
+    for (const source of PUBLIC) {
+      expect(route({ task: 'ask', source, chars: SHORT }, { ...env, cloudMode: 'ask' })).toMatchObject({
+        target: 'ollama',
+        retrieval: false,
+      });
     }
+  });
+
+  it('provoke stays on device under ask mode', () => {
+    expect(route({ task: 'provoke', source: 'arxiv', chars: LONG }, { ...env, cloudMode: 'ask' }).target).toBe('ollama');
+  });
+
+  it('never sends triage to the cloud, and keeps recap and terms local in "ask" mode', () => {
+    expect(route({ task: 'triage', source: 'arxiv', chars: LONG }, env).target).toBe('ollama');
+    for (const task of ['recap', 'terms'] as const) {
+      expect(route({ task, source: 'arxiv', chars: LONG }, { ...env, cloudMode: 'ask' }).target).toBe('ollama');
+    }
+    expect(route({ task: 'triage', source: 'rss', chars: SHORT }, { ...env, ollamaUp: false }).target).toBe('none');
   });
 
   it('says why when no model is picked', () => {
     expect(
-      route({ task: 'recap', source: 'rss', chars: SHORT }, { ...env, hasLocalModel: false }),
+      route({ task: 'recap', source: 'web', chars: SHORT }, { ...env, hasLocalModel: false }),
     ).toEqual({ target: 'none', reason: 'No local model picked in Settings' });
   });
 });
 
 describe('route — public overflow', () => {
-  it('sends a long public question to Sonnet and a long summary to Haiku', () => {
-    expect(route({ task: 'ask', source: 'arxiv', chars: LONG }, env)).toMatchObject({
-      target: 'claude',
-      model: CLAUDE_MODELS.deep,
-      confirm: false,
-    });
-    expect(route({ task: 'summarize', source: 'youtube', chars: LONG }, env)).toMatchObject({
+  it('sends public content to Haiku first in "public" mode, without asking', () => {
+    for (const task of ['ask', 'summarize', 'recap', 'terms'] as const) {
+      expect(route({ task, source: 'arxiv', chars: SHORT }, env)).toMatchObject({
+        target: 'claude',
+        model: CLAUDE_MODELS.quick,
+        confirm: false,
+      });
+    }
+  });
+
+  it('sends a long public question to Haiku in "ask" mode, after asking', () => {
+    expect(route({ task: 'ask', source: 'arxiv', chars: LONG }, { ...env, cloudMode: 'ask' })).toMatchObject({
       target: 'claude',
       model: CLAUDE_MODELS.quick,
+      confirm: true,
     });
   });
 
@@ -87,7 +105,7 @@ describe('route — public overflow', () => {
   });
 
   it('covers for a stopped Ollama with public content', () => {
-    const r = route({ task: 'ask', source: 'rss', chars: SHORT }, { ...env, ollamaUp: false });
+    const r = route({ task: 'ask', source: 'rss', chars: SHORT }, { ...env, cloudMode: 'ask', ollamaUp: false });
     expect(r).toMatchObject({ target: 'claude' });
     expect(r.reason).toMatch(/Ollama is not running/);
   });
@@ -104,6 +122,32 @@ describe('route — public overflow', () => {
   it('has nothing to offer offline with Ollama down', () => {
     const r = route({ task: 'ask', source: 'arxiv', chars: LONG }, { ...env, online: false, ollamaUp: false });
     expect(r.target).toBe('none');
+  });
+});
+
+describe('route — cloud mode "all"', () => {
+  const all: RouteEnv = { ...env, cloudMode: 'all' };
+
+  it('sends every task and source to Haiku, unprompted, even with Ollama up', () => {
+    for (const source of [...PRIVATE, ...PUBLIC])
+      for (const task of [...TASKS, 'terms' as const])
+        for (const chars of [SHORT, LONG]) {
+          expect(route({ task, source, chars }, all), `${source}/${task}/${chars}`).toMatchObject({
+            target: 'claude',
+            model: CLAUDE_MODELS.quick,
+            confirm: false,
+          });
+        }
+  });
+
+  it('falls back to the local model without a key or offline', () => {
+    for (const patch of [{ hasKey: false }, { online: false }]) {
+      expect(route({ task: 'ask', source: 'web', chars: SHORT }, { ...all, ...patch }).target).toBe('ollama');
+      expect(route({ task: 'ask', source: 'web', chars: LONG }, { ...all, ...patch })).toMatchObject({
+        target: 'ollama',
+        retrieval: true,
+      });
+    }
   });
 });
 
