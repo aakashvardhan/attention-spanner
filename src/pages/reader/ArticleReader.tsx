@@ -20,6 +20,7 @@ import { ReaderToolbar } from './components/ReaderToolbar';
 import { useChromeAwake } from './useChromeAwake';
 import { useFocusLineKey } from './useFocusLineKey';
 import { blockTexts, useArticleDocument } from './useArticleDocument';
+import { articleProgressReport, type ArticleMetrics } from './articleProgress';
 
 /** One progress write at most every 5s, matching the PDF reader. */
 const PROGRESS_THROTTLE_MS = 5_000;
@@ -71,45 +72,56 @@ export function ArticleReader({ url }: { url: string }) {
     setOpenedAtPercent(entry && entry.completedAt === null ? entry.maxPercent : 0);
   }
 
-  const progress = useRef({ lastSentAt: 0, percent: 0, title: '' });
-  // While loading, `title` is the URL — a fine placeholder on screen, but stored
-  // it would stick as the article's name in the Continue list. Report nothing
-  // until the document is parsed and the tracker keeps the name it already has.
-  progress.current.title = ready ? state.title : '';
+  // `report` stays null until the article has rendered with its title
+  // (articleProgress.ts): while loading, `title` is the URL — a fine
+  // placeholder on screen, but stored it would stick as the Continue row's name.
+  const progress = useRef<{
+    lastSentAt: number;
+    renderedAt: number;
+    report: { percent: number; title: string } | null;
+  }>({ lastSentAt: 0, renderedAt: 0, report: null });
+  const articleTitle = ready ? state.title : '';
 
   const send = useCallback(
-    (percent: number) => {
+    () => {
+      const report = progress.current.report;
+      if (!report) return;
       const now = Date.now();
       const since = progress.current.lastSentAt;
       progress.current.lastSentAt = now;
       void sendMessage({
         type: 'PROGRESS_UPDATE',
-        percent,
+        percent: report.percent,
         scrollY: 0,
         pageHeight: 0,
         // Credit at most one throttle window, so a tab left open in the
         // background can't bank hours of "reading"
         activeSecondsDelta: since === 0 ? 0 : Math.min((now - since) / 1000, PROGRESS_THROTTLE_MS / 1000),
-        doc: { url, title: progress.current.title },
+        doc: { url, title: report.title },
       });
     },
     [url],
   );
 
   const onProgress = useCallback(
-    (percent: number, currentBlock: number) => {
+    (metrics: ArticleMetrics, currentBlock: number) => {
       setBlockIndex(currentBlock);
-      setPercent(percent);
-      progress.current.percent = percent;
-      if (Date.now() - progress.current.lastSentAt < PROGRESS_THROTTLE_MS) return;
-      send(percent);
+      const now = Date.now();
+      const { renderedAt } = progress.current;
+      const report = articleProgressReport(articleTitle, metrics, renderedAt ? (now - renderedAt) / 1000 : 0);
+      if (!report) return;
+      if (!renderedAt) progress.current.renderedAt = now;
+      setPercent(report.percent);
+      progress.current.report = report;
+      if (now - progress.current.lastSentAt < PROGRESS_THROTTLE_MS) return;
+      send();
     },
-    [send],
+    [articleTitle, send],
   );
 
   // Leaving the tab flushes the latest position, mirroring the PDF reader
   useEffect(() => {
-    const flush = () => send(progress.current.percent);
+    const flush = () => send();
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush();
     };

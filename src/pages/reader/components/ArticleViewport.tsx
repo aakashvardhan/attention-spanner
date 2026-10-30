@@ -6,6 +6,8 @@ import { findTextAnchor, makeTextAnchor, type TextAnchor } from '../../../shared
 import type { Annotation, AnnotationColor } from '../../../shared/types';
 import { isTextAnchored } from '../../../shared/types';
 import { SelectionMenu } from './SelectionMenu';
+import { CONTINUE_MIN_SECONDS } from '../../../shared/constants';
+import type { ArticleMetrics } from '../articleProgress';
 import { Markdown } from '../../../shared/components/Markdown';
 
 /** Rich source text is common in generated meeting summaries and imported
@@ -73,8 +75,8 @@ export function ArticleViewport({
   activeId: string | null;
   onActivate: (id: string | null) => void;
   onCreateHighlight: (anchor: TextAnchor, text: string, color: AnnotationColor) => void;
-  /** Reading percent 0-100 and the block currently at the top */
-  onProgress: (percent: number, blockIndex: number) => void;
+  /** The scroller's measurements and the block under the reading line */
+  onProgress: (metrics: ArticleMetrics, blockIndex: number) => void;
   /** The block the focus line keeps lit; the rest dim when it is on */
   focusBlock?: number;
   handleRef?: React.RefObject<ArticleViewportHandle | null>;
@@ -128,9 +130,6 @@ export function ArticleViewport({
   const report = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    const scrollable = el.scrollHeight - el.clientHeight;
-    const percent = scrollable <= 0 ? 100 : Math.round((el.scrollTop / scrollable) * 100);
-
     // "Where I am" is the block under the reading line, not the one half
     // scrolled off the top (which sits behind the floating toolbar). The
     // focus line, the outline rail and resume all read this one index.
@@ -140,11 +139,24 @@ export function ArticleViewport({
       blockRefs.current.map((node) => node?.getBoundingClientRect().bottom ?? -Infinity),
       line,
     );
-    onProgress(Math.max(0, Math.min(100, percent)), current);
+    onProgress(
+      {
+        // Cheap on every scroll: stops at the first block with text
+        hasText: blockRefs.current.some((node) => !!node?.textContent),
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        scrollTop: el.scrollTop,
+      },
+      current,
+    );
   }, [onProgress]);
 
   useEffect(() => {
     report();
+    // An article that fits the viewport never scrolls; measure it again once
+    // it has been open long enough to count as read (articleProgress.ts).
+    const timer = setTimeout(report, CONTINUE_MIN_SECONDS * 1000);
+    return () => clearTimeout(timer);
   }, [report, blocks]);
 
   /** Turn the live DOM selection into a block-relative text anchor. */

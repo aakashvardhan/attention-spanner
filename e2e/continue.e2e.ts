@@ -49,11 +49,12 @@ async function startChatMock() {
   return { url: `http://127.0.0.1:${port}`, systems, close: () => new Promise((r) => server.close(() => r(undefined))) };
 }
 
-/** A long, readable article: the reader reports progress once it is scrolled. */
+/** A long, readable article. Numbered paragraphs: the extractor drops repeats. */
 const longRead = (title: string): Handler => (_req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  const para = `<p>${'The quick brown fox jumps over the lazy dog, and then it does so again. '.repeat(12)}</p>`;
-  res.end(`<!doctype html><html lang="en"><head><title>${title}</title></head><body><article><h1>${title}</h1>${para.repeat(40)}</article></body></html>`);
+  const para = (i: number) => `<p>${i}. ${'The quick brown fox jumps over the lazy dog, and then it does so again. '.repeat(12)}</p>`;
+  const body = Array.from({ length: 40 }, (_, i) => para(i + 1)).join('');
+  res.end(`<!doctype html><html lang="en"><head><title>${title}</title></head><body><article><h1>${title}</h1>${body}</article></body></html>`);
 };
 
 /** The X on a row: its tools show when the row is hovered. */
@@ -283,13 +284,51 @@ describe('continue: reading and watching', () => {
     await expect.poll(titles, { timeout: 15_000 }).toEqual([onTitle, offTitle].sort());
     await readThis.close();
 
-    // The reader reported this page at 100% on open (seen in this harness, outside
-    // the gate), so it is stored but finished, which is not a Continue row.
+    // Whether the read-this row shows here hangs on the close-time flush; the
+    // next test checks that row on its own.
     await home.reload();
     await expect
       .poll(() => home.getByRole('region', { name: 'Continue reading' }).locator('.row-title').allInnerTexts())
-      .toEqual([onTitle]);
+      .toContain(onTitle);
     expect(gemini).toBe(0);
     await home.close();
   }, 60_000);
+
+  it('"read this" on a long article lands in Continue, titled and unfinished', async () => {
+    const title = 'A long read about reinforcement learning';
+    const url = `${ext.sites.origin('longread')}/essay`;
+    ext.sites.setRoute('longread', '/essay', longRead(title));
+    await seed(ext, { settings: { ollamaUrl: '', layaUrl: '', cloudMode: 'off' }, readingProgress: {} });
+
+    const home = await ext.page(PAGES.newtab);
+    const opened = ext.ctx.waitForEvent('page');
+    await home.evaluate(
+      (url) => chrome.runtime.sendMessage({ type: 'OPEN_ARTICLE', url, feedItemId: null, readerView: true }),
+      url,
+    );
+    const reader = await opened;
+    await reader.locator('.article-block').first().waitFor();
+    const entry = () =>
+      storage<Record<string, { title: string; maxPercent: number; completedAt: number | null }>>(ext, 'readingProgress')
+        .then((all) => all[normalizeUrl(url)]);
+    // The first report lands on render, at the top: titled, not finished.
+    await expect.poll(entry, { timeout: 10_000 }).toMatchObject({ title, completedAt: null, maxPercent: 0 });
+
+    // Read a little, past the reader's 5 s report throttle.
+    await reader.waitForTimeout(5_500);
+    await reader.mouse.move(640, 450);
+    await reader.mouse.wheel(0, 1600);
+    await expect.poll(async () => (await entry())!.maxPercent, { timeout: 10_000 }).toBeGreaterThanOrEqual(5);
+    const stored = (await entry())!;
+    expect(stored.title).toBe(title);
+    expect(stored.completedAt).toBeNull();
+    expect(stored.maxPercent).toBeLessThan(90);
+    await reader.close();
+
+    await home.reload();
+    await expect
+      .poll(() => home.getByRole('region', { name: 'Continue reading' }).locator('.row-title').allInnerTexts())
+      .toContain(title);
+    await home.close();
+  }, 30_000);
 });
