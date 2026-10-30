@@ -81,6 +81,10 @@ export interface Settings {
    * normalizeTopics, which also survives a hand-edited value.
    */
   mutedTopics: string[];
+  /** Topics Continue keeps (new tab); [] turns the filter off. Read through normalizeTrackTopics. */
+  trackTopics: string[];
+  /** Gemini key for the topic check on titles the keywords miss; '' = keywords only. */
+  geminiTopicKey: string;
 }
 
 /** 'all' sends every task and source to Claude, private ones included; the rest keep private sources on device. */

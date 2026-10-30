@@ -208,6 +208,10 @@ describe('v22', () => {
     expect(v22StripSettings({ focusMusicEnabled: true, geminiKey: 'k', theme: 'dark' })).toEqual({ theme: 'dark' });
   });
 
+  it('topic key survives the sweep', () => {
+    expect(v22StripSettings({ geminiTopicKey: 'k' })).toEqual({ geminiTopicKey: 'k' });
+  });
+
   // Session storage survives an extension update, so the dead keys go on every
   // startup, even for a profile already on the current version.
   it('clears the retired session keys even when migration returns early', async () => {

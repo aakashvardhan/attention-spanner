@@ -11,6 +11,8 @@ import { getLocal, patchSettings, setLocal } from '../../shared/storage';
 import type { ThemeSetting } from '../../shared/types';
 import { LocalAiSection } from './LocalAiSection';
 import { MutedTopicsRow } from './MutedTopicsRow';
+import { TrackTopicsRow } from './TrackTopicsRow';
+import { normalizeTrackTopics } from '../../shared/topics';
 import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
 
@@ -201,6 +203,25 @@ export function Options() {
               {feedback.text}
             </p>
           )}
+        </section>
+
+        <section className="section" id="continue">
+          <h2>Continue</h2>
+          <TrackTopicsRow value={normalizeTrackTopics(settings.trackTopics)} />
+          <div className="setting-row setting-row-stacked">
+            <label htmlFor="gemini-topic-key">Gemini key</label>
+            <input
+              id="gemini-topic-key"
+              type="password"
+              autoComplete="off"
+              value={settings.geminiTopicKey ?? ''}
+              aria-describedby="gemini-topic-key-hint"
+              onChange={(e) => void patchSettings({ geminiTopicKey: e.target.value.trim() })}
+            />
+            <p id="gemini-topic-key-hint" className="hint">
+              Titles the keywords miss are sent to Gemini to check the topic.
+            </p>
+          </div>
         </section>
 
         <section className="section" id="your-feeds">

@@ -1,4 +1,5 @@
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
+import { DEFAULT_TOPICS } from './topics';
 import type {
   AiCacheEntry,
   Annotation,
@@ -86,6 +87,8 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeKey: '',
   layaUrl: '',
   mutedTopics: [],
+  trackTopics: [...DEFAULT_TOPICS],
+  geminiTopicKey: '',
 };
 
 export const DEFAULTS: LocalSchema = {

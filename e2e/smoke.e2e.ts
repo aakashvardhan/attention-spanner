@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { NETWORK_NOISE, PAGES, expectA11y, expectClean, horizontalOverflow, launch, seed, shot, type Ext } from './harness';
+import { NETWORK_NOISE, PAGES, storage, expectA11y, expectClean, horizontalOverflow, launch, seed, shot, type Ext } from './harness';
 import { html } from './sites';
 import { article, deck, paper } from './seed';
 
@@ -104,6 +104,19 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     expect(await page.getByLabel('New tab', { exact: true }).count()).toBe(0);
     expect(await page.getByLabel('Camera', { exact: true }).count()).toBe(0);
     expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('options: the Continue topics default to three and an edit persists', async () => {
+    const page = await ext.page(PAGES.options);
+    const field = page.getByLabel('Topics to keep in Continue');
+    expect(await field.inputValue()).toBe('AI\nrobotics\nreinforcement learning');
+    await field.fill('AI');
+    await field.blur();
+    await page.waitForFunction(
+      async () => ((await chrome.storage.local.get('settings')).settings?.trackTopics ?? []).join() === 'AI',
+    );
+    expect((await storage<{ trackTopics?: string[] }>(ext, 'settings'))?.trackTopics).toEqual(['AI']);
     await page.close();
   });
 
