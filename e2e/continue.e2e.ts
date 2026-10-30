@@ -192,4 +192,17 @@ describe('continue: reading and watching', () => {
     await tab.getByRole('button', { name: 'Remove The lead story from Continue' }).click();
     await expect.poll(() => tab.locator('.edition-notice').innerText()).toContain('Nothing open');
   });
+
+  it('shows a playing video as Watching on its Continue row, with no separate card', async () => {
+    const now = Date.now();
+    await seed(ext, {
+      readingProgress: {
+        'video:vid00000001': { ...video('vid00000001', 'A talk about focus', now), playing: true },
+      },
+    });
+    const tab = await ext.page(PAGES.newtab);
+    await expect.poll(() => tab.locator('.edition-lead-list').innerText()).toMatch(/Watching · \d+:\d{2}/);
+    expect(await tab.locator('.now-watching, .relay-watching-card').count()).toBe(0);
+    await tab.close();
+  });
 });

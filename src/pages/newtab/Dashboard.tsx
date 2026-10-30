@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resumableItems, resumeContextFromProgress } from '../../shared/attention';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
-import { useNowWatching } from '../../shared/hooks/useNowWatching';
+import { useWatchClock } from '../../shared/hooks/useWatchClock';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
@@ -17,7 +17,6 @@ import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
 import { EditionIndex } from './EditionIndex';
 import { FocusTimer } from './FocusTimer';
-import { NowWatching } from './NowWatching';
 import { TriageCard } from './TriageCard';
 
 /**
@@ -77,11 +76,8 @@ export function Dashboard() {
     [readingProgress, papers],
   );
 
-  // One clock for the page. useNowWatching already ticks at 500ms while a video
-  // is playing and stands still otherwise, so the Continue rows read their `now`
-  // off it rather than starting a second interval against the same state.
-  const watching = useNowWatching();
-  const watchingNow = watching.now;
+  // One clock for the page: the Continue rows read their `now` off it.
+  const watchingNow = useWatchClock();
 
   // One step in at a time: a second click while this tab navigates opens (and marks read) nothing.
   const steppingNow = useRef(false);
@@ -163,8 +159,6 @@ export function Dashboard() {
 
   return (
     <main className="edition grid">
-      {watching.active && <NowWatching watching={watching} />}
-
       <section className="edition-lead-col" aria-labelledby="continue-title">
         <h2 id="continue-title" className="visually-hidden">
           Pick back up

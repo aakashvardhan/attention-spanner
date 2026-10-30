@@ -9,6 +9,7 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'greeting', pattern: /displayName/ },
   { name: 'ambient', pattern: /ambientMotion|useAmbient|ObstacleCourse/ },
   { name: 'quote', pattern: /quoteOfDay/ },
+  { name: 'now-watching', pattern: /NowWatching|useNowWatching/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

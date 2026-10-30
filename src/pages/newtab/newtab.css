@@ -629,98 +629,6 @@ ol {
   color: var(--text-primary);
 }
 
-/* ---------- Now watching ---------- */
-
-.relay-watching-card {
-  grid-column: 1 / -1;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border);
-  background: var(--bg-surface);
-}
-.edition-live {
-  color: var(--danger);
-}
-.nw-head {
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.nw-head h3 {
-  margin: var(--space-1) 0 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  line-height: var(--leading-lg);
-}
-.nw-head p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-variant-numeric: tabular-nums;
-}
-.nw-meter {
-  height: 4px;
-  margin-top: var(--space-2);
-  background: var(--border);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-.nw-meter > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  border-radius: inherit;
-  transition: width var(--dur-smooth) var(--spring-smooth);
-}
-.nw-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-.nw-button {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-.nw-button:disabled {
-  color: var(--text-muted);
-  border-color: var(--border);
-  cursor: default;
-}
-.nw-transcript {
-  margin-top: var(--space-3);
-  max-height: 320px;
-  overflow-y: auto;
-}
-.nw-transcript li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border-left: 4px solid transparent;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-}
-.nw-transcript li[aria-current='true'] {
-  border-left-color: var(--accent);
-  background: var(--bg-subtle);
-  color: var(--text-primary);
-}
-.nw-stamp {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- The record: papers and focus by day ---------- */
 
 /* GitHub's contribution calendar, set as a section of the edition: kicker and
@@ -1205,7 +1113,6 @@ ol {
   .edition-story-title,
   .relay-row-title,
   .edition-cta,
-  .nw-meter > span,
   .heat-seg::before,
   .heat-seg button,
   .heat-grid .heat-cell,
@@ -1244,9 +1151,7 @@ ol {
 .edition-story-title,
 .relay-row-title,
 .relay-recap,
-.edition-notice,
-.relay-watching-card h3,
-.nw-transcript li > span:last-child {
+.edition-notice {
   max-inline-size: 75ch;
 }
 
