@@ -91,7 +91,7 @@ export type Message =
       /** Player chapter title; '' when the video has no chapters */
       chapter: string;
     }
-  /** Captions for the new tab's Follow pane. */
+  /** Captions behind the Continue row's video summary. */
   | { type: 'VIDEO_TRANSCRIPT'; videoId: string }
   | {
       type: 'PROGRESS_UPDATE';

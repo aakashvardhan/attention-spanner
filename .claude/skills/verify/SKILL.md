@@ -71,7 +71,7 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
   status is `.reader-capsule` (click `.reader-capsule-summary` for page jump and
   zoom, Escape folds it); announcements land in `.reader-capsule-message`; the
   outline at rest is `.reader-rail` with one `[data-state="current"]` tick; F
-  sets `[data-focus-line]`..
+  sets `[data-focus-line]`.
 - Retired settings must stay inert: seed `settings.skin` with an old value and
   expect no errors.
 - Read storage from a page: `page.evaluate(() => chrome.storage.local.get(...))`.

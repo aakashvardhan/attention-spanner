@@ -31,7 +31,6 @@ const CUT: { name: string; pattern: RegExp }[] = [
 const SKIP = new Set([
   'src/shared/storage.ts',
   'src/shared/storage.test.ts',
-  'src/background/alarms.ts',
   'src/background/alarms.test.ts',
   'src/shared/cutFeatures.test.ts',
 ]);

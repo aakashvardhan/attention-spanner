@@ -61,7 +61,7 @@ export interface SessionSchema {
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
   /**
-   * YouTube transcripts for the new tab's Follow pane, keyed by videoId.
+   * YouTube transcripts behind the Continue row's video summary, keyed by videoId.
    * Session-scoped because a transcript is only interesting while the video is
    * on screen — caching them to disk would grow without a bound anyone watches.
    */

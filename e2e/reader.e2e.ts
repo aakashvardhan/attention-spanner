@@ -200,15 +200,6 @@ describe('reader: key terms, page one-liners, paperwhite', () => {
     await page.close();
   });
 
-  it('shows no drift message after the reader sits idle', async () => {
-    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
-    await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
-    await page.clock.install();
-    await page.clock.fastForward(200_000);
-    expect(await page.getByText(/^You were at/).count()).toBe(0);
-    await page.close();
-  });
-
   it('offers to keep a definition as a note on the clicked term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');

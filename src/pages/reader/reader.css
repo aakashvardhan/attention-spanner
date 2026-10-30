@@ -100,8 +100,7 @@ body {
 }
 
 .reader-icon-btn,
-.reader-zoom-value,
-.reader-ask-btn {
+.reader-zoom-value {
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -130,15 +129,13 @@ body {
 }
 
 .reader-icon-btn:hover:not(:disabled),
-.reader-zoom-value:hover,
-.reader-ask-btn:hover {
+.reader-zoom-value:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .reader-icon-btn:active:not(:disabled),
-.reader-zoom-value:active,
-.reader-ask-btn:active {
+.reader-zoom-value:active {
   transform: scale(0.96);
 }
 
@@ -155,18 +152,10 @@ body {
 
 .reader-icon-btn:focus-visible,
 .reader-zoom-value:focus-visible,
-.reader-ask-btn:focus-visible,
 .reader-more-menu button:focus-visible,
 .reader-page-jump input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-.reader-pageno {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  padding: 0 8px;
-  font-variant-numeric: tabular-nums;
 }
 
 .reader-page-jump {
@@ -1134,19 +1123,6 @@ body {
 .reader-related-head h2 {
   font-size: var(--text-sm);
   font-weight: 700;
-}
-
-/* ---------- Builds on ----------
-   Grouped by subject, oldest first inside a group. A <details> per group so a
-   forty-entry bibliography collapses; the biggest two arrive open. */
-
-.reader-lineage-group {
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* An entry with no link at all: shown, but never dressed as a target. */
-.reader-lineage-row.is-plain {
-  cursor: default;
 }
 
 .reader-notes h2 {

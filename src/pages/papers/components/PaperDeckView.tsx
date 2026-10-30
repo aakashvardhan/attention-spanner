@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sendMessage } from '../../../shared/messages';
 import { localDate } from '../../../shared/format';
-import { readerPageUrl } from '../../../shared/pdf';
-import { paperThinking, todaysQuestion } from '../../../shared/thinking';
+import { paperThinking, thinkingLink, todaysQuestion } from '../../../shared/thinking';
 import { usePapers } from '../../../shared/hooks/usePapers';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import type { Deck } from '../../../shared/types';
@@ -78,7 +77,7 @@ export function PaperDeckView({ deck }: { deck: Deck }) {
             {questionPaper && (
               <a
                 className="ghost-btn"
-                href={`${readerPageUrl(questionPaper.pdf?.url ?? questionPaper.url)}#page=${question.page}`}
+                href={thinkingLink(questionPaper, question.page)}
                 target="_blank"
                 rel="noreferrer"
               >
