@@ -1,9 +1,19 @@
-import type { Annotation, AnnotationColor, HighlightTag, Provocation } from './types';
+import { readerPageUrl } from './pdf';
+import type { Annotation, AnnotationColor, HighlightTag, Paper, Provocation } from './types';
 
 export const XP = { resolve: 10, revise: 15, defend: 15, verdict: 20 } as const;
 export const TAG_COLOR: Record<HighlightTag, AnnotationColor> = { claim: 'blue', evidence: 'green', doubt: 'pink' };
 
 const isOpen = (p: Provocation) => p.status !== 'answered';
+/** A counterpoint whose highlight was deleted is dead; everything else is live. */
+const isLive = (p: Provocation, alive: ReadonlySet<string>) => p.annotationId == null || alive.has(p.annotationId);
+const isOpenQuestion = (p: Provocation) => isOpen(p) && p.kind !== 'page';
+
+/** Reader link for a paper, deep-linked to a page when page > 0. */
+export const thinkingLink = (paper: Paper, page: number) => {
+  const base = readerPageUrl(paper.pdf?.url ?? paper.url);
+  return page > 0 ? `${base}#page=${page}` : base;
+};
 
 /** prev null = new record. 0 when prev.xp > 0. */
 export function xpAward(prev: Provocation | null, next: Provocation): number {
@@ -30,7 +40,7 @@ export function paperThinking(
   provocations: readonly Provocation[],
 ): PaperThinking {
   const alive = new Set(annotations.map((a) => a.id));
-  const mine = provocations.filter((p) => p.paperId === paperId && (p.annotationId == null || alive.has(p.annotationId)));
+  const mine = provocations.filter((p) => p.paperId === paperId && isLive(p, alive));
   const tagged = (tag: HighlightTag): ThinkingItem[] =>
     annotations
       .filter((a) => a.paperId === paperId && a.tag === tag)
@@ -49,13 +59,35 @@ export function paperThinking(
           : [],
     ),
   ];
-  const open = mine.filter((p) => isOpen(p) && p.kind !== 'page').map((p) => item(p, p.answer, p.question));
+  const open = mine.filter(isOpenQuestion).map((p) => item(p, p.answer, p.question));
   return {
     claims: claims.sort(byPage),
     doubts: doubts.sort(byPage),
     open: open.sort(byPage),
     xp: mine.reduce((n, p) => n + p.xp, 0),
   };
+}
+
+export interface OpenQuestion {
+  id: string; question: string; status: 'open' | 'unsure'; paperTitle: string; href: string; updatedAt: number;
+}
+
+/** Every open question across papers, newest first; same rule as paperThinking().open. */
+export function openQuestions(
+  papers: readonly Paper[],
+  annotations: readonly Annotation[],
+  provocations: readonly Provocation[],
+): OpenQuestion[] {
+  const alive = new Set(annotations.map((a) => a.id));
+  const byId = new Map(papers.map((p) => [p.id, p]));
+  return provocations
+    .flatMap((p) => {
+      const paper = p.paperId == null ? undefined : byId.get(p.paperId);
+      if (!paper || !isOpenQuestion(p) || !isLive(p, alive)) return [];
+      const status = p.status as 'open' | 'unsure';
+      return [{ id: p.id, question: p.question, status, paperTitle: paper.title, href: thinkingLink(paper, p.page), updatedAt: p.updatedAt }];
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 const RANK: Record<string, number> = { lock: 0, equation: 1 };

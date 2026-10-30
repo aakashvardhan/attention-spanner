@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { annotationDocKey } from '../../../shared/annotations';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { sendMessage } from '../../../shared/messages';
-import { readerPageUrl } from '../../../shared/pdf';
 import type { Paper } from '../../../shared/types';
+import { thinkingLink } from '../../../shared/thinking';
 import type { PaperThinking, ThinkingItem } from '../../../shared/thinking';
 
 const COLUMNS = [
@@ -14,8 +14,7 @@ const COLUMNS = [
 
 /** A paper's thinking record: verdict, pass, what is still open, and the three columns. */
 export function PaperRecord({ paper, thinking }: { paper: Paper; thinking: PaperThinking }) {
-  const base = readerPageUrl(paper.pdf?.url ?? paper.url);
-  const link = (item: ThinkingItem) => (item.page > 0 ? `${base}#page=${item.page}` : base);
+  const link = (item: ThinkingItem) => thinkingLink(paper, item.page);
   return (
     <div className="pp-record">
       <Verdict paper={paper} />

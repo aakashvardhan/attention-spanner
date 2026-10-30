@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import type { Annotation, Provocation } from './types';
-import { paperThinking, todaysQuestion, xpAward } from './thinking';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Annotation, Paper, Provocation } from './types';
+import { openQuestions, paperThinking, thinkingLink, todaysQuestion, xpAward } from './thinking';
 
 const prov = (o: Partial<Provocation> = {}): Provocation => ({
   id: 'p1', docKey: 'd', paperId: 'a', page: 1, kind: 'page', question: 'q', answer: '',
@@ -95,5 +95,51 @@ describe('todaysQuestion', () => {
       const a = todaysQuestion(['a'], mk(1, 2), `d${d}`)!.id;
       expect(todaysQuestion(['a'], mk(2, 1), `d${d}`)!.id).toBe(a);
     }
+  });
+});
+
+describe('openQuestions', () => {
+  beforeEach(() => vi.stubGlobal('chrome', { runtime: { getURL: (path: string) => `chrome-extension://id/${path}` } }));
+  afterEach(() => vi.unstubAllGlobals());
+  const paper = (id: string) => ({ id, title: `T${id}`, url: `https://x.test/${id}` }) as Paper;
+  const papers = [paper('a'), paper('b')];
+  const q = (o: Partial<Provocation>) => prov({ kind: 'equation', ...o });
+
+  it('returns open and unsure, never answered', () => {
+    const r = openQuestions(papers, [], [q({ id: '1' }), q({ id: '2', status: 'unsure' }), q({ id: '3', status: 'answered' })]);
+    expect(r.map((x) => [x.id, x.status]).sort()).toEqual([['1', 'open'], ['2', 'unsure']]);
+  });
+  it('skips page-kind provocations', () => {
+    expect(openQuestions(papers, [], [prov({ kind: 'page' })])).toEqual([]);
+  });
+  it('skips a counterpoint whose highlight was deleted', () => {
+    const c = q({ id: 'c', kind: 'counterpoint', annotationId: 'gone' });
+    expect(openQuestions(papers, [], [c])).toEqual([]);
+    expect(openQuestions(papers, [ann('gone', 1)], [c]).map((x) => x.id)).toEqual(['c']);
+  });
+  it('skips provocations whose paper is gone', () => {
+    expect(openQuestions(papers, [], [q({ paperId: 'zz' }), q({ id: 'n', paperId: null })])).toEqual([]);
+  });
+  it('newest first by updatedAt', () => {
+    const r = openQuestions(papers, [], [q({ id: 'old', updatedAt: 1 }), q({ id: 'new', updatedAt: 9 })]);
+    expect(r.map((x) => x.id)).toEqual(['new', 'old']);
+  });
+  it('page 0 links the bare reader URL; page 4 appends #page=4', () => {
+    const [a, b] = openQuestions(papers, [], [q({ id: 'a0', page: 0, updatedAt: 2 }), q({ id: 'a4', page: 4, updatedAt: 1 })]);
+    expect(a.href).toBe(thinkingLink(papers[0], 0));
+    expect(a.href).not.toContain('#page');
+    expect(b.href).toBe(`${thinkingLink(papers[0], 0)}#page=4`);
+  });
+  it('agrees with paperThinking().open for the same paper', () => {
+    const anns = [ann('h1', 2)];
+    const ps = [
+      q({ id: '1' }), q({ id: '2', status: 'unsure' }), q({ id: '3', status: 'answered' }), prov({ id: '4' }),
+      q({ id: '5', kind: 'counterpoint', annotationId: 'h1' }), q({ id: '6', kind: 'counterpoint', annotationId: 'x' }),
+    ];
+    const ids = (a: { id: string }[]) => a.map((x) => x.id).sort();
+    expect(ids(openQuestions(papers, anns, ps))).toEqual(ids(paperThinking('a', anns, ps).open));
+  });
+  it('empty inputs give []', () => {
+    expect(openQuestions([], [], [])).toEqual([]);
   });
 });
