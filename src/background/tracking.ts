@@ -4,7 +4,6 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { isYouTubeWatchUrl } from '../shared/youtube';
-import { recordEngagement } from './hyperfocus';
 import { scheduleNudge, cancelNudge } from './nudges';
 
 /**
@@ -191,7 +190,6 @@ export async function handleProgressUpdate(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await recordEngagement(Math.max(0, update.activeSecondsDelta), update.hidden);
 
   if (update.hidden) {
     await scheduleNudge(key);

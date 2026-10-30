@@ -5,7 +5,6 @@ import { computePdfPercent } from '../shared/pdf';
 import { getLocal, setLocal } from '../shared/storage';
 import { newPaper } from '../shared/records';
 import type { Paper, PaperDraft } from '../shared/types';
-import { recordEngagement } from './hyperfocus';
 import { cancelNudge, PAPER_NUDGE_PREFIX, scheduleNudge } from './nudges';
 
 /** Don't rewrite lastReadAt more than once a minute while a paper tab stays open */
@@ -162,8 +161,7 @@ export async function handleReaderProgress(
   const now = Date.now();
   if (applyReaderProgress(paper, pos, now)) await setLocal({ papers });
   if (paper.lastReadAt === now) await logActivity({ paperId });
-  // The same come-back nudge and hyperfocus run articles and videos get.
-  await recordEngagement(Math.max(0, attention.activeSecondsDelta), attention.hidden);
+  // The same come-back nudge articles and videos get.
   const nudgeKey = PAPER_NUDGE_PREFIX + paperId;
   await (attention.hidden ? scheduleNudge(nudgeKey) : cancelNudge(nudgeKey));
   return { ok: true };

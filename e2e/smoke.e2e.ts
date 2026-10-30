@@ -117,6 +117,14 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
+  it('blocked page quotes the clock-in intention', async () => {
+    await seed(ext, { focusSession: { phase: 'focus', round: 1, phaseStartedAt: Date.now(), phaseEndsAt: Date.now() + 20 * 60_000, startedAt: Date.now(), focusMinutes: 25, intention: 'write ch. 3' } });
+    const page = await ext.page('src/pages/blocked/index.html#https://x.com/');
+    await expect.poll(() => page.locator('.blocked-intention').innerText()).toBe('You said: write ch. 3');
+    await seed(ext, { focusSession: null });
+    await page.close();
+  });
+
   it('blocked page: outside a focus session it offers the way back', async () => {
     const page = await ext.page(PAGES.blocked);
     await expect.poll(() => page.locator('h1').innerText()).toBe('Focus session over');

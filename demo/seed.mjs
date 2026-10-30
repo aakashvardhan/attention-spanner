@@ -25,7 +25,6 @@ export function buildSeed(now = Date.now()) {
     refreshInterval: 30,
     notificationsEnabled: true,
     nudgesEnabled: true,
-    hyperfocusEnabled: true,
     focusBlocklist: ['mail.google.com', 'linkedin.com', 'netflix.com'],
     focusMinutes: 50,
     focusBreakMinutes: 10,

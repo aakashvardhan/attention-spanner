@@ -1,5 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { redirectOpenBlockedTabs } from './focus';
+import { FOCUS_DNR_ID_BASE } from '../shared/constants';
+import { DEFAULT_SETTINGS } from '../shared/storage';
+import { buildSessionAccessRules } from './accessRules';
+import { redirectOpenBlockedTabs, startFocus } from './focus';
+
+const stored = vi.hoisted(() => ({ session: null as unknown }));
+vi.mock('../shared/storage', async (orig) => ({
+  ...(await orig<typeof import('../shared/storage')>()),
+  getSettings: () => Promise.resolve({ ...(globalThis as { __s?: object }).__s }),
+  setLocal: (patch: { focusSession?: unknown }) => {
+    stored.session = patch.focusSession;
+    return Promise.resolve();
+  },
+}));
+vi.mock('./accessRules', async (orig) => ({
+  ...(await orig<typeof import('./accessRules')>()),
+  syncSessionAccessRules: () => Promise.resolve(),
+}));
+vi.mock('./feeds', () => ({ updateBadge: () => Promise.resolve() }));
 
 /**
  * "An already-open Netflix tab would defeat the whole point" — so starting a
@@ -49,5 +67,26 @@ describe('redirectOpenBlockedTabs', () => {
     ]);
     await expect(redirectOpenBlockedTabs(['netflix.com'])).resolves.toBeUndefined();
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe('focus survives drift removal', () => {
+  it('a clock-in with an intention still blocks the blocklist and keeps the intention', async () => {
+    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusBlocklist: ['netflix.com'], focusSound: false, focusMusicEnabled: false };
+    const update = stubTabs([{ id: 4, url: 'https://www.netflix.com/browse' }]);
+    vi.stubGlobal('chrome', {
+      ...(globalThis as { chrome: object }).chrome,
+      alarms: { create: vi.fn() },
+    });
+    await startFocus({ focusMinutes: 25, intention: '  write ch. 3  ' });
+    const session = stored.session as import('../shared/types').FocusSession;
+    expect(session.intention).toBe('write ch. 3');
+    expect(update.mock.calls[0][0]).toBe(4);
+    const rules = buildSessionAccessRules({
+      focusSession: session,
+      focusDomains: ['netflix.com'],
+      focusRedirectUrl: 'chrome-extension://id/blocked.html',
+    });
+    expect(rules.map((r) => r.id)).toEqual([FOCUS_DNR_ID_BASE]);
   });
 });

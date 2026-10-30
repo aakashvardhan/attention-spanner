@@ -52,8 +52,6 @@ export interface Settings {
   refreshInterval: number;
   notificationsEnabled: boolean;
   nudgesEnabled: boolean;
-  /** Warn after a long unbroken reading/watching run (HYPERFOCUS_MINUTES) */
-  hyperfocusEnabled: boolean;
   /** Domains blocked during focus sessions */
   focusBlocklist: string[];
   focusMinutes: number;
@@ -341,7 +339,7 @@ export interface FocusSession {
   focusMinutes: number;
   /** 1-based round of the shift; a break belongs to the round before it */
   round: number;
-  /** What the shift is for, in the user's words; drift nudges and the blocked page quote it */
+  /** What the shift is for, in the user's words; the blocked page quotes it */
   intention?: string;
 }
 

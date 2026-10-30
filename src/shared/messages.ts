@@ -55,7 +55,7 @@ export type Message =
       pageCount: number;
       offset: number;
       leftOff: string;
-      /** Reading seconds since the last report, for the hyperfocus run */
+      /** Reading seconds since the last report,  */
       activeSecondsDelta: number;
       /** The reader tab went hidden or closed: start the come-back nudge */
       hidden: boolean;

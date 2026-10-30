@@ -2,14 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   blockAtLine,
   crossedSection,
-  DRIFT_AWAY_MS,
-  DRIFT_IDLE_MS,
-  driftStep,
   minutesLeft,
   sectionDoneLabel,
   timeLeftLabel,
   wordCounts,
-  type DriftState,
 } from './readingAids';
 
 describe('minutesLeft', () => {
@@ -61,35 +57,6 @@ describe('sectionDoneLabel', () => {
     expect(sectionDoneLabel(2, 6)).toBe('Section 3 done · 3 left');
     expect(sectionDoneLabel(4, 6)).toBe('Section 5 done · 1 left');
     expect(sectionDoneLabel(5, 6)).toBe('Last section done');
-  });
-});
-
-describe('driftStep', () => {
-  const start: DriftState = { lastActivity: 0, hiddenAt: null, nudged: false };
-  const run = (events: [DriftEvent['type'], number][]) => {
-    let state = start;
-    return events.map(([type, at]) => {
-      const out = driftStep(state, { type, at });
-      state = out.state;
-      return out.nudge;
-    });
-  };
-  type DriftEvent = Parameters<typeof driftStep>[1];
-
-  it('nudges once after idling in view, and not again until there is activity', () => {
-    expect(run([['tick', DRIFT_IDLE_MS - 1], ['tick', DRIFT_IDLE_MS], ['tick', DRIFT_IDLE_MS + 60_000]])).toEqual([false, true, false]);
-  });
-
-  it('re-arms after activity', () => {
-    expect(run([['tick', DRIFT_IDLE_MS], ['activity', DRIFT_IDLE_MS + 1], ['tick', 2 * DRIFT_IDLE_MS + 1]])).toEqual([true, false, true]);
-  });
-
-  it('nudges on return from a long absence, once', () => {
-    expect(run([['hidden', 1000], ['visible', 1000 + DRIFT_AWAY_MS + 1], ['tick', 1000 + DRIFT_AWAY_MS + 2]])).toEqual([false, true, false]);
-  });
-
-  it('does not nudge for a short tab switch, and does not count idle time while hidden', () => {
-    expect(run([['hidden', 1000], ['tick', 1000 + DRIFT_IDLE_MS], ['visible', 1000 + DRIFT_AWAY_MS - 1]])).toEqual([false, false, false]);
   });
 });
 

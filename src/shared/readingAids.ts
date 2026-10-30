@@ -45,33 +45,3 @@ export function sectionDoneLabel(finished: number, total: number): string {
   const left = total - finished - 1;
   return left <= 0 ? 'Last section done' : `Section ${finished + 1} done · ${left} left`;
 }
-
-export const DRIFT_IDLE_MS = 180_000;
-export const DRIFT_AWAY_MS = 120_000;
-
-export type DriftEvent = { type: 'activity' | 'hidden' | 'visible' | 'tick'; at: number };
-
-export interface DriftState {
-  lastActivity: number;
-  hiddenAt: number | null;
-  /** Set when a nudge fires; cleared by activity, so it fires once per drift. */
-  nudged: boolean;
-}
-
-export function driftStep(state: DriftState, event: DriftEvent): { state: DriftState; nudge: boolean } {
-  switch (event.type) {
-    case 'activity':
-      return { state: { ...state, lastActivity: event.at, nudged: false }, nudge: false };
-    case 'hidden':
-      return { state: { ...state, hiddenAt: event.at }, nudge: false };
-    case 'visible': {
-      const away = state.hiddenAt !== null && event.at - state.hiddenAt > DRIFT_AWAY_MS;
-      const nudge = away && !state.nudged;
-      return { state: { lastActivity: event.at, hiddenAt: null, nudged: state.nudged || nudge }, nudge };
-    }
-    case 'tick': {
-      const nudge = state.hiddenAt === null && !state.nudged && event.at - state.lastActivity >= DRIFT_IDLE_MS;
-      return { state: nudge ? { ...state, nudged: true } : state, nudge };
-    }
-  }
-}

@@ -7,7 +7,7 @@ import { RecapCard } from '../../shared/components/RecapCard';
 import { RelatedHighlight } from '../../shared/components/RelatedHighlight';
 import type { TextAnchor } from '../../shared/textAnchor';
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
-import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutline';
+import { sectionIndexAt, topLevel } from '../../shared/pdfOutline';
 import { normalizeUrl } from '../../shared/urlNormalize';
 import type { AnnotationColor } from '../../shared/types';
 import { AnnotationsSidebar } from './components/AnnotationsSidebar';
@@ -18,7 +18,6 @@ import { OutlineSidebar } from './components/OutlineSidebar';
 import { ReaderCapsule } from './components/ReaderCapsule';
 import { ReaderToolbar } from './components/ReaderToolbar';
 import { useChromeAwake } from './useChromeAwake';
-import { useDriftNudge } from './useDriftNudge';
 import { useFocusLineKey } from './useFocusLineKey';
 import { blockTexts, useArticleDocument } from './useArticleDocument';
 
@@ -174,11 +173,6 @@ export function ArticleReader({ url }: { url: string }) {
   const sectionIndex = sectionIndexAt(sections, blockIndex);
   const sectionToast = useSectionToast(sections, sectionIndex);
   const focusLine = useFocusLineKey();
-  const drift = useDriftNudge(
-    blockIndex,
-    (b) => headingForPage(state.status === 'ready' ? state.outline : [], b) ?? `${Math.round(percent)}%`,
-    (b) => viewportRef.current?.scrollToBlock(b),
-  );
   const awake = useChromeAwake(panel !== 'none' || outlineOpen);
 
   return (
@@ -251,8 +245,7 @@ export function ArticleReader({ url }: { url: string }) {
             )}
             <ReaderCapsule
               label={capsuleLabel}
-              message={sectionToast ?? drift?.message ?? null}
-              action={drift && !sectionToast ? { label: 'Back', run: drift.back } : null}
+              message={sectionToast}
               progress={percent / 100}
               page={blockIndex + 1}
               pageCount={blocks.length}

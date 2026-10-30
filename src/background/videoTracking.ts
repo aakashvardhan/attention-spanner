@@ -2,7 +2,6 @@ import { VIDEO_MIN_MINUTES } from '../shared/constants';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { cleanVideoTitle, getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { recordEngagement } from './hyperfocus';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
 
@@ -130,7 +129,6 @@ export async function handleVideoProgress(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-  await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
 
   // Playing on in a hidden tab is leaving too: the heartbeat must not cancel it.
   if (msg.stopped || msg.lookedAwayAt !== undefined) {

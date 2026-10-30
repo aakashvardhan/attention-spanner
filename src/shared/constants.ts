@@ -18,8 +18,6 @@ export const VIDEO_MIN_MINUTES = 15;
  * before a tab that died without a stop flush goes quiet on the dashboard.
  */
 export const VIDEO_WATCHING_STALE_MS = 15_000;
-/** Unbroken engagement before the hyperfocus break nudge (hyperfocusEnabled gates it) */
-export const HYPERFOCUS_MINUTES = 90;
 
 export const MAX_READ_ITEMS = 500;
 export const MAX_CACHED_ITEMS = 300;
@@ -84,8 +82,6 @@ export const ALARMS = {
 export const NOTIFICATION_IDS = {
   nudgePrefix: 'nudge|',
   focusPhase: 'focus-phase',
-  hyperfocus: 'hyperfocus',
-  focusDrift: 'focus-drift',
 } as const;
 
 export const SAMPLE_FEEDS: ReadonlyArray<{ name: string; url: string }> = [
@@ -114,7 +110,6 @@ export const AI_RESUME_ADVANCE = 15;
    prefill the user reviews before saving can sit lower than a nudge. */
 export const LAYA_PREFILL_MIN = 0.55;
 export const LAYA_ROLE_MIN = 0.5;
-export const LAYA_DRIFT_MIN = 0.85;
 export const LAYA_URL_DEFAULT = 'http://localhost:11435';
 export const CLAUDE_MODELS = {
   quick: 'claude-haiku-5-5',

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   DEFAULTS,
+  migrate,
   v12ReadingProgress,
   v24Dumps,
   withDumpLock,
@@ -191,6 +192,26 @@ describe('v22', () => {
     expect(
       v22StripSettings({ displayName: 'A', weatherLocation: 'X', ambientMotion: true, mutedTopics: ['x'] }),
     ).toEqual({ mutedTopics: ['x'] });
+  });
+
+  it('sweeps what v25 retired: the hyperfocus check-in', () => {
+    expect(V22_DEAD_SETTINGS).toContain('hyperfocusEnabled');
+    expect(v22StripSettings({ hyperfocusEnabled: true, theme: 'dark' })).toEqual({ theme: 'dark' });
+  });
+
+  // Session storage survives an extension update, so the dead keys go on every
+  // startup, even for a profile already on the current version.
+  it('clears the retired session keys even when migration returns early', async () => {
+    const remove = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: { get: () => Promise.resolve({ schemaVersion: 24 }), set: vi.fn(), remove: vi.fn() },
+        session: { remove },
+      },
+    });
+    await migrate();
+    vi.unstubAllGlobals();
+    expect(remove).toHaveBeenCalledWith(['hyperfocus', 'driftChecked', 'lastGlobalNudgeAt']);
   });
 
   it('is a no-op on a profile that never stored settings', () => {

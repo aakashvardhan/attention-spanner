@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brackets } from '../../shared/components/Brackets';
 import { ALARM_SECONDS, ring } from '../chime/bell';
-import { HYPERFOCUS_MINUTES } from '../../shared/constants';
 import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
@@ -276,21 +275,6 @@ export function Options() {
               checked={settings.nudgesEnabled}
               disabled={!settings.notificationsEnabled}
               onChange={(e) => void patchSettings({ nudgesEnabled: e.target.checked })}
-            />
-          </div>
-          <div className="setting-row">
-            <label htmlFor="hyperfocus-enabled">
-              Hyperfocus check-in{' '}
-              <span className="hint-inline">
-                (break reminder after {HYPERFOCUS_MINUTES} min unbroken reading/watching)
-              </span>
-            </label>
-            <input
-              id="hyperfocus-enabled"
-              type="checkbox"
-              checked={settings.hyperfocusEnabled}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ hyperfocusEnabled: e.target.checked })}
             />
           </div>
         </section>

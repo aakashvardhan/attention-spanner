@@ -11,6 +11,8 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'quote', pattern: /quoteOfDay/ },
   { name: 'bookmarks', pattern: /BOOKMARK|Bookmark(Link|Group|sPanel)|useBookmarks|bookmark-link/ },
   { name: 'now-watching', pattern: /NowWatching|useNowWatching/ },
+  { name: 'drift', pattern: /checkDrift|useDriftNudge|driftChecked|LAYA_DRIFT_MIN|focusDrift/ },
+  { name: 'hyperfocus', pattern: /hyperfocus|HYPERFOCUS/i },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

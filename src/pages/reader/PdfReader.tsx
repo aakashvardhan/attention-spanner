@@ -12,7 +12,6 @@ import { headingForPage, sectionIndexAt, topLevel } from '../../shared/pdfOutlin
 import { minutesLeft, timeLeftLabel, wordCounts } from '../../shared/readingAids';
 import type { AnnotationColor, AnnotationRect, HighlightTag, Paper, ReadingPass } from '../../shared/types';
 import { useChromeAwake } from './useChromeAwake';
-import { useDriftNudge } from './useDriftNudge';
 import { useFocusLineKey } from './useFocusLineKey';
 import { usePdfDocument } from './usePdfDocument';
 import { indexKnownRefs } from './citationLinks';
@@ -358,11 +357,6 @@ export function PdfReader({ src }: { src: string }) {
   const sectionIndex = sectionIndexAt(sections, position.page);
   const sectionToast = useSectionToast(sections, sectionIndex);
   const focusLine = useFocusLineKey();
-  const drift = useDriftNudge(
-    position,
-    (p) => headingForPage(outline, p.page) ?? `page ${p.page}`,
-    (p) => viewportRef.current?.scrollToPosition(p.page, p.offset),
-  );
   const awake = useChromeAwake(panel !== 'none' || noteMode || outlineOpen);
 
   return (
@@ -497,8 +491,7 @@ export function PdfReader({ src }: { src: string }) {
             <ReaderCapsule
               label={capsuleLabel}
               // While locked the capsule shows only where you are.
-              message={provocations.lock ? null : (sectionToast ?? drift?.message ?? null)}
-              action={drift && !sectionToast && !provocations.lock ? { label: 'Back', run: drift.back } : null}
+              message={provocations.lock ? null : sectionToast}
               pass={pass}
               onPass={onPass}
               prompt={provocations.capsulePrompt}

@@ -102,8 +102,6 @@ browser is a reason to start, not a list to manage:
 - **Come-back nudges** — a reminder fires when you leave an article half-read,
   gated against spam (a delay before it fires, a per-article cooldown, a cap,
   and a dismiss that sticks).
-- **Hyperfocus check-in** — a gentle notification after a long unbroken run of
-  reading or watching, so a deep session doesn't quietly eat the afternoon.
 
 ### The reader itself
 

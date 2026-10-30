@@ -61,8 +61,6 @@ export interface SessionSchema {
     { scrollY: number; percent: number } | { positionSeconds: number }
   >;
   lastGlobalNudgeAt: number;
-  /** Unbroken reading/watching run for the hyperfocus guardrail */
-  hyperfocus: { unbrokenSeconds: number; lastDeltaAt: number; notifiedAtSeconds: number };
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
   /**
@@ -71,8 +69,6 @@ export interface SessionSchema {
    * on screen — caching them to disk would grow without a bound anyone watches.
    */
   videoTranscripts: Record<string, TranscriptSegment[]>;
-  /** Hosts already asked about in this focus session (background/drift.ts) */
-  driftChecked: { startedAt: number; hosts: string[] };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -82,7 +78,6 @@ export const DEFAULT_SETTINGS: Settings = {
   refreshInterval: 30,
   notificationsEnabled: true,
   nudgesEnabled: false,
-  hyperfocusEnabled: true,
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
   breakMinutes: 10,
@@ -130,10 +125,8 @@ export const SESSION_DEFAULTS: SessionSchema = {
   trackedTabs: {},
   pendingResume: {},
   lastGlobalNudgeAt: 0,
-  hyperfocus: { unbrokenSeconds: 0, lastDeltaAt: 0, notifiedAtSeconds: 0 },
   pdfNativeBypass: [],
   videoTranscripts: {},
-  driftChecked: { startedAt: 0, hosts: [] },
 };
 
 export async function getLocal<K extends keyof LocalSchema>(
@@ -223,6 +216,9 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
   const version = (schemaVersion as number | undefined) ?? 0;
+  // Session storage outlives an extension update, so retired keys go on every
+  // startup, before the early return. Removing an absent key is a no-op.
+  await chrome.storage.session.remove(['hyperfocus', 'driftChecked', 'lastGlobalNudgeAt']);
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
   if (version >= 24) return;
@@ -361,6 +357,8 @@ export const V22_DEAD_SETTINGS = [
   'focusCalendarBlockEnabled',
   // Time pill
   'timePillHosts',
+  // v25: minimal revamp
+  'hyperfocusEnabled',
   // Retired earlier; listed so one sweep is the whole truth
   'dashboardMode',
   'dashColumns',
