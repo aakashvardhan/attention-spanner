@@ -36,7 +36,6 @@ body {
   background: var(--material-regular);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: 0 1px 0 var(--glass-rim) inset;
   transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
 }
 
@@ -91,11 +90,6 @@ body {
   display: flex;
   align-items: center;
   min-height: 34px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  box-shadow: 0 1px 0 var(--glass-rim) inset;
 }
 
 .reader-toolbar-icon {
@@ -250,7 +244,7 @@ body {
   background: var(--glass-surface);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-lg), 0 1px 0 var(--glass-rim) inset;
+  box-shadow: var(--shadow-lg);
   transform-origin: top right;
   animation: reader-menu-in var(--transition-fast) var(--ease-spring);
 }
@@ -376,11 +370,11 @@ body {
   z-index: 20;
   max-width: min(560px, calc(100% - var(--space-6)));
   padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--material-regular);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-card);
   color: var(--text-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
@@ -434,7 +428,6 @@ body {
   color: var(--text-secondary);
   font-family: inherit;
   font-size: var(--text-xs);
-  box-shadow: 0 1px 0 var(--accent-border);
 }
 
 .reader-track-fields {
@@ -614,8 +607,7 @@ body {
   min-width: 0;
   /* Clears the floating toolbar at the top and the capsule at the bottom. */
   padding-block: var(--space-8);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-page) 88%, var(--text-primary)) 0%, var(--bg-page) 220px);
+  background: var(--bg-page);
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
@@ -642,7 +634,6 @@ body {
   /* Pages are white regardless of theme — the PDF's own background */
   background: var(--pdf-page);
   outline: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  box-shadow: var(--pdf-shadow);
   /* Only the text layer's spans are selectable */
   user-select: none;
   /* pdf.js layer-sizing vars; --scale-factor is set inline per page */
@@ -797,7 +788,6 @@ body {
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 0;
   background: var(--warning);
   border: 2px solid var(--pdf-paper);
-  box-shadow: var(--shadow-sm);
 }
 
 .annot-popover {
@@ -1454,7 +1444,6 @@ body {
   z-index: 30;
   height: 2px;
   background: var(--accent);
-  box-shadow: var(--shadow-accent);
   transform-origin: left;
   transition: transform 200ms linear;
   pointer-events: none;
@@ -1471,11 +1460,11 @@ body {
   gap: var(--space-3);
   max-width: calc(100% - var(--space-6));
   padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   background: var(--material-regular);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-card);
   color: var(--text-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
@@ -1510,7 +1499,6 @@ body {
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: var(--shadow-accent);
 }
 
 .reader-capsule-message:empty {
@@ -1519,13 +1507,6 @@ body {
 
 .reader-capsule[data-message] {
   color: var(--text-primary);
-  animation: reader-capsule-pulse 600ms var(--ease-out) 1;
-}
-
-@keyframes reader-capsule-pulse {
-  50% {
-    box-shadow: var(--shadow-card), 0 0 0 4px var(--accent-wash);
-  }
 }
 
 .reader-capsule-action {
@@ -1546,10 +1527,6 @@ body {
   .reader-toolbar,
   .reader-progress-line {
     transition: none;
-  }
-
-  .reader-capsule[data-message] {
-    animation: none;
   }
 }
 
@@ -1596,7 +1573,6 @@ body {
 .reader-rail-tick[data-state='current']::before {
   width: 28px;
   background: var(--accent);
-  box-shadow: var(--shadow-accent);
 }
 /* Labels float beside the ticks rather than widening them, and stay hidden and
    unclickable until the rail is hovered or focused: invisible labels over the
@@ -1634,7 +1610,7 @@ body {
   inset: 0;
   z-index: 5;
   pointer-events: none;
-  background: linear-gradient(
+  background: linear-gradient( /* ds-exempt: the focus line's dimming mask is the setting itself */
     to bottom,
     var(--reading-dim) 0,
     var(--reading-dim) calc(40% - 64px),
@@ -1675,7 +1651,6 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  box-shadow: var(--shadow-card);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -1883,7 +1858,7 @@ body {
   left: 0;
   right: 0;
   z-index: 3;
-  background: linear-gradient(to bottom, transparent, var(--bg-page) var(--space-8));
+  background: var(--bg-page);
 }
 
 .provoke-card.pass-lock-card {

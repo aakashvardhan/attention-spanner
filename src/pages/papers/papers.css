@@ -34,11 +34,10 @@ body {
   gap: 16px;
 }
 
+/* A ruled row, not a card: space and one hairline under it. */
 .panel {
-  background: var(--bg-surface);
-  border-radius: var(--radius-xl);
-  padding: 20px;
-  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .panel h2 {
@@ -110,31 +109,21 @@ body {
 .fc-deck-counts {
   display: flex;
   gap: var(--space-1);
+  align-items: baseline;
 }
 
+/* Counts are read, not pressed: muted figures, no tinted chips. */
 .fc-chip {
   font-size: var(--text-xs);
-  font-weight: 700;
+  line-height: var(--leading-xs);
   font-variant-numeric: tabular-nums;
-  border-radius: var(--radius-md);
-  padding: 4px 8px;
-  text-align: center;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
-.fc-chip-new {
-  background: var(--accent-wash);
-  color: var(--accent-text);
-}
-
-.fc-chip-learning {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-
-.fc-chip-review {
-  background: var(--success-bg);
-  color: var(--success);
+.fc-chip + .fc-chip::before {
+  content: '· ';
+  color: var(--text-faint);
 }
 
 .fc-deck-actions {
@@ -449,23 +438,6 @@ a.pp-row-title:hover {
   padding: 0;
 }
 
-/* Results arrive one after another, a beat apart. */
-@keyframes recall-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-.recall-results li {
-  animation: recall-arrive var(--dur-snappy) var(--spring-snappy) calc(var(--i) * 30ms) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .recall-results li {
-    animation: none;
-  }
-}
-
 .recall-results button {
   width: 100%;
   min-height: 44px;
@@ -519,8 +491,8 @@ a.pp-row-title:hover {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: end;
-  padding-bottom: var(--space-2);
-  border-bottom: 3px double var(--rule);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
 }
 
 .library-masthead > :first-child {
@@ -533,9 +505,9 @@ a.pp-row-title:hover {
 
 .library-masthead h1 {
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  line-height: var(--leading-2xl);
-  font-weight: 700;
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 400;
 }
 
 .library-decks {
@@ -574,16 +546,16 @@ a.pp-row-title:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-md);
-  background: var(--accent-soft);
+  padding-block: var(--space-4);
+  border-bottom: 1px solid var(--border);
 }
 
 .pp-today-kicker {
-  color: var(--accent-text);
+  color: var(--text-muted);
   font-size: var(--text-xs);
-  letter-spacing: 0.08em;
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -730,15 +702,6 @@ a.pp-row-title:hover {
 
 .library .fc-main {
   padding: 0;
-}
-
-.library .panel {
-  padding: var(--space-3) 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 /* The deck column is a third of the page, too narrow for a name and three

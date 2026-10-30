@@ -32,9 +32,10 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
       const page = await ext.page(path);
       expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
       await expectA11y(page, name);
+      await shot(page, `smoke-${name}-light`);
       await page.emulateMedia({ colorScheme: 'dark' });
       await expectA11y(page, name);
-      await shot(page, `smoke-${name}`);
+      await shot(page, `smoke-${name}-dark`);
       expectClean(ext, NETWORK_NOISE);
       await page.close();
     });
@@ -97,22 +98,20 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: the viewfinder frame is there, the world view is gone', async () => {
+  it('options: no viewfinder frame, no world view', async () => {
     const page = await ext.page(PAGES.options);
-    expect(await page.locator('.brackets .bracket').count()).toBe(4);
+    expect(await page.locator('.brackets').count()).toBe(0);
     expect(await page.getByLabel('New tab', { exact: true }).count()).toBe(0);
     expect(await page.getByLabel('Camera', { exact: true }).count()).toBe(0);
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
 
-  it('blocked page: during focus the robot meets the wall and the detour is refused', async () => {
+  it('blocked page: during focus it names the site and nothing moves on its own', async () => {
     await seed(ext, { focusSession: { phase: 'focus', round: 1, phaseStartedAt: Date.now(), phaseEndsAt: Date.now() + 20 * 60_000, startedAt: Date.now(), focusMinutes: 25 } });
     const page = await ext.page(PAGES.blocked);
-    expect(await page.locator('svg.blocked-robot').count()).toBe(1);
-    expect(await page.locator('.blocked-telemetry').innerText()).toBe('OBSTACLE · example.com · PATH BLOCKED');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    expect(await page.locator('.blocked-bot').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await expect.poll(() => page.locator('h1').innerText()).toBe('example.com is blocked');
+    expect(await page.locator('svg.blocked-robot').count()).toBe(0);
     await seed(ext, { focusSession: null });
     expectClean(ext, NETWORK_NOISE);
     await page.close();

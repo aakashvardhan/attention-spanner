@@ -163,23 +163,12 @@
      paperwhite maps them to warm ink on cream (reader.css). */
   --pdf-ink: #000000;
   --pdf-paper: #ffffff;
-  --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 8px 24px rgba(60, 40, 20, 0.08);
   --selection: rgba(180, 85, 47, 0.3);
   --cite-hover: rgba(180, 85, 47, 0.2);
 
-  --shadow-sm: 0 1px 4px rgba(60, 40, 20, 0.08);
+  /* The one elevation: for what floats over the page (menus, popovers, the
+     recap card). Everything else is separated by space and a hairline. */
   --shadow-lg: 0 8px 24px rgba(60, 40, 20, 0.16);
-  --shadow-accent: 0 2px 10px rgba(180, 85, 47, 0.18);
-
-  /* Card surface. Four layers: a specular rim on the top inside edge, a
-     hairline ring, a contact shadow, and an ambient one. The ring is a shadow
-     rather than a border so it never adds to a box's size on the grid, and
-     animates in the same property as the rest of the hover lift. */
-  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(60, 40, 20, 0.045),
-    0 1px 2px rgba(60, 40, 20, 0.04), 0 4px 12px rgba(60, 40, 20, 0.05);
-  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
-    0 0 0 1px rgba(60, 40, 20, 0.07), 0 2px 4px rgba(60, 40, 20, 0.05),
-    0 12px 28px rgba(60, 40, 20, 0.1);
 
   /* Glass. --glass-surface stays near-opaque: this typeface and palette were
      chosen for low-vision legibility, and body copy on a see-through panel
@@ -194,14 +183,7 @@
   --material-thin: rgba(251, 248, 242, 0.6);
   --material-regular: rgba(251, 248, 242, 0.92);
   --material-thick: rgba(251, 248, 242, 0.97);
-  --glass-accent: rgba(241, 221, 208, 0.72);
   --glass-blur: blur(24px) saturate(180%);
-  --glass-rim: rgba(255, 255, 255, 0.9);
-  --glass-rim-strong: rgba(255, 255, 255, 1);
-
-  /* Two feathered washes behind a page, in the clay family. */
-  --glass-tint: rgba(180, 85, 47, 0.08);
-  --glass-tint-2: rgba(201, 100, 66, 0.06);
 
   /* The focus world (the blocked page): always warm ink, whatever the theme,
      because hitting a blocked site mid-session should feel like the same
@@ -272,35 +254,17 @@
   --pdf-page-night: #000000;
   --pdf-ink: #000000;
   --pdf-paper: #ffffff;
-  --pdf-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
   --selection: rgba(227, 144, 110, 0.35);
   --cite-hover: rgba(227, 144, 110, 0.25);
 
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-  /* In the dark the accent glows rather than casts. */
-  --shadow-accent: 0 0 12px rgba(227, 144, 110, 0.35);
-
-  /* The hairline flips to a light edge — a dark ring is invisible on a dark
-     page, and the card needs an edge to read as a separate surface. */
-  --shadow-card: inset 0 1px 0 var(--glass-rim), 0 0 0 1px rgba(236, 228, 216, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-card-hover: inset 0 1px 0 var(--glass-rim-strong),
-    0 0 0 1px rgba(236, 228, 216, 0.1), 0 2px 4px rgba(0, 0, 0, 0.45),
-    0 12px 28px rgba(0, 0, 0, 0.55);
 
   --glass-surface: rgba(25, 21, 18, 0.9);
   --glass-bar: rgba(236, 228, 216, 0.05);
   --material-thin: rgba(20, 17, 15, 0.6);
   --material-regular: rgba(25, 21, 18, 0.9);
   --material-thick: rgba(20, 17, 15, 0.97);
-  --glass-accent: rgba(227, 144, 110, 0.14);
   --glass-blur: blur(24px) saturate(160%);
-  --glass-rim: rgba(236, 228, 216, 0.1);
-  --glass-rim-strong: rgba(236, 228, 216, 0.2);
-
-  --glass-tint: rgba(227, 144, 110, 0.08);
-  --glass-tint-2: rgba(201, 100, 66, 0.06);
 
   --heat-0: #221d1a;
   --heat-1: #3d2a1f;
@@ -339,7 +303,6 @@
   --heat-2: #d09b6e;
   --heat-3: #b2603d;
   --heat-4: #7a3820;
-  --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 4px 16px rgba(60, 40, 20, 0.1);
 }
 
 /* A focus round warms the room by a few percent as it runs, like an afternoon
@@ -378,9 +341,6 @@
   --material-thin: rgba(247, 249, 244, 0.6);
   --material-regular: rgba(247, 249, 244, 0.92);
   --material-thick: rgba(247, 249, 244, 0.97);
-  --glass-accent: rgba(215, 230, 214, 0.72);
-  --glass-tint: rgba(59, 106, 76, 0.1);
-  --glass-tint-2: rgba(120, 170, 130, 0.08);
 }
 
 :root[data-theme='dark'][data-phase='break'] {
@@ -409,9 +369,6 @@
   --material-thin: rgba(16, 22, 18, 0.6);
   --material-regular: rgba(20, 27, 22, 0.9);
   --material-thick: rgba(16, 22, 18, 0.97);
-  --glass-accent: rgba(143, 199, 154, 0.14);
-  --glass-tint: rgba(143, 199, 154, 0.08);
-  --glass-tint-2: rgba(100, 160, 120, 0.06);
 }
 
 /* One focus ring, everywhere, in the accent.
@@ -473,8 +430,7 @@
 /* prefers-reduced-transparency is a real accessibility setting and a separate
    one from reduced motion — someone can want the glass gone and the hover lift
    kept. Neutralising the tokens is the whole fallback: every glass rule reads
-   them, so no rule downstream needs one of its own. The rims stay; a specular
-   edge is a highlight, not something you see through. */
+   them, so no rule downstream needs one of its own. */
 @media (prefers-reduced-transparency: reduce) {
   :root,
   :root[data-theme='dark'],
@@ -482,30 +438,12 @@
   :root[data-theme='dark'][data-phase] {
     --glass-surface: var(--bg-surface);
     --glass-bar: var(--bg-subtle);
-    --glass-accent: var(--accent-wash);
     --glass-blur: none;
     --material-thin: var(--bg-subtle);
     --material-regular: var(--bg-surface);
     --material-thick: var(--bg-surface);
   }
 }
-
-/* Viewfinder corners (Brackets.tsx): Settings. */
-.brackets {
-  position: absolute;
-  inset: var(--space-3);
-  pointer-events: none;
-}
-.bracket {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  border: 0 solid var(--text-faint);
-}
-.bracket--tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
-.bracket--tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
-.bracket--bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
-.bracket--br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
 
 /* Every page opts in to cross-document view transitions. Chrome 154+ throws
    "ViewTransition opt-in disabled" on arrival when an opted-in page navigates

@@ -71,11 +71,13 @@ body {
   font: inherit;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
-  color: var(--accent-text);
+  color: var(--text-secondary);
   cursor: pointer;
 }
+/* Unlock is the page's one primary action, so it alone carries Clay. */
 .dumps-locked .dumps-link {
   justify-self: center;
+  color: var(--accent-text);
 }
 .dumps-link.is-quiet {
   font-size: var(--text-xs);
@@ -88,10 +90,8 @@ body {
 .dumps-entry {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-card);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
 .dumps-entry-head,
 .dumps-confirm {
@@ -113,13 +113,10 @@ body {
   line-height: var(--leading-read);
 }
 .dumps-bullets li::marker {
-  color: var(--accent);
+  color: var(--text-faint);
 }
 .dumps-raw {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--text-secondary);

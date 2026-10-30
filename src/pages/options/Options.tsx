@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Brackets } from '../../shared/components/Brackets';
 import { ALARM_SECONDS, ring } from '../chime/bell';
 import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
 import { normalizeBlockDomain } from '../../shared/focusRules';
@@ -131,7 +130,6 @@ export function Options() {
 
   return (
     <div className="colophon grid">
-      <Brackets />
       <header className="colophon-masthead">
         <h1>Settings</h1>
       </header>

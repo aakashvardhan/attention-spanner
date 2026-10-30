@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 export interface Violation {
   file: string;
   line: number;
-  rule: 'color' | 'spacing' | 'font-size' | 'line-height' | 'font-weight' | 'radius';
+  rule: 'color' | 'spacing' | 'font-size' | 'line-height' | 'font-weight' | 'radius' | 'gradient' | 'shadow';
   value: string;
 }
 
@@ -25,6 +25,16 @@ const NAMED_COLOR = /\b(white|black|red|green|blue|orange|gray|grey|yellow|purpl
 const COLOR_PROPS = /^(color|background(-color)?|border(-[a-z]+)*|outline(-color)?|fill|stroke|box-shadow|text-decoration-color|caret-color|accent-color)$/;
 const SPACING_PROPS = /^((margin|padding|inset)(-[a-z-]+)?|gap|row-gap|column-gap|top|right|bottom|left|grid-template-(columns|rows))$/;
 const PX = /(-?\d*\.?\d+)px/g;
+const GRADIENT = /\b(repeating-)?(linear|radial|conic)-gradient\(/;
+/* One elevation and the focus ring, nothing else. theme.css defines the
+   elevation as --shadow-lg (things that float over the page: menus, popovers,
+   the recap card) and draws its focus ring in --accent. A ring is spread only,
+   no blur, so it reads as an outline rather than a shadow. */
+const ELEVATION = ['--shadow-lg'];
+const FOCUS_RING = ['--accent'];
+const ALLOWED_SHADOW = new RegExp(
+  `^(none|var\\((${ELEVATION.join('|')})\\)|0 0 0 \\d+px var\\((${FOCUS_RING.join('|')})\\))$`,
+);
 
 /** Blank out comments but keep every newline, so line numbers survive. */
 function stripComments(source: string): string {
@@ -46,6 +56,7 @@ export function lintCss(source: string, file: string): Violation[] {
     // Continuation lines of a multi-line value (box-shadow stacks) still carry colors.
     if (decls.length === 0) {
       if (!isTheme && COLOR_LITERAL.test(text)) out.push({ file, line, rule: 'color', value: text.trim() });
+      if (!isTheme && GRADIENT.test(text)) out.push({ file, line, rule: 'gradient', value: text.trim() });
       return;
     }
     for (const [, prop, rawValue] of decls) {
@@ -56,6 +67,10 @@ export function lintCss(source: string, file: string): Violation[] {
       }
       if (!isTheme && (COLOR_LITERAL.test(value) || (COLOR_PROPS.test(prop) && NAMED_COLOR.test(value)))) {
         out.push({ file, line, rule: 'color', value });
+      }
+      if (!isTheme && GRADIENT.test(value)) out.push({ file, line, rule: 'gradient', value });
+      if (!isTheme && prop === 'box-shadow' && !ALLOWED_SHADOW.test(value)) {
+        out.push({ file, line, rule: 'shadow', value });
       }
       if (SPACING_PROPS.test(prop) && [...value.matchAll(PX)].some(([, n]) => Number(n) % 4 !== 0)) {
         out.push({ file, line, rule: 'spacing', value });
@@ -90,7 +105,7 @@ describe('lintCss', () => {
 
   it('rejects color literals outside theme.css, including multi-line shadows', () => {
     expect(lint('a { color: #fff; }')).toEqual(['color']);
-    expect(lint('a {\n  box-shadow: 0 0 0 1px var(--border),\n    0 4px 8px rgba(0,0,0,.2);\n}')).toEqual(['color']);
+    expect(lint('a {\n  box-shadow: 0 0 0 1px var(--border),\n    0 4px 8px rgba(0,0,0,.2);\n}')).toEqual(['shadow', 'color']);
     expect(lint('a { border-color: white; }')).toEqual(['color']);
     expect(lintCss('a { color: #fff; }', 'src/shared/theme.css')).toEqual([]);
   });
@@ -116,6 +131,24 @@ describe('lintCss', () => {
   it('holds radii to tokens', () => {
     expect(lint('a { border-radius: 6px; }')).toEqual(['radius']);
     expect(lint('a { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }')).toEqual([]);
+  });
+
+  it('rejects gradients outside theme.css', () => {
+    expect(lint('a{background:linear-gradient(red,blue)}')).toContain('gradient');
+    expect(lint('a{background:radial-gradient(var(--a),var(--b))}')).toEqual(['gradient']);
+    expect(lint('a{background-image:conic-gradient(var(--a),var(--b))}')).toEqual(['gradient']);
+    expect(lint('a {\n  background:\n    linear-gradient(var(--a), var(--b));\n}')).toEqual(['gradient']);
+    expect(lintCss('a{background:linear-gradient(var(--a),var(--b))}', 'src/shared/theme.css')).toEqual([]);
+  });
+
+  it('allows one elevation token and the focus ring, no other shadow', () => {
+    expect(lint('a{box-shadow:0 1px 2px var(--c)}')).toEqual(['shadow']);
+    expect(lint('a{box-shadow:var(--shadow-sm)}')).toEqual(['shadow']);
+    expect(lint('a{box-shadow:var(--shadow-lg), 0 0 0 2px var(--accent)}')).toEqual(['shadow']);
+    expect(lint('a{box-shadow:var(--shadow-lg)}')).toEqual([]);
+    expect(lint('a{box-shadow:none}')).toEqual([]);
+    expect(lint('a{box-shadow:0 0 0 2px var(--accent)}')).toEqual([]);
+    expect(lintCss('a{box-shadow:0 1px 2px var(--c)}', 'src/shared/theme.css')).toEqual([]);
   });
 
   it('skips a line that carries ds-exempt', () => {

@@ -1,4 +1,4 @@
-import { type CSSProperties, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useSettings } from '../../../shared/hooks/useSettings';
 import { useStorageValue } from '../../../shared/hooks/useStorageValue';
 import { recallEntries, searchRecall, type RecallEntry } from '../../../shared/llm/recall';
@@ -62,9 +62,8 @@ export function RecallSearch() {
       {state.status === 'error' && <p className="recall-hint">{state.message}</p>}
       {state.status === 'done' && (
         <ul className="recall-results">
-          {state.hits.map((entry, i) => (
-            // Keyed by search too, so a second search's rows arrive fresh.
-            <li key={`${state.id}:${entry.key}`} style={{ '--i': i } as CSSProperties}>
+          {state.hits.map((entry) => (
+            <li key={`${state.id}:${entry.key}`}>
               <button
                 onClick={() => {
                   void chrome.tabs.create({ url: entry.url });
