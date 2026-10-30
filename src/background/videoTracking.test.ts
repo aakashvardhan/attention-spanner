@@ -68,11 +68,10 @@ describe('handleVideoReady topic gate', () => {
     expect(store.readingProgress).toEqual({});
   });
 
-  it('stale title then correct title', async () => {
-    // After an SPA hop the page can still show the previous video's title.
-    expect((await ready('Best pasta recipe')).track).toBe(false);
-    await heartbeat('RL Course by David Silver - Lecture 1');
-    expect(Object.keys(store.readingProgress as object)).toEqual([KEY]);
+  it('ready with no trusted title tracks', async () => {
+    // The tracker sends '' when the watch page never showed this video's own title.
+    expect((await ready('')).track).toBe(true);
+    expect(gateNewItem).toHaveBeenCalledTimes(0);
   });
 
   it('topics emptied mid-session', async () => {

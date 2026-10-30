@@ -88,6 +88,14 @@ describe('topicVerdict', () => {
     expect(ask).toHaveBeenCalledTimes(2);
   });
 
+  it('changed topics are a new question', async () => {
+    const ask = stubAsk(false);
+    await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask });
+    store.settings = { ...DEFAULT_SETTINGS, trackTopics: ['cooking'], geminiTopicKey: 'k' };
+    await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask });
+    expect(ask).toHaveBeenCalledTimes(2);
+  });
+
   it('cache answers repeat', async () => {
     const ask = stubAsk(false);
     await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask });

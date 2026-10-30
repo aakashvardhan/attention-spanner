@@ -1,5 +1,6 @@
 import { extensionAlive, sendMessage } from '../shared/messages';
 import { getYouTubeVideoId } from '../shared/youtube';
+import { trustedWatchMeta } from './watchMeta';
 
 /**
  * YouTube watch tracker, injected dynamically into youtube.com tabs.
@@ -52,11 +53,9 @@ function initVideoTracker() {
     if (videoId === currentVideoId) return;
     session?.stop(); // flushes stopped:true for the previous video
     session = null;
-    // After an SPA hop the title can still be the previous video's for a moment
-    const staleTitle = currentVideoId === null ? null : document.title;
     currentVideoId = videoId;
     if (videoId) {
-      startSession(videoId, staleTitle).then((s) => {
+      startSession(videoId).then((s) => {
         // Guard against a navigation racing session startup
         if (currentVideoId === videoId) session = s;
         else s?.stop();
@@ -115,16 +114,20 @@ function awaitMetadata(video: HTMLVideoElement): Promise<void> {
   });
 }
 
-function pageTitle(): string {
-  return document.title.replace(/ - YouTube$/, '').trim();
-}
+const UNKNOWN_META = { title: '', channel: '' };
 
-function channelName(): string {
-  return (
-    document.querySelector('ytd-channel-name a')?.textContent?.trim() ??
-    document.querySelector('link[itemprop="name"]')?.getAttribute('content') ??
-    ''
-  );
+/**
+ * Waits (up to 2 s) for the watch page to show this video, then reads its own
+ * title and channel. Still another page by then: no title, which the worker
+ * keeps rather than misfile by topic.
+ */
+async function watchMetaFor(videoId: string): Promise<{ title: string; channel: string }> {
+  for (let waited = 0; waited < 2000; waited += 100) {
+    const meta = trustedWatchMeta(document, videoId);
+    if (meta) return meta;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return trustedWatchMeta(document, videoId) ?? UNKNOWN_META;
 }
 
 /**
@@ -140,21 +143,14 @@ function chapterName(): string {
   return document.querySelector('.ytp-chapter-title-content')?.textContent?.trim() ?? '';
 }
 
-/** Waits (up to 2 s) for the page title to move off the previous video's. */
-async function titleMovedOn(staleTitle: string | null): Promise<void> {
-  for (let waited = 0; staleTitle !== null && document.title === staleTitle && waited < 2000; waited += 100) {
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
-
-async function startSession(videoId: string, staleTitle: string | null): Promise<{ stop: () => void } | null> {
+async function startSession(videoId: string): Promise<{ stop: () => void } | null> {
   if (location.pathname.startsWith('/shorts')) return null;
 
   const video = await findPlayer();
   if (!video) return null;
   await awaitMetadata(video);
   if (!Number.isFinite(video.duration) || video.duration <= 0) return null; // live stream
-  await titleMovedOn(staleTitle);
+  const meta = await watchMetaFor(videoId);
 
   let track = false;
   let resume: { positionSeconds: number } | null = null;
@@ -164,8 +160,8 @@ async function startSession(videoId: string, staleTitle: string | null): Promise
       videoId,
       durationSeconds: video.duration,
       url: location.href,
-      title: pageTitle(),
-      channel: channelName(),
+      title: meta.title,
+      channel: meta.channel,
     });
     track = res?.track ?? false;
     resume = res?.resume ?? null;
@@ -195,8 +191,7 @@ async function startSession(videoId: string, staleTitle: string | null): Promise
         watchedSecondsDelta: delta,
         stopped: stoppedFlush,
         lookedAwayAt,
-        title: pageTitle(),
-        channel: channelName(),
+        ...(trustedWatchMeta(document, videoId) ?? UNKNOWN_META),
         chapter: chapterName(),
       });
     } catch {

@@ -20,9 +20,9 @@ export async function topicVerdict(key: string, text: string, deps: Deps = {}): 
   const topics = normalizeTrackTopics(settings.trackTopics);
   if (keywordOnTopic(text, topics)) return true;
 
-  // Keyed by the text too: a video seen under a stale SPA title, or a page
-  // retitled, is a different question.
-  const asked = `${key}\u0000${text}`;
+  // Keyed by topics and text too: a retitled item, or a changed topic list, is
+  // a different question.
+  const asked = `${topics.join('\u0001')}\u0000${key}\u0000${text}`;
   const { topicVerdicts } = await getSession('topicVerdicts');
   if (asked in topicVerdicts) return topicVerdicts[asked];
   if (!settings.geminiTopicKey) return false;
