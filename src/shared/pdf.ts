@@ -88,7 +88,7 @@ export function recordingReaderUrl(id: string): string {
 /**
  * Hosts that are somewhere you go, not something you read. Extraction on an app
  * shell yields an empty article, so the reader would open on nothing — which is
- * exactly what a bookmark to Gmail or a dashboard used to do once saved links
+ * exactly what a saved link to Gmail or a dashboard used to do once saved links
  * started routing through here.
  */
 const APP_HOSTS =

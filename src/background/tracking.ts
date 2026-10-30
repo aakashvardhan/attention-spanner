@@ -128,7 +128,6 @@ export async function handleProgressUpdate(
     scrollY: number;
     pageHeight: number;
     activeSecondsDelta: number;
-    hidden: boolean;
     doc?: { url: string; title: string };
   },
 ): Promise<void> {

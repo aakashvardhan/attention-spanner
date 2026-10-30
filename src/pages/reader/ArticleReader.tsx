@@ -27,7 +27,7 @@ const PROGRESS_THROTTLE_MS = 5_000;
 /**
  * Articles in the same shell as PDFs: highlights, sticky notes, outline, Ask,
  * and resume. Progress is reported through the same PROGRESS_UPDATE message
- * the reading-tracker content script sends, so streaks, nudges and the
+ * the reading-tracker content script sends, so the
  * Continue card need no special case for reader-opened articles.
  */
 export function ArticleReader({ url }: { url: string }) {
@@ -78,7 +78,7 @@ export function ArticleReader({ url }: { url: string }) {
   progress.current.title = ready ? state.title : '';
 
   const send = useCallback(
-    (percent: number, hidden: boolean) => {
+    (percent: number) => {
       const now = Date.now();
       const since = progress.current.lastSentAt;
       progress.current.lastSentAt = now;
@@ -90,7 +90,6 @@ export function ArticleReader({ url }: { url: string }) {
         // Credit at most one throttle window, so a tab left open in the
         // background can't bank hours of "reading"
         activeSecondsDelta: since === 0 ? 0 : Math.min((now - since) / 1000, PROGRESS_THROTTLE_MS / 1000),
-        hidden,
         doc: { url, title: progress.current.title },
       });
     },
@@ -103,14 +102,14 @@ export function ArticleReader({ url }: { url: string }) {
       setPercent(percent);
       progress.current.percent = percent;
       if (Date.now() - progress.current.lastSentAt < PROGRESS_THROTTLE_MS) return;
-      send(percent, false);
+      send(percent);
     },
     [send],
   );
 
   // Leaving the tab flushes the latest position, mirroring the PDF reader
   useEffect(() => {
-    const flush = () => send(progress.current.percent, true);
+    const flush = () => send(progress.current.percent);
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush();
     };

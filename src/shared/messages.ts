@@ -55,10 +55,8 @@ export type Message =
       pageCount: number;
       offset: number;
       leftOff: string;
-      /** Reading seconds since the last report,  */
+      /** Reading seconds since the last report */
       activeSecondsDelta: number;
-      /** The reader tab went hidden or closed */
-      hidden: boolean;
     }
   | { type: 'READER_OPEN_NATIVE'; url: string }
   // Reader annotations (highlights / sticky notes), PDFs and articles alike
@@ -93,7 +91,6 @@ export type Message =
       /** Player chapter title; '' when the video has no chapters */
       chapter: string;
     }
-  | { type: 'FOCUS_VIDEO_TAB'; videoId: string }
   /** Captions for the new tab's Follow pane. */
   | { type: 'VIDEO_TRANSCRIPT'; videoId: string }
   | {
@@ -102,8 +99,6 @@ export type Message =
       scrollY: number;
       pageHeight: number;
       activeSecondsDelta: number;
-      /** True when this is the flush fired as the page went hidden */
-      hidden: boolean;
       /**
        * The document being read, when that isn't the sender's own URL — the
        * in-extension reader renders an article whose tab URL is the reader
@@ -142,7 +137,6 @@ export interface MessageResponses {
     resume: { positionSeconds: number } | null;
   };
   VIDEO_PROGRESS: { ok: boolean };
-  FOCUS_VIDEO_TAB: { ok: boolean };
   VIDEO_TRANSCRIPT: { ok: boolean; segments?: TranscriptSegment[]; error?: string };
 }
 

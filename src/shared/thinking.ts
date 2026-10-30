@@ -7,7 +7,7 @@ export const TAG_COLOR: Record<HighlightTag, AnnotationColor> = { claim: 'blue',
 const isOpen = (p: Provocation) => p.status !== 'answered';
 /** A counterpoint whose highlight was deleted is dead; everything else is live. */
 const isLive = (p: Provocation, alive: ReadonlySet<string>) => p.annotationId == null || alive.has(p.annotationId);
-const isOpenQuestion = (p: Provocation) => isOpen(p) && p.kind !== 'page';
+const isOpenQuestion = (p: Provocation): p is Provocation & { status: 'open' | 'unsure' } => isOpen(p) && p.kind !== 'page';
 
 /** Reader link for a paper, deep-linked to a page when page > 0. */
 export const thinkingLink = (paper: Paper, page: number) => {
@@ -84,8 +84,7 @@ export function openQuestions(
     .flatMap((p) => {
       const paper = p.paperId == null ? undefined : byId.get(p.paperId);
       if (!paper || !isOpenQuestion(p) || !isLive(p, alive)) return [];
-      const status = p.status as 'open' | 'unsure';
-      return [{ id: p.id, question: p.question, status, paperTitle: paper.title, href: thinkingLink(paper, p.page), updatedAt: p.updatedAt }];
+      return [{ id: p.id, question: p.question, status: p.status, paperTitle: paper.title, href: thinkingLink(paper, p.page), updatedAt: p.updatedAt }];
     })
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }

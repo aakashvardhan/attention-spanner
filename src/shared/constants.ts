@@ -73,14 +73,6 @@ export const NOTIFICATION_IDS = {
   focusPhase: 'focus-phase',
 } as const;
 
-export const SAMPLE_FEEDS: ReadonlyArray<{ name: string; url: string }> = [
-  { name: 'Hacker News', url: 'https://hnrss.org/frontpage' },
-  { name: 'r/programming', url: 'https://www.reddit.com/r/programming/.rss' },
-  { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index' },
-  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
-  { name: 'CSS Tricks', url: 'https://css-tricks.com/feed/' },
-];
-
 /* Local AI (src/shared/llm). */
 /** num_ctx sent to Ollama. Its own default is small, and silently truncates. */
 export const OLLAMA_NUM_CTX = 8192;

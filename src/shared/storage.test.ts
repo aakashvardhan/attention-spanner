@@ -387,6 +387,8 @@ describe('v25 sweep on a full legacy profile', () => {
     const snapshot = fakeChrome(seed);
     await migrate();
     const first = snapshot();
+    // Force the sweep to run again rather than pass on the version guard.
+    await chrome.storage.local.set({ schemaVersion: 24 });
     await migrate();
     const second = snapshot();
     vi.unstubAllGlobals();

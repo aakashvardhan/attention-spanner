@@ -179,7 +179,7 @@ export async function markAllRead(): Promise<{ ok: boolean; count: number }> {
  * Open a feed item. Readable pages go to the in-extension reader, which gives
  * them the same highlights, outline, Ask panel and resume that PDFs have had;
  * the reader reports progress through the same PROGRESS_UPDATE path, so
- * streaks and nudges are unaffected. Anything else opens as a normal tab with
+ * reading progress is unaffected. Anything else opens as a normal tab with
  * the tracking content script, exactly as before.
  */
 export async function openArticle(

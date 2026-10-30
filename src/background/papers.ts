@@ -11,7 +11,7 @@ const READING_TOUCH_THROTTLE_MS = 60_000;
 
 /**
  * All paper writes happen here in the service worker so the papers page and the
- * dashboard card never race each other (same pattern as bookmarks/flashcards).
+ * dashboard card never race each other (same pattern as annotations).
  */
 
 export type PaperResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };

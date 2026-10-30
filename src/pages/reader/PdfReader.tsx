@@ -257,7 +257,7 @@ export function PdfReader({ src }: { src: string }) {
   }, []);
 
   const sendProgress = useCallback(
-    (force = false, hidden = false) => {
+    (force = false) => {
       const l = live.current;
       if (!l.paper || !l.restored || l.pageCount === 0) return;
       const now = Date.now();
@@ -275,7 +275,6 @@ export function PdfReader({ src }: { src: string }) {
         // Credit at most one throttle window, as ArticleReader does, so a
         // reader left open in the background can't bank hours of reading.
         activeSecondsDelta: since === 0 ? 0 : Math.min((now - since) / 1000, PROGRESS_THROTTLE_MS / 1000),
-        hidden,
       });
     },
     [src],
@@ -306,9 +305,9 @@ export function PdfReader({ src }: { src: string }) {
   // Leaving the tab (or closing it) flushes the latest position immediately.
   useEffect(() => {
     const onVisibility = () => {
-      sendProgress(true, document.visibilityState === 'hidden');
+      sendProgress(true);
     };
-    const onPageHide = () => sendProgress(true, true);
+    const onPageHide = () => sendProgress(true);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onPageHide);
     return () => {

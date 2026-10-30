@@ -3,8 +3,7 @@ import { extensionAlive, sendMessage, type ResumeTarget } from '../shared/messag
 /**
  * Reading tracker, injected dynamically into known article tabs.
  * Tracks how far the user has scrolled and how long they've actively read;
- * flushes a final update when the tab goes hidden so the service worker can
- * schedule a come-back nudge. Restores scroll position on resume.
+ * flushes a final update when the tab goes hidden. Restores scroll position on resume.
  *
  * Bundled standalone (IIFE) by esbuild — chrome.scripting.executeScript
  * cannot inject module scripts.
@@ -91,8 +90,7 @@ function initTracker() {
   }, 1000);
 
   async function report(hidden: boolean) {
-    // Skip only exact duplicates of a hidden flush; visible reports always go
-    // out so the service worker can cancel a pending nudge.
+    // Skip only exact duplicates of a hidden flush; visible reports always go out.
     if (hidden && lastSentHidden) return;
     lastSentHidden = hidden;
     const delta = activeSecondsPending;
@@ -104,7 +102,6 @@ function initTracker() {
         scrollY: window.scrollY,
         pageHeight: pageHeight(),
         activeSecondsDelta: delta,
-        hidden,
       });
     } catch {
       // Extension reloaded/updated — this orphaned script can't reach it anymore

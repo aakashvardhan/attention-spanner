@@ -9,7 +9,7 @@ import { openNativePdf } from './pdfIntercept';
 import { skipBreak, startFocus, stopFocus } from './focus';
 import { forgetProgress, getResumeTarget, handleProgressUpdate } from './tracking';
 import { transcriptFor } from './videoContext';
-import { focusExistingVideoTab, handleVideoProgress, handleVideoReady } from './videoTracking';
+import { handleVideoProgress, handleVideoReady } from './videoTracking';
 
 /** Exported so the SW can register itself as the in-process message dispatcher */
 export async function dispatch(
@@ -85,8 +85,6 @@ export async function dispatch(
     case 'VIDEO_PROGRESS':
       await handleVideoProgress(sender, msg);
       return { ok: true };
-    case 'FOCUS_VIDEO_TAB':
-      return { ok: await focusExistingVideoTab(msg.videoId) };
     case 'VIDEO_TRANSCRIPT': {
       const res = await transcriptFor(msg.videoId);
       return 'error' in res ? { ok: false, error: res.error } : { ok: true, segments: res.segments };

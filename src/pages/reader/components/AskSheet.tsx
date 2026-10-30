@@ -65,7 +65,7 @@ export function AskSheet({
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState('');
   const [turns, setTurns] = useState<Turn[]>(() => (thread ? loadThread() : []));
-  const counted = useRef<AiView | null>(null);
+  const countedView = useRef<AiView | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,13 +106,13 @@ export function AskSheet({
 
   // File each finished answer into the thread once.
   const { view } = ai;
-  const { status, text, sent } = view;
+  const { status } = view;
   useEffect(() => {
     // By identity, not text: a follow-up can get the same words back.
-    if (!thread || status !== 'done' || counted.current === view) return;
-    counted.current = view;
+    if (!thread || status !== 'done' || countedView.current === view) return;
+    countedView.current = view;
     setTurns((t) => [...t, { q: asked, view }]);
-  }, [status, text, sent, asked, view, thread]);
+  }, [status, asked, view, thread]);
 
   // Without a thread the latest reply stays up instead of being filed.
   const live = thread ? status !== 'done' && status !== 'idle' : status !== 'idle';

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Later tasks append { name, pattern } here; each cut feature must never come back.
+// Patterns must not use the g or y flag: hits() reuses one RegExp across lines and .test() would carry lastIndex.
 const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'Hero', pattern: /\bHero\b|edition-masthead/ },
   { name: 'weather', pattern: /weatherLocation|WeatherCache|\bWeather\b/ },
@@ -23,6 +24,7 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'breathing-guide', pattern: /pomo-breath|BREATH_MS|breatheAgain/ },
   { name: 'pace-forecast', pattern: /paceMinutesLeft|paceLabel|relay-row-forecast/ },
   { name: 'watching-card', pattern: /relay-watching-card/ },
+  { name: 'sweep', pattern: /SAMPLE_FEEDS|sample-feed|ai-impact|FOCUS_VIDEO_TAB/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

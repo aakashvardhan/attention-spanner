@@ -23,13 +23,13 @@ export function FocusTimer({ focus }: { focus: Focus }) {
   const [intention, setIntention] = useState('');
   const clockIn = () => void focus.start(settings.focusMinutes, intention);
 
-  // The tab strip shows the time too, by the dial's own rule (minutes in focus).
   const shown = `${focus.display.value}${focus.display.unit ? ' min' : ''}`;
   useEffect(() => {
     const title = document.title;
-    if (focus.phase) document.title = `${shown} · ${focus.phase === 'break' ? 'Break' : 'Focus'}`;
+    // The tab strip shows the same m:ss as the clock.
+    if (focus.phase) document.title = `${focus.countdown} · ${focus.phase === 'break' ? 'Break' : 'Focus'}`;
     return () => void (document.title = title);
-  }, [focus.phase, shown]);
+  }, [focus.phase, focus.countdown]);
 
   if (!focus.session) {
     return (

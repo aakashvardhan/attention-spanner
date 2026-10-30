@@ -59,16 +59,16 @@ export function PaperDeckList({
                 {deck.name}
               </button>
               <div className="fc-deck-counts">
-                <span className="fc-chip fc-chip-review" title="Papers in this deck">
+                <span className="fc-chip" title="Papers in this deck">
                   {papers.length} papers
                 </span>
                 {reading > 0 && (
-                  <span className="fc-chip fc-chip-learning" title="Currently reading">
+                  <span className="fc-chip" title="Currently reading">
                     {reading} reading
                   </span>
                 )}
                 {toRead > 0 && (
-                  <span className="fc-chip fc-chip-new" title="To read">
+                  <span className="fc-chip" title="To read">
                     {toRead} to read
                   </span>
                 )}

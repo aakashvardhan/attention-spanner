@@ -29,7 +29,7 @@ export function hashText(text: string): string {
   return (hash >>> 0).toString(16);
 }
 
-const LIVE_TARGETS = new Set(['claude', 'ollama']);
+const LIVE_TARGETS = new Set<AiCacheEntry['target']>(['claude', 'ollama']);
 
 export async function cacheGet(key: string): Promise<AiCacheEntry | null> {
   const { aiCache } = await getLocal('aiCache');

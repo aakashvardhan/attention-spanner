@@ -27,7 +27,6 @@ export function buildSeed(now = Date.now()) {
     focusBlocklist: ['mail.google.com', 'linkedin.com', 'netflix.com'],
     focusMinutes: 50,
     focusBreakMinutes: 10,
-    focusMusicEnabled: false,
     semanticScholarApiKey: '',
   };
 

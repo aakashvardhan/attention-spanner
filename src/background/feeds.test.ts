@@ -76,7 +76,7 @@ describe('applyMarkAllRead', () => {
 
 describe('openArticle', () => {
   it('sends an arXiv PDF to the reader, not alphaXiv', async () => {
-    // A resume nudge for a paper left in the reader lands here with the PDF URL
+    // A paper left in the reader lands here with the PDF URL
     const create = vi.fn(async () => ({}));
     vi.stubGlobal('chrome', { tabs: { create }, runtime: { getURL: (path: string) => `chrome-extension://id/${path}` } });
     await openArticle('https://arxiv.org/pdf/2406.09246', null, true);

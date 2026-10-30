@@ -49,7 +49,7 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab (layout C): `.edition` holds two columns, no masthead. `.now-col` is
+- New tab (layout C): `.edition` holds two columns. `.now-col` is
   the Pomodoro (`.pomo`), the brain dump (`section[aria-label="Brain dump"]`)
   and the heatmap (`.heat`); `.read-col` is `section[aria-label="Continue"]`
   (sub-lists `Continue reading` / `Continue watching`),
@@ -71,13 +71,9 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
   status is `.reader-capsule` (click `.reader-capsule-summary` for page jump and
   zoom, Escape folds it); announcements land in `.reader-capsule-message`; the
   outline at rest is `.reader-rail` with one `[data-state="current"]` tick; F
-  sets `[data-focus-line]`. The drift nudge needs `page.clock.install()` before
-  `goto` — sample in 5s steps, the message hides after 10s.
+  sets `[data-focus-line]`..
 - Retired settings must stay inert: seed `settings.skin` with an old value and
   expect no errors.
-- The Now watching card only mounts while a video is playing. Seed a
-  `readingProgress` entry with `kind: 'video'`, `playing: true` and a fresh
-  `updatedAt` (liveness is `now - updatedAt < VIDEO_WATCHING_STALE_MS`).
 - Read storage from a page: `page.evaluate(() => chrome.storage.local.get(...))`.
 - Collect `console`/`pageerror` events — a clean run has zero.
 
@@ -118,9 +114,3 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
   the real handler does around the write. To test derived state, drive the
   actual message (`chrome.runtime.sendMessage({ type: 'REC_START', … })`) rather
   than staging storage and hoping a listener notices.
-- Mic-dependent flows work headless with
-  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`; a bogus
-  Gemini key then exercises the failure path (recording settles to `failed`
-  with the key error) rather than the transcription path.
-- Cards that live in the dashboard's "connect tray" until configured (Recordings
-  needs `settings.geminiApiKey`) are absent from the grid until you seed the key.

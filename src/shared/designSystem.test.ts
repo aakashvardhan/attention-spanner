@@ -55,6 +55,8 @@ export function lintCss(source: string, file: string): Violation[] {
     const decls = [...text.matchAll(/(?:^|[{;])\s*(-{0,2}[a-z][a-z0-9-]*)\s*:\s*([^;{}]+)/g)];
     // Continuation lines of a multi-line value (box-shadow stacks) still carry colors.
     if (decls.length === 0) {
+      // `box-shadow:` with the value starting on the next line: no way to vouch for it.
+      if (!isTheme && /^\s*box-shadow\s*:\s*$/.test(text)) out.push({ file, line, rule: 'shadow', value: text.trim() });
       if (!isTheme && COLOR_LITERAL.test(text)) out.push({ file, line, rule: 'color', value: text.trim() });
       if (!isTheme && GRADIENT.test(text)) out.push({ file, line, rule: 'gradient', value: text.trim() });
       return;
@@ -106,6 +108,7 @@ describe('lintCss', () => {
   it('rejects color literals outside theme.css, including multi-line shadows', () => {
     expect(lint('a { color: #fff; }')).toEqual(['color']);
     expect(lint('a {\n  box-shadow: 0 0 0 1px var(--border),\n    0 4px 8px rgba(0,0,0,.2);\n}')).toEqual(['shadow', 'color']);
+    expect(lint('a {\n  box-shadow:\n    0 4px 8px var(--border);\n}')).toEqual(['shadow']);
     expect(lint('a { border-color: white; }')).toEqual(['color']);
     expect(lintCss('a { color: #fff; }', 'src/shared/theme.css')).toEqual([]);
   });

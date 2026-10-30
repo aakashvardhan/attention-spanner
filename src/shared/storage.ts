@@ -213,7 +213,7 @@ export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
   const version = (schemaVersion as number | undefined) ?? 0;
   // Session storage outlives an extension update, so retired keys go on every
-  // startup, before the early return. Removing an absent key is a no-op.
+  // install/update, before the early return. Removing an absent key is a no-op.
   await chrome.storage.session.remove(['hyperfocus', 'driftChecked', 'lastGlobalNudgeAt']);
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.

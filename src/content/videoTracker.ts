@@ -7,9 +7,9 @@ import { getYouTubeVideoId } from '../shared/youtube';
  * is detected in-page (yt-navigate-finish + URL poll), never by re-injection.
  *
  * Watch time accrues whenever the video is PLAYING — visible or not —
- * because background podcast listening is real consumption. Nudges are
- * driven by `stopped` flushes (pause/ended/leave), plus a hidden tab that
- * keeps playing (`lookedAwayAt`).
+ * because background podcast listening is real consumption. Reports
+ * are driven by `stopped` flushes (pause/ended/leave), plus a hidden tab that
+ * keeps playing (`lookedAwayAt`, kept in stored progress).
  *
  * Bundled standalone (IIFE) by esbuild, same as readingTracker.
  */
@@ -204,7 +204,7 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
     window.setInterval(() => {
       if (!stopped && !video.paused && !video.ended) {
         lastSentStopped = false;
-        void report(false); // heartbeat also cancels any pending nudge
+        void report(false);
       }
     }, REPORT_INTERVAL_MS),
   );

@@ -2,10 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AiCacheEntry } from '../types';
 import { cacheGet, hashText } from './store';
 
-// Built in pieces so the cut-features guard stays clean.
-const GONE = ['gem', 'ini'].join('');
 const aiCache: Record<string, AiCacheEntry> = {
-  old: { text: 'x', target: GONE, model: 'old-model', at: 1 },
+  old: { text: 'x', target: 'retired', model: 'old-model', at: 1 },
   live: { text: 'y', target: 'claude', model: 'claude-haiku', at: 2 },
 };
 vi.mock('../storage', () => ({ getLocal: async () => ({ aiCache }), setLocal: async () => undefined }));
