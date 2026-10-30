@@ -240,3 +240,13 @@ describe('withDumpLock', () => {
     expect(list.sort()).toEqual(['a', 'b']);
   });
 });
+
+const KEPT_LOCAL_KEYS = ['schemaVersion','provocations','feeds','readItems','cachedItems','cacheTimestamp','settings',
+  'readingProgress','focusSession','decks','papers','annotations','aiCache','aiVectors','layaRoles','activity',
+  'dumps','vault','lockedDumps'] as const;
+describe('kept data', () => {
+  it('every kept key still has a default', () => { for (const k of KEPT_LOCAL_KEYS) expect(DEFAULTS).toHaveProperty(k); });
+  it('no kept key is ever swept', () => { for (const k of KEPT_LOCAL_KEYS) expect(V22_DEAD_KEYS).not.toContain(k); });
+  it('no live setting is ever swept', () => { for (const k of Object.keys(DEFAULT_SETTINGS)) expect(V22_DEAD_SETTINGS).not.toContain(k); });
+  it('no live local key is ever swept', () => { for (const k of Object.keys(DEFAULTS)) expect(V22_DEAD_KEYS).not.toContain(k); });
+});

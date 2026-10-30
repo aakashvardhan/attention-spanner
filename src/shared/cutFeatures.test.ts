@@ -1,0 +1,53 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+// Later tasks append { name, pattern } here; each cut feature must never come back.
+const CUT = [] as { name: string; pattern: RegExp }[];
+
+// These name dead keys on purpose (sweep lists and fixtures).
+const SKIP = new Set([
+  'src/shared/storage.ts',
+  'src/shared/storage.test.ts',
+  'src/background/alarms.ts',
+  'src/background/alarms.test.ts',
+  'src/shared/cutFeatures.test.ts',
+]);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'out']);
+
+function walk(dir: string, acc: string[] = []): string[] {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!e.name.startsWith('.') && !SKIP_DIRS.has(e.name)) walk(p, acc);
+    } else if (/\.(tsx?|css)$/.test(e.name) && !SKIP.has(p)) acc.push(p);
+  }
+  return acc;
+}
+
+const files = ['src', 'e2e', 'mcp'].flatMap((d) => {
+  try {
+    return walk(d);
+  } catch {
+    return [];
+  }
+});
+
+function hits(pattern: RegExp): string[] {
+  const out: string[] = [];
+  for (const f of files)
+    readFileSync(f, 'utf8')
+      .split('\n')
+      .forEach((l, i) => {
+        if (pattern.test(l)) out.push(`${f}:${i + 1}`);
+      });
+  return out;
+}
+
+describe('cut features stay cut', () => {
+  it('scans real files', () => expect(files.length).toBeGreaterThan(50));
+  it.skipIf(CUT.length === 0)('has entries once the cuts start', () => {
+    expect(CUT.length).toBeGreaterThan(0);
+  });
+  for (const { name, pattern } of CUT) it(`${name} stays cut`, () => expect(hits(pattern)).toEqual([]));
+});
