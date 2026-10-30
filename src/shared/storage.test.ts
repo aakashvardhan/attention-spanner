@@ -129,7 +129,7 @@ describe('a stored settings object from before the skins were retired', () => {
  */
 describe('v22', () => {
   it('names only keys whose feature is gone, and keeps the ones that are not', () => {
-    for (const dead of ['tasks', 'notes', 'jobs', 'recordings', 'gmail', 'calendar', 'streaks']) {
+    for (const dead of ['tasks', 'notes', 'jobs', 'recordings', 'gmail', 'calendar', 'streaks', 'bookmarks', 'bookmarkGroups']) {
       expect(V22_DEAD_KEYS).toContain(dead);
     }
     // The surviving collections must never appear here: this list is passed
@@ -140,8 +140,6 @@ describe('v22', () => {
       'cachedItems',
       'settings',
       'readingProgress',
-      'bookmarks',
-      'bookmarkGroups',
       'decks',
       'papers',
       'annotations',

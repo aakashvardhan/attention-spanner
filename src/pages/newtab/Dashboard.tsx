@@ -23,7 +23,7 @@ import { TriageCard } from './TriageCard';
  * The new tab as a front page. The lead story is
  * the newest thing you left unfinished and the page's one primary action
  * (Enter opens it); the sidebar is the feed triaged against what you finish;
- * the index along the bottom holds favorites, Papers, Settings and focus.
+ * the index along the bottom holds Papers, Settings and focus.
  *
  * It answers the one question the browser is in a position to answer — "what
  * did I start and not finish in here". Notes, tasks and planning live in

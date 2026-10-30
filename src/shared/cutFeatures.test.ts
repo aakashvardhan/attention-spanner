@@ -9,6 +9,7 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'greeting', pattern: /displayName/ },
   { name: 'ambient', pattern: /ambientMotion|useAmbient|ObstacleCourse/ },
   { name: 'quote', pattern: /quoteOfDay/ },
+  { name: 'bookmarks', pattern: /BOOKMARK|Bookmark(Link|Group|sPanel)|useBookmarks|bookmark-link/ },
   { name: 'now-watching', pattern: /NowWatching|useNowWatching/ },
 ];
 

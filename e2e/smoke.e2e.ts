@@ -57,6 +57,15 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     });
   }
 
+  it('new tab: the index along the foot holds exactly Papers and Settings', async () => {
+    const page = await ext.page(PAGES.newtab);
+    await expect
+      .poll(() => page.locator('.edition-index .edition-link').allInnerTexts())
+      .toEqual(['Papers', 'Settings']);
+    expect(await page.locator('.edition-index a, .edition-index button').count()).toBe(2);
+    await page.close();
+  });
+
   it('new tab: the lead is first, J/K walk the stories, Enter opens the lead', async () => {
     const page = await ext.page(PAGES.newtab);
     const stories = page.locator('[data-story]');

@@ -171,9 +171,8 @@ podcast-style listening isn't penalised. Shorts and live streams are ignored.
 ### Elsewhere
 
 - **The new tab is the only surface**, and where the toolbar icon lands.
-  Favorites are independent of Chrome's own bookmarks (addable inline or by
-  right-clicking a page). Reading or bookmarking the page you're on is the
-  keyboard shortcut and the right-click menu, which work from the page itself.
+  Reading the page you're on is the keyboard shortcut and the right-click
+  menu, which work from the page itself.
 - **Design** — paper and ink in light mode, warm ink in dark, one clay accent.
   Headlines are set in the system serif; body text is Atkinson Hyperlegible,
   chosen for low-vision legibility, never thinner than 12px and never pure white
@@ -374,7 +373,7 @@ scripts/
 | `scripting` | Injecting the reading and video trackers |
 | `declarativeNetRequest` | Focus Mode site blocking |
 | `webRequest` | Read-only: response headers, to spot PDFs served from extensionless URLs |
-| `contextMenus` | "Read in Reader" and "Bookmark this page" |
+| `contextMenus` | "Read in Reader" |
 | `<all_urls>` | Trackers are injected into whatever page you're reading; also reaches your Ollama server and Laya sidecar |
 
 No `identity`, no `tabCapture`, no `offscreen`. The extension has no account.

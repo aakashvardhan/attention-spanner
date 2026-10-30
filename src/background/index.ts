@@ -3,7 +3,6 @@ import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import { clearRetiredAlarms, handleAlarm, setupRefreshAlarm } from './alarms';
-import { bookmarkFromContextMenu } from './bookmarks';
 import { checkDrift } from './drift';
 import { openArticle, refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
@@ -65,12 +64,6 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'Read in Reader',
       contexts: ['page', 'link'],
     });
-    chrome.contextMenus.create({
-      id: 'bookmark-link',
-      // Was "Bookmark in Reader", which promised the reader and only bookmarked
-      title: 'Bookmark this page',
-      contexts: ['page', 'link'],
-    });
     await refreshFeeds();
     // This reload just orphaned every content script already running
     await reinjectIntoOpenTabs();
@@ -79,11 +72,7 @@ chrome.runtime.onInstalled.addListener(() => {
   })();
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'bookmark-link') {
-    void bookmarkFromContextMenu(info, tab);
-    return;
-  }
+chrome.contextMenus.onClicked.addListener((info) => {
   if (info.menuItemId === 'read-in-reader') {
     const url = info.linkUrl ?? info.pageUrl;
     if (url && /^https?:/.test(url)) void openArticle(url, null, false, true);

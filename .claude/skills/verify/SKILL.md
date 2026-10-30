@@ -52,7 +52,7 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 - New tab (the Edition): `.edition` is the page (a `.grid`), there is no masthead,
   `.edition-lead` is the lead story, and
   every openable story carries `[data-story]` (J/K walk them, Enter opens the
-  lead). Favorites, Papers and Settings live in `.edition-index`. The
+  lead). Papers and Settings live in `.edition-index`. The
   Pomodoro is `.pomo` (FocusTimer.tsx, sidebar in flat, bottom band in the
   world): idle it is `.pomo-clockin` (or key C); running it carries
   `data-phase` and so does `<html>`. A seeded `focusSession` needs `phase`,

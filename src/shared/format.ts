@@ -34,18 +34,3 @@ export function formatWatchTime(totalSeconds: number): string {
     ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     : `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
-
-/**
- * Site logo/favicon via Google's favicon service — unlike Chrome's local
- * /_favicon/ cache, this returns real icons for domains the user has never
- * visited (a fresh bookmark shouldn't render as a letter tile).
- */
-export function faviconUrl(pageUrl: string, size = 64): string {
-  let host = pageUrl;
-  try {
-    host = new URL(pageUrl).hostname;
-  } catch {
-    // fall through with the raw string
-  }
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}`;
-}

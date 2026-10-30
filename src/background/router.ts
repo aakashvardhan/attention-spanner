@@ -1,13 +1,6 @@
 import type { Message } from '../shared/messages';
 import { markAllRead, openArticle, refreshFeeds } from './feeds';
 import { validateFeed } from './rssParser';
-import {
-  addBookmark,
-  addBookmarkGroup,
-  deleteBookmark,
-  deleteBookmarkGroup,
-  moveBookmark,
-} from './bookmarks';
 import { addDeck, deleteDeck } from './flashcards';
 import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
 import { addProvocation, updateProvocation } from './provocations';
@@ -41,21 +34,8 @@ export async function dispatch(
       return stopFocus(msg.early);
     case 'SKIP_BREAK':
       return skipBreak();
-    case 'ADD_BOOKMARK':
-      return { ok: true, bookmark: await addBookmark(msg.url, msg.title, msg.groupId) };
-    case 'DELETE_BOOKMARK':
-      await deleteBookmark(msg.id);
-      return { ok: true };
     case 'PROGRESS_DELETE':
       await forgetProgress(msg.url);
-      return { ok: true };
-    case 'MOVE_BOOKMARK':
-      await moveBookmark(msg.id, msg.groupId);
-      return { ok: true };
-    case 'ADD_BOOKMARK_GROUP':
-      return { ok: true, group: await addBookmarkGroup(msg.name) };
-    case 'DELETE_BOOKMARK_GROUP':
-      await deleteBookmarkGroup(msg.id);
       return { ok: true };
     case 'FLASH_ADD_DECK':
       return addDeck(msg.name, msg.kind);

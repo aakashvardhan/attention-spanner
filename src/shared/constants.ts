@@ -55,7 +55,6 @@ export const HOLD_TO_QUIT_MS = 5000;
 /** Offscreen document that plays the Pomodoro chime (background/focus.ts) */
 export const CHIME_PAGE_PATH = 'src/pages/chime/index.html';
 export const FLOWTUNES_URL = 'https://www.flowtunes.app/';
-export const MAX_BOOKMARKS = 200;
 
 /** The new-tab dashboard — the "main" extension page the sub-pages link back to */
 export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
@@ -85,7 +84,6 @@ export const ALARMS = {
 export const NOTIFICATION_IDS = {
   nudgePrefix: 'nudge|',
   focusPhase: 'focus-phase',
-  bookmarkSaved: 'bookmark-saved',
   hyperfocus: 'hyperfocus',
   focusDrift: 'focus-drift',
 } as const;

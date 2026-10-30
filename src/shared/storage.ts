@@ -4,8 +4,6 @@ import type {
   AiStats,
   Annotation,
   AnyProgress,
-  BookmarkGroup,
-  BookmarkLink,
   DayActivity,
   Deck,
   Dump,
@@ -30,8 +28,6 @@ export interface LocalSchema {
   settings: Settings;
   readingProgress: Record<string, AnyProgress>;
   focusSession: FocusSession | null;
-  bookmarks: BookmarkLink[];
-  bookmarkGroups: BookmarkGroup[];
   decks: Deck[];
   /** Research papers, grouped into decks */
   papers: Paper[];
@@ -113,8 +109,6 @@ export const DEFAULTS: LocalSchema = {
   settings: DEFAULT_SETTINGS,
   readingProgress: {},
   focusSession: null,
-  bookmarks: [],
-  bookmarkGroups: [],
   decks: [],
   papers: [],
   annotations: [],
@@ -204,8 +198,8 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  *
  * v4 → v5 (papers): decks became typed. Backfill Deck.kind — a deck holding
  * papers is 'papers', anything else keeps the historical 'flashcards'.
- * v5 → v6: backfill `updatedAt` from `createdAt` on decks, bookmarks and
- * bookmark groups, so every record carries a stable timestamp.
+ * v5 → v6: backfill `updatedAt` from `createdAt` on decks, so every
+ * record carries a stable timestamp.
  * v6 → v7 (one reader): the reader gained a second document kind, so
  * `pdfAnnotations` becomes `annotations` with its page/rect fields wrapped in
  * a discriminated `anchor` (see types.AnnotationAnchor).
@@ -338,6 +332,8 @@ export const V22_DEAD_KEYS = [
   'focusOfDay',
   // v25: minimal revamp
   'weather',
+  'bookmarks',
+  'bookmarkGroups',
 ];
 
 export const V22_DEAD_SETTINGS = [
@@ -420,7 +416,7 @@ async function migrateToV5(): Promise<void> {
 
 /** v5 → v6: backfill `updatedAt` from `createdAt` on the collections that survive. */
 async function migrateToV6(): Promise<void> {
-  const keys = ['decks', 'bookmarks', 'bookmarkGroups'] as const;
+  const keys = ['decks'] as const;
   const collections = await chrome.storage.local.get([...keys]);
   const patch: Record<string, unknown> = {};
   for (const key of keys) {

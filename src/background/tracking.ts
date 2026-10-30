@@ -1,7 +1,7 @@
 import type { ResumeTarget } from '../shared/messages';
 import { progressKeyFor, withoutPage } from '../shared/progress';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
-import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../shared/types';
+import type { AnyProgress, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { isYouTubeWatchUrl } from '../shared/youtube';
 import { recordEngagement } from './hyperfocus';
@@ -46,21 +46,17 @@ export async function registerOpenedTab(
 
 /**
  * Pages worth injecting the tracker into: anything already being tracked, any
- * feed item, and any saved link. Bookmarks are in the list so a link opened
- * from the Links panel — or typed, or restored with the session — earns reading
- * progress and can be resumed, the same as a feed article.
+ * feed item.
  */
 export function isKnownUrl(
   normalized: string,
   known: {
     readingProgress: Record<string, AnyProgress>;
     cachedItems: FeedItem[];
-    bookmarks: BookmarkLink[];
   },
 ): boolean {
   if (known.readingProgress[normalized]) return true;
-  if (known.cachedItems.some((item) => item.normalizedLink === normalized)) return true;
-  return known.bookmarks.some((link) => normalizeUrl(link.url) === normalized);
+  return known.cachedItems.some((item) => item.normalizedLink === normalized);
 }
 
 /** tabs.onUpdated(status === 'complete'): inject the tracker if this is a known page */
@@ -75,7 +71,7 @@ export async function maybeInjectTracker(tabId: number, url: string): Promise<vo
 
   if (!key) {
     // Organically opened tab — is it a page we know about?
-    const known = await getLocal('cachedItems', 'readingProgress', 'bookmarks');
+    const known = await getLocal('cachedItems', 'readingProgress');
     if (isKnownUrl(tabNorm, known)) key = tabNorm;
   }
   if (!key) return;

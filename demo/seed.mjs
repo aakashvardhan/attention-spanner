@@ -110,28 +110,6 @@ export function buildSeed(now = Date.now()) {
     },
   ];
 
-  /* ---- Speed dial ---- */
-  const bookmarkGroups = [
-    { id: 'demo-grp-daily', name: 'Daily', createdAt: day(200), updatedAt: day(200) },
-    { id: 'demo-grp-learn', name: 'Learning', createdAt: day(180), updatedAt: day(180) },
-  ];
-  const bm = (id, url, title, groupId, agoDays) => ({
-    id: `demo-bm-${id}`,
-    url,
-    title,
-    groupId,
-    createdAt: day(agoDays),
-    updatedAt: day(agoDays),
-  });
-  const bookmarks = [
-    bm(1, 'https://github.com', 'GitHub', 'demo-grp-daily', 200),
-    bm(2, 'https://www.notion.so', 'Notion', 'demo-grp-daily', 200),
-    bm(3, 'https://calendar.google.com', 'Calendar', 'demo-grp-daily', 199),
-    bm(4, 'https://news.ycombinator.com', 'Hacker News', 'demo-grp-daily', 150),
-    bm(5, 'https://arxiv.org', 'arXiv', 'demo-grp-learn', 120),
-    bm(6, 'https://developer.chrome.com', 'Chrome Docs', 'demo-grp-learn', 90),
-  ];
-
   return {
     schemaVersion: 22,
     feeds: ['https://hnrss.org/frontpage', 'https://www.theverge.com/rss/index.xml'],
@@ -141,8 +119,6 @@ export function buildSeed(now = Date.now()) {
     settings,
     readingProgress,
     focusSession: null,
-    bookmarks,
-    bookmarkGroups,
     decks,
     papers,
     annotations: [],

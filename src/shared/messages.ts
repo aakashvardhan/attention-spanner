@@ -1,8 +1,6 @@
 import type {
   Annotation,
   AnnotationDraft,
-  BookmarkGroup,
-  BookmarkLink,
   Deck,
   DeckKind,
   Paper,
@@ -38,13 +36,8 @@ export type Message =
   | { type: 'START_FOCUS'; focusMinutes: number; intention?: string }
   | { type: 'STOP_FOCUS'; early: boolean }
   | { type: 'SKIP_BREAK' }
-  | { type: 'ADD_BOOKMARK'; url: string; title: string; groupId: string | null }
-  | { type: 'DELETE_BOOKMARK'; id: string }
   /** The X on a Continue row: forget an article's or video's progress */
   | { type: 'PROGRESS_DELETE'; url: string }
-  | { type: 'MOVE_BOOKMARK'; id: string; groupId: string | null }
-  | { type: 'ADD_BOOKMARK_GROUP'; name: string }
-  | { type: 'DELETE_BOOKMARK_GROUP'; id: string }
   /* Deck messages kept their FLASH_ prefix when flashcards were cut — papers
      live in decks, and renaming would touch every caller for no behaviour
      change. */
@@ -127,12 +120,7 @@ export interface MessageResponses {
   START_FOCUS: { ok: boolean };
   STOP_FOCUS: { ok: boolean };
   SKIP_BREAK: { ok: boolean };
-  ADD_BOOKMARK: { ok: boolean; bookmark: BookmarkLink };
-  DELETE_BOOKMARK: { ok: boolean };
   PROGRESS_DELETE: { ok: boolean };
-  MOVE_BOOKMARK: { ok: boolean };
-  ADD_BOOKMARK_GROUP: { ok: boolean; group: BookmarkGroup };
-  DELETE_BOOKMARK_GROUP: { ok: boolean };
   FLASH_ADD_DECK: { ok: boolean; deck?: Deck; error?: string };
   FLASH_DELETE_DECK: { ok: boolean; error?: string };
   PAPER_ADD: { ok: boolean; paper?: Paper; error?: string };

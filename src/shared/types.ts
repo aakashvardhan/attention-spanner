@@ -281,21 +281,6 @@ export function isTextAnchored(a: Annotation): a is TextAnchoredAnnotation {
   return a.anchor.kind === 'text';
 }
 
-export interface BookmarkGroup extends RecordMeta {
-  id: string;
-  name: string;
-  createdAt: number;
-}
-
-export interface BookmarkLink extends RecordMeta {
-  id: string;
-  url: string;
-  title: string;
-  /** null renders under "Unsorted" */
-  groupId: string | null;
-  createdAt: number;
-}
-
 /** A brain dump waiting for first-time vault setup; after that every dump is a LockedDump */
 export interface Dump {
   id: string;
