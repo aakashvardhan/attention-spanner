@@ -30,6 +30,11 @@ describe('keywordOnTopic', () => {
     expect(keywordOnTopic('quantumcomputingly', ['quantum computing'])).toBe(false);
   });
 
+  it('catches ChatGPT, language models, RLHF and bandits', () => {
+    for (const t of ['ChatGPT tips', 'Large Language Models explained', 'RLHF from scratch', 'Multi-armed bandits'])
+      expect(keywordOnTopic(t, DEFAULT_TOPICS), t).toBe(true);
+  });
+
   it('RL needs a word boundary', () => {
     expect(keywordOnTopic('Girl talk', DEFAULT_TOPICS)).toBe(false);
   });
@@ -44,6 +49,6 @@ describe('normalizeTrackTopics', () => {
   });
   it('caps at 20 topics and 40 chars each', () => {
     expect(normalizeTrackTopics(Array.from({ length: 25 }, (_, i) => `t${i}`))).toHaveLength(20);
-    expect(normalizeTrackTopics(['x'.repeat(50)])).toEqual([]);
+    expect(normalizeTrackTopics(['x'.repeat(50)])).toEqual(['x'.repeat(40)]);
   });
 });
