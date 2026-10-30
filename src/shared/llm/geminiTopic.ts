@@ -4,8 +4,8 @@
  * the title and hostname are sent, never a URL or page text.
  */
 
-// ponytail: the model name is the deleted client's (0c70025), unverified without a key.
-export const GEMINI_MODEL = 'gemini-3.8-flash';
+// Measured 2026-10-30: 6/6 correct, max 852ms (3.8-flash took 1.5–2.5s). Pin gemini-3.1-flash-lite if the alias drifts.
+export const GEMINI_MODEL = 'gemini-flash-lite-latest';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export function geminiTopicBody(topics: readonly string[], text: string): unknown {
