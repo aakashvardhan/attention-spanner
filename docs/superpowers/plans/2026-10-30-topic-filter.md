@@ -4,9 +4,9 @@
 
 **Goal:** Continue keeps only what is on the user's topics (AI, robotics and reinforcement learning by default), and never records the extension's own pages.
 
-**Architecture:** A pure keyword matcher in `src/shared/topics.ts`, plus a background gate in `src/background/topicGate.ts`. The gate falls back to local Ollama embeddings, with a 1.5 s budget and a per-item verdict cache. The gate runs where entries are first created: `handleVideoReady` for videos and `handleProgressUpdate` for pages. Explicit "read this" opens skip it. Existing data is handled in two places: a v26 migration removes non-http entries, and a one-time background sweep deletes only what the local model calls off topic.
+**Architecture:** A pure keyword matcher in `src/shared/topics.ts`, plus a background gate in `src/background/topicGate.ts`. The gate falls back to one Gemini yes/no call per keyword-missed item, with a 1.5 s budget and a per-item verdict cache. The gate runs where entries are first created: `handleVideoReady` for videos and `handleProgressUpdate` for pages. Explicit "read this" opens skip it. Existing data is handled in two places: a v26 migration removes non-http entries, and a one-time background sweep deletes only what Gemini calls off topic.
 
-**Tech Stack:** TypeScript, React 18, MV3 service worker, vitest, Playwright e2e (`npm run build:e2e`, `vitest.e2e.config.ts`), Ollama `/api/embed` through `src/shared/llm/ollama.ts`.
+**Tech Stack:** TypeScript, React 18, MV3 service worker, vitest, Playwright e2e (`npm run build:e2e`, `vitest.e2e.config.ts`), the Gemini API, with model and endpoint conventions from `git show 0c70025:src/shared/llm/gemini.ts`.
 
 **Spec:** `docs/superpowers/specs/2026-10-30-topic-filter-design.md`
 
@@ -15,9 +15,12 @@
 - Branch `minimal-revamp`. Never stage `CLAUDE.md`, which shows as deleted in the working tree.
 - Read settings with `useSettings()` in pages and `getSettings()` in the worker. Never use `useStorageValue('settings')`.
 - Default topics, verbatim: `['AI', 'robotics', 'reinforcement learning']`. An empty list turns the filter off.
-- Classification stays on device: keywords first, then local Ollama. No cloud calls.
-- The model only widens what is kept. It never overrides a keyword match.
-- Misfile toward keeping. A timeout, an Ollama error, no model, or no title all mean keep.
+- Keywords first, then Gemini only when `settings.geminiTopicKey` is set.
+  - Only `title + ' ' + hostname` is sent.
+  - Never send URLs, page text, papers, "read this" pages or keyword matches.
+- Gemini only widens what is kept. It never overrides a keyword match.
+- Misfile toward keeping. A timeout, a Gemini error, a malformed answer, no key, or no title all mean keep.
+- The key setting is `geminiTopicKey`, never `geminiKey` or `geminiApiKey`, because those are swept by `V22_DEAD_SETTINGS`.
 - A verdict is computed at most once per normalized URL or videoId.
 - The gate applies only when an entry is first created. Existing entries are never removed by the gate.
 - Papers are never gated or swept.
@@ -32,10 +35,10 @@
 ## Review Focus
 
 1. **An off-topic entry that already exists keeps updating.** Reopening it from Continue must not delete it, because the gate only fires on creation. Test: Task 4, `existing entry is never gated`.
-2. **Ollama down or slow.** A keyword miss with an unreachable or slow model keeps the item, and nothing throws. Test: Task 3, `timeout keeps` and `error keeps`.
+2. **Gemini down, slow or rate-limited.** A keyword miss with a 429, 5xx or slow answer keeps the item, and nothing throws. Test: Task 3, `timeout keeps` and `error keeps`.
 3. **Topics edited to empty.** Everything is tracked, as today. Test: Task 2, `empty topics match everything`, and Task 4, `empty topics track off-topic video`.
 4. **A user-added multi-word topic** ("quantum computing") matches whole words, ignoring case, and does not match inside other words. Test: Task 2, `custom topic whole words`.
-5. **The same off-topic video reopened.** It is not re-asked: the verdict cache answers, and the embed stub sees zero calls. Test: Task 3, `cache answers repeat`.
+5. **The same off-topic video reopened.** It is not re-asked: the verdict cache answers, and the Gemini stub sees zero calls. Test: Task 3, `cache answers repeat`.
 
 ---
 
@@ -68,7 +71,10 @@
 **Files:**
 - Create: `src/shared/topics.ts`, `src/shared/topics.test.ts`
 - Create: `src/pages/options/TrackTopicsRow.tsx`. It follows `MutedTopicsRow.tsx` and is rendered in Options under a small "Continue" section placed above "Your Feeds".
-- Modify: `src/shared/types.ts` (`Settings.trackTopics: string[]`), `src/shared/storage.ts` (`DEFAULT_SETTINGS.trackTopics`)
+- Modify: `src/shared/types.ts`, adding `Settings.trackTopics: string[]` and `Settings.geminiTopicKey: string`.
+- Modify: `src/shared/storage.ts`, adding the defaults `trackTopics: DEFAULT_TOPICS` and `geminiTopicKey: ''`.
+- Modify: `src/shared/cutFeatures.test.ts`. Narrow the `gemini` CUT pattern to `/geminiKey\b|geminiVideoStream|Gemini watched/`.
+- The "Continue" Options section also gets a password input `#gemini-topic-key`. Under it goes one line of copy: Titles the keywords miss are sent to Gemini to check the topic.
 
 **Interfaces:**
 - Produces:
@@ -102,6 +108,7 @@ export function keywordOnTopic(text: string, topics: readonly string[]): boolean
     - `keywordOnTopic('Intro to Quantum Computing', ['quantum computing'])` is `true`
     - `keywordOnTopic('quantumcomputingly', ['quantum computing'])` is `false`
   - `RL needs a word boundary`: `keywordOnTopic('Girl talk', DEFAULT_TOPICS)` is `false`
+  - `storage.test.ts`, `topic key survives the sweep`: `v22StripSettings({ geminiTopicKey: 'k' })` keeps `geminiTopicKey`.
   - `normalizeTrackTopics`:
     - `[' AI ', 'ai', '']` gives `['AI']`
     - `'nope'` gives `DEFAULT_TOPICS`
@@ -114,54 +121,59 @@ export function keywordOnTopic(text: string, topics: readonly string[]): boolean
 
 ---
 
-### Task 3: The model stage, verdict cache and time budget
+### Task 3: The Gemini stage, verdict cache and time budget
 
 **Files:**
-- Create: `src/background/topicGate.ts`, `src/background/topicGate.test.ts`
-- Create: `scripts/measure-topic-threshold.mjs`. This is a manual tool. It embeds the labelled fixture against a running Ollama and prints the lowest on-topic and highest off-topic similarity.
-- Create: `src/background/topicFixture.ts`. It holds 36 labelled titles, 18 on topic and 18 off, and the measurement script and the tests share it.
+- Create: `src/shared/llm/geminiTopic.ts` and `src/shared/llm/geminiTopic.test.ts`. This is the Gemini call: request body, response parsing, errors.
+- Create: `src/background/topicGate.ts` and `src/background/topicGate.test.ts`
 - Modify: `src/shared/storage.ts`. Add `SessionSchema.topicVerdicts: Record<string, boolean>`, default `{}`.
+- Modify: `manifest.config.ts`. Add `https://generativelanguage.googleapis.com/*` to `host_permissions` if it isn't covered.
 
 **Interfaces:**
-- Consumes: `keywordOnTopic`, `normalizeTrackTopics` (Task 2); `embed` (`src/shared/llm/ollama.ts`); `cosine` (`src/shared/llm/vectors.ts`).
+- Consumes: `keywordOnTopic` and `normalizeTrackTopics` (Task 2).
 - Produces:
 
 ```ts
-export const TOPIC_SIM_MIN: number;      // measured; see Step 4
+// src/shared/llm/geminiTopic.ts
+export function geminiTopicBody(topics: readonly string[], text: string): unknown; // pure, testable
+export function parseTopicAnswer(raw: unknown): boolean | null;               // {"onTopic": bool} anywhere in the text part; else null
+export function askGeminiOnTopic(opts: { apiKey: string; topics: readonly string[]; text: string; signal?: AbortSignal; fetch?: typeof fetch }): Promise<boolean | null>; // null on any failure
+
+// src/background/topicGate.ts
 export const TOPIC_BUDGET_MS = 1500;
-/** Keyword verdict, then model; null = model unavailable or failed. Cached per key. */
-export function topicVerdict(key: string, text: string, deps?: { embed?: typeof embed; now?: () => number }): Promise<boolean | null>;
-/** Gate for creation points: resolves within TOPIC_BUDGET_MS. 'keep' | 'drop'; on timeout 'keep' and calls onLateDrop if the late verdict is false. */
-export function gateNewItem(key: string, text: string, onLateDrop: () => Promise<void>, deps?: {...}): Promise<'keep' | 'drop'>;
+export function topicVerdict(key: string, text: string, deps?: { ask?: typeof askGeminiOnTopic }): Promise<boolean | null>;
+export function gateNewItem(key: string, text: string, onLateDrop: () => Promise<void>, deps?: { ask?: typeof askGeminiOnTopic }): Promise<'keep' | 'drop'>;
 ```
 
 - `topicVerdict` behaves as follows:
   - It returns `true` immediately on a keyword match or when topics are empty.
-  - With no `ollamaUrl` or `ollamaEmbedModel`, it returns `null`.
-  - Otherwise it returns `max(cosine(textVec, topicVec_i)) >= TOPIC_SIM_MIN`.
-  - Embed errors return `null`.
-  - The result is written to `topicVerdicts[key]` unless it is `null`.
+  - With an empty `geminiTopicKey`, it returns `null`.
+  - Otherwise it returns `askGeminiOnTopic(...)`.
+  - It writes non-null results to `topicVerdicts[key]`.
 - `gateNewItem` maps the verdict as follows:
   - `null` or `true` gives `'keep'`.
   - `false` gives `'drop'`.
   - On timeout it gives `'keep'`, and calls `onLateDrop` only if the late verdict is `false`.
 
-- [ ] **Step 1: Failing tests** in `topicGate.test.ts`. They use a stub `embed`, with no real Ollama and a fake `chrome.storage.session`.
-  - `keyword match skips the model`: the stub sees 0 calls.
-  - `model keeps a similar title`: the stub returns vectors with cosine ≥ `TOPIC_SIM_MIN`, so the verdict is `true`.
-  - `model drops a distant title`: verdict `false`, and `gateNewItem` gives `'drop'`.
-  - `no model configured keeps`: verdict `null`, gate gives `'keep'`.
-  - `error keeps`: the stub throws, giving `null` and `'keep'`.
-  - `timeout keeps, late drop removes`: the stub resolves `false`-ish vectors after 2000 ms (fake timers). The gate gives `'keep'` at 1500 ms, then `onLateDrop` is called once.
+- [ ] **Step 1: Failing tests** in `geminiTopic.test.ts`. Use a stub `fetch` only, with no network.
+  - `body sends only topics and text`: `JSON.stringify(geminiTopicBody(['AI'], 'Pasta recipe ex.com'))` contains `Pasta recipe ex.com` and `AI`, and does not contain `http`.
+  - `parseTopicAnswer`:
+    - `{"onTopic":true}` gives `true`
+    - fenced JSON with `false` gives `false`
+    - `'maybe'` gives `null`
+  - `askGeminiOnTopic` returns `null` on a 429, on a 500, on a thrown fetch and on an abort.
+  - `key goes in the header, not the URL`: the stub sees the `x-goog-api-key` header, and the URL has no `key=`.
+- [ ] **Step 2: Failing tests** in `topicGate.test.ts`. Stub `ask` and use a fake `chrome.storage.session`.
+  - `keyword match skips Gemini`: the stub sees 0 calls.
+  - `Gemini keeps a borderline title`: the stub returns `true`, so the verdict is `true`.
+  - `Gemini drops an off-topic title`: the verdict is `false`, and `gateNewItem` gives `'drop'`.
+  - `no key keeps`: verdict `null`, gate `'keep'`, and 0 stub calls.
+  - `error keeps`: the stub returns `null`, and the gate gives `'keep'`.
+  - `timeout keeps, late drop removes`: the stub resolves `false` after 2000 ms (fake timers). The gate gives `'keep'` at 1500 ms, then `onLateDrop` is called once.
   - `cache answers repeat`: a second `topicVerdict` for the same key makes 0 stub calls.
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement. Embed the topic list once per worker lifetime, keyed by `ollamaEmbedModel + topics`.
-- [ ] **Step 4: Threshold.**
-  - If `curl -s localhost:11434/api/tags` answers and an embed model is installed, run `node scripts/measure-topic-threshold.mjs`. Set `TOPIC_SIM_MIN` just below the lowest on-topic similarity, and record the printed numbers in a comment.
-  - Otherwise set `TOPIC_SIM_MIN = 0.35`, with the comment `// ponytail: unmeasured default, leans to keeping; run scripts/measure-topic-threshold.mjs against your Ollama`. Report which path was taken.
-- [ ] **Step 5:** Gate. Commit `Topic gate: local model fallback, 1.5s budget, verdict cache`.
-
----
+- [ ] **Step 3:** Run both. Expected: FAIL.
+- [ ] **Step 4:** Implement. Use `GEMINI_MODEL` and the endpoint conventions from `git show 0c70025:src/shared/llm/gemini.ts`. Make a non-streaming `generateContent`-style call that asks for a JSON response. Get the exact request shape from that file and the current Gemini docs.
+- [ ] **Step 5:** Gate. Commit `Topic gate: Gemini fallback, 1.5s budget, verdict cache`.
 
 ### Task 4: Wire the gate into videos and pages
 
@@ -188,7 +200,8 @@ export function gateNewItem(key: string, text: string, onLateDrop: () => Promise
   - `no title keeps`: an empty title stores the entry, and the gate stub sees 0 calls.
 - [ ] **Step 2:** Run them. Expected: FAIL.
 - [ ] **Step 3:** Implement.
-- [ ] **Step 4: E2E** in `continue.e2e.ts`, with Ollama off (port 9) so keywords decide.
+- [ ] **Step 4: E2E** in `continue.e2e.ts`.
+  - Leave no Gemini key, so keywords decide. Also route `https://generativelanguage.googleapis.com/**` with `ctx.route` and assert 0 hits.
   - Open an off-topic News item: no Continue row.
   - Open an on-topic News item: a row appears.
   - Use "read this" (`OPEN_ARTICLE` with `feedItemId: null`) on the off-topic page: a row appears.
@@ -206,15 +219,15 @@ export function gateNewItem(key: string, text: string, onLateDrop: () => Promise
 **Interfaces:**
 - Consumes: `topicVerdict` (Task 3), `keywordOnTopic` (Task 2).
 - Produces: `runTopicSweepOnce(deps?: { now?: () => number; verdict?: typeof topicVerdict }): Promise<{ removed: string[] }>`
-- The sweep loads `readingProgress` and skips any entry `updatedAt` within 24 h. It deletes an entry only when `keywordOnTopic` is false **and** `topicVerdict` returns `false`. It sets `topicSweepDone: true` only after a pass in which the model was reachable for every keyword-missed entry. Otherwise it leaves the flag false, so the next install retries.
+- The sweep loads `readingProgress` and skips any entry `updatedAt` within 24 h. It deletes an entry only when `keywordOnTopic` is false **and** `topicVerdict` returns `false`. It sets `topicSweepDone: true` only after a pass in which Gemini answered for every keyword-missed entry. With no key, or after any failure, it leaves the flag false, so the next install retries.
 
 - [ ] **Step 1: Failing tests:**
-  - `keyword miss with no model keeps`
-  - `keyword miss with model off-topic removes`
+  - `keyword miss with no key keeps`
+  - `keyword miss with Gemini off-topic removes`
   - `recent entry kept`, with an off-topic entry updated 1 h ago
   - `keyword hit kept without asking`: 0 verdict calls
   - `runs once`: the second call does nothing when the flag is true
-  - `model unreachable leaves flag false`
+  - `Gemini failure leaves flag false`
 - [ ] **Step 2:** Run them. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4: Regression.** The v26 sentinel test still passes with `topicSweepDone` added. The sweep never touches `papers`, `annotations`, `provocations`, `dumps` or `vault`; assert that with the sentinels.
