@@ -2,7 +2,6 @@ import {
   BLOCKED_PAGE_PATH,
   DAILY_GATE_ALLOW_DNR_ID,
   DAILY_GATE_DNR_ID,
-  FLOWTUNES_URL,
   FOCUS_DNR_ID_BASE,
   FOCUS_DNR_ID_LIMIT,
 } from '../shared/constants';
@@ -86,9 +85,7 @@ export async function syncSessionAccessRules(): Promise<void> {
       chrome.declarativeNetRequest.getSessionRules(),
     ]);
     const removeRuleIds = existing.map((rule) => rule.id).filter(isOwnedSessionRule);
-    const focusDomains = settings.focusBlocklist.filter(
-      (domain) => domain !== new URL(FLOWTUNES_URL).hostname,
-    );
+    const focusDomains = settings.focusBlocklist;
     const addRules = buildSessionAccessRules({
       focusSession,
       focusDomains,

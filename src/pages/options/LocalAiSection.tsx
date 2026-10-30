@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { LAYA_URL_DEFAULT } from '../../shared/constants';
 import { layaHealth, type LayaHealth } from '../../shared/llm/laya';
 import { health, type Health } from '../../shared/llm/ollama';
 import { patchSettings } from '../../shared/storage';
-import type { AiStats, CloudMode, Settings } from '../../shared/types';
+import type { CloudMode, Settings } from '../../shared/types';
 
 /**
  * Onboarding for on-device AI. Ollama support was deleted once before because
@@ -14,7 +13,6 @@ import type { AiStats, CloudMode, Settings } from '../../shared/types';
  */
 export function LocalAiSection({ settings }: { settings: Settings }) {
   const [status, setStatus] = useState<Health | null>(null);
-  const [aiStats] = useStorageValue('aiStats');
 
   const test = useCallback(async () => {
     setStatus(null);
@@ -149,21 +147,6 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
         goes to Claude Haiku, whatever is chosen here, and is stored encrypted. The key is stored
         only in this browser.
       </p>
-      <TextRow
-        id="gemini-key"
-        label="Gemini API key"
-        placeholder="AIza…"
-        type="password"
-        value={settings.geminiKey}
-        onCommit={(geminiKey) => void patchSettings({ geminiKey })}
-      />
-      <p className="hint">
-        Optional. YouTube lets the extension read a video's transcript only from a tab where that video
-        is open; with this key, Summary on a video in Continue watching asks Gemini to watch the public
-        video itself instead. Nothing else goes to Gemini. Stored only in this browser.
-      </p>
-
-      <ImpactRows stats={aiStats} />
     </section>
   );
 }
@@ -224,49 +207,6 @@ function LayaRows({ url }: { url: string }) {
 
 function withCurrent(models: string[], current: string): string[] {
   return current && !models.includes(current) ? [current, ...models] : models;
-}
-
-function rate(hit: number | undefined, total: number | undefined): string | null {
-  if (!total) return null;
-  return `${Math.round(((hit ?? 0) / total) * 100)}% of ${total}`;
-}
-
-/**
- * The measurable part. Plain sentences over counts the features record locally
- * (llm/store.ts); a row stays hidden until it has data behind it.
- */
-function ImpactRows({ stats }: { stats: AiStats }) {
-  const c = stats.counts;
-  const withRecap = rate(c['resume.withRecap.advanced'], c['resume.withRecap']);
-  const withoutRecap = rate(c['resume.withoutRecap.advanced'], c['resume.withoutRecap']);
-  const triage = rate(c['triage.finished'], c['triage.opened']);
-  const cited = rate(c['ask.cited'], c['ask.answered']);
-  const search = rate(c['recall.clicked'], c['recall.searched']);
-  const related = rate(c['related.clicked'], c['related.shown']);
-  const local = stats.latencies.filter((l) => l.target === 'ollama').map((l) => l.ms);
-  const median = local.length ? [...local].sort((a, b) => a - b)[Math.floor(local.length / 2)] : null;
-
-  const rows = [
-    withRecap && `Resumed with a recap, then read on: ${withRecap}${withoutRecap ? ` (without: ${withoutRecap})` : ''}`,
-    triage && `Triage picks opened and finished: ${triage}`,
-    cited && `Answers backed by a source passage: ${cited}`,
-    search && `Highlight searches that found something you opened: ${search}`,
-    related && `Related-highlight suggestions you followed: ${related}`,
-    median !== null && `Median on-device answer time: ${(median / 1000).toFixed(1)}s`,
-  ].filter(Boolean);
-
-  if (rows.length === 0) return null;
-  return (
-    <div className="ai-impact">
-      <h3>What it has done for you</h3>
-      <ul>
-        {rows.map((row) => (
-          <li key={row as string}>{row}</li>
-        ))}
-      </ul>
-      <p className="hint">Counted on this device only.</p>
-    </div>
-  );
 }
 
 export function TextRow({

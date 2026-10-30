@@ -199,6 +199,12 @@ describe('v22', () => {
     expect(v22StripSettings({ hyperfocusEnabled: true, theme: 'dark' })).toEqual({ theme: 'dark' });
   });
 
+  it('sweeps what v25 retired: Flowtunes, the Gemini key and the AI stats', () => {
+    expect(V22_DEAD_KEYS).toContain('aiStats');
+    for (const k of ['focusMusicEnabled', 'geminiKey']) expect(V22_DEAD_SETTINGS).toContain(k);
+    expect(v22StripSettings({ focusMusicEnabled: true, geminiKey: 'k', theme: 'dark' })).toEqual({ theme: 'dark' });
+  });
+
   // Session storage survives an extension update, so the dead keys go on every
   // startup, even for a profile already on the current version.
   it('clears the retired session keys even when migration returns early', async () => {

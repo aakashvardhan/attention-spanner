@@ -164,7 +164,6 @@ podcast-style listening isn't penalised. Shorts and live streams are ignored.
   a 5-second hold.
 - The toolbar badge becomes a live countdown during focus phases, and a blocked
   site shows an interstitial with the time remaining.
-- Optional Flowtunes integration opens ambient music when a session starts.
 
 ### Elsewhere
 

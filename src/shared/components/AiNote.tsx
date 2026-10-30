@@ -102,7 +102,7 @@ export function AiNote({
       <div className="ai-note-foot">
         {view.route && (
           <small className="ai-note-chip" title={view.route.reason}>
-            {view.route.target === 'claude' || view.route.target === 'gemini'
+            {view.route.target === 'claude'
               ? `${modelLabel(view.model || view.route.model)} · cloud`
               : `On device${view.model ? ` · ${view.model}` : ''}`}
             <span className="ai-note-why"> — {view.route.reason}</span>
@@ -121,7 +121,6 @@ export function AiNote({
 function modelLabel(model: string): string {
   if (model.startsWith('claude-haiku')) return 'Claude Haiku';
   if (model.startsWith('claude-sonnet')) return 'Claude Sonnet';
-  if (model.startsWith('gemini')) return 'Gemini';
   return model;
 }
 

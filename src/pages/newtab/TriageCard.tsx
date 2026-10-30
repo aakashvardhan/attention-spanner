@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { embed, health } from '../../shared/llm/ollama';
-import { recordStat, updateVectors } from '../../shared/llm/store';
+import { updateVectors } from '../../shared/llm/store';
 import {
   alsoLabel,
   clusterPicks,
@@ -16,7 +16,6 @@ import {
   type Pick,
 } from '../../shared/llm/triage';
 import { dequantize, quantize } from '../../shared/llm/vectors';
-import { progressKeyFor } from '../../shared/progress';
 import type { FeedItem } from '../../shared/types';
 
 const SHOWN = 5;
@@ -80,10 +79,6 @@ export function TriageRow({ pick, onOpen }: { pick: Pick; onOpen: (pick: Pick, n
       className="edition-story"
       data-story
       onClick={(e) => {
-        void recordStat({
-          count: 'triage.opened',
-          probe: { key: progressKeyFor(item.link), startPercent: 0, recap: false, at: Date.now(), kind: 'triage' },
-        });
         onOpen(pick, e.metaKey || e.ctrlKey);
       }}
     >

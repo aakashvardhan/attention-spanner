@@ -1,84 +1,7 @@
 /**
- * Feed suggestions from browsing history (idea from ThariqS/ai-newtab, kept on
- * the machine): the sites you actually visit are better suggestions than any
- * sample list, and most of them already say where their feed is.
- *
- * Pure parts first; the browser IO is injected further down so every failure
- * path is a unit test.
+ * Finding a page's feed for Add New Feed: most sites say where theirs is.
+ * The browser IO is injectable so every failure path is a unit test.
  */
-
-export const DAY = 24 * 60 * 60_000;
-/** A site seen once is a link someone sent you, not something you follow. */
-export const MIN_VISITS = 2;
-
-export interface HistoryVisit {
-  url?: string;
-  title?: string;
-  lastVisitTime?: number;
-  visitCount?: number;
-}
-
-export interface SiteScore {
-  /** Host without `www.`, port kept: 127.0.0.1:8080 and :9090 are different sites */
-  host: string;
-  /** Origin of the most recent visit; the front page is fetched from here */
-  origin: string;
-  /** Sum of visitCount, which Chrome counts over all time per URL */
-  visits: number;
-  pages: number;
-  lastVisit: number;
-  score: number;
-}
-
-/**
- * Relevance = frequency 40% + recency 30% + page variety 20% + visits per day
- * 10%, each capped at 1 (ai-newtab lib/history.ts). Ties go to the host name so
- * the order is stable.
- */
-export function rankDomains(items: readonly HistoryVisit[], now: number, days: number): SiteScore[] {
-  const sites = new Map<string, SiteScore>();
-  const pagesSeen = new Map<string, Set<string>>();
-  for (const item of items) {
-    if (!item.url) continue;
-    let url: URL;
-    try {
-      url = new URL(item.url);
-    } catch {
-      continue;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
-    const host = url.host.replace(/^www\./, '');
-    let site = sites.get(host);
-    if (!site) {
-      site = { host, origin: url.origin, visits: 0, pages: 0, lastVisit: 0, score: 0 };
-      sites.set(host, site);
-      pagesSeen.set(host, new Set());
-    }
-    site.visits += Math.max(1, item.visitCount ?? 1);
-    const pages = pagesSeen.get(host)!;
-    if (!pages.has(item.url)) {
-      pages.add(item.url);
-      site.pages++;
-    }
-    const last = item.lastVisitTime ?? 0;
-    if (last >= site.lastVisit) {
-      site.lastVisit = last;
-      site.origin = url.origin;
-    }
-  }
-
-  const span = Math.max(1, days);
-  const ranked = [...sites.values()].filter((s) => s.visits >= MIN_VISITS);
-  for (const site of ranked) {
-    const recency = Math.max(0, 1 - (now - site.lastVisit) / (span * DAY));
-    site.score =
-      Math.min(site.visits / 50, 1) * 0.4 +
-      recency * 0.3 +
-      Math.min(site.pages / 10, 1) * 0.2 +
-      Math.min(site.visits / span / 5, 1) * 0.1;
-  }
-  return ranked.sort((a, b) => b.score - a.score || a.host.localeCompare(b.host));
-}
 
 const FEED_TYPE = /^application\/(rss|atom)\+xml$/i;
 const LINK_TAG = /<link\b[^>]*>/gi;
@@ -122,11 +45,8 @@ export function feedLinks(html: string, base: string): string[] {
   return [...out];
 }
 
-/** How far one "Suggest from my history" run goes. */
+/** Limits for one feed lookup. */
 export const DISCOVERY = {
-  days: 7,
-  sites: 12,
-  concurrency: 4,
   timeoutMs: 8000,
   /** Feed links live in <head>; half a megabyte is far past it on any real page */
   maxBytes: 512 * 1024,
@@ -169,119 +89,6 @@ export async function fetchCapped(url: string, signal: AbortSignal, maxBytes = D
     }
   }
   return { url: res.url || url, status: res.status, text };
-}
-
-export interface DiscoveryDeps {
-  searchHistory(startTime: number): Promise<HistoryVisit[]>;
-  fetchPage(url: string, signal: AbortSignal): Promise<FetchedPage>;
-  now(): number;
-  /** Per-site timeout; DISCOVERY.timeoutMs unless a test needs it short */
-  timeoutMs?: number;
-}
-
-export interface Suggestion {
-  feedUrl: string;
-  host: string;
-  visits: number;
-}
-
-export interface DiscoveryResult {
-  suggestions: Suggestion[];
-  /** Sites whose front page was asked for */
-  checked: number;
-  /** Of those, how many failed, timed out or answered with an error status */
-  unreachable: number;
-}
-
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).host.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-}
-
-/** feeds.arstechnica.com follows arstechnica.com, and the other way round. */
-export function isFollowed(host: string, followedHosts: readonly string[]): boolean {
-  return followedHosts.some((f) => f === host || f.endsWith(`.${host}`) || host.endsWith(`.${f}`));
-}
-
-const LOCAL_SUFFIX = /(^|\.)(localhost|local|internal|intranet|lan|home\.arpa)$/i;
-const PRIVATE_V4 = /^(127|10|0)\.|^192\.168\.|^169\.254\.|^172\.(1[6-9]|2\d|3[01])\./;
-
-/**
- * Only public sites are worth a front-page request. A dev server, the router's
- * admin page or an intranet wiki in your history never has a feed worth
- * suggesting, and probing them would surprise anyone (and can raise Chrome's
- * local-network prompt). IPv6 literals are skipped outright.
- */
-export function isPublicHost(host: string): boolean {
-  if (host.startsWith('[')) return false;
-  const name = host.replace(/:\d+$/, '');
-  if (!name.includes('.') || LOCAL_SUFFIX.test(name)) return false;
-  return !PRIVATE_V4.test(name);
-}
-
-async function pool<T>(items: readonly T[], size: number, run: (item: T, index: number) => Promise<void>): Promise<void> {
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const index = next++;
-      await run(items[index], index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-}
-
-/**
- * Rank the last week of history, skip what is already followed, read the top
- * sites' front pages, and keep the first feed each one advertises. Results are
- * in rank order whatever order the fetches finish in. Aborting rejects with
- * the signal's AbortError; a single site failing never does.
- */
-export async function suggestFeeds(
-  deps: DiscoveryDeps,
-  followedFeeds: readonly string[],
-  signal: AbortSignal,
-): Promise<DiscoveryResult> {
-  const now = deps.now();
-  const history = await deps.searchHistory(now - DISCOVERY.days * DAY);
-  signal.throwIfAborted();
-
-  const followed = new Set(followedFeeds);
-  const followedHosts = followedFeeds.map(hostOf).filter((h): h is string => h !== null);
-  const sites = rankDomains(history, now, DISCOVERY.days)
-    .filter((s) => isPublicHost(s.host) && !isFollowed(s.host, followedHosts))
-    .slice(0, DISCOVERY.sites);
-
-  const found: (string | null)[] = sites.map(() => null);
-  let unreachable = 0;
-  await pool(sites, DISCOVERY.concurrency, async (site, i) => {
-    signal.throwIfAborted();
-    try {
-      const timeout = AbortSignal.timeout(deps.timeoutMs ?? DISCOVERY.timeoutMs);
-      const fetched = await deps.fetchPage(`${site.origin}/`, AbortSignal.any([signal, timeout]));
-      if (fetched.status >= 400) {
-        unreachable++;
-        return;
-      }
-      found[i] = feedLinks(fetched.text, fetched.url).find((f) => !followed.has(f)) ?? null;
-    } catch {
-      if (signal.aborted) throw signal.reason;
-      unreachable++;
-    }
-  });
-  signal.throwIfAborted();
-
-  const seen = new Set<string>();
-  const suggestions: Suggestion[] = [];
-  sites.forEach((site, i) => {
-    const feedUrl = found[i];
-    if (!feedUrl || seen.has(feedUrl)) return;
-    seen.add(feedUrl);
-    suggestions.push({ feedUrl, host: site.host, visits: site.visits });
-  });
-  return { suggestions, checked: sites.length, unreachable };
 }
 
 /**

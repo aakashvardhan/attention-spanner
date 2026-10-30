@@ -6,7 +6,6 @@ import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isTypingTarget } from '../../shared/keys';
-import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
 import type { Pick } from '../../shared/llm/triage';
 import { sendMessage, type Message } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
@@ -37,8 +36,8 @@ export function Dashboard() {
   // a theme changed in Options never reaches an already-open new tab —
   // every other page in the extension subscribes.
   useTheme();
-  const [readingProgress, progressLoaded] = useStorageValue('readingProgress');
-  const [papers, papersLoaded] = useStorageValue('papers');
+  const [readingProgress] = useStorageValue('readingProgress');
+  const [papers] = useStorageValue('papers');
   const [settings] = useSettings();
   const focus = useFocusSession();
   /** Per group under the lead story: 'Continue reading' / 'Continue watching' show all */
@@ -57,19 +56,6 @@ export function Dashboard() {
     if (roundStep === null) root.style.removeProperty('--round-progress');
     else root.style.setProperty('--round-progress', String(roundStep));
   }, [roundStep]);
-
-  // Score resume and triage probes whose outcome is now known (llm/store.ts).
-  // Once per new tab: the counts behind Settings' "what it has done" rows.
-  const settled = useRef(false);
-  useEffect(() => {
-    if (settled.current || !progressLoaded || !papersLoaded) return;
-    settled.current = true;
-    const percentOf = probePercent(readingProgress, papers);
-    void updateStats((stats) => {
-      const next = settleProbes(stats, percentOf, Date.now());
-      return next.probes.length === stats.probes.length ? null : next;
-    });
-  }, [progressLoaded, papersLoaded, readingProgress, papers]);
 
   const resumable = useMemo(
     () => resumableItems(readingProgress, papers),

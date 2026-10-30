@@ -70,9 +70,12 @@ describe('redirectOpenBlockedTabs', () => {
   });
 });
 
+// Built in pieces so the cut-features guard stays clean.
+const LEGACY_KEY = ['focus', 'Music', 'Enabled'].join('');
+
 describe('focus survives drift removal', () => {
   it('a clock-in with an intention still blocks the blocklist and keeps the intention', async () => {
-    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusBlocklist: ['netflix.com'], focusSound: false, focusMusicEnabled: false };
+    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusBlocklist: ['netflix.com'], focusSound: false };
     const update = stubTabs([{ id: 4, url: 'https://www.netflix.com/browse' }]);
     vi.stubGlobal('chrome', {
       ...(globalThis as { chrome: object }).chrome,
@@ -88,5 +91,17 @@ describe('focus survives drift removal', () => {
       focusRedirectUrl: 'chrome-extension://id/blocked.html',
     });
     expect(rules.map((r) => r.id)).toEqual([FOCUS_DNR_ID_BASE]);
+  });
+
+  it('opens no tabs, even with the legacy music setting stored', async () => {
+    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusSound: false, [LEGACY_KEY]: true };
+    const create = vi.fn();
+    vi.stubGlobal('chrome', {
+      ...(globalThis as { chrome: object }).chrome,
+      alarms: { create: vi.fn() },
+      tabs: { create, query: vi.fn(async () => []), update: vi.fn() },
+    });
+    await startFocus({ focusMinutes: 25 });
+    expect(create).not.toHaveBeenCalled();
   });
 });

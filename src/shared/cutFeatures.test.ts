@@ -13,6 +13,10 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'now-watching', pattern: /NowWatching|useNowWatching/ },
   { name: 'drift', pattern: /checkDrift|useDriftNudge|driftChecked|LAYA_DRIFT_MIN|focusDrift/ },
   { name: 'hyperfocus', pattern: /hyperfocus|HYPERFOCUS/i },
+  { name: 'flowtunes', pattern: /focusMusic|flowtunes/i },
+  { name: 'gemini', pattern: /gemini|GEMINI_|Gemini (key|API|watched|summar)/ },
+  { name: 'suggested-feeds', pattern: /SuggestedFeeds|rankDomains|suggestFeeds|isFollowed|isPublicHost|DiscoveryDeps|DiscoveryResult|SiteScore|HistoryVisit|MIN_VISITS/ },
+  { name: 'ai-stats', pattern: /recordStat|updateStats|settleProbes|probePercent|aiStats|AiStats|ImpactRows/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

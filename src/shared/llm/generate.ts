@@ -4,7 +4,7 @@ import type { Settings } from '../types';
 import { claudeStream } from './claude';
 import { chat, embed, health, type Health } from './ollama';
 import { route, type AiSource, type AiTask, type Route } from './route';
-import { cacheGet, cachePut, hashText, recordStat } from './store';
+import { cacheGet, cachePut, hashText } from './store';
 import { topK } from './vectors';
 
 /**
@@ -87,9 +87,7 @@ export async function cachedAi(request: AiRequest): Promise<AiResult | null> {
   const route: Route =
     hit.target === 'claude'
       ? { target: 'claude', model: hit.model, confirm: false, reason: 'Saved answer' }
-      : hit.target === 'gemini'
-        ? { target: 'gemini', model: hit.model, reason: 'Saved answer' }
-        : { target: 'ollama', retrieval: false, reason: 'Saved answer' };
+      : { target: 'ollama', retrieval: false, reason: 'Saved answer' };
   return { text: hit.text, route, model: hit.model, sent: [], cached: true };
 }
 
@@ -100,8 +98,6 @@ export async function runAi(
 ): Promise<AiResult> {
   const { route: r, settings } = plan;
   if (r.target === 'none') throw new Error(r.reason);
-  if (r.target === 'gemini') throw new Error('Gemini is reached through useAi().startWith, not the router.');
-  const started = performance.now();
 
   let sent = request.passages.map((_, i) => i);
   if (r.target === 'ollama' && r.retrieval) {
@@ -142,8 +138,6 @@ export async function runAi(
     });
   }
 
-  const ms = Math.round(performance.now() - started);
-  void recordStat({ latency: { task: request.task, target: r.target, ms } });
   if (request.cacheKey && text.trim()) {
     void cachePut(`${request.task}:${request.cacheKey}`, {
       text,

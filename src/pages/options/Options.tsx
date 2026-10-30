@@ -14,7 +14,6 @@ import { LocalAiSection } from './LocalAiSection';
 import { MutedTopicsRow } from './MutedTopicsRow';
 import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
-import { SuggestedFeeds } from './SuggestedFeeds';
 
 type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
@@ -313,17 +312,6 @@ export function Options() {
             ))}
           </div>
           <div className="setting-row">
-            <label htmlFor="focus-music">
-              Open Flowtunes focus music when a session starts
-            </label>
-            <input
-              id="focus-music"
-              type="checkbox"
-              checked={settings.focusMusicEnabled}
-              onChange={(e) => void patchSettings({ focusMusicEnabled: e.target.checked })}
-            />
-          </div>
-          <div className="setting-row">
             <label htmlFor="focus-minutes">Focus length:</label>
             <select
               id="focus-minutes"
@@ -391,7 +379,6 @@ export function Options() {
           {dataMessage && <p className="feedback success">{dataMessage}</p>}
         </section>
 
-        <SuggestedFeeds feeds={feeds} onAdd={addFeed} />
       </main>
     </div>
   );

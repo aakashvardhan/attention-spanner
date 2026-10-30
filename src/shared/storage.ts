@@ -1,7 +1,6 @@
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import type {
   AiCacheEntry,
-  AiStats,
   Annotation,
   AnyProgress,
   DayActivity,
@@ -35,7 +34,6 @@ export interface LocalSchema {
   annotations: Annotation[];
   /** Generated text keyed 'task:hash' (llm/cache.ts); a cache, so loss is harmless */
   aiCache: Record<string, AiCacheEntry>;
-  aiStats: AiStats;
   /** int8 embeddings keyed by FeedItem id or annotation id (llm/vectors.ts) */
   aiVectors: Record<string, string>;
   /** Laya's reading of each highlight, keyed by annotation id; a cache. Nothing writes it since llm/matrix.ts was deleted */
@@ -82,14 +80,12 @@ export const DEFAULT_SETTINGS: Settings = {
   focusMinutes: 50,
   breakMinutes: 10,
   focusSound: true,
-  focusMusicEnabled: false,
   semanticScholarApiKey: '',
   ollamaUrl: 'http://localhost:11434',
   ollamaChatModel: '',
   ollamaEmbedModel: 'nomic-embed-text',
   cloudMode: 'all',
   claudeKey: '',
-  geminiKey: '',
   layaUrl: '',
   mutedTopics: [],
 };
@@ -112,7 +108,6 @@ export const DEFAULTS: LocalSchema = {
   // DEFAULT_SETTINGS. migrate() is for repairing data a live feature reads, not
   // for seeding keys — see the note above it.
   aiCache: {},
-  aiStats: { counts: {}, latencies: [], probes: [] },
   aiVectors: {},
   layaRoles: {},
   activity: {},
@@ -330,6 +325,7 @@ export const V22_DEAD_KEYS = [
   'weather',
   'bookmarks',
   'bookmarkGroups',
+  'aiStats',
 ];
 
 export const V22_DEAD_SETTINGS = [
@@ -359,6 +355,8 @@ export const V22_DEAD_SETTINGS = [
   'timePillHosts',
   // v25: minimal revamp
   'hyperfocusEnabled',
+  'focusMusicEnabled',
+  'geminiKey',
   // Retired earlier; listed so one sweep is the whole truth
   'dashboardMode',
   'dashColumns',

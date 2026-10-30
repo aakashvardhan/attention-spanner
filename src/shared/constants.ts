@@ -52,7 +52,6 @@ export const BLOCKED_PAGE_PATH = 'src/pages/blocked/index.html';
 export const HOLD_TO_QUIT_MS = 5000;
 /** Offscreen document that plays the Pomodoro chime (background/focus.ts) */
 export const CHIME_PAGE_PATH = 'src/pages/chime/index.html';
-export const FLOWTUNES_URL = 'https://www.flowtunes.app/';
 
 /** The new-tab dashboard — the "main" extension page the sub-pages link back to */
 export const NEWTAB_PAGE_PATH = 'src/pages/newtab/index.html';
@@ -101,9 +100,6 @@ export const OLLAMA_NUM_CTX = 8192;
  */
 export const LOCAL_CONTEXT_CHARS = 20_000;
 export const AI_CACHE_MAX_ENTRIES = 200;
-export const AI_STATS_MAX_SAMPLES = 50;
-/** Percentage points a resumed item must gain to count as "picked back up" */
-export const AI_RESUME_ADVANCE = 15;
 /* Laya probability floors (src/shared/llm/laya.ts). Calibration knobs, not
    laws: below one, a suggestion stays quiet rather than risk being wrong.
    Laya is cautious — DDPM went to the obvious deck at only 0.62 of 3 — so a

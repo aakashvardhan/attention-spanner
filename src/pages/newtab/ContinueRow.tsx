@@ -3,11 +3,8 @@ import type { ResumableItem } from '../../shared/attention';
 import { AiNote } from '../../shared/components/AiNote';
 import { formatRelativeDate, formatWatchTime } from '../../shared/format';
 import { useAi } from '../../shared/hooks/useAi';
-import { useSettings } from '../../shared/hooks/useSettings';
-import { GEMINI_MODEL, geminiVideoStream } from '../../shared/llm/gemini';
 import { cachedAi } from '../../shared/llm/generate';
 import { recapRequest, videoSummaryRequest, wantsRecap } from '../../shared/llm/recap';
-import { recordStat } from '../../shared/llm/store';
 import { sendMessage } from '../../shared/messages';
 import { paceLabel, paceMinutesLeft, progressKeyFor } from '../../shared/progress';
 import type { VideoProgress } from '../../shared/types';
@@ -67,7 +64,6 @@ export function ContinueRow({
   const [saved, setSaved] = useState(false);
   /** Why the transcript couldn't be read, when it couldn't */
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
-  const [settings] = useSettings();
 
   const progressKey = item.paper ? `paper:${item.paper.id}` : item.progress ? progressKeyFor(item.progress.url) : '';
   const percent = item.paper ? item.paper.progressPercent : (item.progress?.maxPercent ?? 0);
@@ -111,25 +107,7 @@ export function ContinueRow({
       void ai.start(videoSummaryRequest({ key: progressKey, passages: res.passages }));
       return;
     }
-    // No transcript here: Gemini can watch the public video itself.
-    if (settings.geminiKey) {
-      const request = videoSummaryRequest({ key: progressKey, passages: [] });
-      void ai.startWith(
-        request,
-        { target: 'gemini', model: GEMINI_MODEL, reason: 'No transcript here · Gemini watched the video' },
-        (signal, onText) =>
-          geminiVideoStream({
-            apiKey: settings.geminiKey,
-            videoUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
-            system: request.system,
-            prompt: request.prompt,
-            signal,
-            onText,
-          }),
-      );
-      return;
-    }
-    setTranscriptError(`${res.error} Open it in a tab, or add a Gemini API key in Settings to summarize it without one.`);
+    setTranscriptError(`${res.error} Open it in a tab and try again.`);
   };
 
   const toggle = (which: 'recap' | 'summary') => {
@@ -151,16 +129,6 @@ export function ContinueRow({
           data-story
           aria-current={selected || undefined}
           onClick={(e) => {
-            // A reader-opened document re-records this probe with what it
-            // showed; the row's answer stands for everything else.
-            void recordStat({
-              probe: {
-                key: progressKey,
-                startPercent: percent,
-                recap: panel === 'recap' && ai.view.status === 'done',
-                at: Date.now(),
-              },
-            });
             onOpen(e.altKey, e.metaKey || e.ctrlKey);
           }}
         >

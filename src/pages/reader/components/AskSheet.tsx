@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AiNote, verifyCitations } from '../../../shared/components/AiNote';
+import { AiNote } from '../../../shared/components/AiNote';
 import { useAi, type AiView } from '../../../shared/hooks/useAi';
 import type { AiSource } from '../../../shared/llm/route';
 import { MATH_RULE } from '../../../shared/llm/generate';
-import { recordStat } from '../../../shared/llm/store';
 import { FALLBACK } from '../../../shared/llm/provoke';
 
 export const ASK_SYSTEM =
@@ -105,8 +104,7 @@ export function AskSheet({
     setTurns([]);
   };
 
-  // File each finished answer into the thread once, and count whether it could
-  // be traced to a source.
+  // File each finished answer into the thread once.
   const { view } = ai;
   const { status, text, sent } = view;
   useEffect(() => {
@@ -114,8 +112,6 @@ export function AskSheet({
     if (!thread || status !== 'done' || counted.current === view) return;
     counted.current = view;
     setTurns((t) => [...t, { q: asked, view }]);
-    void recordStat({ count: 'ask.answered' });
-    if (verifyCitations(text, sent).cited.length > 0) void recordStat({ count: 'ask.cited' });
   }, [status, text, sent, asked, view, thread]);
 
   // Without a thread the latest reply stays up instead of being filed.

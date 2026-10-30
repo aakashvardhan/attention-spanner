@@ -98,11 +98,11 @@ describe('continue: reading and watching', () => {
     await expect.poll(() => row.locator('.relay-recap').count()).toBe(0);
   });
 
-  it('sorts videos by what they are, and summarizes one without a transcript through Gemini', async () => {
+  it('sorts videos by what they are, and says so when a video has no transcript to summarize', async () => {
     const now = Date.now();
     const settings = { ollamaUrl: ollama.url, ollamaChatModel: 'mock', layaUrl: '', cloudMode: 'off' };
     await seed(ext, {
-      settings: { ...settings, geminiKey: '' },
+      settings,
       readingProgress: {
         'news.e2e.test/lead': article('https://news.e2e.test/lead', 'The lead story', { updatedAt: now - 1000 }),
         // A video id YouTube doesn't know, so no transcript can be read for it.
@@ -113,7 +113,7 @@ describe('continue: reading and watching', () => {
         'video:vid00000002': video('vid00000002', 'Teaching a robot arm to pour', now - 2 * HOUR),
       },
     });
-    let tab = await ext.page(PAGES.newtab);
+    const tab = await ext.page(PAGES.newtab);
     const watching = tab.getByRole('region', { name: 'Continue watching' });
     await expect.poll(() => watching.locator('.edition-also-category').allInnerTexts()).toEqual(['Lecture series', 'Robotics']);
     // YouTube's notification count is not part of the title.
@@ -121,36 +121,11 @@ describe('continue: reading and watching', () => {
       'RL Course by David Silver - Lecture 1: Introduction to Reinforcement Learning',
     );
 
-    // No transcript and no Gemini key: the real reason, and the way past it.
-    let row = watching.locator('li').first();
+    // No transcript: the real reason, and the way past it.
+    const row = watching.locator('li').first();
     await row.getByRole('button', { name: 'Summarize the whole video' }).click();
-    await expect.poll(() => row.locator('.relay-recap').innerText(), { timeout: 20_000 }).toContain('add a Gemini API key in Settings');
+    await expect.poll(() => row.locator('.relay-recap').innerText(), { timeout: 20_000 }).toContain('Open it in a tab and try again.');
     await tab.close();
-
-    // With a key, Gemini watches the video itself, streamed over server-sent events.
-    const asked: { key: string | null; body: unknown }[] = [];
-    await ext.ctx.route('https://generativelanguage.googleapis.com/**', (route) => {
-      asked.push({ key: route.request().headers()['x-goog-api-key'] ?? null, body: route.request().postDataJSON() });
-      const delta = (text: string) =>
-        `event: step.delta\ndata: ${JSON.stringify({ event_type: 'step.delta', index: 0, delta: { type: 'text', text } })}\n\n`;
-      return route.fulfill({
-        contentType: 'text/event-stream',
-        body: delta('An introduction to RL.\n') + delta('- Agents, rewards and value') + 'data: {"event_type":"interaction.completed"}\n\n',
-      });
-    });
-    await seed(ext, { settings: { ...settings, geminiKey: 'test-gemini-key' } });
-    tab = await ext.page(PAGES.newtab);
-    row = tab.getByRole('region', { name: 'Continue watching' }).locator('li').first();
-    await row.getByRole('button', { name: 'Summarize the whole video' }).click();
-    await expect.poll(() => row.locator('.relay-recap').innerText(), { timeout: 20_000 }).toContain('Agents, rewards and value');
-    expect(await row.locator('.ai-note-chip').innerText()).toContain('Gemini · cloud');
-    expect(asked).toHaveLength(1);
-    expect(asked[0].key).toBe('test-gemini-key');
-    expect(asked[0].body).toMatchObject({
-      stream: true,
-      input: [{ type: 'text' }, { type: 'video', uri: 'https://www.youtube.com/watch?v=zzzzzzzzzz1' }],
-    });
-    await shot(tab, 'continue-gemini');
   }, 60_000);
 
   it('the X takes a row off Continue: progress forgotten, a paper kept in its deck', async () => {

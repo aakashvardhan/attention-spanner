@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../hooks/useSettings';
 import { useStorageValue } from '../hooks/useStorageValue';
 import { RELATED_MIN_SCORE, recallEntries, searchRecall, type RecallEntry } from '../llm/recall';
-import { recordStat } from '../llm/store';
 
 /**
  * After you highlight something, a quiet card if you highlighted something
@@ -42,7 +41,6 @@ export function RelatedHighlight({ docKey }: { docKey: string }) {
       .then(([best]) => {
         if (!mounted.current || !best || best.score < RELATED_MIN_SCORE) return;
         setMatch(best.entry);
-        void recordStat({ count: 'related.shown' });
       })
       .catch(() => undefined);
   }, [freshId, freshText, settingsLoaded, docKey]);
@@ -61,7 +59,6 @@ export function RelatedHighlight({ docKey }: { docKey: string }) {
         type="button"
         className="ai-note-link"
         onClick={() => {
-          void recordStat({ count: 'related.clicked' });
           void chrome.tabs.create({ url: match.url });
         }}
       >

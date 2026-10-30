@@ -59,8 +59,6 @@ export interface Settings {
   breakMinutes: number;
   /** Chime when a focus round or a break ends */
   focusSound: boolean;
-  /** Auto-open Flowtunes in a pinned tab when a focus session starts */
-  focusMusicEnabled: boolean;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
   /** Local Ollama server; every on-device AI call goes here */
@@ -76,8 +74,6 @@ export interface Settings {
   cloudMode: CloudMode;
   /** User's own Anthropic API key; '' = no cloud */
   claudeKey: string;
-  /** User's own Gemini API key; '' = off. Only summarizes a YouTube video whose transcript can't be read. */
-  geminiKey: string;
   /** Local Laya sidecar (scripts/laya-server); '' = off */
   layaUrl: string;
   /**
@@ -90,26 +86,6 @@ export interface Settings {
 
 /** 'all' sends every task and source to Claude, private ones included; the rest keep private sources on device. */
 export type CloudMode = 'off' | 'ask' | 'public' | 'all';
-
-/** Per-feature counters and latency samples. Never leaves the device. */
-export interface AiStats {
-  /** 'feature.counter' → count, e.g. 'recap.shown' */
-  counts: Record<string, number>;
-  /** Newest last, capped (AI_STATS_MAX_SAMPLES) */
-  latencies: { task: string; target: string; ms: number }[];
-  /**
-   * A resume waiting to be scored: did the item advance AI_RESUME_ADVANCE
-   * points after it was reopened, with or without a recap shown?
-   */
-  probes: {
-    key: string;
-    startPercent: number;
-    recap: boolean;
-    at: number;
-    /** A feed pick opened from triage: scored on finishing, not on advancing */
-    kind?: 'triage';
-  }[];
-}
 
 export interface AiCacheEntry {
   text: string;

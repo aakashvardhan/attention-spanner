@@ -3,7 +3,6 @@ import {
   ALARMS,
   BLOCKED_PAGE_PATH,
   CHIME_PAGE_PATH,
-  FLOWTUNES_URL,
   NOTIFICATION_IDS,
 } from '../shared/constants';
 import { isBlockedHost, nextPhase } from '../shared/focusRules';
@@ -69,13 +68,6 @@ async function chime(kind: 'focus' | 'break'): Promise<void> {
   });
 }
 
-/** Open Flowtunes pinned and unfocused; reuse an existing tab (never steal focus) */
-async function openFocusMusic(): Promise<void> {
-  const existing = await chrome.tabs.query({ url: '*://*.flowtunes.app/*' });
-  if (existing.length > 0) return;
-  await chrome.tabs.create({ url: FLOWTUNES_URL, pinned: true, active: false });
-}
-
 /** Clock in: round 1 starts now */
 export async function startFocus(config: { focusMinutes: number; intention?: string }): Promise<{ ok: boolean }> {
   const focusMinutes = Math.min(240, Math.max(5, Math.round(config.focusMinutes)));
@@ -98,9 +90,6 @@ export async function startFocus(config: { focusMinutes: number; intention?: str
   chrome.alarms.create(ALARMS.focusPhaseEnd, { when: session.phaseEndsAt });
   chrome.alarms.create(ALARMS.focusBadgeTick, { periodInMinutes: 1 });
   await redirectOpenBlockedTabs(settings.focusBlocklist);
-  if (settings.focusMusicEnabled) {
-    await openFocusMusic();
-  }
   await updateBadge();
   void chime('focus').catch(() => undefined);
   return { ok: true };

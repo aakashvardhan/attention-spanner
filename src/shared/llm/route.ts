@@ -32,8 +32,6 @@ export interface RouteEnv {
 export type Route =
   | { target: 'ollama'; retrieval: boolean; reason: string }
   | { target: 'claude'; model: string; confirm: boolean; reason: string }
-  /** Never chosen by route(): a video summary takes it when the transcript can't be read. */
-  | { target: 'gemini'; model: string; reason: string }
   | { target: 'none'; reason: string };
 
 /**
