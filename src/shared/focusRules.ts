@@ -1,4 +1,5 @@
 import { FOCUS_DNR_ID_BASE, FOCUS_DNR_PRIORITY } from './constants';
+import type { FocusSession } from './types';
 
 /**
  * Focus-mode blocking rules, pure and unit-testable. Blocking uses
@@ -52,4 +53,20 @@ export function buildFocusRules(
       resourceTypes: ['main_frame' as chrome.declarativeNetRequest.ResourceType],
     },
   }));
+}
+
+/**
+ * The Pomodoro step: a focus round ends in a break, a break in the next round.
+ * Timed from now, never from the old phaseEndsAt, so a throttled alarm cannot
+ * schedule a phase that is already over.
+ */
+export function nextPhase(session: FocusSession, breakMinutes: number, now: number): FocusSession {
+  const toBreak = session.phase === 'focus';
+  return {
+    ...session,
+    phase: toBreak ? 'break' : 'focus',
+    round: toBreak ? session.round : session.round + 1,
+    phaseStartedAt: now,
+    phaseEndsAt: now + (toBreak ? breakMinutes : session.focusMinutes) * 60_000,
+  };
 }

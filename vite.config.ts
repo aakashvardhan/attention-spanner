@@ -1,10 +1,31 @@
-import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { crx } from '@crxjs/vite-plugin';
 import manifest from './manifest.config';
 
+/**
+ * pdf.js decodes CCITT/JBIG2 (scanned papers), JPEG 2000 and ICC colour in
+ * wasm, fetched by name from getDocument's wasmUrl. Emitted unhashed under
+ * pdfjs/ so those names resolve.
+ */
+function pdfjsWasm(): Plugin {
+  return {
+    name: 'pdfjs-wasm',
+    generateBundle() {
+      for (const name of ['jbig2.wasm', 'openjpeg.wasm', 'qcms_bg.wasm']) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `pdfjs/${name}`,
+          source: readFileSync(`node_modules/pdfjs-dist/wasm/${name}`),
+        });
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), crx({ manifest })],
+  plugins: [react(), crx({ manifest }), pdfjsWasm()],
   build: {
     // Preload links on a chrome-extension:// origin never get claimed — Chrome
     // keys the preload differently from the module fetch and discards it. The
@@ -15,6 +36,9 @@ export default defineConfig({
       // Pages the manifest does not name directly still need an entry.
       input: {
         blocked: 'src/pages/blocked/index.html',
+        chime: 'src/pages/chime/index.html',
+        define: 'src/pages/define/index.html',
+        dumps: 'src/pages/dumps/index.html',
         papers: 'src/pages/papers/index.html',
         reader: 'src/pages/reader/index.html',
       },

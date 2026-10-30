@@ -32,21 +32,24 @@ export function isPdfUrl(url: string): boolean {
   return false;
 }
 
-/** Intercept unless the user chose "Open in Chrome's viewer" for this URL. */
-export function shouldInterceptPdf(url: string, bypass: string[]): boolean {
-  return isPdfUrl(url) && !bypass.includes(url);
+/** A PDF on this computer: a file: URL ending in .pdf. */
+export function isLocalPdfUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'file:' && /\.pdf$/i.test(u.pathname);
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Is this response a PDF the browser is about to render in the tab? Covers the
- * PDFs `isPdfUrl` can't see — served from an extensionless URL (allenai.org/
- * papers/…) — by reading the response headers instead of guessing from the path.
- * An `attachment` disposition is a download, not a page: the tab stays where it
- * is, so redirecting it would hijack an unrelated page.
+ * The PDF a reader URL points at. `?src=` is ours, encoded; `?raw=` comes from
+ * the DNR redirect, which can only splice the URL in unencoded, so everything
+ * after it is the URL — its own ? and & included.
  */
-export function isPdfResponse(contentType: string | null, disposition: string | null): boolean {
-  if (!contentType || !/^application\/pdf\s*(;|$)/i.test(contentType.trim())) return false;
-  return !/(^|;|\s)attachment(\s*;|\s*$)/i.test(disposition ?? '');
+export function readerPdfSrc(search: string): string {
+  if (search.startsWith('?raw=')) return search.slice('?raw='.length);
+  return new URLSearchParams(search).get('src') ?? '';
 }
 
 /** Extension-relative reader URL (path + query); pure so it can be tested. */
@@ -119,12 +122,12 @@ export function paperPdfSource(paper: Pick<Paper, 'url' | 'pdf'>): string | null
 }
 
 /**
- * Where "open this paper" should go: alphaXiv for an arXiv paper (unless
- * `viaReader`, the Alt-click fallback), else the reader (resuming the saved
- * position) whenever we can point it at a PDF, otherwise the paper's own URL.
+ * Where "open this paper" should go: the reader (resuming the saved position)
+ * whenever we can point it at a PDF, otherwise the paper's own URL. With
+ * `viaAlphaxiv` (the Alt-click alternative) an arXiv paper goes to alphaXiv.
  */
-export function paperOpenUrl(paper: Pick<Paper, 'url' | 'pdf'>, viaReader = false): string {
-  const alphaxiv = !viaReader && alphaxivUrl(paper.url);
+export function paperOpenUrl(paper: Pick<Paper, 'url' | 'pdf'>, viaAlphaxiv = false): string {
+  const alphaxiv = viaAlphaxiv && alphaxivUrl(paper.url);
   if (alphaxiv) return alphaxiv;
   const pdf = paperPdfSource(paper);
   return pdf ? readerPageUrl(pdf) : paper.url;

@@ -21,6 +21,11 @@ describe('renderMarkdown', () => {
     expect(html).toContain('katex-display');
   });
 
+  it('renders a bare \\begin{…} environment as display math', () => {
+    const html = renderMarkdown('Loss:\n\n\\begin{equation}L = \\sum_i x_i^2\\end{equation}');
+    expect(html).toContain('katex-display');
+  });
+
   it('preserves markdown characters inside math (no mangling)', () => {
     // The _ and ^ would be Markdown/subscript noise if math weren't lifted out first.
     const html = renderMarkdown('$a_i^2 + b_i^2$');

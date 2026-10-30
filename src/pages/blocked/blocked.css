@@ -37,20 +37,31 @@ body {
   font-weight: 700;
 }
 
+.blocked-intention {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  color: var(--focus-text);
+}
 .blocked-sub {
   font-size: var(--text-md);
   line-height: var(--leading-md);
   color: var(--focus-text-secondary);
 }
 
-/* The one display-size number in the extension: a countdown read from across
-   the room. */
-.blocked-countdown {
-  font-size: 88px; /* ds-exempt: countdown display figure */
-  font-weight: 700;
-  color: var(--focus-accent);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
+/* The same dial as the new tab's (FocusDial.tsx), large enough to read from
+   across the room, its tokens pointed at the always-dark focus palette. */
+.blocked .pomo-dial-wrap {
+  width: 224px;
+  height: 224px;
+  --accent: var(--focus-accent);
+  --accent-text: var(--focus-accent);
+  --accent-track: var(--focus-rule);
+  --text-primary: var(--focus-text);
+}
+.blocked .pomo-time {
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
 }
 
 .blocked-quit {

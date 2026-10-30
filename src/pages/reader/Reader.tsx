@@ -1,4 +1,5 @@
 import { ArticleReader } from './ArticleReader';
+import { readerPdfSrc } from '../../shared/pdf';
 import { PdfReader } from './PdfReader';
 
 /**
@@ -7,8 +8,10 @@ import { PdfReader } from './PdfReader';
  * Both get the same toolbar, outline, highlights and notes.
  */
 export function Reader() {
+  // Web-accessible so the PDF redirect can land here; no business inside another site's frame.
+  if (window.top !== window) return null;
   const params = new URLSearchParams(location.search);
-  const pdf = params.get('src') ?? '';
+  const pdf = readerPdfSrc(location.search);
   const article = params.get('article') ?? '';
 
   if (pdf) return <PdfReader src={pdf} />;

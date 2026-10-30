@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { FocusDial } from '../../shared/components/FocusDial';
 import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 
@@ -27,11 +28,12 @@ export function Blocked() {
   }, []);
   const host = blockedUrl?.hostname.replace(/^www\./, '');
 
-  if (!focus.active) {
+  // A break unblocks too: the page releases the tab the same way.
+  if (!focus.focusing) {
     return (
       <div className="blocked grid">
         <div className="blocked-inner">
-          <h1>Focus session over</h1>
+          <h1>{focus.active ? `Break · ${focus.countdown}` : 'Focus session over'}</h1>
           {blockedUrl ? (
             <a className="blocked-continue" href={blockedUrl.href}>
               Continue to {host} →
@@ -61,11 +63,12 @@ export function Blocked() {
           </g>
         </svg>
         <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
-        <p className="blocked-sub">Focus mode — back off in</p>
-        <p className="blocked-countdown">{focus.countdown}</p>
+        {focus.session?.intention && <p className="blocked-intention">You said: {focus.session.intention}</p>}
+        <p className="blocked-sub">Focus round {focus.round}. The rest of it:</p>
+        <FocusDial focus={focus} />
 
         <div className="blocked-quit">
-          <HoldToQuit label="Hold 5s to end focus early" onConfirm={() => void focus.stop(true)} />
+          <HoldToQuit label="Hold 5s to clock out" onConfirm={() => void focus.stop(true)} />
         </div>
       </div>
     </div>

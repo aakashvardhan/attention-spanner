@@ -48,6 +48,16 @@ export function progressKeyFor(url: string): string {
 }
 
 /**
+ * Progress with one page forgotten. Matched on the page each entry names, not
+ * its key: two feed links to one article are two keys, and Continue shows them
+ * as one row, so removing that row has to take both.
+ */
+export function withoutPage(progress: Record<string, AnyProgress>, url: string): Record<string, AnyProgress> {
+  const page = progressKeyFor(url);
+  return Object.fromEntries(Object.entries(progress).filter(([, entry]) => progressKeyFor(entry.url) !== page));
+}
+
+/**
  * Minutes left at the pace you have read this item so far: active seconds
  * per percent, times the percent still to go. A real measurement of you, not
  * a words-per-minute guess. Nothing until there is a pace worth extrapolating

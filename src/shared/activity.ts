@@ -31,26 +31,32 @@ const WEEKS = 53;
 /** A year and a margin; older days are pruned on write */
 const KEEP_DAYS = WEEKS * 7 + 7;
 
+/** A paper read, a focus round finished, or a shift's minutes at clock out */
+export type ActivityEvent = { paperId: string } | { focus: true } | { clocked: number };
+
 /** Fold one event into the log. Pure; returns the same object when nothing changed. */
 export function addActivity(
   log: Record<string, DayActivity>,
-  event: { paperId: string } | { focus: true },
+  event: ActivityEvent,
   now: Date,
 ): Record<string, DayActivity> {
   const date = localDate(now);
   const day = log[date] ?? { papers: [], focus: 0 };
   if ('paperId' in event && day.papers.includes(event.paperId)) return log;
+  if ('clocked' in event && event.clocked <= 0) return log;
   const next =
     'paperId' in event
       ? { ...day, papers: [...day.papers, event.paperId] }
-      : { ...day, focus: day.focus + 1 };
+      : 'clocked' in event
+        ? { ...day, clocked: (day.clocked ?? 0) + event.clocked }
+        : { ...day, focus: day.focus + 1 };
   const cutoff = localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - KEEP_DAYS));
   const kept = Object.entries(log).filter(([key]) => key >= cutoff);
   return { ...Object.fromEntries(kept), [date]: next };
 }
 
 /** Service worker only, so two pages never race the read-modify-write. */
-export async function logActivity(event: { paperId: string } | { focus: true }): Promise<void> {
+export async function logActivity(event: ActivityEvent): Promise<void> {
   const { activity } = await getLocal('activity');
   const next = addActivity(activity, event, new Date());
   if (next !== activity) await setLocal({ activity: next });

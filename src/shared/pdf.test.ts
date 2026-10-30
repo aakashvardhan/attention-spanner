@@ -4,13 +4,12 @@ import {
   articleReaderPath,
   arxivPdfUrl,
   computePdfPercent,
-  isPdfResponse,
   isPdfUrl,
   paperOpenUrl,
   paperPdfSource,
   positionFromScroll,
   readerPagePath,
-  shouldInterceptPdf,
+  readerPdfSrc,
   shouldOpenInReader,
 } from './pdf';
 
@@ -48,32 +47,12 @@ describe('arxivPdfUrl', () => {
   });
 });
 
-describe('isPdfResponse', () => {
-  it('catches a PDF the URL gives no hint about', () => {
-    // allenai.org/papers/molmoact2 — application/pdf, no .pdf in the path
-    expect(isPdfResponse('application/pdf', null)).toBe(true);
-    expect(isPdfResponse('application/pdf; charset=binary', null)).toBe(true);
-    expect(isPdfResponse('APPLICATION/PDF', null)).toBe(true);
-  });
-
-  it('ignores anything the browser will not render as a PDF page', () => {
-    expect(isPdfResponse('text/html', null)).toBe(false);
-    expect(isPdfResponse('application/pdfx', null)).toBe(false);
-    expect(isPdfResponse(null, null)).toBe(false);
-  });
-
-  it('leaves downloads alone — the tab stays on the page that started them', () => {
-    expect(isPdfResponse('application/pdf', 'attachment; filename="paper.pdf"')).toBe(false);
-    expect(isPdfResponse('application/pdf', 'inline; filename="paper.pdf"')).toBe(true);
-  });
-});
-
-describe('shouldInterceptPdf', () => {
-  it('skips URLs the user sent to the native viewer', () => {
-    const url = 'https://arxiv.org/pdf/2006.11239';
-    expect(shouldInterceptPdf(url, [])).toBe(true);
-    expect(shouldInterceptPdf(url, [url])).toBe(false);
-    expect(shouldInterceptPdf(url, ['https://other.com/a.pdf'])).toBe(true);
+describe('readerPdfSrc', () => {
+  it('reads an encoded ?src= and a raw ?raw= alike', () => {
+    const url = 'https://example.com/paper.pdf?a=1&b=2';
+    expect(readerPdfSrc(`?src=${encodeURIComponent(url)}`)).toBe(url);
+    expect(readerPdfSrc(`?raw=${url}`)).toBe(url);
+    expect(readerPdfSrc('?article=x')).toBe('');
   });
 });
 
@@ -184,21 +163,21 @@ describe('articleReaderPath', () => {
 });
 
 describe('paperOpenUrl', () => {
-  it('sends an arXiv paper to alphaXiv, from an abs or pdf link', () => {
-    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239v2' })).toBe(
-      'https://www.alphaxiv.org/abs/2006.11239',
-    );
-    expect(paperOpenUrl({ url: 'https://arxiv.org/pdf/hep-th/9901001' })).toBe(
-      'https://www.alphaxiv.org/abs/hep-th/9901001',
-    );
-  });
-
-  it('opens an arXiv paper in the reader when asked to, as the Alt-click fallback', () => {
+  it('opens an arXiv paper in the reader, from an abs or pdf link', () => {
     vi.stubGlobal('chrome', { runtime: { getURL: (path: string) => `chrome-extension://id/${path}` } });
-    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239' }, true)).toBe(
+    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239v2' })).toBe(
       `chrome-extension://id/${readerPagePath('https://arxiv.org/pdf/2006.11239')}`,
     );
+    expect(paperOpenUrl({ url: 'https://arxiv.org/pdf/hep-th/9901001' })).toBe(
+      `chrome-extension://id/${readerPagePath('https://arxiv.org/pdf/hep-th/9901001')}`,
+    );
     vi.unstubAllGlobals();
+  });
+
+  it('sends an arXiv paper to alphaXiv when asked to, as the Alt-click alternative', () => {
+    expect(paperOpenUrl({ url: 'https://arxiv.org/abs/2006.11239v2' }, true)).toBe(
+      'https://www.alphaxiv.org/abs/2006.11239',
+    );
   });
 
   it('opens a non-arXiv paper as before', () => {

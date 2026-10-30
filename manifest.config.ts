@@ -50,22 +50,30 @@ export default defineManifest(async (env) => {
       'notifications',
       'scripting',
       'declarativeNetRequest',
-      // Read-only: response headers, to spot PDFs served from extensionless URLs
-      'webRequest',
       'contextMenus',
+      // The Pomodoro chime: a service worker cannot play audio (focus.ts)
+      'offscreen',
       ...(e2e ? (['history'] as const) : []),
     ],
     // Read only when you click "Suggest from my history" in Settings.
     ...(e2e ? {} : { optional_permissions: ['history' as const] }),
     host_permissions: ['<all_urls>'],
     content_security_policy: {
-      extension_pages: "script-src 'self'; object-src 'self'",
+      // wasm-unsafe-eval lets pdf.js compile its image decoders (vite.config.ts)
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
     },
     web_accessible_resources: [
       {
         // DNR redirects to an extension page require it to be web-accessible
-        resources: ['src/pages/blocked/index.html'],
+        resources: ['src/pages/blocked/index.html', 'src/pages/reader/index.html'],
         matches: ['http://*/*', 'https://*/*'],
+      },
+      {
+        // The Option/Alt-click definition card, framed into web pages. A
+        // per-session URL keeps other sites from framing it to spend the key.
+        resources: ['src/pages/define/index.html'],
+        matches: ['http://*/*', 'https://*/*'],
+        use_dynamic_url: true,
       },
     ],
     commands: {

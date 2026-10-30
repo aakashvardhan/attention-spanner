@@ -8,7 +8,8 @@ import { getYouTubeVideoId } from '../shared/youtube';
  *
  * Watch time accrues whenever the video is PLAYING — visible or not —
  * because background podcast listening is real consumption. Nudges are
- * driven by `stopped` flushes (pause/ended/leave), not visibility.
+ * driven by `stopped` flushes (pause/ended/leave), plus a hidden tab that
+ * keeps playing (`lookedAwayAt`).
  *
  * Bundled standalone (IIFE) by esbuild, same as readingTracker.
  */
@@ -166,6 +167,8 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
   let watchedSecondsPending = 0;
   let lastSentStopped = false;
   let stopped = false;
+  /** Where the player was when the tab went hidden mid-playback */
+  let lookedAwayAt: number | undefined;
   const timers: number[] = [];
 
   async function report(stoppedFlush: boolean) {
@@ -181,6 +184,7 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
         durationSeconds: video!.duration,
         watchedSecondsDelta: delta,
         stopped: stoppedFlush,
+        lookedAwayAt,
         title: pageTitle(),
         channel: channelName(),
         chapter: chapterName(),
@@ -212,6 +216,16 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
   };
   const onEnded = () => void report(true);
   const onPageHide = () => void report(true);
+  // A lecture playing on in a hidden tab is a zoned-out viewer, not a watcher.
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') {
+      if (!video.paused && !video.ended) lookedAwayAt = video.currentTime;
+    } else {
+      lookedAwayAt = undefined;
+    }
+    if (!stopped && !video.paused && !video.ended) void report(false);
+  };
+  document.addEventListener('visibilitychange', onVisibility);
   video.addEventListener('pause', onPause);
   video.addEventListener('playing', onPlaying);
   video.addEventListener('ended', onEnded);
@@ -259,6 +273,7 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('ended', onEnded);
       window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisibility);
     },
   };
 }

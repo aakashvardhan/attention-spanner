@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brackets } from '../../shared/components/Brackets';
+import { ALARM_SECONDS, ring } from '../chime/bell';
 import { HYPERFOCUS_MINUTES } from '../../shared/constants';
 import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
 import { normalizeBlockDomain } from '../../shared/focusRules';
@@ -34,6 +35,20 @@ export function Options() {
       setNotificationsBlocked(level === 'denied');
     });
   }, []);
+
+  // The same alarm the offscreen page plays (chime/bell.ts), played here on the
+  // click. One at a time: a second press while it rings does nothing.
+  const [hearing, setHearing] = useState<'focus' | 'break' | null>(null);
+  const hearAlarm = (kind: 'focus' | 'break') => {
+    if (hearing) return;
+    const audio = new AudioContext();
+    ring(audio, kind);
+    setHearing(kind);
+    setTimeout(() => {
+      void audio.close();
+      setHearing(null);
+    }, (ALARM_SECONDS + 0.3) * 1000);
+  };
 
   const flash = (text: string, kind: 'success' | 'error') => {
     setFeedback({ text, kind });
@@ -137,6 +152,7 @@ export function Options() {
               <option value="system">Match system</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+              <option value="paperwhite">Paperwhite</option>
             </select>
           </div>
         </section>
@@ -336,6 +352,39 @@ export function Options() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="setting-row">
+            <label htmlFor="break-minutes">Break between rounds:</label>
+            <select
+              id="break-minutes"
+              value={settings.breakMinutes}
+              onChange={(e) => void patchSettings({ breakMinutes: Number(e.target.value) })}
+            >
+              {[5, 10, 15, 20].map((n) => (
+                <option key={n} value={n}>
+                  {n} min
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="setting-row">
+            <label htmlFor="focus-sound">Alarm when a round or a break ends</label>
+            <input
+              id="focus-sound"
+              type="checkbox"
+              checked={settings.focusSound}
+              onChange={(e) => void patchSettings({ focusSound: e.target.checked })}
+            />
+          </div>
+          <div className="setting-row">
+            <span id="hear-alarm" className="setting-row-label">Hear the alarm</span>
+            <div className="button-group" role="group" aria-labelledby="hear-alarm">
+              {(['focus', 'break'] as const).map((kind) => (
+                <button key={kind} type="button" className="secondary-btn" onClick={() => hearAlarm(kind)}>
+                  {hearing === kind ? 'Playing…' : kind === 'focus' ? 'Into focus' : 'Into a break'}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 

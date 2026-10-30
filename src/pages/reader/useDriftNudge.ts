@@ -8,6 +8,9 @@ const SHOW_MS = 10_000;
  * "You were at 3.2 Attention · Back" after attention wanders: three quiet
  * minutes in view, or a return after two minutes on another tab. The anchor
  * is the position when the drift began, so Back undoes any aimless scrolling.
+ * An idle nudge fires while you are staring past the page, so it holds until
+ * you come back and only then starts its countdown — a timer that ran during
+ * the stare would hide it before anyone saw it.
  */
 export function useDriftNudge<P>(
   position: P,
@@ -27,7 +30,12 @@ export function useDriftNudge<P>(
 
   useEffect(() => {
     let hideTimer = 0;
+    let holding = false;
     const feed = (type: DriftEvent['type']) => {
+      if (type === 'activity' && holding) {
+        holding = false;
+        hideTimer = self.setTimeout(() => setNudge(null), SHOW_MS);
+      }
       if (type === 'activity' && !state.current.nudged) anchor.current = latest.current;
       if (type === 'hidden') anchor.current = latest.current;
       const out = driftStep(state.current, { type, at: Date.now() });
@@ -39,7 +47,8 @@ export function useDriftNudge<P>(
         back: () => (fns.current.restore(target), setNudge(null)),
       });
       clearTimeout(hideTimer);
-      hideTimer = self.setTimeout(() => setNudge(null), SHOW_MS);
+      holding = type === 'tick';
+      if (!holding) hideTimer = self.setTimeout(() => setNudge(null), SHOW_MS);
     };
     const onActivity = () => feed('activity');
     const onVisibility = () => feed(document.hidden ? 'hidden' : 'visible');

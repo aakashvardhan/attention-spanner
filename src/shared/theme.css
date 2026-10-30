@@ -105,8 +105,8 @@
   --spring-bouncy: linear(0, 0.045, 0.153, 0.293, 0.441, 0.582, 0.706, 0.81, 0.892, 0.953, 0.995, 1.023, 1.038, 1.045, 1.046, 1.042, 1.036, 1.03, 1.023, 1.017, 1.011, 1.007, 1.004, 1.001, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 1);
   --dur-bouncy: 660ms;
 
-  /* Effects motion: fog, vignette, fades and colour. Never a spring: a colour
-     has no momentum. Spatial motion (the camera, the lock) stays on springs. */
+  /* Effects motion: fades and colour. Never a spring: a colour has no
+     momentum. Spatial motion stays on springs. */
   --ease-effect: cubic-bezier(0.2, 0, 0, 1);
   --dur-effect-fast: 120ms;
   --dur-effect-slow: 480ms;
@@ -138,16 +138,6 @@
   --accent-hover: #9a4528;
   --accent-soft: #f7ece4;
   --accent-wash: #f1ddd0;
-  /* The new tab's world (world.css): sky, ground, fog and the moving vignette. */
-  --sky-top: #cfd6d6;
-  --sky-horizon: #efe7d9;
-  --sky-sun: rgba(255, 232, 190, 0.9);
-  --sky-cloud: rgba(255, 255, 255, 0.78);
-  --sky-precip: rgba(90, 102, 112, 0.35);
-  --world-ground: #e8dfcf;
-  --world-grid: rgba(43, 37, 32, 0.12);
-  --world-fog: rgba(233, 225, 211, 0.96);
-  --world-vignette: rgba(43, 37, 32, 0.38);
   --accent-border: #e2b9a3;
   --accent-track: #ecd2c3;
   --accent-text: #9c4a2c;
@@ -169,6 +159,10 @@
      own paper; night mode swaps it for black and inverts the rendering. */
   --pdf-page: #ffffff;
   --pdf-page-night: #000000;
+  /* What the PDF's black ink and white paper are drawn as. Identity here;
+     paperwhite maps them to warm ink on cream (reader.css). */
+  --pdf-ink: #000000;
+  --pdf-paper: #ffffff;
   --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 8px 24px rgba(60, 40, 20, 0.08);
   --selection: rgba(180, 85, 47, 0.3);
   --cite-hover: rgba(180, 85, 47, 0.2);
@@ -230,6 +224,10 @@
   --heat-cell-border: rgba(60, 40, 20, 0.06);
 }
 
+/* A focus round on the new tab (Dashboard sets data-phase) is the dark room,
+   whatever the theme: the same warm ink as the blocked page, so every screen
+   you meet mid-round is one quiet room. */
+:root[data-phase='focus'],
 :root[data-theme='dark'] {
   color-scheme: dark;
 
@@ -254,15 +252,6 @@
   --accent-hover: #f0b79a;
   --accent-soft: #241912;
   --accent-wash: #2e2018;
-  --sky-top: #0d1116;
-  --sky-horizon: #1d1916;
-  --sky-sun: rgba(227, 144, 110, 0.55);
-  --sky-cloud: rgba(236, 228, 216, 0.16);
-  --sky-precip: rgba(236, 228, 216, 0.22);
-  --world-ground: #171412;
-  --world-grid: rgba(236, 228, 216, 0.1);
-  --world-fog: rgba(14, 12, 11, 0.96);
-  --world-vignette: rgba(0, 0, 0, 0.6);
   --accent-border: #5a3a2a;
   --accent-track: #3d2a1f;
   --accent-text: #f0b79a;
@@ -282,6 +271,8 @@
 
   --pdf-page: #ffffff;
   --pdf-page-night: #000000;
+  --pdf-ink: #000000;
+  --pdf-paper: #ffffff;
   --pdf-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
   --selection: rgba(227, 144, 110, 0.35);
   --cite-hover: rgba(227, 144, 110, 0.25);
@@ -318,6 +309,112 @@
   --heat-3: #c96442;
   --heat-4: #f0b79a;
   --heat-cell-border: rgba(236, 228, 216, 0.05);
+}
+
+/* Paperwhite: an e-ink page under a warm front light, like a Kindle at its
+   warm setting. A light theme, so it overrides only what the cream default
+   cannot be: the paper, the ink, the rules and the PDF page itself. The rest
+   (accent, status colors) is inherited from :root. */
+:root[data-theme='paperwhite'] {
+  --bg-page: #f3e5c4;
+  --bg-surface: #f8eed4;
+  --bg-subtle: #eadbb5;
+  --bg-hover: #e2d1a6;
+
+  --text-primary: #25201a;
+  --text-secondary: #4a4033;
+  --text-muted: #675b49;
+  --text-faint: #85785f;
+
+  --rule: #25201a;
+  --border: #d6c49a;
+  --border-subtle: #e2d3ac;
+
+  --reading-dim: rgba(243, 229, 196, 0.72);
+  --pdf-ink: #2b2318;
+  --pdf-paper: #f6ebcd;
+
+  /* The activity grid in the accent's clay, cut from this paper: an empty day
+     is a pressed shade of the page, and "more" deepens toward clay ink. */
+  --heat-0: #eadbb5;
+  --heat-1: #dfc396;
+  --heat-2: #d09b6e;
+  --heat-3: #b2603d;
+  --heat-4: #7a3820;
+  --heat-cell-border: rgba(60, 40, 20, 0.08);
+  --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 4px 16px rgba(60, 40, 20, 0.1);
+}
+
+/* A focus round warms the room by a few percent as it runs, like an afternoon
+   passing: the Dashboard sets --round-progress (0 → 1) in whole-minute steps
+   and the page eases each one, so you never see it move, only that it has.
+   The far end still clears every contrast floor the dark block does. */
+:root[data-phase='focus'] {
+  --bg-page: color-mix(in oklab, #0e0c0b, #1a120c calc(var(--round-progress, 0) * 100%));
+}
+
+/* The break: sage, so it reads as a different room from the focus round at a
+   glance, and light in the light theme. The new tab only. */
+:root[data-phase='break'] {
+  color-scheme: light;
+  --bg-page: #eef2ea;
+  --bg-surface: #f7f9f4;
+  --bg-subtle: #e1e8da;
+  --bg-hover: #d6dfcd;
+  --text-primary: #1f2a22;
+  --text-secondary: #46544a;
+  --text-muted: #56635a;
+  --text-faint: #7f8b82;
+  --rule: #1f2a22;
+  --border: #c9d4c2;
+  --border-subtle: #dbe3d4;
+  --accent: #3b6a4c;
+  --accent-hover: #2f573e;
+  --accent-soft: #e6efe4;
+  --accent-wash: #d7e6d6;
+  --accent-border: #a9c6ad;
+  --accent-track: #c8dccb;
+  --accent-text: #2f5a3e;
+  --on-accent: #ffffff;
+  --glass-surface: rgba(247, 249, 244, 0.92);
+  --glass-bar: rgba(247, 249, 244, 0.6);
+  --material-thin: rgba(247, 249, 244, 0.6);
+  --material-regular: rgba(247, 249, 244, 0.92);
+  --material-thick: rgba(247, 249, 244, 0.97);
+  --glass-accent: rgba(215, 230, 214, 0.72);
+  --glass-tint: rgba(59, 106, 76, 0.1);
+  --glass-tint-2: rgba(120, 170, 130, 0.08);
+}
+
+:root[data-theme='dark'][data-phase='break'] {
+  color-scheme: dark;
+  --bg-page: #0c110e;
+  --bg-surface: #141b16;
+  --bg-subtle: #1b241e;
+  --bg-hover: #233027;
+  --text-primary: #e4ece4;
+  --text-secondary: #bccabe;
+  --text-muted: #9fafa3;
+  --text-faint: #6f7d72;
+  --rule: #e4ece4;
+  --border: #2f3c33;
+  --border-subtle: #233027;
+  --accent: #8fc79a;
+  --accent-hover: #b3dbbb;
+  --accent-soft: #142019;
+  --accent-wash: #1a2b20;
+  --accent-border: #2f4a35;
+  --accent-track: #24382a;
+  --accent-text: #b3dbbb;
+  --on-accent: #0b1a0f;
+  --glass-surface: rgba(20, 27, 22, 0.9);
+  --glass-bar: rgba(228, 236, 228, 0.05);
+  --material-thin: rgba(16, 22, 18, 0.6);
+  --material-regular: rgba(20, 27, 22, 0.9);
+  --material-thick: rgba(16, 22, 18, 0.97);
+  --glass-accent: rgba(143, 199, 154, 0.14);
+  --glass-tint: rgba(143, 199, 154, 0.08);
+  --glass-tint-2: rgba(100, 160, 120, 0.06);
 }
 
 /* One focus ring, everywhere, in the accent.
@@ -383,7 +480,9 @@
    edge is a highlight, not something you see through. */
 @media (prefers-reduced-transparency: reduce) {
   :root,
-  :root[data-theme='dark'] {
+  :root[data-theme='dark'],
+  :root[data-phase],
+  :root[data-theme='dark'][data-phase] {
     --glass-surface: var(--bg-surface);
     --glass-bar: var(--bg-subtle);
     --glass-accent: var(--accent-wash);
@@ -394,7 +493,7 @@
   }
 }
 
-/* Viewfinder corners (Brackets.tsx): the new tab's world and Settings. */
+/* Viewfinder corners (Brackets.tsx): Settings. */
 .brackets {
   position: absolute;
   inset: var(--space-3);
@@ -410,3 +509,20 @@
 .bracket--tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
 .bracket--bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
 .bracket--br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+/* Every page opts in to cross-document view transitions. Chrome 154+ throws
+   "ViewTransition opt-in disabled" on arrival when an opted-in page navigates
+   to one that isn't. Stepping in morphs the story's title into the reader's
+   (Dashboard names it at click time; .reader-title carries the name). */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-group(story-title) {
+  animation-duration: var(--dur-smooth);
+  animation-timing-function: var(--spring-smooth);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(story-title) {
+    animation: none;
+  }
+}

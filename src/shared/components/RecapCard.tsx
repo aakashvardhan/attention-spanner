@@ -6,8 +6,8 @@ import { recordStat } from '../llm/store';
 import { AiNote } from './AiNote';
 
 /**
- * Shown when a half-read document reopens. Runs once per open, on device only
- * (route.ts never sends a recap to the cloud), and records a resume probe so
+ * Shown when a half-read document reopens. Runs once per open, on device
+ * unless cloud mode is "all", or "public" with a public source (route.ts), and records a resume probe so
  * Settings can say whether recaps actually get you reading again.
  */
 export function RecapCard({

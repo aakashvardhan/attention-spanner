@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest';
  */
 const ROOT = join(__dirname, '..', '..');
 const NOT_AMBIENT: Record<string, string> = {
-  'src/pages/newtab/BrainDump.tsx': 'one frame to measure a parked dump before it flies',
   'src/pages/reader/components/PdfViewport.tsx': 'coalesces page renders, not an animation',
 };
 

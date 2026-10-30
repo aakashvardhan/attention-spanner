@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { resumableItems, resumeContextFromProgress } from '../../shared/attention';
 import { localDate } from '../../shared/format';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
-import { useMedia } from '../../shared/hooks/useMedia';
 import { useNowWatching } from '../../shared/hooks/useNowWatching';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
@@ -12,18 +11,17 @@ import { probePercent, settleProbes, updateStats } from '../../shared/llm/store'
 import { muteMatcher, unreadItems, type Pick } from '../../shared/llm/triage';
 import { sendMessage, type Message } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
-import { patchSettings } from '../../shared/storage';
 import type { ResumableItem } from '../../shared/attention';
 import { ActivityHeatmap } from './ActivityHeatmap';
+import { groupByCategory } from '../../shared/videoCategory';
 import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
 import { EditionIndex } from './EditionIndex';
+import { FocusTimer } from './FocusTimer';
 import { Hero } from './Hero';
 import { NowWatching } from './NowWatching';
 import { quoteOfDay } from './quotes';
 import { TriageCard } from './TriageCard';
-import { World } from './world/World';
-import { NARROW_QUERY, REDUCED_QUERY, tokenMs, viewMode } from './world/view';
 
 /**
  * The new tab as a front page. The masthead is the greeting; the lead story is
@@ -47,7 +45,22 @@ export function Dashboard() {
   const [papers, papersLoaded] = useStorageValue('papers');
   const [settings] = useSettings();
   const focus = useFocusSession();
-  const [showAll, setShowAll] = useState(false);
+  /** Per group under the lead story: 'Continue reading' / 'Continue watching' show all */
+  const [showAll, setShowAll] = useState<Record<string, boolean>>({});
+
+  // The focus and break themes (theme.css) key off the phase on <html>.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (focus.phase) root.dataset.phase = focus.phase;
+    else delete root.dataset.phase;
+  }, [focus.phase]);
+  // How far through the focus round, in the dial's steps: the room's light follows it.
+  const roundStep = focus.focusing ? focus.lit / focus.segments : null;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (roundStep === null) root.style.removeProperty('--round-progress');
+    else root.style.setProperty('--round-progress', String(roundStep));
+  }, [roundStep]);
   const [cachedItems] = useStorageValue('cachedItems');
   const [readItems] = useStorageValue('readItems');
 
@@ -86,32 +99,23 @@ export function Dashboard() {
     .filter(Boolean)
     .join(' · ');
 
-  const reduced = useMedia(REDUCED_QUERY);
-  const narrow = useMedia(NARROW_QUERY);
-  const view = viewMode(settings.worldView, reduced, narrow);
-  const [stepping, setStepping] = useState(false);
-  // One step in at a time: a second click mid-dolly opens (and marks read) nothing.
+  // One step in at a time: a second click while this tab navigates opens (and marks read) nothing.
   const steppingNow = useRef(false);
   const beginStep = () => {
     if (steppingNow.current) return false;
     steppingNow.current = true;
-    setStepping(true);
     return true;
   };
   const endStep = () => {
     steppingNow.current = false;
-    setStepping(false);
   };
   const quote = quoteOfDay(localDate());
 
-  // Step in: the camera dollies forward, the story's title is named for the
-  // view transition into the reader's title, then this tab navigates. A cut
-  // (Comfortable, or the flat view) skips the dolly's wait.
-  const stepInto = async (url: string, from: Element | null) => {
+  // Step in: the story's title is named for the view transition into the
+  // reader's title, then this tab navigates.
+  const stepInto = (url: string, from: Element | null) => {
     const title = from?.querySelector<HTMLElement>('.edition-headline, .relay-row-title, .edition-story-title');
     if (title) title.style.viewTransitionName = 'story-title';
-    const glide = view === 'world' && settings.comfort === 'recommended';
-    await new Promise((r) => setTimeout(r, glide ? tokenMs('--dur-smooth') : 0));
     location.assign(url);
   };
   const lastStory = useRef<Element | null>(null);
@@ -153,9 +157,9 @@ export function Dashboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
-      if (e.key === 'v' && !reduced && !narrow) {
+      if (e.key === 'c' && !focus.active) {
         e.preventDefault();
-        void patchSettings({ worldView: settings.worldView === 'world' ? 'flat' : 'world' });
+        void focus.start(settings.focusMinutes);
         return;
       }
       const stories = [...document.querySelectorAll<HTMLElement>('[data-story]')];
@@ -172,25 +176,7 @@ export function Dashboard() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selected, settings.worldView, reduced, narrow]);
-
-  if (view === 'world') {
-    return (
-      <World
-        status={status}
-        resumable={resumable}
-        now={watchingNow}
-        watching={watching}
-        papers={papers}
-        focus={focus}
-        settings={settings}
-        quote={quote}
-        stepping={stepping}
-        onOpen={open}
-        onOpenPick={openPick}
-      />
-    );
-  }
+  }, [selected, settings.focusMinutes, focus.active]);
 
   return (
     <main className="edition grid">
@@ -200,7 +186,7 @@ export function Dashboard() {
 
       <section className="edition-lead-col" aria-labelledby="continue-title">
         <h2 id="continue-title" className="visually-hidden">
-          Continue reading
+          Pick back up
         </h2>
         {resumable.length === 0 ? (
           <p className="edition-notice">Nothing open. Press ⌘/Ctrl+Shift+E on any page to read it here.</p>
@@ -216,32 +202,64 @@ export function Dashboard() {
               />
             </ul>
             {resumable.length > 1 && (
-              <>
-                <p className="edition-kicker edition-also">Also unfinished</p>
-                <ul className="edition-also-list">
-                  {(showAll ? resumable.slice(1) : resumable.slice(1, RESUME_VISIBLE)).map((item) => (
-                    <ContinueRow key={item.key} item={item} now={watchingNow} onOpen={(alt, newTab) => open(item, alt, newTab)} />
+              // Reading and watching are different moods; one mixed list made you
+              // scan past videos for the article, so each gets its own column.
+              <div className="edition-also">
+                {(
+                  [
+                    ['Continue reading', resumable.slice(1).filter((item) => item.progress?.kind !== 'video')],
+                    ['Continue watching', resumable.slice(1).filter((item) => item.progress?.kind === 'video')],
+                  ] as const
+                )
+                  .filter(([, items]) => items.length > 0)
+                  .map(([label, items]) => (
+                    <section key={label} className="edition-also-group" aria-label={label}>
+                      <p className="edition-kicker">{label}</p>
+                      {/* Videos sort into what they are (Lecture series, AI, Robotics…); reading stays one list. */}
+                      {(label === 'Continue watching'
+                        ? groupByCategory(showAll[label] ? items : items.slice(0, GROUP_VISIBLE), (item) => [
+                            item.title,
+                            item.progress?.source ?? '',
+                          ])
+                        : [['', showAll[label] ? items : items.slice(0, GROUP_VISIBLE)] as [string, ResumableItem[]]]
+                      ).map(([category, shown]) => (
+                        <div key={category}>
+                          {category && <p className="edition-also-category">{category}</p>}
+                          <ul className="edition-also-list">
+                            {shown.map((item) => (
+                              <ContinueRow
+                                key={item.key}
+                                item={item}
+                                now={watchingNow}
+                                onOpen={(alt, newTab) => open(item, alt, newTab)}
+                              />
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                      {items.length > GROUP_VISIBLE && (
+                        <button
+                          type="button"
+                          className="relay-recap-toggle relay-more"
+                          aria-expanded={Boolean(showAll[label])}
+                          onClick={() => setShowAll((current) => ({ ...current, [label]: !current[label] }))}
+                        >
+                          {showAll[label] ? 'Show fewer' : `Show all ${items.length}`}
+                        </button>
+                      )}
+                    </section>
                   ))}
-                </ul>
-              </>
-            )}
-            {resumable.length > RESUME_VISIBLE && (
-              <button
-                type="button"
-                className="relay-recap-toggle relay-more"
-                aria-expanded={showAll}
-                onClick={() => setShowAll((current) => !current)}
-              >
-                {showAll ? 'Show fewer' : `Show all ${resumable.length}`}
-              </button>
+              </div>
             )}
           </>
         )}
       </section>
 
       <aside className="edition-side">
+        <FocusTimer focus={focus} />
         <BrainDump />
-        <TriageCard onOpen={openPick} />
+        {/* A focus round is no time for the feed. */}
+        {!focus.focusing && <TriageCard onOpen={openPick} />}
         <p className="edition-quote">{quote}</p>
       </aside>
 
@@ -252,6 +270,6 @@ export function Dashboard() {
   );
 }
 
-/** Rows shown before "Show all": enough to choose from, few enough to scan. */
-const RESUME_VISIBLE = 6;
+/** Rows per group before "Show all": enough to choose from, few enough to scan. */
+const GROUP_VISIBLE = 5;
 

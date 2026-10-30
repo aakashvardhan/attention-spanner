@@ -12,9 +12,11 @@ import type {
   FeedItem,
   FocusSession,
   HighlightRole,
+  LockedDump,
   Paper,
   Provocation,
   Settings,
+  Vault,
   WeatherCache,
 } from './types';
 import type { TranscriptSegment } from './youtubeCaptions';
@@ -48,11 +50,15 @@ export interface LocalSchema {
   /** Per local day 'YYYY-MM-DD': papers read, focus sessions finished (shared/activity.ts) */
   activity: Record<string, DayActivity>;
   /**
-   * Parked brain dumps, newest first. Never rename this to a key in
-   * V22_DEAD_KEYS ('notes', 'parkingLot'...): that sweep re-runs on every
-   * schema bump and would delete them.
+   * Brain dumps waiting for first-time vault setup, in the clear until then.
+   * Never rename this to a key in V22_DEAD_KEYS ('notes', 'parkingLot'...):
+   * that sweep re-runs on every schema bump and would delete them.
    */
   dumps: Dump[];
+  /** The dump vault; null until the first dump's setup */
+  vault: Vault | null;
+  /** Sealed dumps, newest first (shared/vault.ts) */
+  lockedDumps: LockedDump[];
 }
 
 export interface SessionSchema {
@@ -104,7 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 23,
+  schemaVersion: 24,
   provocations: [],
   feeds: [],
   readItems: [],
@@ -129,6 +135,8 @@ export const DEFAULTS: LocalSchema = {
   layaRoles: {},
   activity: {},
   dumps: [],
+  vault: null,
+  lockedDumps: [],
 };
 
 export const SESSION_DEFAULTS: SessionSchema = {
@@ -154,6 +162,15 @@ export async function getLocal<K extends keyof LocalSchema>(
 
 export async function setLocal(items: Partial<LocalSchema>): Promise<void> {
   await chrome.storage.local.set(items);
+}
+
+/**
+ * Dump writes read a list, seal, then write it back. Two tabs doing that at
+ * once would drop one entry, so they take turns through a Web Lock, which
+ * every page of the extension shares.
+ */
+export function withDumpLock<T>(fn: () => Promise<T>): Promise<T> {
+  return navigator.locks.request('dumps', fn);
 }
 
 export async function getSession<K extends keyof SessionSchema>(
@@ -214,13 +231,14 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * v22 → v23: the daily focus line and the unreachable Pomodoro mode went.
  * Their key and setting join the same cumulative lists, and the sweep re-runs
  * — removing an absent key is a no-op, so re-running v22's entries is free.
+ * v23 → v24: brain dumps lose their task fields and sorted points (v24Dumps).
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
   const version = (schemaVersion as number | undefined) ?? 0;
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 23) return;
+  if (version >= 24) return;
 
   // Only branches that repair data a SURVIVING feature reads are kept. Every
   // migration that merely seeded a key now removed — the calendar defaults, the
@@ -237,8 +255,23 @@ export async function migrate(): Promise<void> {
   if (version < 11) await chrome.storage.local.set({ readItems: [] });
   if (version < 12) await migrateToV12();
   await migrateToV22();
+  if (version < 24) {
+    const { dumps } = await chrome.storage.local.get('dumps');
+    await chrome.storage.local.set({ dumps: v24Dumps((dumps as unknown[] | undefined) ?? []) });
+  }
 
-  await chrome.storage.local.set({ schemaVersion: 23 });
+  await chrome.storage.local.set({ schemaVersion: 24 });
+}
+
+/**
+ * v23 → v24: the brain dump stopped sorting and stepping. Points it sorted a
+ * dump into are dropped; each original dump keeps only its words, which get
+ * sealed into the vault at first-time setup.
+ */
+export function v24Dumps(list: readonly unknown[]): Dump[] {
+  return (list as Partial<Dump & { parentId: string }>[])
+    .filter((d) => !d.parentId && typeof d.text === 'string')
+    .map((d) => ({ id: d.id ? String(d.id) : crypto.randomUUID(), text: d.text!, createdAt: Number(d.createdAt) || 0 }));
 }
 
 /**

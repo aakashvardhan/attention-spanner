@@ -119,7 +119,7 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
       <LayaRows url={settings.layaUrl} />
 
       <div className="setting-row">
-        <label htmlFor="cloud-mode">Cloud for public sources</label>
+        <label htmlFor="cloud-mode">Cloud (Claude Haiku)</label>
         <select
           id="cloud-mode"
           value={settings.cloudMode}
@@ -128,6 +128,7 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
           <option value="off">Never</option>
           <option value="ask">Ask each time</option>
           <option value="public">When the local model can't</option>
+          <option value="all">Everything, private pages too</option>
         </select>
       </div>
       {settings.cloudMode !== 'off' && (
@@ -141,11 +142,26 @@ export function LocalAiSection({ settings }: { settings: Settings }) {
         />
       )}
       <p className="hint">
-        Public means feed items, arXiv and DOI papers, and YouTube videos. Web pages, local PDFs
-        and your highlights are always treated as private — a signed-in page cannot be told apart
-        from a public one, so none of them is ever sent. A brain dump goes to Claude Haiku only when
-        the local model can't answer and you click Ask Claude Haiku on that dump. The key is stored
+        Everything sends every task to Claude Haiku — web pages, local PDFs, your highlights and
+        brain dumps included — and uses the local model only without a key or offline. The other
+        settings cover public sources only: feed items, arXiv and DOI papers, and YouTube videos.
+        Under them, web pages, local PDFs and your highlights are treated as private — a signed-in
+        page cannot be told apart from a public one. The brain dump is the exception: it always
+        goes to Claude Haiku, whatever is chosen here, and is stored encrypted. The key is stored
         only in this browser.
+      </p>
+      <TextRow
+        id="gemini-key"
+        label="Gemini API key"
+        placeholder="AIza…"
+        type="password"
+        value={settings.geminiKey}
+        onCommit={(geminiKey) => void patchSettings({ geminiKey })}
+      />
+      <p className="hint">
+        Optional. YouTube lets the extension read a video's transcript only from a tab where that video
+        is open; with this key, Summary on a video in Continue watching asks Gemini to watch the public
+        video itself instead. Nothing else goes to Gemini. Stored only in this browser.
       </p>
 
       <ImpactRows stats={aiStats} />

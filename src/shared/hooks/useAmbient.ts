@@ -10,7 +10,8 @@ export function ambientRunning(a: { enabled: boolean; reduced: boolean; focusing
 
 /**
  * The one switch for motion nobody asked for: the sky, the clouds, the
- * runners. Off when the setting is off, during a focus session, under Reduce
+ * runners. Off when the setting is off, during a focus round (a break brings
+ * it back), under Reduce
  * Motion and while the tab is hidden. Reads the session from storage rather
  * than useFocusSession, which ticks twice a second.
  */
@@ -26,7 +27,7 @@ export function useAmbient(): { running: boolean; enabled: boolean; toggle(): vo
   }, []);
   const enabled = settings.ambientMotion;
   return {
-    running: ambientRunning({ enabled, reduced, focusing: session !== null, hidden }),
+    running: ambientRunning({ enabled, reduced, focusing: session !== null && session.phase !== 'break', hidden }),
     enabled,
     toggle: () => void patchSettings({ ambientMotion: !enabled }),
   };

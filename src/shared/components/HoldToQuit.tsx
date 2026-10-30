@@ -29,8 +29,8 @@ export function HoldToQuit({
 
   useEffect(() => clear, []);
 
-  const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const begin = () => {
+    if (timerRef.current !== null) return;
     firedRef.current = false;
     const startedAt = performance.now();
     timerRef.current = window.setInterval(() => {
@@ -50,7 +50,18 @@ export function HoldToQuit({
   return (
     <button
       className="hold-to-quit"
-      onPointerDown={onDown}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        begin();
+      }}
+      // Space or Enter held down is the keyboard's press-and-hold.
+      onKeyDown={(e) => {
+        if (e.key !== ' ' && e.key !== 'Enter') return;
+        e.preventDefault();
+        begin();
+      }}
+      onKeyUp={clear}
+      onBlur={clear}
       onPointerUp={clear}
       onPointerCancel={clear}
       onLostPointerCapture={clear}

@@ -4,7 +4,7 @@ import { startOllamaMock } from './ollamaMock';
 import { article, feedItem } from './seed';
 import { html } from './sites';
 
-const OFF = { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '', worldView: 'flat' }; // nothing listens on port 9
+const OFF = { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '' }; // nothing listens on port 9
 
 describe('triage card and muted topics', () => {
   let ext: Ext;
@@ -74,7 +74,7 @@ describe('triage card and muted topics', () => {
       cachedItems: [...story, feedItem('o1', 'A compiler release'), feedItem('o2', 'Rust 2.0 is out')],
       readItems: [],
       readingProgress: { [finished.url]: finished },
-      settings: { worldView: 'flat', ollamaUrl: ollama.url, ollamaEmbedModel: 'nomic-embed-text', layaUrl: '', mutedTopics: [] },
+      settings: { ollamaUrl: ollama.url, ollamaEmbedModel: 'nomic-embed-text', layaUrl: '', mutedTopics: [] },
     });
     const page = await ext.page(PAGES.newtab);
     const rows = page.locator('.edition-feed .edition-story');

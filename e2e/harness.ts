@@ -34,7 +34,7 @@ export async function launch(): Promise<Ext> {
   const sites = await startSites();
   const profile = mkdtempSync(join(tmpdir(), 'reader-e2e-'));
   const ctx = await chromium.launchPersistentContext(profile, {
-    headless: true,
+    headless: !process.env.HEADED,
     channel: 'chromium',
     viewport: { width: 1280, height: 900 },
     args: [

@@ -1,7 +1,7 @@
 import { VIDEO_MIN_MINUTES } from '../shared/constants';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
-import { getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
+import { cleanVideoTitle, getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
 import { recordEngagement } from './hyperfocus';
 import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
@@ -75,6 +75,8 @@ export async function handleVideoProgress(
     durationSeconds: number;
     watchedSecondsDelta: number;
     stopped: boolean;
+    /** Player position when the tab went hidden mid-playback; absent while watched */
+    lookedAwayAt?: number;
     title: string;
     channel: string;
     chapter?: string;
@@ -93,7 +95,7 @@ export async function handleVideoProgress(
       kind: 'video',
       videoId: msg.videoId,
       url: sender.tab?.url ?? `https://www.youtube.com/watch?v=${msg.videoId}`,
-      title: msg.title,
+      title: cleanVideoTitle(msg.title),
       source: msg.channel,
       maxPercent: 0,
       durationSeconds: msg.durationSeconds,
@@ -106,7 +108,7 @@ export async function handleVideoProgress(
     };
   }
 
-  if (msg.title) progress.title = msg.title;
+  if (msg.title) progress.title = cleanVideoTitle(msg.title);
   if (msg.channel) progress.source = msg.channel;
   // Assigned even when empty: leaving a stale chapter behind after the playhead
   // moves past the last marked section would be worse than showing none.
@@ -121,6 +123,7 @@ export async function handleVideoProgress(
   progress.activeSeconds += Math.max(0, msg.watchedSecondsDelta);
   progress.updatedAt = now;
   progress.playing = !msg.stopped;
+  progress.lookedAwayAt = msg.lookedAwayAt;
   if (progress.completedAt === null && progress.maxPercent >= COMPLETE_PERCENT) {
     progress.completedAt = now;
   }
@@ -129,7 +132,8 @@ export async function handleVideoProgress(
   await setLocal({ readingProgress: prune(readingProgress) });
   await recordEngagement(Math.max(0, msg.watchedSecondsDelta), msg.stopped);
 
-  if (msg.stopped) {
+  // Playing on in a hidden tab is leaving too: the heartbeat must not cancel it.
+  if (msg.stopped || msg.lookedAwayAt !== undefined) {
     await scheduleNudge(key);
   } else {
     await cancelNudge(key);
@@ -153,9 +157,32 @@ export async function focusExistingVideoTab(videoId: string): Promise<boolean> {
   return true;
 }
 
-/** Nudge-resume path: focus an open tab with this video, else reopen at &t= */
-export async function resumeVideo(progress: VideoProgress): Promise<void> {
-  if (await focusExistingVideoTab(progress.videoId)) return;
+async function seekOpenVideo(videoId: string, seconds: number): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
+  const tab = tabs.find((t) => t.url && getYouTubeVideoId(t.url) === videoId);
+  if (tab?.id === undefined) return;
+  await chrome.scripting
+    .executeScript({
+      target: { tabId: tab.id },
+      func: (t: number) => {
+        const video = document.querySelector('video');
+        if (video) video.currentTime = t;
+      },
+      args: [seconds],
+    })
+    .catch(() => undefined);
+}
+
+/**
+ * Nudge-resume path: focus an open tab with this video, else reopen at &t=.
+ * `seek` also moves an open tab's player to positionSeconds — the "rewind to
+ * where you looked away" case, where the tab is still open and playing on.
+ */
+export async function resumeVideo(progress: VideoProgress, seek = false): Promise<void> {
+  if (await focusExistingVideoTab(progress.videoId)) {
+    if (seek) await seekOpenVideo(progress.videoId, progress.positionSeconds);
+    return;
+  }
 
   const t = Math.max(0, Math.floor(progress.positionSeconds));
   const tab = await chrome.tabs.create({

@@ -9,7 +9,8 @@ import { GLOBAL_NUDGE_GAP_MS } from './nudges';
 /**
  * Off-task tabs during a focus session. The blocklist catches the sites you
  * named in advance; this catches the rest, by asking Laya whether a page is a
- * distraction from the paper you are reading. Only a page Laya is at least
+ * distraction from the paper you are reading, or from what you said the shift
+ * was for when you clocked in. Only a page Laya is at least
  * LAYA_DRIFT_MIN sure is one gets one quiet notification — never a block —
  * and each host is asked about once per session.
  */
@@ -22,6 +23,12 @@ import { GLOBAL_NUDGE_GAP_MS } from './nudges';
 const DISTRACTION_QUESTION = {
   type: 'noul',
   instructions: 'Is this tab a distraction unrelated to the research topic of the focus paper?',
+} as const;
+
+/** The same question when all there is to go on is the clock-in intention. */
+const TASK_DISTRACTION_QUESTION = {
+  type: 'noul',
+  instructions: 'Is this tab a distraction unrelated to the focus task?',
 } as const;
 
 export function isDistraction(answer: LayaAnswer | undefined): boolean {
@@ -46,7 +53,7 @@ export function driftCandidate(opts: {
   target: Paper | null;
 }): string | null {
   const { url, session, checked, blocklist, target } = opts;
-  if (!target || !/^https?:/.test(url)) return null;
+  if ((!target && !session.intention) || !/^https?:/.test(url)) return null;
   let host: string;
   try {
     host = new URL(url).hostname.replace(/^www\./, '');
@@ -56,17 +63,29 @@ export function driftCandidate(opts: {
   // Blocked hosts never load; DNR has them.
   if (isBlockedHost(host, blocklist)) return null;
   const key = paperMatchKey(url);
-  if (key && (key === paperMatchKey(target.url) || (target.pdf && key === paperMatchKey(target.pdf.url)))) {
+  if (target && key && (key === paperMatchKey(target.url) || (target.pdf && key === paperMatchKey(target.pdf.url)))) {
     return null;
   }
   if (checked.startedAt === session.startedAt && checked.hosts.includes(host)) return null;
   return host;
 }
 
+/** What Laya judges the tab against: your own words first, then the paper. */
+export function focusText(intention: string | undefined, target: Paper | null): string {
+  const paper = target ? `${target.title}. ${clip(target.abstract, 800)}` : '';
+  return [intention, paper].filter(Boolean).join('. Paper: ');
+}
+
+export function driftTitle(intention: string | undefined, target: Paper | null): string {
+  if (intention) return `Back to: ${clip(intention, 60)}?`;
+  return `Still on ${clip(target?.title ?? '', 60)}?`;
+}
+
 export async function checkDrift(tab: chrome.tabs.Tab): Promise<void> {
   if (!tab.active || !tab.url) return;
   const { focusSession: session, papers } = await getLocal('focusSession', 'papers');
-  if (!session) return;
+  // A break is not a session to drift from.
+  if (!session || session.phase === 'break') return;
   const settings = await getSettings();
   if (!settings.notificationsEnabled || !settings.layaUrl) return;
 
@@ -79,7 +98,7 @@ export async function checkDrift(tab: chrome.tabs.Tab): Promise<void> {
     blocklist: settings.focusBlocklist,
     target,
   });
-  if (!host || !target || Date.now() - lastGlobalNudgeAt < GLOBAL_NUDGE_GAP_MS) return;
+  if (!host || Date.now() - lastGlobalNudgeAt < GLOBAL_NUDGE_GAP_MS) return;
   if (!(await layaReady(settings.layaUrl))) return;
 
   // Marked before asking, so a burst of tab events asks once.
@@ -90,8 +109,8 @@ export async function checkDrift(tab: chrome.tabs.Tab): Promise<void> {
   try {
     const { distraction } = await systemOne(
       settings.layaUrl,
-      { focus: `${target.title}. ${clip(target.abstract, 800)}`, tab: { title: tab.title ?? '', host } },
-      { distraction: DISTRACTION_QUESTION },
+      { focus: focusText(session.intention, target), tab: { title: tab.title ?? '', host } },
+      { distraction: target ? DISTRACTION_QUESTION : TASK_DISTRACTION_QUESTION },
     );
     distracted = isDistraction(distraction);
   } catch {
@@ -104,7 +123,7 @@ export async function checkDrift(tab: chrome.tabs.Tab): Promise<void> {
   chrome.notifications.create(NOTIFICATION_IDS.focusDrift, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: `Still on ${clip(target.title, 60)}?`,
+    title: driftTitle(session.intention, target),
     message: `${host} doesn't look like part of it. ${minutesLeft} min left in this focus session.`,
     priority: 0,
   });

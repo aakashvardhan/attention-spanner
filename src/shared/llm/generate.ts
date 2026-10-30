@@ -14,6 +14,9 @@ import { topK } from './vectors';
  * cloud.
  */
 
+/** For prompts whose answer is rendered as Markdown: math the renderer (KaTeX) can draw. */
+export const MATH_RULE = ' Write any math as LaTeX: $…$ inline, $$…$$ on its own line.';
+
 export interface AiRequest {
   task: AiTask;
   source: AiSource;
@@ -84,7 +87,9 @@ export async function cachedAi(request: AiRequest): Promise<AiResult | null> {
   const route: Route =
     hit.target === 'claude'
       ? { target: 'claude', model: hit.model, confirm: false, reason: 'Saved answer' }
-      : { target: 'ollama', retrieval: false, reason: 'Saved answer' };
+      : hit.target === 'gemini'
+        ? { target: 'gemini', model: hit.model, reason: 'Saved answer' }
+        : { target: 'ollama', retrieval: false, reason: 'Saved answer' };
   return { text: hit.text, route, model: hit.model, sent: [], cached: true };
 }
 
@@ -95,6 +100,7 @@ export async function runAi(
 ): Promise<AiResult> {
   const { route: r, settings } = plan;
   if (r.target === 'none') throw new Error(r.reason);
+  if (r.target === 'gemini') throw new Error('Gemini is reached through useAi().startWith, not the router.');
   const started = performance.now();
 
   let sent = request.passages.map((_, i) => i);
@@ -115,6 +121,7 @@ export async function runAi(
       system: request.system,
       document,
       prompt: request.prompt,
+      cache: request.task === 'ask',
       signal: opts.signal,
       onText: opts.onText,
     });
@@ -129,6 +136,9 @@ export async function runAi(
       ],
       signal: opts.signal,
       onText: opts.onText,
+      // Reasoning cost ~17 s per answer on qwen3:8b (see ollama-latency); these
+      // tasks read the text rather than reason past it.
+      think: false,
     });
   }
 

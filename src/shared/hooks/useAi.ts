@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cachedAi, planAi, runAi, type AiPlan, type AiRequest } from '../llm/generate';
+import { cachedAi, planAi, runAi, type AiPlan, type AiRequest, type AiResult } from '../llm/generate';
+import { cachePut } from '../llm/store';
 import type { Route } from '../llm/route';
 
 export type AiStatus = 'idle' | 'working' | 'streaming' | 'confirm' | 'done' | 'error' | 'unavailable';
@@ -29,30 +30,69 @@ export function useAi() {
 
   useEffect(() => () => controller.current?.abort(), []);
 
-  const execute = useCallback(async (request: AiRequest, plan: AiPlan, id: number) => {
-    controller.current?.abort();
-    const ctrl = new AbortController();
-    controller.current = ctrl;
-    setView({ ...IDLE, status: 'working', route: plan.route });
-    try {
-      const result = await runAi(request, plan, {
-        signal: ctrl.signal,
-        onText: (text) => {
+  /** Stream one answer into the view, whichever model writes it. */
+  const drive = useCallback(
+    async (
+      id: number,
+      route: Route,
+      run: (signal: AbortSignal, onText: (text: string) => void) => Promise<AiResult>,
+    ) => {
+      controller.current?.abort();
+      const ctrl = new AbortController();
+      controller.current = ctrl;
+      setView({ ...IDLE, status: 'working', route });
+      try {
+        const result = await run(ctrl.signal, (text) => {
           if (generation.current === id) setView((v) => ({ ...v, status: 'streaming', text }));
-        },
-      });
+        });
+        if (generation.current !== id) return;
+        setView({ ...IDLE, status: 'done', text: result.text, route: result.route, model: result.model, sent: result.sent });
+      } catch (err) {
+        if (generation.current !== id) return;
+        if (ctrl.signal.aborted) {
+          // Stopped by the user: keep what streamed so far rather than wiping it.
+          setView((v) => ({ ...v, status: v.text ? 'done' : 'idle' }));
+          return;
+        }
+        setView((v) => ({ ...v, status: 'error', error: err instanceof Error ? err.message : String(err) }));
+      }
+    },
+    [],
+  );
+
+  const execute = useCallback(
+    (request: AiRequest, plan: AiPlan, id: number) =>
+      drive(id, plan.route, (signal, onText) => runAi(request, plan, { signal, onText })),
+    [drive],
+  );
+
+  /**
+   * A model the router does not pick (Gemini watching a video), behind the same
+   * cache, stop and error handling. The answer is saved under the request's key.
+   */
+  const startWith = useCallback(
+    async (
+      request: AiRequest,
+      route: Extract<Route, { target: 'gemini' }>,
+      run: (signal: AbortSignal, onText: (text: string) => void) => Promise<string>,
+    ) => {
+      const id = ++generation.current;
+      const hit = await cachedAi(request);
       if (generation.current !== id) return;
-      setView({ ...IDLE, status: 'done', text: result.text, route: result.route, model: result.model, sent: result.sent });
-    } catch (err) {
-      if (generation.current !== id) return;
-      if (ctrl.signal.aborted) {
-        // Stopped by the user: keep what streamed so far rather than wiping it.
-        setView((v) => ({ ...v, status: v.text ? 'done' : 'idle' }));
+      if (hit) {
+        setView({ ...IDLE, status: 'done', text: hit.text, route: hit.route, model: hit.model });
         return;
       }
-      setView((v) => ({ ...v, status: 'error', error: err instanceof Error ? err.message : String(err) }));
-    }
-  }, []);
+      await drive(id, route, async (signal, onText) => {
+        const text = await run(signal, onText);
+        if (request.cacheKey && text.trim()) {
+          void cachePut(`${request.task}:${request.cacheKey}`, { text, target: route.target, model: route.model, at: Date.now() });
+        }
+        return { text, route, model: route.model, sent: [], cached: false };
+      });
+    },
+    [drive],
+  );
 
   /** Show a saved answer if there is one; never generates. */
   const showCached = useCallback(async (request: AiRequest) => {
@@ -105,5 +145,5 @@ export function useAi() {
     setView(IDLE);
   }, []);
 
-  return { view, start, approve, stop, dismiss, showCached };
+  return { view, start, startWith, approve, stop, dismiss, showCached };
 }

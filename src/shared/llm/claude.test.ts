@@ -16,8 +16,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }));
 
-const call = (model: string) =>
-  claudeStream({ apiKey: 'k', model, system: 's', document: 'doc', prompt: 'q' });
+const call = (model: string, cache?: boolean) =>
+  claudeStream({ apiKey: 'k', model, system: 's', document: 'doc', prompt: 'q', cache });
 
 describe('claudeStream caching', () => {
   it('caches the document for an hour on ask, where follow-ups come minutes apart', async () => {
@@ -25,8 +25,19 @@ describe('claudeStream caching', () => {
     expect(sent.at(-1).messages[0].content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
   });
 
+  it('caches the document on a Haiku ask too', async () => {
+    await call(CLAUDE_MODELS.quick, true);
+    expect(sent.at(-1).messages[0].content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+  });
+
   it('writes no cache for a one-shot outline, whose answer is saved instead', async () => {
     await call(CLAUDE_MODELS.quick);
     expect(sent.at(-1).messages[0].content[0].cache_control).toBeUndefined();
+  });
+
+  it('sends Haiku with the API defaults: no thinking or effort override', async () => {
+    await call(CLAUDE_MODELS.quick);
+    expect(sent.at(-1).thinking).toBeUndefined();
+    expect(sent.at(-1).output_config).toBeUndefined();
   });
 });

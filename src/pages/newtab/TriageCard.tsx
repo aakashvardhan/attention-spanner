@@ -97,7 +97,7 @@ export function TriageRow({ pick, onOpen }: { pick: Pick; onOpen: (pick: Pick, n
   );
 }
 
-/** The ranking behind the feed card, shared by the flat Edition and the world. */
+/** The ranking behind the feed card. */
 export function useTriage(): { picks: Pick[] | null; note: string; mutedCount: number; hasItems: boolean } {
   const [settings, settingsLoaded] = useSettings();
   const [cachedItems, itemsLoaded] = useStorageValue('cachedItems');

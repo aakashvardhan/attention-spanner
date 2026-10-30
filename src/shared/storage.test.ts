@@ -3,6 +3,8 @@ import {
   DEFAULT_SETTINGS,
   DEFAULTS,
   v12ReadingProgress,
+  v24Dumps,
+  withDumpLock,
   v22StripSettings,
   v7Annotations,
   V22_DEAD_KEYS,
@@ -120,7 +122,6 @@ describe('a stored settings object from before the skins were retired', () => {
   });
 });
 
-
 /**
  * v21 → v22 is the sweep that follows cutting every feature Notion already
  * covers. It is cumulative on purpose — it carries the keys v13, v20 and v21
@@ -196,8 +197,46 @@ describe('v22', () => {
 });
 
 describe('provocations key', () => {
-  it('defaults provocations to an empty list and keeps schema 23', () => {
+  it('defaults provocations to an empty list and keeps schema 24', () => {
     expect(DEFAULTS.provocations).toEqual([]);
-    expect(DEFAULTS.schemaVersion).toBe(23);
+    expect(DEFAULTS.schemaVersion).toBe(24);
+  });
+});
+
+/** v23 → v24: the dump stops being a task engine; only the words you wrote survive, to be locked at setup. */
+describe('v24Dumps', () => {
+  it('keeps roots only and strips the task fields', () => {
+    expect(
+      v24Dumps([
+        { id: 'r', text: 'raw', createdAt: 1, nextStep: 's', kind: 'task' },
+        { id: 'p', text: 'point', createdAt: 2, parentId: 'r', quadrant: 'do' },
+      ]),
+    ).toEqual([{ id: 'r', text: 'raw', createdAt: 1 }]);
+  });
+
+  it('gives a malformed record a usable id and date', () => {
+    const [d] = v24Dumps([{ text: 'no id or date' }]);
+    expect(d.createdAt).toBe(0);
+    expect(d.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('starts the vault empty', () => {
+    expect(DEFAULTS.vault).toBeNull();
+    expect(DEFAULTS.lockedDumps).toEqual([]);
+  });
+});
+
+/** Two tabs saving a dump at once each read, seal, then write the list; without the lock one write loses the other. */
+describe('withDumpLock', () => {
+  it('runs read-modify-writes one at a time', async () => {
+    let list: string[] = [];
+    const add = (x: string) =>
+      withDumpLock(async () => {
+        const seen = list;
+        await new Promise((r) => setTimeout(r, 10));
+        list = [...seen, x];
+      });
+    await Promise.all([add('a'), add('b')]);
+    expect(list.sort()).toEqual(['a', 'b']);
   });
 });

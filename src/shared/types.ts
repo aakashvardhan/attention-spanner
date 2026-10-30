@@ -317,28 +317,44 @@ export interface BookmarkLink extends RecordMeta {
   createdAt: number;
 }
 
-/** One local day in the new tab's heatmap (shared/activity.ts). */
-/** A parked brain dump (shared/brainDump.ts) */
+/** A brain dump waiting for first-time vault setup; after that every dump is a LockedDump */
 export interface Dump {
   id: string;
   text: string;
   createdAt: number;
-  /** Unset until asked; null when the local model found nothing to act on */
-  nextStep?: string | null;
-  /** Steps already ticked off, oldest first; a null nextStep after these means the loop is closed */
-  done?: string[];
-  /** Laya's call, made once: a task ends, a recurring dump gets one step a day for good */
-  kind?: 'task' | 'recurring';
-  /** When the last step was ticked off; a recurring dump is due again the next local day */
-  lastDoneAt?: number;
-  /** Set on a point the dump was sorted into: the dump it came from */
-  parentId?: string;
-  /** The point's Eisenhower quadrant; a note is a feeling or thought, not a task */
-  quadrant?: Quadrant;
 }
 
-export type Quadrant = 'do' | 'schedule' | 'delegate' | 'drop' | 'note';
+/** AES-GCM ciphertext, base64; `salt` is set when the key came from a secret via PBKDF2 */
+export interface Sealed {
+  salt?: string;
+  iv: string;
+  data: string;
+}
 
+/** The dump vault: anyone can seal with the public key; the private key opens only with a secret */
+export interface Vault {
+  publicKey: JsonWebKey;
+  byPassphrase: Sealed;
+  byRecovery: Sealed;
+}
+
+/** A sealed dump. `createdAt` stays clear for ordering and the count; the words never do. */
+export interface LockedDump {
+  id: string;
+  createdAt: number;
+  wrappedKey: string;
+  iv: string;
+  data: string;
+}
+
+/** What a locked dump holds once opened */
+export interface DumpEntry {
+  text: string;
+  bullets: string[];
+  createdAt: number;
+}
+
+/** One local day in the new tab's heatmap (shared/activity.ts). */
 export interface DayActivity {
   /** Distinct papers read that day */
   papers: string[];

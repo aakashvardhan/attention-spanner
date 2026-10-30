@@ -4,7 +4,6 @@ import { initTheme } from '../../shared/theme';
 import { Dashboard } from './Dashboard';
 import '../../shared/theme.css';
 import './newtab.css';
-import './world/world.css';
 
 initTheme();
 

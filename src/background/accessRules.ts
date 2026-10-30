@@ -67,7 +67,8 @@ export function buildSessionAccessRules(config: {
   focusDomains: string[];
   focusRedirectUrl: string;
 }): chrome.declarativeNetRequest.Rule[] {
-  if (config.focusSession && config.focusSession.phaseEndsAt > Date.now()) {
+  const session = config.focusSession;
+  if (session && session.phase !== 'break' && session.phaseEndsAt > Date.now()) {
     return buildFocusRules(config.focusDomains, config.focusRedirectUrl);
   }
   return [];

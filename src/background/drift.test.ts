@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { FocusSession, Paper } from '../shared/types';
-import { driftCandidate, focusTarget, isDistraction } from './drift';
+import { driftCandidate, driftTitle, focusText, focusTarget, isDistraction } from './drift';
 
-const session: FocusSession = { startedAt: 1000, phaseEndsAt: 9000, focusMinutes: 50 };
+const session: FocusSession = { startedAt: 1000, phase: 'focus', phaseStartedAt: 1000, phaseEndsAt: 9000, focusMinutes: 50, round: 1 };
 const ddpm = { id: 'p', title: 'DDPM', url: 'https://arxiv.org/abs/2006.11239', status: 'reading', lastReadAt: 5 } as Paper;
 const base = { session, checked: { startedAt: 0, hosts: [] }, blocklist: ['youtube.com'], target: ddpm };
 
@@ -24,8 +24,22 @@ describe('driftCandidate', () => {
     expect(driftCandidate({ ...base, url: 'chrome-extension://abc/newtab.html' })).toBeNull();
   });
 
-  it('does nothing without a paper to be focused on', () => {
+  it('does nothing without a paper or an intention to be focused on', () => {
     expect(driftCandidate({ ...base, target: null, url: 'https://reddit.com/' })).toBeNull();
+  });
+
+  it('runs on the clock-in intention alone', () => {
+    const withIntention = { ...session, intention: 'finish lit review §2' };
+    expect(driftCandidate({ ...base, session: withIntention, target: null, url: 'https://reddit.com/' })).toBe('reddit.com');
+  });
+});
+
+describe('what drift quotes back', () => {
+  it('leads with your own words, then the paper', () => {
+    expect(driftTitle('finish lit review', ddpm)).toBe('Back to: finish lit review?');
+    expect(driftTitle(undefined, ddpm)).toBe('Still on DDPM?');
+    expect(focusText('finish lit review', null)).toBe('finish lit review');
+    expect(focusText('finish lit review', { ...ddpm, abstract: 'Diffusion.' })).toBe('finish lit review. Paper: DDPM. Diffusion.');
   });
 });
 

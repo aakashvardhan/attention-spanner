@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { getDocument, VerbosityLevel, type PDFDocumentProxy } from 'pdfjs-dist';
 import { flattenOutline, type FlatOutlineItem, type RawOutlineItem } from '../../shared/pdfOutline';
 
+/** Documents up to this many pages are sized before the reader opens. */
+const EAGER_SIZE_PAGES = 300;
+
 /** Page size at scale 1 (PDF points × the default 1.0 viewport). */
 export interface PdfPageSize {
   width: number;
@@ -86,22 +89,44 @@ export function usePdfDocument(src: string): PdfLoadState {
         // ("minus sign in the middle", missing glyphs). Those warnings land in
         // the extension's error list and bury the ones that matter; failures
         // still throw and land in the catch below.
-        loadingTask = getDocument({ data, verbosity: VerbosityLevel.ERRORS });
+        // wasmUrl: without it scanned (CCITT/JBIG2) and JPEG 2000 pages render blank.
+        loadingTask = getDocument({
+          data,
+          verbosity: VerbosityLevel.ERRORS,
+          wasmUrl: new URL('/pdfjs/', location.href).href,
+        });
         const doc = await loadingTask.promise;
-        const pageSizes: PdfPageSize[] = [];
-        for (let i = 1; i <= doc.numPages; i++) {
-          const page = await doc.getPage(i);
-          const { width, height } = page.getViewport({ scale: 1 });
-          pageSizes.push({ width, height });
-        }
-        const rawOutline = ((await doc.getOutline()) ?? []) as unknown as RawOutlineItem[];
-        const destPages = await resolveOutlinePages(doc, rawOutline);
-        const outline = flattenOutline(rawOutline, (dest) => destPages.get(dest) ?? null);
-        const meta = (await doc.getMetadata().catch(() => null)) as {
-          info?: { Title?: string };
-        } | null;
-        if (alive) {
-          setState({ status: 'ready', doc, pageSizes, outline, title: meta?.info?.Title ?? '' });
+        const sizeOf = async (n: number): Promise<PdfPageSize> => {
+          const { width, height } = (await doc.getPage(n)).getViewport({ scale: 1 });
+          return { width, height };
+        };
+        // Sizing every page costs ~0.4 ms each in the worker (1.9 s at 5000
+        // pages). Big documents open on page 1's size and settle in the
+        // background; small ones are fast enough to size up front.
+        const progressive = doc.numPages > EAGER_SIZE_PAGES;
+        const allSizes = (): Promise<PdfPageSize[]> =>
+          Promise.all(Array.from({ length: doc.numPages }, (_, i) => sizeOf(i + 1)));
+        const [pageSizes, outline, meta] = await Promise.all([
+          progressive
+            ? sizeOf(1).then((first) => Array.from({ length: doc.numPages }, () => first))
+            : allSizes(),
+          (async () => {
+            const rawOutline = ((await doc.getOutline()) ?? []) as unknown as RawOutlineItem[];
+            const destPages = await resolveOutlinePages(doc, rawOutline);
+            return flattenOutline(rawOutline, (dest) => destPages.get(dest) ?? null);
+          })(),
+          doc.getMetadata().catch(() => null) as Promise<{ info?: { Title?: string } } | null>,
+        ]);
+        if (!alive) return;
+        const title = meta?.info?.Title ?? '';
+        setState({ status: 'ready', doc, pageSizes, outline, title });
+        if (progressive) {
+          // ponytail: one layout shift when sizes differ; chunked updates if it bothers.
+          const real = await allSizes().catch(() => null);
+          const first = pageSizes[0];
+          if (alive && real?.some((s) => s.width !== first.width || s.height !== first.height)) {
+            setState({ status: 'ready', doc, pageSizes: real, outline, title });
+          }
         }
       } catch (error) {
         if (alive) {

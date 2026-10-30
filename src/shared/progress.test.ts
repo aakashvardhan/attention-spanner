@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { belongsInContinue, isInProgress, paceLabel, paceMinutesLeft, progressKind } from './progress';
+import { belongsInContinue, isInProgress, paceLabel, paceMinutesLeft, progressKind, withoutPage } from './progress';
 import type { AnyProgress, ReadingProgress, VideoProgress } from './types';
 
 function article(over: Partial<ReadingProgress> = {}): ReadingProgress {
@@ -125,5 +125,24 @@ describe('paceMinutesLeft', () => {
   it('labels it as a pace, not a promise', () => {
     expect(paceLabel(15)).toBe('≈15 min at your pace');
     expect(paceLabel(null)).toBe('');
+  });
+});
+
+describe('withoutPage', () => {
+  const entry = (url: string) => ({ url }) as AnyProgress;
+
+  it('drops every entry that names the page, under whichever key it was saved', () => {
+    const progress = {
+      'news.e2e.test/a': entry('https://blog.e2e.test/post?utm_source=feed'),
+      'blog.e2e.test/post': entry('https://blog.e2e.test/post'),
+      'other.e2e.test/x': entry('https://other.e2e.test/x'),
+      'video:abcdefghijk': entry('https://www.youtube.com/watch?v=abcdefghijk&t=40s'),
+    };
+    expect(Object.keys(withoutPage(progress, 'https://blog.e2e.test/post'))).toEqual(['other.e2e.test/x', 'video:abcdefghijk']);
+    expect(Object.keys(withoutPage(progress, 'https://youtu.be/abcdefghijk'))).toEqual([
+      'news.e2e.test/a',
+      'blog.e2e.test/post',
+      'other.e2e.test/x',
+    ]);
   });
 });

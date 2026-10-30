@@ -65,4 +65,26 @@ describe('resumableItems', () => {
     expect(items).toHaveLength(9);
     expect(items[0].progress?.url).toBe('https://example.com/8');
   });
+
+  it('shows a page once when two feed links led to it', () => {
+    // Two feeds (or a redirecting link) key the same article twice; both entries
+    // end up naming the page that was actually read.
+    const entry = (updatedAt: number, maxPercent: number): ReadingProgress => ({
+      ...base,
+      kind: 'article',
+      url: 'https://blog.example.com/focus-workspace?utm_source=feed',
+      title: 'Focus workspace',
+      updatedAt,
+      maxPercent,
+      feedItemId: null,
+      scrollY: 0,
+      pageHeight: 1000,
+    });
+    const items = resumableItems(
+      { 'news.example.com/item/1': entry(1, 12), 'blog.example.com/focus-workspace': entry(2, 19) },
+      [],
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].progress?.maxPercent).toBe(19);
+  });
 });

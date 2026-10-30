@@ -65,12 +65,12 @@ interface Math {
   tex: string;
 }
 
-// $$…$$ and \[…\] are displayed; $…$ and \(…\) are inline. The $…$ branch
+// \begin{env}…\end{env}, $$…$$ and \[…\] are displayed; $…$ and \(…\) are inline. The $…$ branch
 // requires non-space just inside the delimiters so prose like "$5 and $10"
 // isn't mistaken for math — and non-dash too, or the price range "$5–$10"
 // parses as the formula "5–" followed by a stray "10".
 const MATH_RE =
-  /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?!\s)([^\n$]+?)(?<![\s–—-])\$/g;
+  /\\begin\{([a-z]+\*?)\}[\s\S]+?\\end\{\1\}|\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?!\s)([^\n$]+?)(?<![\s–—-])\$/g;
 
 /**
  * Unicode KaTeX has no symbol for. Model- and paper-sourced text is full of
@@ -110,9 +110,11 @@ export function renderMarkdown(text: string): string {
   // The placeholders are NUL-wrapped so they survive parsing and can't collide
   // with real content.
   const math: Math[] = [];
-  const staged = text.replace(MATH_RE, (_, dd, db, ip, is) => {
-    const tex = (dd ?? db ?? ip ?? is) as string;
-    const idx = math.push({ display: dd !== undefined || db !== undefined, tex }) - 1;
+  const staged = text.replace(MATH_RE, (whole, env, dd, db, ip, is) => {
+    // A bare \begin{equation}…\end{equation} is display math, environment and all.
+    const tex = (env !== undefined ? whole : (dd ?? db ?? ip ?? is)) as string;
+    const display = env !== undefined || dd !== undefined || db !== undefined;
+    const idx = math.push({ display, tex }) - 1;
     return `\x00KMATH${idx}\x00`;
   });
 

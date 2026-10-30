@@ -52,6 +52,22 @@ export function BookmarksPanel() {
     setError(null);
   };
 
+  const exportJson = () => {
+    const names = new Map(bookmarks.groups.map((g) => [g.id, g.name]));
+    const rows = bookmarks.bookmarks.map((b) => ({
+      title: b.title,
+      url: b.url,
+      group: (b.groupId && names.get(b.groupId)) || 'Unsorted',
+      savedAt: new Date(b.createdAt).toISOString(),
+    }));
+    const href = URL.createObjectURL(new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = 'reader-bookmarks.json';
+    a.click();
+    URL.revokeObjectURL(href);
+  };
+
   return (
     <section className="edition-favorites" aria-labelledby="bookmark-links-title">
       <div className="edition-fav-head">
@@ -60,9 +76,14 @@ export function BookmarksPanel() {
           {adding ? 'Cancel' : '+ Add'}
         </button>
         {bookmarks.bookmarks.length > 0 && (
-          <button type="button" className="edition-link" aria-pressed={editing} onClick={() => setEditing((current) => !current)}>
-            {editing ? 'Done' : 'Edit'}
-          </button>
+          <>
+            <button type="button" className="edition-link" onClick={exportJson}>
+              Export
+            </button>
+            <button type="button" className="edition-link" aria-pressed={editing} onClick={() => setEditing((current) => !current)}>
+              {editing ? 'Done' : 'Edit'}
+            </button>
+          </>
         )}
       </div>
 

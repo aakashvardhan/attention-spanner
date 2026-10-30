@@ -123,7 +123,10 @@ export function AskSheet({
   // With no model, the guiding question is still one the reader can use.
   const fallback = !thread && (status === 'unavailable' || status === 'error');
 
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [asked, turns, status]);
+  // Braces matter: Chrome's scrollIntoView now returns a Promise, which React would call as the cleanup.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [asked, turns, status]);
 
   return (
     <aside className="reader-find reader-ask" aria-label={heading}>

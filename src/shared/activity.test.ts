@@ -15,6 +15,13 @@ describe('addActivity', () => {
     expect(log['2026-10-02']).toEqual({ papers: ['a', 'b'], focus: 2 });
   });
 
+  it('adds up clocked minutes across shifts and ignores an empty one', () => {
+    let log = addActivity({}, { clocked: 95 }, today);
+    log = addActivity(log, { clocked: 40 }, today);
+    expect(addActivity(log, { clocked: 0 }, today)).toBe(log);
+    expect(log['2026-10-02']).toEqual({ papers: [], focus: 0, clocked: 135 });
+  });
+
   it('prunes days older than the calendar shows', () => {
     const log = addActivity({ '2024-01-01': { papers: ['x'], focus: 1 } }, { focus: true }, today);
     expect(Object.keys(log)).toEqual(['2026-10-02']);

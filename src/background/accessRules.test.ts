@@ -12,8 +12,11 @@ import { buildSessionAccessRules } from './accessRules';
 
 const focus: FocusSession = {
   startedAt: 1,
+  phase: 'focus',
+  phaseStartedAt: 1,
   phaseEndsAt: Date.now() + 60_000,
   focusMinutes: 25,
+  round: 1,
 };
 
 const build = (focusSession: FocusSession | null) =>
@@ -32,6 +35,10 @@ describe('session access rule matrix', () => {
     const rules = build(focus);
     expect(rules.map((rule) => rule.id)).toEqual([FOCUS_DNR_ID_BASE]);
     expect(rules[0].priority).toBe(FOCUS_DNR_PRIORITY);
+  });
+
+  it('opens the blocklist for a Pomodoro break, still clocked in', () => {
+    expect(build({ ...focus, phase: 'break' })).toEqual([]);
   });
 
   it('does not resurrect an expired Focus phase while rebuilding access', () => {

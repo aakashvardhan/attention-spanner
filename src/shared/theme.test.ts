@@ -11,6 +11,10 @@ describe('resolveTheme', () => {
     expect(resolveTheme('dark', true)).toBe('dark');
   });
 
+  it('paperwhite ignores the OS preference', () => {
+    expect(resolveTheme('paperwhite', true)).toBe('paperwhite');
+  });
+
   it('system follows the OS preference', () => {
     expect(resolveTheme('system', false)).toBe('light');
     expect(resolveTheme('system', true)).toBe('dark');
@@ -29,6 +33,9 @@ function block(selector: string): Map<string, string> {
 
 const light = block(':root');
 const dark = block(":root[data-theme='dark']");
+const paperwhite = new Map([...light, ...block(":root[data-theme='paperwhite']")]);
+const breakLight = new Map([...light, ...block(":root[data-phase='break']")]);
+const breakDark = new Map([...dark, ...block(":root[data-theme='dark'][data-phase='break']")]);
 
 function luminance(hex: string): number {
   const h = hex.replace('#', '');
@@ -51,6 +58,26 @@ describe('theme tokens', () => {
     expect(extra).toEqual([]);
   });
 
+  it('paperwhite activity grid steps from paper to ink, one visible step at a time', () => {
+    const t = paperwhite;
+    const lum = [0, 1, 2, 3, 4].map((i) => luminance(t.get(`--heat-${i}`)!));
+    for (let i = 1; i < 5; i++) expect(lum[i - 1] - lum[i], `heat-${i}`).toBeGreaterThan(0);
+    for (let i = 1; i < 5; i++) {
+      expect(contrast(t.get(`--heat-${i - 1}`)!, t.get(`--heat-${i}`)!), `heat-${i - 1} → ${i}`).toBeGreaterThanOrEqual(1.1);
+    }
+  });
+
+  it('paperwhite grid cells are cut from its own paper, not the cream theme', () => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(paperwhite.get('--heat-0')!.slice(i, i + 2), 16));
+    // Warm like the page: red over green over blue, with a clear yellow lean.
+    expect(r > g && g > b && r - b > 40, paperwhite.get('--heat-0')).toBe(true);
+  });
+
+  it('paperwhite overrides only colors the light block declares', () => {
+    const pw = block(":root[data-theme='paperwhite']");
+    expect([...pw.keys()].filter((k) => !light.has(k))).toEqual([]);
+  });
+
   it('puts spacing, radii and leading on the 4px grid', () => {
     for (const [k, v] of light) {
       if (!/^--(space|radius|leading|grid-gutter|grid-margin)/.test(k) || k === '--radius-pill') continue;
@@ -68,6 +95,9 @@ describe('theme tokens', () => {
   it.each([
     ['light', light],
     ['dark', dark],
+    ['paperwhite', paperwhite],
+    ['break', breakLight],
+    ['dark break', breakDark],
   ] as const)('%s text clears contrast floors', (_, t) => {
     const get = (k: string) => (t.get(k) ?? light.get(k))!;
     const body: [string, string][] = [
@@ -91,6 +121,16 @@ describe('theme tokens', () => {
     ];
     for (const [fg, bg] of body) expect(contrast(get(fg), get(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(get('--accent'), get('--bg-page')), 'accent on page').toBeGreaterThanOrEqual(3);
+    // The PDF's own ink on its paper is the body text of every paper read here.
+    expect(contrast(get('--pdf-ink'), get('--pdf-paper')), 'pdf ink on paper').toBeGreaterThanOrEqual(12);
+  });
+
+  it('the focus room still clears contrast at the warm end of a round', () => {
+    const warmEnd = '#1a120c';
+    for (const fg of ['--text-primary', '--text-secondary', '--text-muted']) {
+      expect(contrast(dark.get(fg)!, warmEnd), fg).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(css).toContain(`#0e0c0b, ${warmEnd} calc(var(--round-progress, 0) * 100%)`);
   });
 
   it('carries no skin blocks', () => {

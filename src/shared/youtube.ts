@@ -129,3 +129,8 @@ export function keyMatchesUrl(key: string, url: string): boolean {
   }
   return normalizeUrl(url) === key;
 }
+
+/** YouTube puts your unread notification count in the tab title: "(37) Title", up to "(99+)". */
+export function cleanVideoTitle(title: string): string {
+  return title.replace(/^\(\d{1,2}\+?\)\s+/, '');
+}

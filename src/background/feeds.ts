@@ -1,8 +1,9 @@
 import { ACCENT_COLOR, MAX_CACHED_ITEMS, MAX_READ_ITEMS } from '../shared/constants';
-import { alphaxivUrl, articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
+import { litSegments, segmentCount } from '../shared/dial';
+import { articleReaderUrl, isPdfUrl, readerPageUrl, shouldOpenInReader } from '../shared/pdf';
 import { belongsInContinue } from '../shared/progress';
 import { getLocal, setLocal } from '../shared/storage';
-import type { FeedItem } from '../shared/types';
+import type { FeedItem, FocusSession } from '../shared/types';
 import { getYouTubeVideoId } from '../shared/youtube';
 import { bypassPdfReader } from './pdfIntercept';
 import { fetchFeed } from './rssParser';
@@ -92,17 +93,42 @@ export async function refreshFeeds(): Promise<RefreshResult> {
   return { ok: true, itemCount: merged.length, newCount, failedCount };
 }
 
+const TOOLBAR_ICONS = { 16: 'icons/icon-16.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' };
+
+/** The toolbar's dial. Raw colours: a canvas in the worker has no CSS tokens. */
+function ringIcon(size: number, session: FocusSession): ImageData {
+  const phaseMs = session.phaseEndsAt - session.phaseStartedAt;
+  const count = segmentCount(phaseMs / 60_000);
+  const step = litSegments(Date.now() - session.phaseStartedAt, phaseMs, count) / count;
+  const ctx = new OffscreenCanvas(size, size).getContext('2d')!;
+  const r = size * 0.36;
+  ctx.lineWidth = size * 0.2;
+  ctx.strokeStyle = 'rgba(128, 128, 128, 0.4)';
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
+  ctx.stroke();
+  if (step > 0) {
+    ctx.strokeStyle = session.phase === 'break' ? '#3b6a4c' : '#b4552f';
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, r, -Math.PI / 2, -Math.PI / 2 + step * Math.PI * 2);
+    ctx.stroke();
+  }
+  return ctx.getImageData(0, 0, size, size);
+}
+
 export async function updateBadge(): Promise<void> {
   // During a focus session the badge belongs to the countdown, not unread
   // counts. Read focusSession straight from storage — no focus.ts import,
   // so no module cycle.
   const { focusSession } = await getLocal('focusSession');
   if (focusSession) {
-    const minutesLeft = Math.max(0, Math.ceil((focusSession.phaseEndsAt - Date.now()) / 60_000));
-    await chrome.action.setBadgeText({ text: String(minutesLeft) });
-    await chrome.action.setBadgeBackgroundColor({ color: '#333333' });
+    // During a shift the icon is the dial: a ring lit in the dial's minute
+    // steps, clay in focus and sage in a break. No number to watch.
+    await chrome.action.setBadgeText({ text: '' });
+    await chrome.action.setIcon({ imageData: { 16: ringIcon(16, focusSession), 32: ringIcon(32, focusSession) } });
     return;
   }
+  await chrome.action.setIcon({ path: TOOLBAR_ICONS });
 
   // Was the unread feed count, which pointed at a screen that does not exist —
   // no page renders cachedItems, and `feeds` defaults to empty, so the badge
@@ -195,8 +221,7 @@ export async function openArticle(
   if (original) {
     await bypassPdfReader(url);
   } else if (isPdfUrl(url)) {
-    // arXiv PDFs go to alphaXiv, as the PDF interceptor does.
-    return go(alphaxivUrl(url) ?? readerPageUrl(url), null);
+    return go(readerPageUrl(url), null);
   }
   // Saved links pass readerView: false. shouldOpenInReader is true for nearly
   // every non-PDF page, and a link to Gmail or a dashboard is somewhere you go,

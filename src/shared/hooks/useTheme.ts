@@ -17,7 +17,11 @@ export function useTheme(): {
   const [settings, loaded] = useSettings();
   const mode = settings.theme;
   const [resolved, setResolved] = useState<ResolvedTheme>(() =>
-    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+    (document.documentElement.dataset.theme as ResolvedTheme) === 'dark'
+      ? 'dark'
+      : (document.documentElement.dataset.theme as ResolvedTheme) === 'paperwhite'
+        ? 'paperwhite'
+        : 'light',
   );
 
   useEffect(() => {

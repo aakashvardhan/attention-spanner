@@ -5,9 +5,9 @@ import { CLAUDE_MODELS } from '../constants';
  * runs the call. The SDK is imported on first use, so a profile that never
  * turns the cloud on never loads it.
  *
- * On ask, the document goes in its own cached block ahead of the question, so
- * a second question about the same paper reads the document from the prompt
- * cache instead of paying for it again. The TTL is an hour: people read between
+ * With `cache`, the document goes in its own cached block ahead of the
+ * question, so a second question about the same paper reads the document from
+ * the prompt cache instead of paying for it again. The TTL is an hour: people read between
  * questions, and a 5-minute entry would lapse and be re-written (1.25x) each
  * time. An outline is one call whose answer is saved in aiCache, so a cache
  * write there would never be read.
@@ -18,12 +18,15 @@ export async function claudeStream(opts: {
   system: string;
   document: string;
   prompt: string;
+  /** Cache the document for an hour (ask); a one-shot answer would never read it back */
+  cache?: boolean;
   signal?: AbortSignal;
   onText?: (text: string) => void;
 }): Promise<string> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true });
   const deep = opts.model === CLAUDE_MODELS.deep;
+  const cache = deep || opts.cache;
 
   let text = '';
   try {
@@ -39,7 +42,7 @@ export async function claudeStream(opts: {
               {
                 type: 'text',
                 text: opts.document,
-                ...(deep ? { cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } } : {}),
+                ...(cache ? { cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } } : {}),
               },
               { type: 'text', text: opts.prompt },
             ],
@@ -47,7 +50,7 @@ export async function claudeStream(opts: {
         ],
         // Sonnet 5.5 only: a moderate effort for reading questions, and the
         // server-side fallback so a misfiring safety decline is retried rather
-        // than surfaced. Haiku 4.5 takes neither.
+        // than surfaced. Haiku takes neither.
         ...(deep
           ? {
               output_config: { effort: 'medium' as const },

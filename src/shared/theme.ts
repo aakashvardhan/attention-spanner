@@ -1,6 +1,6 @@
 import type { ThemeSetting } from './types';
 
-export type ResolvedTheme = 'light' | 'dark';
+export type ResolvedTheme = 'light' | 'dark' | 'paperwhite';
 
 /**
  * localStorage mirror of settings.theme. chrome.storage is async, so first
@@ -24,5 +24,5 @@ export function applyTheme(mode: ThemeSetting): ResolvedTheme {
 /** Call at module top of each page's main.tsx, before React mounts (MV3 CSP forbids inline scripts) */
 export function initTheme(): void {
   const stored = localStorage.getItem(MIRROR_KEY);
-  applyTheme(stored === 'light' || stored === 'dark' ? stored : 'system');
+  applyTheme(stored === 'light' || stored === 'dark' || stored === 'paperwhite' ? stored : 'system');
 }

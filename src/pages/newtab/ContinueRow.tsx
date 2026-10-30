@@ -3,8 +3,10 @@ import type { ResumableItem } from '../../shared/attention';
 import { AiNote } from '../../shared/components/AiNote';
 import { formatRelativeDate, formatWatchTime } from '../../shared/format';
 import { useAi } from '../../shared/hooks/useAi';
+import { useSettings } from '../../shared/hooks/useSettings';
+import { GEMINI_MODEL, geminiVideoStream } from '../../shared/llm/gemini';
 import { cachedAi } from '../../shared/llm/generate';
-import { recapRequest, wantsRecap } from '../../shared/llm/recap';
+import { recapRequest, videoSummaryRequest, wantsRecap } from '../../shared/llm/recap';
 import { recordStat } from '../../shared/llm/store';
 import { sendMessage } from '../../shared/messages';
 import { paceLabel, paceMinutesLeft, progressKeyFor } from '../../shared/progress';
@@ -39,8 +41,9 @@ export function kickerFor(item: ResumableItem): string {
  * list, and the recap is for the one you are about to open.
  *
  * Videos can be recapped from here, since their transcript is fetchable from
- * the new tab. Articles and papers only exist as text inside the reader, so
- * the row offers the recap the reader made on your last visit, if any.
+ * the new tab, and summarized whole, watched or not. Articles and papers only
+ * exist as text inside the reader, so the row offers the recap the reader made
+ * on your last visit, if any.
  */
 export function ContinueRow({
   item,
@@ -55,13 +58,16 @@ export function ContinueRow({
   lead?: boolean;
   /** Where J/K selection sits; Enter with nothing focused opens it. */
   selected?: boolean;
-  /** `alt`: Option/Alt held, so a paper opens in the reader instead of alphaXiv; `newTab`: ⌘/Ctrl held. */
+  /** `alt`: Option/Alt held, so an arXiv paper opens on alphaXiv instead of the reader; `newTab`: ⌘/Ctrl held. */
   onOpen: (alt: boolean, newTab: boolean) => void;
 }) {
   const ai = useAi();
-  const [open, setOpen] = useState(false);
+  /** Which answer is unfolded under the row; the two share one AI call slot. */
+  const [panel, setPanel] = useState<'recap' | 'summary' | null>(null);
   const [saved, setSaved] = useState(false);
-  const [noTranscript, setNoTranscript] = useState(false);
+  /** Why the transcript couldn't be read, when it couldn't */
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [settings] = useSettings();
 
   const progressKey = item.paper ? `paper:${item.paper.id}` : item.progress ? progressKeyFor(item.progress.url) : '';
   const percent = item.paper ? item.paper.progressPercent : (item.progress?.maxPercent ?? 0);
@@ -82,17 +88,57 @@ export function ContinueRow({
   }, [eligible, video === null, savedRequest.cacheKey]);
 
   const showRecap = async () => {
-    setOpen(true);
+    setPanel('recap');
     if (!video) {
       void ai.showCached(savedRequest);
       return;
     }
-    const passages = await videoPassages(video);
-    if (passages === null) {
-      setNoTranscript(true);
+    setTranscriptError(null);
+    const res = await videoPassages(video);
+    if ('error' in res) {
+      setTranscriptError(`${res.error} Open the video in a tab and try again.`);
       return;
     }
-    void ai.start(recapRequest({ key: progressKey, passages, percent, source: 'youtube' }));
+    void ai.start(recapRequest({ key: progressKey, passages: res.passages, percent, source: 'youtube' }));
+  };
+
+  const showSummary = async () => {
+    setPanel('summary');
+    if (!video) return;
+    setTranscriptError(null);
+    const res = await videoPassages(video);
+    if ('passages' in res) {
+      void ai.start(videoSummaryRequest({ key: progressKey, passages: res.passages }));
+      return;
+    }
+    // No transcript here: Gemini can watch the public video itself.
+    if (settings.geminiKey) {
+      const request = videoSummaryRequest({ key: progressKey, passages: [] });
+      void ai.startWith(
+        request,
+        { target: 'gemini', model: GEMINI_MODEL, reason: 'No transcript here · Gemini watched the video' },
+        (signal, onText) =>
+          geminiVideoStream({
+            apiKey: settings.geminiKey,
+            videoUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
+            system: request.system,
+            prompt: request.prompt,
+            signal,
+            onText,
+          }),
+      );
+      return;
+    }
+    setTranscriptError(`${res.error} Open it in a tab, or add a Gemini API key in Settings to summarize it without one.`);
+  };
+
+  const toggle = (which: 'recap' | 'summary') => {
+    if (panel === which) {
+      ai.dismiss();
+      setPanel(null);
+    } else {
+      void (which === 'recap' ? showRecap() : showSummary());
+    }
   };
 
   const canRecap = eligible && (video !== null || saved);
@@ -111,7 +157,7 @@ export function ContinueRow({
               probe: {
                 key: progressKey,
                 startPercent: percent,
-                recap: open && ai.view.status === 'done',
+                recap: panel === 'recap' && ai.view.status === 'done',
                 at: Date.now(),
               },
             });
@@ -158,23 +204,43 @@ export function ContinueRow({
           )}
           <Icon name="chevron" className="relay-row-chevron" />
         </button>
+        {video && (
+          <button
+            type="button"
+            className="relay-recap-toggle"
+            aria-expanded={panel === 'summary'}
+            aria-label={panel === 'summary' ? 'Hide summary' : 'Summarize the whole video'}
+            onClick={() => toggle('summary')}
+          >
+            {panel === 'summary' ? 'Hide' : 'Summary'}
+          </button>
+        )}
         {canRecap && (
           <button
             type="button"
             className="relay-recap-toggle"
-            aria-expanded={open}
-            onClick={() => (open ? (ai.dismiss(), setOpen(false)) : void showRecap())}
+            aria-expanded={panel === 'recap'}
+            onClick={() => toggle('recap')}
           >
-            {open ? 'Hide' : 'Recap'}
+            {panel === 'recap' ? 'Hide' : 'Recap'}
           </button>
         )}
+        <button
+          type="button"
+          className="relay-remove"
+          aria-label={`Remove ${item.title} from Continue`}
+          title="Remove from Continue"
+          onClick={() => void removeFromContinue(item)}
+        >
+          <Icon name="close" />
+        </button>
       </div>
-      {open && (
+      {panel && (
         <div className="relay-recap">
-          {noTranscript ? (
-            <p className="relay-empty">This video has no transcript to recap from.</p>
+          {transcriptError ? (
+            <p className="relay-empty">{transcriptError}</p>
           ) : (
-            <AiNote view={ai.view} onStop={ai.stop} onApprove={ai.approve} onDismiss={() => setOpen(false)} />
+            <AiNote view={ai.view} onStop={ai.stop} onApprove={ai.approve} onDismiss={() => setPanel(null)} />
           )}
         </div>
       )}
@@ -186,12 +252,22 @@ export function ContinueRow({
  * The whole transcript, one passage per caption block. recapRequest cuts it at
  * the furthest point watched, the same way it cuts an article.
  */
-async function videoPassages(video: VideoProgress): Promise<string[] | null> {
+async function videoPassages(video: VideoProgress): Promise<{ passages: string[] } | { error: string }> {
   try {
     const res = await sendMessage({ type: 'VIDEO_TRANSCRIPT', videoId: video.videoId });
-    if (!res.ok || !res.segments?.length) return null;
-    return res.segments.map((s) => s.text);
+    if (!res.ok || !res.segments?.length) return { error: res.error ?? 'This video has no transcript.' };
+    return { passages: res.segments.map((s) => s.text) };
   } catch {
-    return null;
+    return { error: 'Could not ask for the transcript.' };
   }
+}
+
+/**
+ * The X on a row. An article or video forgets its progress. A paper only steps
+ * back to "to read": it lives in a deck in your library, and its place in the
+ * PDF is kept for when you open it again.
+ */
+function removeFromContinue(item: ResumableItem) {
+  if (item.paper) return sendMessage({ type: 'PAPER_UPDATE', id: item.paper.id, patch: { status: 'to-read' } });
+  if (item.progress) return sendMessage({ type: 'PROGRESS_DELETE', url: item.progress.url });
 }

@@ -52,9 +52,14 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 - New tab (the Edition): `.edition` is the page (a `.grid`), `.edition-masthead`
   the top band (h1 is the edition name), `.edition-lead` the lead story, and
   every openable story carries `[data-story]` (J/K walk them, Enter opens the
-  lead). Favorites, Papers, Settings and focus live in `.edition-index`;
-  starting focus swaps the `.edition-pill` for `.edition-focus-live` with the
-  countdown and Stop. Wait ~1.5s for storage. Seed `readingProgress` with real
+  lead). Favorites, Papers and Settings live in `.edition-index`. The
+  Pomodoro is `.pomo` (FocusTimer.tsx, sidebar in flat, bottom band in the
+  world): idle it is `.pomo-clockin` (or key C); running it carries
+  `data-phase` and so does `<html>`. A seeded `focusSession` needs `phase`,
+  `round` and `phaseStartedAt` or it reads as not focusing. To end a phase,
+  set `phaseEndsAt: Date.now()` and fire `focus-phase-end` from the worker
+  with `chrome.alarms.create`; the chime is an offscreen document, visible via
+  `chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })`. Wait ~1.5s for storage. Seed `readingProgress` with real
   fields (`maxPercent`, `updatedAt`, `completedAt: null`, `nudge`) or the
   lead stays empty.
 - Reader (the Observatory): `.reader-root[data-chrome]` is `awake`/`asleep`

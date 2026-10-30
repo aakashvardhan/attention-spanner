@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appendRead, applyMarkAllRead, mergeFeedItems, openArticle } from './feeds';
+import { readerPagePath } from '../shared/pdf';
 import type { FeedItem } from '../shared/types';
 
 /** `n` orders both the id and the pubDate, so "newest" is unambiguous in assertions */
@@ -74,12 +75,14 @@ describe('applyMarkAllRead', () => {
 });
 
 describe('openArticle', () => {
-  it('sends an arXiv PDF to alphaXiv, not the reader', async () => {
+  it('sends an arXiv PDF to the reader, not alphaXiv', async () => {
     // A resume nudge for a paper left in the reader lands here with the PDF URL
     const create = vi.fn(async () => ({}));
-    vi.stubGlobal('chrome', { tabs: { create } });
+    vi.stubGlobal('chrome', { tabs: { create }, runtime: { getURL: (path: string) => `chrome-extension://id/${path}` } });
     await openArticle('https://arxiv.org/pdf/2406.09246', null, true);
-    expect(create).toHaveBeenCalledWith({ url: 'https://www.alphaxiv.org/abs/2406.09246' });
+    expect(create).toHaveBeenCalledWith({
+      url: `chrome-extension://id/${readerPagePath('https://arxiv.org/pdf/2406.09246')}`,
+    });
     vi.unstubAllGlobals();
   });
 });
@@ -92,11 +95,12 @@ describe('openArticle in the same tab', () => {
     const sessionSet = vi.fn(async () => undefined);
     vi.stubGlobal('chrome', {
       tabs: { create, query: vi.fn(async () => []) },
+      runtime: { getURL: (path: string) => `chrome-extension://id/${path}` },
       storage: { local: { get: vi.fn(async () => ({ readItems: [] })), set: vi.fn(async () => undefined) }, session: { get: vi.fn(async () => ({})), set: sessionSet } },
     });
     const res = await openArticle('https://arxiv.org/pdf/2406.09246', null, false, true, false, [], 7);
     expect(create).not.toHaveBeenCalled();
-    expect(res).toEqual({ ok: true, url: expect.stringContaining('alphaxiv.org') });
+    expect(res).toEqual({ ok: true, url: `chrome-extension://id/${readerPagePath('https://arxiv.org/pdf/2406.09246')}` });
   });
 
   it('returns no url when an existing video tab is focused', async () => {

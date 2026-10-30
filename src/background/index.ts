@@ -14,8 +14,9 @@ import {
   resumeArticle,
 } from './nudges';
 import { markPaperReadingByUrl } from './papers';
-import { maybeInterceptPdf, maybeInterceptPdfResponse } from './pdfIntercept';
+import { maybeInterceptPdf, syncPdfRules } from './pdfIntercept';
 import { refreshTimedtextTees, registerTimedtextTee } from './videoContext';
+import { injectDefineScript, registerDefineScript } from './defineScript';
 import { handleTabRemoved, maybeInjectTracker } from './tracking';
 import { maybeInjectVideoTracker } from './videoTracking';
 import { dispatch, handleMessage } from './router';
@@ -40,6 +41,7 @@ async function reinjectIntoOpenTabs(): Promise<void> {
         ? [
             maybeInjectTracker(tab.id, tab.url),
             maybeInjectVideoTracker(tab.id, tab.url),
+            injectDefineScript(tab.id),
           ]
         : [],
     ),
@@ -73,6 +75,7 @@ chrome.runtime.onInstalled.addListener(() => {
     // This reload just orphaned every content script already running
     await reinjectIntoOpenTabs();
     await registerTimedtextTee();
+    await registerDefineScript();
   })();
 });
 
@@ -98,6 +101,7 @@ chrome.runtime.onStartup.addListener(() => {
   })();
   // Caption capture depends on the tee being present before the player boots
   void registerTimedtextTee();
+  void registerDefineScript();
   // Restored session tabs come back without their content scripts
   void reinjectIntoOpenTabs();
 });
@@ -163,7 +167,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // PDF navigations bounce into the in-extension reader (unless bypassed).
+  // Local PDF navigations bounce into the reader (web PDFs are redirected by DNR).
   // Checked first so the trackers below never run against a soon-gone page.
   if (changeInfo.url) {
     void maybeInterceptPdf(tabId, changeInfo.url);
@@ -189,16 +193,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // Cheap: one getDynamicRules that early-returns when there is nothing to drop.
 void removeLegacyDailyGateRule();
 
-// PDFs served from an extensionless URL (allenai.org/papers/…) look like an
-// ordinary page until the response headers arrive; this is the only way to see
-// them before Chrome's own viewer takes the tab. Observation only — no blocking.
-chrome.webRequest.onHeadersReceived.addListener(
-  (details) => {
-    void maybeInterceptPdfResponse(details);
-  },
-  { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] },
-  ['responseHeaders'],
-);
+// Session rules outlive the worker but not the browser; rebuilding them on
+// every worker start is one cheap atomic update.
+void syncPdfRules();
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   void chrome.tabs.get(tabId).then(checkDrift, () => undefined);

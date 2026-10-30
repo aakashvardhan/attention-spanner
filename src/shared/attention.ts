@@ -1,5 +1,6 @@
 import type { AnyProgress, ResumeTarget, Paper } from './types';
-import { belongsInContinue } from './progress';
+import { belongsInContinue, progressKeyFor } from './progress';
+import { cleanVideoTitle } from './youtube';
 
 export function resumeContextFromProgress(progress: AnyProgress): ResumeTarget {
   if (progress.kind === 'video') {
@@ -39,11 +40,20 @@ export function resumableItems(
   papers: readonly Paper[],
   now = Date.now(),
 ): ResumableItem[] {
-  const fromProgress = Object.values(progress)
-    .filter((entry) => belongsInContinue(entry, now))
+  // One row per page actually read: two feed links (two feeds, or a redirect)
+  // key the same article twice, and both entries end up naming that page.
+  const newest = new Map<string, AnyProgress>();
+  for (const entry of Object.values(progress)) {
+    if (!belongsInContinue(entry, now)) continue;
+    const page = progressKeyFor(entry.url);
+    const seen = newest.get(page);
+    if (!seen || entry.updatedAt > seen.updatedAt) newest.set(page, entry);
+  }
+  const fromProgress = [...newest.values()]
     .map((entry) => ({
       key: `progress:${entry.url}`,
-      title: entry.title || entry.url,
+      // Entries saved before titles were cleaned still carry YouTube's "(37)" count.
+      title: (entry.kind === 'video' ? cleanVideoTitle(entry.title) : entry.title) || entry.url,
       updatedAt: entry.updatedAt,
       paper: null,
       progress: entry,

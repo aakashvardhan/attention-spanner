@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LOCAL_CONTEXT_CHARS } from '../constants';
-import { readSoFar, recapRequest, wantsRecap } from './recap';
+import { readSoFar, recapRequest, videoSummaryRequest, wantsRecap } from './recap';
 
 const passages = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
@@ -52,5 +52,19 @@ describe('recapRequest', () => {
       recapRequest({ key: 'k', passages, percent, source: 'web' }).cacheKey;
     expect(at(41)).toBe(at(47));
     expect(at(41)).not.toBe(at(51));
+  });
+});
+
+describe('videoSummaryRequest', () => {
+  it('sends the whole transcript, however little has been watched', () => {
+    const r = videoSummaryRequest({ key: 'video:abc', passages: ['intro', 'middle', 'end'] });
+    expect(r.passages).toEqual(['intro', 'middle', 'end']);
+    expect(r.source).toBe('youtube');
+  });
+
+  it('caches once per video, apart from its recaps', () => {
+    const r = videoSummaryRequest({ key: 'video:abc', passages: [] });
+    expect(r.cacheKey).toBe('video:abc:summary');
+    expect(r.cacheKey).not.toBe(recapRequest({ key: 'video:abc', passages: [], percent: 40, source: 'youtube' }).cacheKey);
   });
 });

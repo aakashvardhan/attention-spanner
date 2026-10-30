@@ -1,5 +1,5 @@
 import type { ResumeTarget } from '../shared/messages';
-import { progressKeyFor } from '../shared/progress';
+import { progressKeyFor, withoutPage } from '../shared/progress';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, BookmarkLink, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
@@ -216,4 +216,12 @@ export function prune(progress: Record<string, AnyProgress>): Record<string, Any
       .slice(0, MAX_PROGRESS_ENTRIES);
   }
   return Object.fromEntries(entries);
+}
+
+/** The X on a Continue row: the page's progress goes, under every key, and so does its resume nudge. */
+export async function forgetProgress(url: string): Promise<void> {
+  const { readingProgress } = await getLocal('readingProgress');
+  const kept = withoutPage(readingProgress, url);
+  await setLocal({ readingProgress: kept });
+  await Promise.all(Object.keys(readingProgress).filter((key) => !(key in kept)).map((key) => cancelNudge(key)));
 }
