@@ -101,7 +101,9 @@ ul + .hint {
 /* ---------- Rows: title left, metadata right ---------- */
 
 .row-wrap {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 .row {
   flex: 1;
@@ -151,23 +153,28 @@ ul + .hint {
 .row-state {
   color: var(--accent-text);
 }
-/* Recap, Summary and the X: laid over the row's right end, out of sight and
-   out of the way until the row is reached for, so the metadata stays aligned. */
+/* Recap, Summary and the X: in flow beside the metadata, their width kept so
+   nothing shifts, and invisible (so not clickable) until the row is reached
+   for. Always shown where there is no hover. */
 .row-tools {
-  position: absolute;
-  inset-block: 0;
-  right: 0;
+  flex: none;
+  /* Room for Summary, Recap and the X, so every row's metadata lines up. */
+  width: 152px;
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-1);
-  padding-left: var(--space-3);
-  background: var(--bg-page);
-  opacity: 0;
+  visibility: hidden;
 }
 .row-wrap:hover .row-tools,
-.row-tools:focus-within,
+.row-wrap:focus-within .row-tools,
 .row-tools:has([aria-expanded='true']) {
-  opacity: 1;
+  visibility: visible;
+}
+@media (hover: none) {
+  .row-tools {
+    visibility: visible;
+  }
 }
 .row-tool,
 .row-remove {

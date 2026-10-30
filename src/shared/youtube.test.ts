@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ReadingProgress, VideoProgress } from './types';
 import {
+  cleanVideoTitle,
   currentlyWatching,
   getYouTubeVideoId,
   isWatchingNow,
@@ -211,5 +212,12 @@ describe('currentlyWatching', () => {
         NOW,
       ),
     ).toBeNull();
+  });
+});
+
+describe('cleanVideoTitle', () => {
+  it("drops YouTube's notification count from the tab title", () => {
+    expect(cleanVideoTitle('(37) RL Course by David Silver')).toBe('RL Course by David Silver');
+    expect(cleanVideoTitle('(2021) Retrospective')).toBe('(2021) Retrospective');
   });
 });

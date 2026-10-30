@@ -1,8 +1,10 @@
 import { createServer } from 'node:http';
+import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { VideoProgress } from '../src/shared/types';
 import { PAGES, launch, seed, shot, storage, type Ext } from './harness';
 import { article, deck, paper } from './seed';
+import { html } from './sites';
 
 const HOUR = 60 * 60_000;
 
@@ -44,6 +46,12 @@ async function startChatMock() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as { port: number }).port;
   return { url: `http://127.0.0.1:${port}`, systems, close: () => new Promise((r) => server.close(() => r(undefined))) };
+}
+
+/** The X on a row: its tools show when the row is hovered. */
+async function remove(tab: Page, title: string) {
+  await tab.locator('.row-wrap').filter({ has: tab.locator('.row-title').getByText(title, { exact: true }) }).hover();
+  await tab.getByRole('button', { name: `Remove ${title} from Continue` }).click();
 }
 
 describe('continue: reading and watching', () => {
@@ -90,6 +98,7 @@ describe('continue: reading and watching', () => {
 
     // Summary covers the whole video, from its transcript.
     const row = watching.locator('li').first();
+    await row.hover(); // the row's tools show when it is reached for
     await row.getByRole('button', { name: 'Summarize the whole video' }).click();
     await expect.poll(() => row.locator('.row-recap').innerText(), { timeout: 10_000 }).toContain('Point two');
     expect(ollama.systems.some((s) => s.includes('summarize a video from its transcript'))).toBe(true);
@@ -123,6 +132,7 @@ describe('continue: reading and watching', () => {
 
     // No transcript: the real reason, and the way past it.
     const row = watching.locator('li').first();
+    await row.hover(); // the row's tools show when it is reached for
     await row.getByRole('button', { name: 'Summarize the whole video' }).click();
     await expect.poll(() => row.locator('.row-recap').innerText(), { timeout: 20_000 }).toContain('Open it in a tab and try again.');
     await tab.close();
@@ -147,24 +157,24 @@ describe('continue: reading and watching', () => {
     await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story', 'Focus workspace', 'A paper in progress']);
 
     // The merged duplicate goes with it: both stored copies are forgotten.
-    await tab.getByRole('button', { name: 'Remove Focus workspace from Continue' }).click();
+    await remove(tab, 'Focus workspace');
     await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story', 'A paper in progress']);
     expect(Object.keys(await storage<Record<string, unknown>>(ext, 'readingProgress')).sort()).toEqual([
       'news.e2e.test/lead',
       'video:vid00000001',
     ]);
 
-    await tab.getByRole('button', { name: 'Remove A talk about focus from Continue' }).click();
+    await remove(tab, 'A talk about focus');
     await expect.poll(() => tab.getByRole('region', { name: 'Continue watching' }).count()).toBe(0);
 
     // A paper leaves Continue but stays in its deck, to read, with its place kept.
-    await tab.getByRole('button', { name: 'Remove A paper in progress from Continue' }).click();
+    await remove(tab, 'A paper in progress');
     await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story']);
     const papers = await storage<{ id: string; status: string; progressPercent: number }[]>(ext, 'papers');
     expect(papers).toMatchObject([{ id: '1', status: 'to-read', progressPercent: 30 }]);
 
     // The last one goes, and Continue says how to fill it.
-    await tab.getByRole('button', { name: 'Remove The lead story from Continue' }).click();
+    await remove(tab, 'The lead story');
     await expect.poll(() => tab.getByRole('region', { name: 'Continue reading' }).count()).toBe(0);
     await expect.poll(() => tab.locator('section[aria-label="Continue"] .hint').innerText()).toContain('Nothing open');
   });
@@ -181,6 +191,25 @@ describe('continue: reading and watching', () => {
     await expect.poll(() => row.locator('.row-state').innerText()).toBe('watching');
     expect(await row.locator('.row-meta').innerText()).toMatch(/^\d+:\d{2}$/);
     expect(await tab.locator('.now-watching').count()).toBe(0);
+    await tab.close();
+  });
+
+  it('a tap on a row\'s metadata opens it and never hits its hidden X', async () => {
+    const url = `${ext.sites.origin('article')}/kept`;
+    ext.sites.setRoute('article', '/kept', html('<h1>Kept</h1>'));
+    await seed(ext, { settings: { ollamaUrl: '', layaUrl: '', cloudMode: 'off' }, readingProgress: { [url]: article(url, 'Kept story') } });
+    const tab = await ext.page(PAGES.newtab);
+    await tab.mouse.move(0, 0);
+    const meta = (await tab.locator('.row-meta').first().boundingBox())!;
+    const tools = (await tab.locator('.row-tools').first().boundingBox())!;
+    // Not hovered: the tools are invisible and take no clicks, and they never cover the metadata.
+    expect(meta.x + meta.width).toBeLessThanOrEqual(tools.x);
+    expect(
+      await tab.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.row-tools') ?? null, [tools.x + tools.width - 8, tools.y + tools.height / 2]),
+    ).toBeNull();
+    await tab.mouse.click(meta.x + meta.width / 2, meta.y + meta.height / 2);
+    await tab.waitForURL(url);
+    expect(Object.keys(await storage<Record<string, unknown>>(ext, 'readingProgress'))).toEqual([url]);
     await tab.close();
   });
 });

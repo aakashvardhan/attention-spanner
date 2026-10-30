@@ -221,7 +221,6 @@
   --heat-2: #e2b9a3;
   --heat-3: #c96442;
   --heat-4: #9a4528;
-  --heat-cell-border: rgba(60, 40, 20, 0.06);
 }
 
 /* A focus round on the new tab (Dashboard sets data-phase) is the dark room,
@@ -308,7 +307,6 @@
   --heat-2: #7a4630;
   --heat-3: #c96442;
   --heat-4: #f0b79a;
-  --heat-cell-border: rgba(236, 228, 216, 0.05);
 }
 
 /* Paperwhite: an e-ink page under a warm front light, like a Kindle at its
@@ -341,7 +339,6 @@
   --heat-2: #d09b6e;
   --heat-3: #b2603d;
   --heat-4: #7a3820;
-  --heat-cell-border: rgba(60, 40, 20, 0.08);
   --pdf-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 4px 16px rgba(60, 40, 20, 0.1);
 }
 
