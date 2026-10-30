@@ -29,12 +29,20 @@ ul {
 
 /* ---------- Layout ---------- */
 
+/* One 12-column coordinate grid across the whole window: margins and gutters
+   scale with the viewport, the page fills its height, and every block starts
+   and ends on a column line. Hairlines sit in the middle of a gutter. */
 .edition {
+  --page-margin: clamp(16px, 4vw, 96px);
+  --page-gutter: clamp(24px, 3vw, 64px);
+  /* Room for Continue's Summary, Recap and X, so every row's metadata lines up. */
+  --tools-w: 152px;
   display: grid;
-  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
-  max-width: var(--grid-max);
-  margin: 0 auto;
-  padding: var(--space-7) var(--grid-margin) var(--space-6);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: 1fr auto;
+  column-gap: var(--page-gutter);
+  min-height: 100dvh;
+  padding: clamp(24px, 6vh, 96px) var(--page-margin) var(--space-6);
 }
 .now-col,
 .read-col {
@@ -44,25 +52,73 @@ ul {
   min-width: 0;
 }
 .now-col {
-  padding-right: var(--space-6);
-  border-right: 1px solid var(--border);
+  position: relative;
+  grid-column: 1 / span 4;
 }
 .read-col {
-  padding-left: var(--space-6);
+  grid-column: 5 / -1;
+}
+.read-col > * {
+  min-width: 0;
+}
+.now-col::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  right: calc(var(--page-gutter) / -2);
+  border-right: 1px solid var(--border);
+}
+/* Deck and News rows keep the tools' width empty so their metadata ends on
+   the same line as Continue's. */
+.read-col > :not(:first-child) .row {
+  width: calc(100% - var(--tools-w) - var(--space-2));
+}
+
+/* Wide screens: three zones on the same lines. Now 3, Continue 5, Deck and News 4. */
+@media (min-width: 1440px) {
+  .now-col {
+    grid-column: 1 / span 3;
+  }
+  .read-col {
+    grid-column: 4 / -1;
+    grid-template-columns: subgrid;
+    grid-template-rows: auto 1fr;
+    column-gap: var(--page-gutter);
+  }
+  .read-col > * {
+    grid-column: 6 / -1;
+  }
+  .read-col > :first-child {
+    position: relative;
+    grid-column: 1 / 6;
+    grid-row: 1 / span 2;
+  }
+  .read-col > :first-child::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    right: calc(var(--page-gutter) / -2);
+    border-right: 1px solid var(--border);
+  }
+  .read-col > :not(:first-child) .row {
+    width: 100%;
+  }
 }
 
 @media (max-width: 720px) {
-  .edition {
-    grid-template-columns: minmax(0, 1fr);
-    padding-top: var(--space-5);
+  .now-col,
+  .read-col {
+    grid-column: 1 / -1;
   }
   .now-col {
-    padding: 0 0 var(--space-6);
-    border-right: 0;
+    padding-bottom: var(--space-6);
     border-bottom: 1px solid var(--border);
   }
+  .now-col::after {
+    content: none;
+  }
   .read-col {
-    padding: var(--space-6) 0 0;
+    padding-top: var(--space-6);
   }
 }
 
@@ -158,8 +214,7 @@ ul + .hint {
    for. Always shown where there is no hover. */
 .row-tools {
   flex: none;
-  /* Room for Summary, Recap and the X, so every row's metadata lines up. */
-  width: 152px;
+  width: var(--tools-w);
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -570,6 +625,7 @@ ul + .hint {
 
 .edition-index {
   grid-column: 1 / -1;
+  align-self: end;
   display: flex;
   gap: var(--space-4);
   margin-top: var(--space-7);
