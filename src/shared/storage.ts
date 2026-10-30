@@ -89,7 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 25,
+  schemaVersion: 26,
   provocations: [],
   feeds: [],
   readItems: [],
@@ -208,6 +208,8 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * hyperfocus and reading nudges went. Their keys and settings join the same
  * cumulative lists, so the sweep re-runs; progress records and papers drop
  * their `nudge` state (v25Progress, v25StripNudge).
+ * v25 → v26: progress entries for non-http(s) pages (the extension's own new
+ * tab was recorded as "Focus workspace") are removed (v26Progress).
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
@@ -217,7 +219,7 @@ export async function migrate(): Promise<void> {
   await chrome.storage.session.remove(['hyperfocus', 'driftChecked', 'lastGlobalNudgeAt']);
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 25) return;
+  if (version >= 26) return;
 
   // Only branches that repair data a SURVIVING feature reads are kept. Every
   // migration that merely seeded a key now removed — the calendar defaults, the
@@ -249,7 +251,23 @@ export async function migrate(): Promise<void> {
     }
   }
 
-  await chrome.storage.local.set({ schemaVersion: 25 });
+  if (version < 26) {
+    const { readingProgress } = await chrome.storage.local.get('readingProgress');
+    const progress = v26Progress(readingProgress as Record<string, unknown> | undefined);
+    if (progress) await chrome.storage.local.set({ readingProgress: progress });
+  }
+
+  await chrome.storage.local.set({ schemaVersion: 26 });
+}
+
+/** v25 → v26: drops progress entries whose url isn't http(s). Null when nothing changed. */
+export function v26Progress(map: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  if (!map || typeof map !== 'object') return null;
+  const kept = Object.entries(map).filter(([, e]) => {
+    const url = e && typeof e === 'object' ? (e as { url?: unknown }).url : undefined;
+    return typeof url === 'string' && /^https?:/.test(url);
+  });
+  return kept.length === Object.keys(map).length ? null : Object.fromEntries(kept);
 }
 
 /** v24 → v25: reading nudges are cut; a record keeps everything but its `nudge`. */

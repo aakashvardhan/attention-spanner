@@ -176,6 +176,8 @@ export async function handleProgressUpdate(
     if (tab.title) progress.title = tab.title;
     if (tab.url) progress.url = tab.url;
   }
+  // The extension's own pages (new tab, reader) are never reading progress.
+  if (!/^https?:/.test(progress.url)) return;
   progress.maxPercent = Math.max(progress.maxPercent, Math.round(update.percent));
   progress.scrollY = update.scrollY;
   progress.pageHeight = update.pageHeight;

@@ -7,6 +7,7 @@ import {
   v24Dumps,
   v25Progress,
   v25StripNudge,
+v26Progress,
   withDumpLock,
   v22StripSettings,
   v7Annotations,
@@ -213,7 +214,7 @@ describe('v22', () => {
     const remove = vi.fn(() => Promise.resolve());
     vi.stubGlobal('chrome', {
       storage: {
-        local: { get: () => Promise.resolve({ schemaVersion: 25 }), set: vi.fn(), remove: vi.fn() },
+        local: { get: () => Promise.resolve({ schemaVersion: 26 }), set: vi.fn(), remove: vi.fn() },
         session: { remove },
       },
     });
@@ -238,9 +239,9 @@ describe('v22', () => {
 });
 
 describe('provocations key', () => {
-  it('defaults provocations to an empty list and keeps schema 25', () => {
+  it('defaults provocations to an empty list and keeps schema 26', () => {
     expect(DEFAULTS.provocations).toEqual([]);
-    expect(DEFAULTS.schemaVersion).toBe(25);
+    expect(DEFAULTS.schemaVersion).toBe(26);
   });
 });
 
@@ -293,6 +294,16 @@ describe('kept data', () => {
 });
 
 /** v24 → v25: reading nudges are cut, so progress records and papers drop their `nudge` state. */
+describe('v26', () => {
+  it('drops non-http(s) progress entries', () => {
+    expect(v26Progress({ a: { url: 'chrome-extension://x/n.html' }, b: { url: 'https://ex.com' } })).toEqual({ b: { url: 'https://ex.com' } });
+  });
+  it('returns null when nothing changed', () => {
+    expect(v26Progress({ b: { url: 'https://ex.com' } })).toBeNull();
+    expect(v26Progress(undefined)).toBeNull();
+  });
+});
+
 describe('v25', () => {
   const nudge = { count: 1, lastAt: 2, dismissed: false };
 
@@ -348,6 +359,7 @@ describe('v25 sweep on a full legacy profile', () => {
   const progress = {
     'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null, nudge },
     'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30, nudge },
+    'ext/newtab': { url: 'chrome-extension://abc/src/pages/newtab/index.html', title: 'Focus workspace', maxPercent: 5, completedAt: null },
   };
   const paper = { id: 'p1', title: 'P', url: 'https://arxiv.org/abs/1', status: 'reading', progressPercent: 20 };
   // Every key a `// v25` section sweeps, plus a sentinel for every kept key.
@@ -363,7 +375,7 @@ describe('v25 sweep on a full legacy profile', () => {
     papers: [{ ...paper, nudge }],
   };
 
-  it('drops only the cut, keeps every sentinel and lands on 25', async () => {
+  it('drops only the cut, keeps every sentinel and lands on 26', async () => {
     const snapshot = fakeChrome(seed);
     await migrate();
     const after = snapshot();
@@ -374,13 +386,14 @@ describe('v25 sweep on a full legacy profile', () => {
       'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null },
       'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30 },
     });
+    expect(after.readingProgress).not.toHaveProperty('ext/newtab');
     expect(after.papers).toEqual([paper]);
     expect(JSON.stringify(after)).not.toContain('"nudge"');
     for (const k of KEPT_LOCAL_KEYS) {
       if (['schemaVersion', 'settings', 'readingProgress', 'papers'].includes(k)) continue;
       expect(after[k]).toEqual(sentinel(k));
     }
-    expect(after.schemaVersion).toBe(25);
+    expect(after.schemaVersion).toBe(26);
   });
 
   it('migrate is idempotent', async () => {
