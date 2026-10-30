@@ -46,4 +46,18 @@ describe('handleProgressUpdate', () => {
       expect(store.readingProgress).toEqual({});
     },
   );
+
+  it('leaves an existing entry untouched when its tracked tab now shows the new tab', async () => {
+    const seeded = {
+      url: 'https://example.com/a', feedItemId: null, title: 'A', source: '', maxPercent: 20,
+      scrollY: 10, pageHeight: 1000, activeSeconds: 3, firstOpenedAt: 1, updatedAt: Date.now(), completedAt: null,
+    };
+    store.readingProgress = { 'example.com/a': seeded };
+    store.trackedTabs = { 1: { normalizedUrl: 'example.com/a' } };
+    await handleProgressUpdate(
+      { tab: { id: 1, url: 'chrome-extension://abc/src/pages/newtab/index.html', title: 'Focus workspace' } } as chrome.runtime.MessageSender,
+      { percent: 50, scrollY: 0, pageHeight: 1000, activeSecondsDelta: 5 },
+    );
+    expect(store.readingProgress).toEqual({ 'example.com/a': seeded });
+  });
 });
