@@ -204,13 +204,15 @@ export async function openArticle(
 
   // From the new tab: hand back where to go, so the page steps into it in its
   // own tab (Chrome's new tab does the same). Tracking registers that tab.
+  // "Read this" opens a page it has no feed item for, fresh: never topic-gated.
+  const explicit = feedItemId === null && !resume;
   const go = async (destination: string, register: { key: string; resume: boolean } | null) => {
     if (hereTabId !== undefined) {
-      if (register) await registerOpenedTab(hereTabId, register.key, register.resume);
+      if (register) await registerOpenedTab(hereTabId, register.key, register.resume, explicit);
       return { ok: true, url: destination };
     }
     const tab = await chrome.tabs.create({ url: destination });
-    if (register && tab.id !== undefined) await registerOpenedTab(tab.id, register.key, register.resume);
+    if (register && tab.id !== undefined) await registerOpenedTab(tab.id, register.key, register.resume, explicit);
     return { ok: true };
   };
 

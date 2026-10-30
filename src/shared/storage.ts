@@ -54,7 +54,8 @@ export interface LocalSchema {
 }
 
 export interface SessionSchema {
-  trackedTabs: Record<number, { normalizedUrl: string; injectedAt: number }>;
+  /** explicit: opened by "read this", so the topic gate never applies */
+  trackedTabs: Record<number, { normalizedUrl: string; injectedAt: number; explicit?: boolean }>;
   pendingResume: Record<
     number,
     { scrollY: number; percent: number } | { positionSeconds: number }

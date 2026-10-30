@@ -7,9 +7,13 @@ export const TOPIC_BUDGET_MS = 1500;
 
 type Deps = { ask?: typeof askGeminiOnTopic };
 
+const inFlight = new Map<string, Promise<boolean | null>>();
+
 /**
- * True on a keyword match or with no topics; otherwise Gemini's answer, cached
- * per key for the session. Null means unavailable (no key, error), which keeps.
+ * True on a keyword match or with no topics. On a keyword miss: false with no
+ * Gemini key (the keyword verdict stands); otherwise Gemini's answer, cached per
+ * key for the session. Null means Gemini was unavailable (error, malformed
+ * answer), which keeps: those are transient.
  */
 export async function topicVerdict(key: string, text: string, deps: Deps = {}): Promise<boolean | null> {
   const settings = await getSettings();
@@ -18,15 +22,22 @@ export async function topicVerdict(key: string, text: string, deps: Deps = {}): 
 
   const { topicVerdicts } = await getSession('topicVerdicts');
   if (key in topicVerdicts) return topicVerdicts[key];
-  if (!settings.geminiTopicKey) return null;
+  if (!settings.geminiTopicKey) return false;
 
-  const verdict = await (deps.ask ?? askGeminiOnTopic)({ apiKey: settings.geminiTopicKey, topics, text });
-  if (verdict !== null) {
-    // ponytail: read-modify-write; two verdicts landing at once can lose one. It is a cache.
-    const { topicVerdicts: latest } = await getSession('topicVerdicts');
-    await setSession({ topicVerdicts: { ...latest, [key]: verdict } });
-  }
-  return verdict;
+  // Back-to-back progress updates for one new page share a single call.
+  const running = inFlight.get(key);
+  if (running) return running;
+  const call = (async () => {
+    const verdict = await (deps.ask ?? askGeminiOnTopic)({ apiKey: settings.geminiTopicKey, topics, text });
+    if (verdict !== null) {
+      // ponytail: read-modify-write; two verdicts landing at once can lose one. It is a cache.
+      const { topicVerdicts: latest } = await getSession('topicVerdicts');
+      await setSession({ topicVerdicts: { ...latest, [key]: verdict } });
+    }
+    return verdict;
+  })().finally(() => inFlight.delete(key));
+  inFlight.set(key, call);
+  return call;
 }
 
 /**

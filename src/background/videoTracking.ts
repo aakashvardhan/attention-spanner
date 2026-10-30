@@ -2,7 +2,8 @@ import { VIDEO_MIN_MINUTES } from '../shared/constants';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { cleanVideoTitle, getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { prune } from './tracking';
+import { gateNewItem } from './topicGate';
+import { forgetKey, prune } from './tracking';
 
 /**
  * YouTube watch tracking. The SW's only injection job is getting
@@ -29,12 +30,21 @@ export async function maybeInjectVideoTracker(tabId: number, url: string): Promi
 /** Gate + resume handshake. VIDEO_MIN_MINUTES is the tracking threshold. */
 export async function handleVideoReady(
   sender: chrome.runtime.MessageSender,
-  msg: { videoId: string; durationSeconds: number },
+  msg: { videoId: string; durationSeconds: number; title: string; channel: string },
 ): Promise<{ ok: boolean; track: boolean; resume: { positionSeconds: number } | null }> {
   const longEnough =
     Number.isFinite(msg.durationSeconds) &&
     msg.durationSeconds >= VIDEO_MIN_MINUTES * 60;
   if (!longEnough) return { ok: true, track: false, resume: null };
+
+  // A new video is tracked only on topic; one already in Continue always is.
+  const key = videoKey(msg.videoId);
+  const title = cleanVideoTitle(msg.title);
+  const { readingProgress: known } = await getLocal('readingProgress');
+  if (!known[key] && title) {
+    const verdict = await gateNewItem(key, `${title} ${msg.channel}`, () => forgetKey(key));
+    if (verdict === 'drop') return { ok: true, track: false, resume: null };
+  }
 
   // Prefer an explicit pending resume (tab opened from Continue Watching)
   let resume: { positionSeconds: number } | null = null;
@@ -51,8 +61,7 @@ export async function handleVideoReady(
 
   // Otherwise resume from the stored record — organic re-opens resume too
   if (!resume) {
-    const { readingProgress } = await getLocal('readingProgress');
-    const progress = readingProgress[videoKey(msg.videoId)];
+    const progress = known[key];
     if (
       progress?.kind === 'video' &&
       progress.completedAt === null &&
@@ -89,6 +98,9 @@ export async function handleVideoProgress(
   if (existing?.kind === 'video') {
     progress = existing;
   } else {
+    // A late off-topic verdict removed it; the tracker in the tab doesn't know.
+    const { topicVerdicts } = await getSession('topicVerdicts');
+    if (topicVerdicts[key] === false) return;
     progress = {
       kind: 'video',
       videoId: msg.videoId,

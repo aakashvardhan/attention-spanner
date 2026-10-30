@@ -3,8 +3,9 @@ import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { VideoProgress } from '../src/shared/types';
 import { PAGES, launch, seed, shot, storage, type Ext } from './harness';
-import { article, deck, paper } from './seed';
-import { html } from './sites';
+import { article, deck, feedItem, paper } from './seed';
+import { html, type Handler } from './sites';
+import { normalizeUrl } from '../src/shared/urlNormalize';
 
 const HOUR = 60 * 60_000;
 
@@ -47,6 +48,13 @@ async function startChatMock() {
   const port = (server.address() as { port: number }).port;
   return { url: `http://127.0.0.1:${port}`, systems, close: () => new Promise((r) => server.close(() => r(undefined))) };
 }
+
+/** A long, readable article: the reader reports progress once it is scrolled. */
+const longRead = (title: string): Handler => (_req, res) => {
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  const para = `<p>${'The quick brown fox jumps over the lazy dog, and then it does so again. '.repeat(12)}</p>`;
+  res.end(`<!doctype html><html lang="en"><head><title>${title}</title></head><body><article><h1>${title}</h1>${para.repeat(40)}</article></body></html>`);
+};
 
 /** The X on a row: its tools show when the row is hovered. */
 async function remove(tab: Page, title: string) {
@@ -212,4 +220,76 @@ describe('continue: reading and watching', () => {
     expect(Object.keys(await storage<Record<string, unknown>>(ext, 'readingProgress'))).toEqual([url]);
     await tab.close();
   });
+
+  it('a new page joins Continue only on topic, and "read this" always tracks', async () => {
+    let gemini = 0;
+    await ext.ctx.route('https://generativelanguage.googleapis.com/**', (route) => {
+      gemini++;
+      return route.abort();
+    });
+    const offTitle = 'Wasmer (YC S19) Is Hiring a Developer Advocate';
+    const onTitle = 'A robot hand learns to grasp from play';
+    const off = `${ext.sites.origin('jobs')}/hiring`;
+    const on = `${ext.sites.origin('lab')}/grasp`;
+    ext.sites.setRoute('jobs', '/hiring', longRead(offTitle));
+    ext.sites.setRoute('lab', '/grasp', longRead(onTitle));
+    // No Gemini key: the keywords decide.
+    await seed(ext, {
+      settings: { ollamaUrl: '', layaUrl: '', cloudMode: 'off', geminiTopicKey: '' },
+      readingProgress: {},
+      readItems: [],
+      cachedItems: [
+        feedItem('on', onTitle, { link: on, normalizedLink: normalizeUrl(on) }),
+        feedItem('off', offTitle, { link: off, normalizedLink: normalizeUrl(off) }),
+      ],
+    });
+    // Only these two: a page left over from an earlier test can still report late.
+    const titles = async () =>
+      Object.values(await storage<Record<string, { title: string }>>(ext, 'readingProgress'))
+        .map((p) => p.title)
+        .filter((t) => t === onTitle || t === offTitle)
+        .sort();
+    // A plain page reports every 5 s while visible; the reader reports on scroll.
+    const read = async (tab: Page) => {
+      await tab.waitForLoadState('domcontentloaded');
+      await tab.mouse.move(640, 450);
+      await tab.mouse.wheel(0, 800); // past the Continue threshold, short of finished
+    };
+    const readFromNews = async (title: string) => {
+      const tab = await ext.page(PAGES.newtab);
+      await tab.locator('section[aria-label="News"] [data-story]').filter({ hasText: title }).click();
+      await tab.waitForURL((u) => !u.href.includes('newtab'));
+      await read(tab);
+      return tab;
+    };
+
+    // On topic: a row appears.
+    const onTab = await readFromNews(onTitle);
+    await expect.poll(titles, { timeout: 15_000 }).toEqual([onTitle]);
+    await onTab.close();
+
+    // Off topic: read just as long, past two report intervals, and never stored.
+    const offTab = await readFromNews(offTitle);
+    await offTab.waitForTimeout(11_000);
+    expect(await titles()).toEqual([onTitle]);
+    await offTab.close();
+
+    // "Read this" on the same off-topic page: the user asked, so it is tracked.
+    const home = await ext.page(PAGES.newtab);
+    const opened = ext.ctx.waitForEvent('page');
+    await home.evaluate((url) => chrome.runtime.sendMessage({ type: 'OPEN_ARTICLE', url, feedItemId: null }), off);
+    const readThis = await opened;
+    await read(readThis);
+    await expect.poll(titles, { timeout: 15_000 }).toEqual([onTitle, offTitle].sort());
+    await readThis.close();
+
+    // The reader reported this page at 100% on open (seen in this harness, outside
+    // the gate), so it is stored but finished, which is not a Continue row.
+    await home.reload();
+    await expect
+      .poll(() => home.getByRole('region', { name: 'Continue reading' }).locator('.row-title').allInnerTexts())
+      .toEqual([onTitle]);
+    expect(gemini).toBe(0);
+    await home.close();
+  }, 60_000);
 });

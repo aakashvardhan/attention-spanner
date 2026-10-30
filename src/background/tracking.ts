@@ -3,6 +3,7 @@ import { progressKeyFor, withoutPage } from '../shared/progress';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
+import { gateNewItem } from './topicGate';
 import { isYouTubeWatchUrl } from '../shared/youtube';
 
 /**
@@ -25,10 +26,11 @@ export async function registerOpenedTab(
   tabId: number,
   url: string,
   resume: boolean,
+  explicit = false,
 ): Promise<void> {
   const key = progressKeyFor(url);
   const { trackedTabs, pendingResume } = await getSession('trackedTabs', 'pendingResume');
-  trackedTabs[tabId] = { normalizedUrl: key, injectedAt: 0 };
+  trackedTabs[tabId] = { normalizedUrl: key, injectedAt: 0, explicit };
 
   if (resume) {
     const { readingProgress } = await getLocal('readingProgress');
@@ -74,7 +76,7 @@ export async function maybeInjectTracker(tabId: number, url: string): Promise<vo
   }
   if (!key) return;
 
-  trackedTabs[tabId] = { normalizedUrl: key, injectedAt: Date.now() };
+  trackedTabs[tabId] = { ...trackedTabs[tabId], normalizedUrl: key, injectedAt: Date.now() };
   await setSession({ trackedTabs });
 
   try {
@@ -143,7 +145,8 @@ export async function handleProgressUpdate(
   const docUrl = update.doc?.url ?? tab.url ?? '';
   const docTitle = update.doc?.title ?? tab.title ?? '';
 
-  const { readingProgress, cachedItems } = await getLocal('readingProgress', 'cachedItems');
+  let { readingProgress } = await getLocal('readingProgress');
+  const { cachedItems } = await getLocal('cachedItems');
   const now = Date.now();
 
   const existing = readingProgress[key];
@@ -178,6 +181,21 @@ export async function handleProgressUpdate(
   }
   // The extension's own pages (new tab, reader) are never reading progress.
   if (!/^https?:/.test(progress.url)) return;
+
+  // A new page is kept only on topic, unless "read this" asked for it. A page
+  // with no title yet is kept: misfiling toward keeping is the safe side.
+  if (!existing && progress.title) {
+    const { trackedTabs } = await getSession('trackedTabs');
+    if (!trackedTabs[tab.id]?.explicit) {
+      const text = `${progress.title} ${new URL(progress.url).hostname}`;
+      if ((await gateNewItem(key, text, () => forgetKey(key))) === 'drop') return;
+      // The gate can wait on Gemini; write into the map as it is now, and let
+      // an update that created this entry meanwhile be merged into instead.
+      const fresh = (await getLocal('readingProgress')).readingProgress;
+      if (fresh[key]) return handleProgressUpdate(sender, update);
+      readingProgress = fresh;
+    }
+  }
   progress.maxPercent = Math.max(progress.maxPercent, Math.round(update.percent));
   progress.scrollY = update.scrollY;
   progress.pageHeight = update.pageHeight;
@@ -203,6 +221,13 @@ export function prune(progress: Record<string, AnyProgress>): Record<string, Any
       .slice(0, MAX_PROGRESS_ENTRIES);
   }
   return Object.fromEntries(entries);
+}
+
+/** A late off-topic verdict: just that one entry goes. */
+export async function forgetKey(key: string): Promise<void> {
+  const { readingProgress } = await getLocal('readingProgress');
+  delete readingProgress[key];
+  await setLocal({ readingProgress });
 }
 
 /** The X on a Continue row: the page's progress goes, under every key. */

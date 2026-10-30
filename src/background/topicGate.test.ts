@@ -54,18 +54,29 @@ describe('topicVerdict', () => {
     expect(await gateNewItem('a.com/y', 'Pasta recipe a.com', async () => {}, { ask })).toBe('drop');
   });
 
-  it('no key keeps', async () => {
+  it('no key: keyword miss drops', async () => {
     store.settings = { ...DEFAULT_SETTINGS };
-    const ask = stubAsk(false);
-    expect(await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask })).toBeNull();
-    expect(await gateNewItem('a.com/x', 'Pasta recipe a.com', async () => {}, { ask })).toBe('keep');
+    const ask = stubAsk(true);
+    expect(await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask })).toBe(false);
+    expect(await gateNewItem('a.com/x', 'Pasta recipe a.com', async () => {}, { ask })).toBe('drop');
+    expect(await topicVerdict('a.com/y', 'New robot hand demo a.com', { ask })).toBe(true);
     expect(ask).toHaveBeenCalledTimes(0);
   });
 
-  it('error keeps', async () => {
+  it('key set, Gemini error keeps', async () => {
     const ask = stubAsk(null);
     expect(await gateNewItem('a.com/x', 'Pasta recipe a.com', async () => {}, { ask })).toBe('keep');
     expect(store.topicVerdicts).toBeUndefined();
+  });
+
+  it('concurrent asks for one key share a call', async () => {
+    const ask = stubAsk(false);
+    const both = await Promise.all([
+      topicVerdict('k', 'Pasta recipe a.com', { ask }),
+      topicVerdict('k', 'Pasta recipe a.com', { ask }),
+    ]);
+    expect(both).toEqual([false, false]);
+    expect(ask).toHaveBeenCalledTimes(1);
   });
 
   it('cache answers repeat', async () => {
