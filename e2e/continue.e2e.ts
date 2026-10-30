@@ -59,7 +59,7 @@ describe('continue: reading and watching', () => {
     await ollama?.close();
   });
 
-  it('groups unfinished things by reading and watching, once each, and summarizes a video from its transcript', async () => {
+  it('splits Continue into reading and watching, once each, and summarizes a video from its transcript', async () => {
     const now = Date.now();
     const page = 'https://blog.e2e.test/focus-workspace';
     await seed(ext, {
@@ -83,21 +83,23 @@ describe('continue: reading and watching', () => {
     const tab = await ext.page(PAGES.newtab);
     const reading = tab.getByRole('region', { name: 'Continue reading' });
     const watching = tab.getByRole('region', { name: 'Continue watching' });
-    await expect.poll(() => reading.locator('.relay-row-title').allInnerTexts()).toEqual(['Focus workspace']);
-    expect(await watching.locator('.relay-row-title').allInnerTexts()).toEqual(['A talk about focus', 'Another talk']);
+    await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story', 'Focus workspace']);
+    expect(await watching.locator('.row-title').allInnerTexts()).toEqual(['A talk about focus', 'Another talk']);
+    // One Continue label over both, and no video categories.
+    expect(await tab.locator('section[aria-label="Continue"] > .label').innerText()).toBe('CONTINUE');
 
     // Summary covers the whole video, from its transcript.
     const row = watching.locator('li').first();
     await row.getByRole('button', { name: 'Summarize the whole video' }).click();
-    await expect.poll(() => row.locator('.relay-recap').innerText(), { timeout: 10_000 }).toContain('Point two');
+    await expect.poll(() => row.locator('.row-recap').innerText(), { timeout: 10_000 }).toContain('Point two');
     expect(ollama.systems.some((s) => s.includes('summarize a video from its transcript'))).toBe(true);
     await shot(tab, 'continue-groups');
 
     await row.getByRole('button', { name: 'Hide summary' }).click();
-    await expect.poll(() => row.locator('.relay-recap').count()).toBe(0);
+    await expect.poll(() => row.locator('.row-recap').count()).toBe(0);
   });
 
-  it('sorts videos by what they are, and says so when a video has no transcript to summarize', async () => {
+  it('cleans a video title, and says so when a video has no transcript to summarize', async () => {
     const now = Date.now();
     const settings = { ollamaUrl: ollama.url, ollamaChatModel: 'mock', layaUrl: '', cloudMode: 'off' };
     await seed(ext, {
@@ -114,16 +116,15 @@ describe('continue: reading and watching', () => {
     });
     const tab = await ext.page(PAGES.newtab);
     const watching = tab.getByRole('region', { name: 'Continue watching' });
-    await expect.poll(() => watching.locator('.edition-also-category').allInnerTexts()).toEqual(['Lecture series', 'Robotics']);
     // YouTube's notification count is not part of the title.
-    expect(await watching.locator('.relay-row-title').first().innerText()).toBe(
+    await expect.poll(() => watching.locator('.row-title').first().innerText()).toBe(
       'RL Course by David Silver - Lecture 1: Introduction to Reinforcement Learning',
     );
 
     // No transcript: the real reason, and the way past it.
     const row = watching.locator('li').first();
     await row.getByRole('button', { name: 'Summarize the whole video' }).click();
-    await expect.poll(() => row.locator('.relay-recap').innerText(), { timeout: 20_000 }).toContain('Open it in a tab and try again.');
+    await expect.poll(() => row.locator('.row-recap').innerText(), { timeout: 20_000 }).toContain('Open it in a tab and try again.');
     await tab.close();
   }, 60_000);
 
@@ -143,11 +144,11 @@ describe('continue: reading and watching', () => {
     });
     const tab = await ext.page(PAGES.newtab);
     const reading = tab.getByRole('region', { name: 'Continue reading' });
-    await expect.poll(() => reading.locator('.relay-row-title').allInnerTexts()).toEqual(['Focus workspace', 'A paper in progress']);
+    await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story', 'Focus workspace', 'A paper in progress']);
 
     // The merged duplicate goes with it: both stored copies are forgotten.
     await tab.getByRole('button', { name: 'Remove Focus workspace from Continue' }).click();
-    await expect.poll(() => reading.locator('.relay-row-title').allInnerTexts()).toEqual(['A paper in progress']);
+    await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story', 'A paper in progress']);
     expect(Object.keys(await storage<Record<string, unknown>>(ext, 'readingProgress')).sort()).toEqual([
       'news.e2e.test/lead',
       'video:vid00000001',
@@ -158,13 +159,14 @@ describe('continue: reading and watching', () => {
 
     // A paper leaves Continue but stays in its deck, to read, with its place kept.
     await tab.getByRole('button', { name: 'Remove A paper in progress from Continue' }).click();
-    await expect.poll(() => tab.getByRole('region', { name: 'Continue reading' }).count()).toBe(0);
+    await expect.poll(() => reading.locator('.row-title').allInnerTexts()).toEqual(['The lead story']);
     const papers = await storage<{ id: string; status: string; progressPercent: number }[]>(ext, 'papers');
     expect(papers).toMatchObject([{ id: '1', status: 'to-read', progressPercent: 30 }]);
 
-    // The lead story has an X too.
+    // The last one goes, and Continue says how to fill it.
     await tab.getByRole('button', { name: 'Remove The lead story from Continue' }).click();
-    await expect.poll(() => tab.locator('.edition-notice').innerText()).toContain('Nothing open');
+    await expect.poll(() => tab.getByRole('region', { name: 'Continue reading' }).count()).toBe(0);
+    await expect.poll(() => tab.locator('section[aria-label="Continue"] .hint').innerText()).toContain('Nothing open');
   });
 
   it('shows a playing video as Watching on its Continue row, with no separate card', async () => {
@@ -175,8 +177,10 @@ describe('continue: reading and watching', () => {
       },
     });
     const tab = await ext.page(PAGES.newtab);
-    await expect.poll(() => tab.locator('.edition-lead-list').innerText()).toMatch(/Watching · \d+:\d{2}/);
-    expect(await tab.locator('.now-watching, .relay-watching-card').count()).toBe(0);
+    const row = tab.getByRole('region', { name: 'Continue watching' }).locator('.row');
+    await expect.poll(() => row.locator('.row-state').innerText()).toBe('watching');
+    expect(await row.locator('.row-meta').innerText()).toMatch(/^\d+:\d{2}$/);
+    expect(await tab.locator('.now-watching').count()).toBe(0);
     await tab.close();
   });
 });

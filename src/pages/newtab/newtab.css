@@ -1,8 +1,8 @@
 /*
- * The new tab as a front page. Every block sits on the shared 12-column .grid
- * (theme.css): the index across all twelve, the lead story in 1–8,
- * the feed sidebar in 9–12. Colours, sizes and spacing are tokens only —
- * designSystem.test.ts fails the build on anything else.
+ * The new tab, layout C: Now on the left (about 38%), Read on the right, one
+ * vertical hairline between them. Plain text rows separated by space, no
+ * boxes. Clay marks state and the primary action only. Colours, sizes and
+ * spacing are tokens; designSystem.test.ts fails the build on anything else.
  */
 
 * {
@@ -21,467 +21,289 @@ body {
   transition: background-color var(--dur-effect-slow) var(--ease-effect), color var(--dur-effect-slow) var(--ease-effect);
 }
 
-ul,
-ol {
+ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* ---------- Layout ---------- */
+
 .edition {
-  row-gap: var(--space-5);
-  padding-block: var(--space-6) var(--space-7);
+  display: grid;
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  max-width: var(--grid-max);
+  margin: 0 auto;
+  padding: var(--space-7) var(--grid-margin) var(--space-6);
+}
+.now-col,
+.read-col {
+  display: grid;
   align-content: start;
+  gap: var(--space-7);
+  min-width: 0;
+}
+.now-col {
+  padding-right: var(--space-6);
+  border-right: 1px solid var(--border);
+}
+.read-col {
+  padding-left: var(--space-6);
 }
 
-/* ---------- Kickers, shared by every section ---------- */
+@media (max-width: 720px) {
+  .edition {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: var(--space-5);
+  }
+  .now-col {
+    padding: 0 0 var(--space-6);
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .read-col {
+    padding: var(--space-6) 0 0;
+  }
+}
 
-.edition-kicker {
-  margin: 0;
+/* ---------- Labels and hints ---------- */
+
+.label {
+  margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-text);
-}
-
-/* ---------- Lead story ---------- */
-
-.edition-lead-col {
-  grid-column: 1 / span 8;
-  min-width: 0;
-}
-.edition-lead {
-  all: unset;
-  display: block;
-  width: 100%;
-  cursor: pointer;
-}
-.edition-lead-text {
-  display: grid;
-  gap: var(--space-2);
-}
-.edition-headline,
-.edition-story-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--text-primary);
-  text-decoration: underline transparent;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  transition: text-decoration-color var(--transition-fast) var(--ease-out);
-}
-.edition-headline {
-  font-size: var(--text-2xl);
-  line-height: var(--leading-2xl);
-}
-.edition-lead:hover .edition-headline,
-.edition-lead:focus-visible .edition-headline,
-.edition-story:hover .edition-story-title,
-.edition-story:focus-visible .edition-story-title,
-.relay-row:hover .relay-row-title,
-.relay-row:focus-visible .relay-row-title {
-  text-decoration-color: var(--accent);
-}
-.edition-lead:focus-visible,
-.edition-story:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
-.edition-lead-status {
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
   color: var(--text-muted);
 }
-.edition-cta {
-  justify-self: start;
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-pill);
-  background: var(--rule);
-  color: var(--bg-page);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 700;
-  transition: background var(--transition-fast) var(--ease-out);
-}
-.edition-lead:hover .edition-cta {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.edition-cta kbd {
-  font: inherit;
-  font-weight: 400;
-  opacity: 0.7;
-  margin-left: var(--space-2);
-}
-.edition-also {
-  margin-top: var(--space-6);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-  /* Reading and watching side by side when there is room, stacked when not;
-     one group alone takes the full width. */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--space-6);
-  align-items: start;
-}
-.edition-also-group {
-  min-width: 0;
-}
-/* A category inside Continue watching: quieter than the group's kicker above it. */
-.edition-also-category {
+.sublabel {
   margin: var(--space-3) 0 0;
   font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 400;
   color: var(--text-muted);
 }
-.edition-notice {
+.label + .sublist .sublabel {
+  margin-top: 0;
+}
+.hint {
   margin: 0;
-  padding: var(--space-5);
-  border: 1px solid var(--border);
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  line-height: var(--leading-lg);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.hint + .hint,
+ul + .hint {
+  margin-top: var(--space-2);
 }
 
-/* Also-unfinished rows: headline rows on hairlines, not cards. */
-.relay-row-wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  border-bottom: 1px solid var(--border);
+/* ---------- Rows: title left, metadata right ---------- */
+
+.row-wrap {
+  position: relative;
 }
-.edition-lead-list .relay-row-wrap {
-  border-bottom: 0;
-}
-.relay-row {
+.row {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  width: 100%;
+  padding: var(--space-2) 0;
   border: 0;
   background: none;
   color: var(--text-primary);
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
-.relay-row-text {
+.row:hover .row-title {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.row-title {
   flex: 1;
   min-width: 0;
-  display: grid;
-  gap: var(--space-1);
+  overflow-wrap: anywhere;
 }
-.relay-row-title {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-  font-weight: 700;
-  text-decoration: underline transparent;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  transition: text-decoration-color var(--transition-fast) var(--ease-out);
-}
-.relay-row-meta {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.row-why {
+  display: block;
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--text-muted);
+}
+.row-meta,
+.row-state {
+  flex: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-muted);
 }
-.relay-row-meter {
-  display: block;
-  width: min(240px, 100%);
-  height: 4px;
-  background: var(--border);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
+.row-state {
+  color: var(--accent-text);
 }
-.edition-lead .relay-row-meter {
-  width: 100%;
-}
-/* The rest of the bar, forecast at your own pace: a dashed band from where
-   you are to the end. Only drawn when there is a pace to forecast from.
-   Scoped under the meter to outrank the fill's `> span` rule. */
-.relay-row-meter {
-  position: relative;
-}
-.relay-row-meter > .relay-row-forecast {
+/* Recap, Summary and the X: laid over the row's right end, out of sight and
+   out of the way until the row is reached for, so the metadata stays aligned. */
+.row-tools {
   position: absolute;
   inset-block: 0;
   right: 0;
-  height: auto;
-  border-top: 1px dashed var(--accent);
-  background: var(--accent-wash);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  background: var(--bg-page);
+  opacity: 0;
 }
-.relay-row-meter > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  border-radius: inherit;
-  transform-origin: left;
-  /* Bouncy: the fill overshoots a hair and settles. The track clips it. */
-  animation: edition-grow var(--dur-bouncy) var(--spring-bouncy) 360ms both;
+.row-wrap:hover .row-tools,
+.row-tools:focus-within,
+.row-tools:has([aria-expanded='true']) {
+  opacity: 1;
 }
-.relay-watching {
+.row-tool,
+.row-remove {
   flex: none;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--accent-wash);
-  color: var(--accent-text);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.relay-row-chevron {
-  display: none;
-}
-.relay-recap-toggle {
-  flex: none;
-  padding: var(--space-1) var(--space-3);
   border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--accent-text);
+  background: none;
+  color: var(--text-muted);
   font: inherit;
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
-  font-weight: 700;
   cursor: pointer;
 }
-.relay-recap-toggle:hover {
-  background: var(--bg-hover);
+.row-tool {
+  padding: var(--space-1) var(--space-2);
 }
-/* The X that takes a row off Continue: quiet until you reach for it. */
-.relay-remove {
-  flex: none;
+.row-remove {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
 }
-.relay-remove:hover,
-.relay-remove:focus-visible {
-  background: var(--bg-hover);
+.row-tool:hover,
+.row-remove:hover {
   color: var(--text-primary);
 }
-.relay-remove svg {
+.row-remove-icon {
   width: 16px;
   height: 16px;
 }
-.relay-recap {
+.row-recap {
   padding-bottom: var(--space-3);
-  animation: edition-rise 240ms var(--ease-out) both;
 }
-.relay-more {
-  margin-top: var(--space-2);
-  padding-left: 0;
-}
-.relay-empty,
-.relay-triage-note {
-  margin: 0;
+.show-all {
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
-  color: var(--text-muted);
-}
-.relay-triage-note {
-  margin-top: var(--space-3);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-}
-
-/* ---------- Sidebar: from your feeds ---------- */
-
-.edition-side {
-  grid-column: 9 / -1;
-  min-width: 0;
-  border-left: 1px solid var(--border);
-  padding-left: var(--space-5);
-}
-.edition-story {
-  all: unset;
-  display: grid;
-  gap: var(--space-1);
-  width: 100%;
-  padding-block: var(--space-3);
-  border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
-.edition-story-title {
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
+.show-all:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
-.edition-story-meta,
-.edition-story-why {
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-}
-.edition-story-why {
-  font-style: italic;
-}
+
 /* ---------- Pomodoro (FocusTimer.tsx) ---------- */
 
-/* Idle, one big target: the page's other primary action, so it is ink like
-   .fc-primary-btn and turns accent on hover. */
 .pomo {
   display: grid;
+  justify-items: start;
   gap: var(--space-2);
-  padding-bottom: var(--space-4);
-  margin-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border);
 }
-.pomo-clockin {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-4);
-  width: 100%;
-  min-height: 88px;
-  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--rule);
-  color: var(--bg-page);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-effect-fast) var(--ease-effect),
-    color var(--dur-effect-fast) var(--ease-effect),
-    transform var(--dur-snappy) var(--spring-snappy);
+.pomo > p {
+  margin: 0;
 }
-.pomo-clockin:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .pomo-clockin:active {
-    transform: scale(0.98);
-  }
-}
-.pomo-clockin .pomo-dial {
-  width: 64px;
-  height: 64px;
-}
-.pomo-clockin .pomo-track {
-  stroke: currentColor;
-  opacity: 0.35;
-}
-.pomo-play {
-  fill: currentColor;
-}
-.pomo-clockin-text {
-  display: grid;
-  min-width: 0;
-}
-.pomo-clockin-text strong {
+/* The page's one serif. A static face in Chrome: never animate its weight. */
+.pomo-clock {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
-  line-height: var(--leading-xl);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
-.pomo-clockin-text span {
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+.pomo-status,
+.pomo-start {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--accent-text);
 }
-.pomo-key {
-  padding: 0 var(--space-2);
-  border: 1px solid currentColor;
+.pomo-start {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pomo-start:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.pomo-start kbd {
+  padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
+  font-weight: 400;
 }
-.pomo-today {
-  margin: 0;
+.pomo-note {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--text-muted);
 }
-
-/* Running: the dial (FocusDial.tsx, focusDial.css) beside what it means. */
-.pomo[data-phase] {
-  grid-template-columns: 136px minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--space-4);
-}
-/* The idle play mark shares the ring's classes but stays upright and still. */
-.pomo-clockin .pomo-dial {
-  display: block;
-}
-.pomo-kicker {
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-}
-.pomo-body {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.pomo-kicker,
-.pomo-intention,
-.pomo-next {
-  margin: 0;
-}
-.pomo-intention {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-  color: var(--text-primary);
-}
 .pomo-intention-input {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }
-.pomo-next {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  color: var(--text-secondary);
+.pomo-intention-input::placeholder {
+  color: var(--text-muted);
+}
+.pomo-intention-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
 }
 .pomo-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
-/* ---------- Sidebar: brain dump (notebook) ---------- */
+/* ---------- Brain dump (BrainDump.tsx) ---------- */
 
-/* Scrap paper, not a form: ruled lines, the display serif, no buttons. */
 .notebook {
   display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-5) var(--space-6) var(--space-4);
-  border-radius: var(--radius-xl);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-card);
-}
-/* The box has no outline of its own; the card shows where the keyboard is. */
-.notebook:focus-within {
-  box-shadow: var(--shadow-card), 0 0 0 2px var(--accent-border);
+  gap: var(--space-2);
 }
 .notebook-kicker,
 .notebook-foot,
@@ -492,9 +314,6 @@ ol {
   margin: 0;
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
-  color: var(--text-faint);
-}
-.notebook-note {
   color: var(--text-muted);
 }
 .notebook-lock {
@@ -502,41 +321,35 @@ ol {
   height: 12px;
   flex: none;
 }
-/* The rule sits on each line's baseline: one line-height per stripe. */
 .notebook-input,
 .notebook-bullets {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   line-height: var(--leading-read);
   color: var(--text-primary);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--leading-read) - 1px),
-    var(--border-subtle) calc(var(--leading-read) - 1px),
-    var(--border-subtle) var(--leading-read)
-  );
 }
 .notebook-input {
-  box-sizing: border-box;
   width: 100%;
-  min-height: calc(var(--leading-read) * 5);
-  padding: 0;
-  border: none;
-  outline: none;
+  min-height: calc(var(--leading-read) * 4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
   resize: none;
   caret-color: var(--accent);
   field-sizing: content;
 }
+.notebook-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 .notebook-input::placeholder {
-  font-style: italic;
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 .notebook-bullets {
   display: grid;
   padding: 0;
-  list-style: none;
 }
 .notebook-bullets li {
   display: flex;
@@ -545,7 +358,7 @@ ol {
 }
 .notebook-bullets li::before {
   content: '•';
-  color: var(--accent);
+  color: var(--text-muted);
 }
 .notebook-foot {
   justify-content: space-between;
@@ -558,7 +371,7 @@ ol {
   text-decoration: none;
 }
 .notebook-count:hover {
-  color: var(--accent-text);
+  color: var(--text-primary);
 }
 .notebook-keys {
   display: inline-flex;
@@ -605,6 +418,26 @@ ol {
 .notebook-setup button {
   justify-self: start;
 }
+.edition-pill {
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.edition-pill:hover:not(:disabled) {
+  background: var(--rule);
+  color: var(--bg-page);
+}
+.edition-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 /* Haiku's words settle in one by one as they stream. */
 @keyframes dump-word {
   from {
@@ -621,101 +454,60 @@ ol {
   animation: dump-word var(--dur-smooth) var(--spring-smooth) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 
-.edition-pill:disabled {
-  opacity: 0.4;
-  cursor: default;
-  background: transparent;
-  color: var(--text-primary);
-}
+/* ---------- Activity (ActivityHeatmap.tsx) ---------- */
 
-/* ---------- The record: papers and focus by day ---------- */
-
-/* GitHub's contribution calendar, set as a section of the edition: kicker and
-   serif headline over the year, Less → More key under it. */
 .heat {
-  grid-column: 1 / -1;
-  min-width: 0;
   display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  gap: var(--space-2);
+}
+.heat .label {
+  margin: 0;
 }
 .heat-head {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-3) var(--space-5);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
 }
 .heat-title {
-  margin: var(--space-1) 0 0;
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  line-height: var(--leading-xl);
-  font-weight: 700;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
 }
-/* Segmented control: the thumb slides under the choice on a spring. */
 .heat-seg {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  padding: var(--space-1);
-  border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
-}
-.heat-seg::before {
-  content: '';
-  position: absolute;
-  inset: var(--space-1) auto var(--space-1) var(--space-1);
-  width: calc((100% - var(--space-2)) / 3);
-  border-radius: var(--radius-pill);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-card);
-  transform: translateX(calc(var(--i) * 100%));
-  transition: transform var(--dur-snappy) var(--spring-snappy);
+  display: flex;
+  gap: var(--space-3);
 }
 .heat-seg button {
-  position: relative;
-  padding: var(--space-1) var(--space-4);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-pill);
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   cursor: pointer;
-  transition:
-    color var(--transition-fast) var(--ease-out),
-    transform var(--dur-snappy) var(--spring-snappy);
 }
 .heat-seg button[aria-checked='true'] {
   color: var(--text-primary);
+  font-weight: 700;
 }
 /* Sized by the frame so the tooltip can clamp itself inside it (100cqw). */
 .heat-frame {
   position: relative;
   container-type: inline-size;
-}
-.heat-scroll {
-  overflow-x: auto;
-  padding-block: var(--space-1);
-}
-.heat-table {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-1);
 }
+/* The 53 weeks share the column; the page-coloured border is the gap. */
 .heat-months,
 .heat-grid {
-  grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(53, minmax(12px, 1fr));
-  column-gap: var(--space-1);
+  grid-template-columns: repeat(53, minmax(0, 1fr));
 }
-.heat-months,
-.heat-days {
+.heat-months {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--text-muted);
@@ -723,26 +515,14 @@ ol {
 .heat-months span {
   white-space: nowrap;
 }
-.heat-days {
-  grid-column: 1;
-  grid-row: 2;
-  display: grid;
-  grid-template-rows: repeat(7, 1fr);
-  row-gap: var(--space-1);
-  align-items: center;
-}
 .heat-grid {
-  grid-row: 2;
   grid-auto-flow: column;
   grid-template-rows: repeat(7, auto);
-  row-gap: var(--space-1);
 }
 .heat-cell {
   aspect-ratio: 1;
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--bg-page);
   background: var(--heat-0);
-  outline: 1px solid var(--heat-cell-border);
-  outline-offset: -1px;
 }
 .heat-cell[data-level='1'] {
   background: var(--heat-1);
@@ -761,9 +541,7 @@ ol {
 }
 .heat-cell:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
-/* GitHub's ink tooltip over the cell, kept inside the frame at either end. */
 .heat-tip {
   position: absolute;
   top: 0;
@@ -778,67 +556,21 @@ ol {
   line-height: var(--leading-xs);
   white-space: nowrap;
   pointer-events: none;
-  transform-origin: bottom center;
-  translate: calc(clamp(180px, var(--x), 100cqw - 180px) - 50%) calc(var(--y) - 100% - 8px);
-  transition: translate var(--dur-snappy) var(--spring-snappy);
-  animation: heat-tip-in var(--dur-snappy) var(--spring-snappy) both;
-}
-.heat-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-}
-.heat-note {
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-}
-.heat-legend {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-}
-.heat-cell--key {
-  width: 12px;
-}
-.heat-legend > span:first-child {
-  margin-right: var(--space-1);
-}
-.heat-legend > span:last-child {
-  margin-left: var(--space-1);
+  translate: calc(clamp(160px, var(--x), 100cqw - 160px) - 50%) calc(var(--y) - 100% - 8px);
 }
 
-/* ---------- Index row ---------- */
+/* ---------- Foot ---------- */
 
 .edition-index {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  row-gap: var(--space-4);
-  border-top: 3px double var(--rule);
-  padding-top: var(--space-3);
-}
-.edition-actions {
-  grid-column: 9 / -1;
-  grid-row: 1;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-4);
-  align-self: start;
-  border-left: 1px solid var(--border);
-  padding-left: var(--space-5);
+  gap: var(--space-4);
+  margin-top: var(--space-7);
 }
 .edition-link {
-  background: none;
-  border: 0;
   padding: 0;
+  border: 0;
+  background: none;
   color: var(--text-secondary);
   font: inherit;
   font-size: var(--text-sm);
@@ -846,172 +578,13 @@ ol {
   cursor: pointer;
 }
 .edition-link:hover {
-  color: var(--accent-text);
-}
-.edition-pill {
-  padding: var(--space-1) var(--space-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-pill);
-  background: transparent;
   color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-.edition-pill:hover:not(:disabled) {
-  background: var(--rule);
-  color: var(--bg-page);
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* ---------- Motion ---------- */
-
-/* The page prints in: lead, then sidebar. */
-@keyframes edition-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-}
-@keyframes edition-grow {
-  from {
-    transform: scaleX(0);
-  }
-}
-.edition-lead-col,
-.edition-side,
-.heat {
-  animation: edition-rise var(--dur-snappy) var(--spring-snappy) both;
-}
-.edition-lead-col {
-  animation-delay: 60ms;
-}
-.edition-side {
-  animation-delay: 120ms;
-}
-.heat {
-  animation-delay: 180ms;
-}
-
-/* The year pops in as a wave, oldest week first and top to bottom in each,
-   and a change of metric sweeps the new colours across the weeks. Backwards,
-   not both, so a finished pop leaves transform free for the hover lift. */
-@keyframes heat-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-}
-@keyframes heat-tip-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-}
-.heat-grid .heat-cell {
-  animation: heat-pop var(--dur-bouncy) var(--spring-bouncy) backwards;
-  animation-delay: calc(240ms + var(--w) * 8ms + var(--d) * 12ms);
-  transition:
-    background-color var(--dur-effect-slow) var(--ease-effect) calc(var(--w) * 6ms),
-    transform var(--dur-snappy) var(--spring-snappy);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .heat-grid .heat-cell:hover {
-    transform: scale(1.3);
-  }
-  .heat-seg button:active {
-    transform: scale(0.96);
-  }
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pomo-clockin {
-    transition: none;
-  }
-  .edition-lead-col,
-  .edition-side,
-  .relay-row-meter > span,
-  .relay-recap,
-  .heat,
-  .heat-grid .heat-cell,
-  .heat-tip {
-    animation: none;
-  }
-  .edition-headline,
-  .edition-story-title,
-  .relay-row-title,
-  .edition-cta,
-  .heat-seg::before,
-  .heat-seg button,
-  .heat-grid .heat-cell,
-  .heat-tip {
+  body {
     transition: none;
   }
 }
-
-/* ---------- Wide ---------- */
-
-/* The new tab is the one page that uses the whole window: the 12 columns
-   stretch edge to edge instead of stopping at --grid-max. Two zones on
-   them: Now watching and the lead stack in columns 1–8, the feeds run down
-   9–12 beside both, so every block starts and ends on the same lines.
-   Running text keeps a reading measure inside its block. */
-.edition {
-  max-width: none;
-}
-@media (min-width: 1440px) {
-  .edition {
-    padding-inline: var(--space-7);
-  }
-}
-@media (min-width: 901px) {
-  .relay-watching-card {
-    grid-column: 1 / span 8;
-  }
-  .edition-side {
-    grid-row: 2;
-  }
-  .edition:has(> .relay-watching-card) .edition-side {
-    grid-row: 2 / span 2;
-  }
-}
-.edition-headline,
-.edition-story-title,
-.relay-row-title,
-.relay-recap,
-.edition-notice {
-  max-inline-size: 75ch;
-}
-
-/* ---------- Narrow ---------- */
-
-@media (max-width: 900px) {
-  .edition-lead-col,
-  .edition-side {
-    grid-column: 1 / -1;
-  }
-  .edition-side {
-    border-left: 0;
-    padding-left: 0;
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-4);
-  }
-  .edition-actions {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    border-left: 0;
-    padding-left: 0;
-  }
-}
-
-

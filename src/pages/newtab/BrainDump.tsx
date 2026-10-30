@@ -57,7 +57,9 @@ export function BrainDump() {
 
   useEffect(() => () => inFlight.current?.abort(), []);
   // The box remounts after a failed ask; the cursor goes back so Cmd+Enter retries at once.
+  // Not on load: a focused box would swallow J/K and C before they reach the page.
   useEffect(() => {
+    if (phase !== 'failed') return;
     const box = inputRef.current;
     box?.focus();
     box?.setSelectionRange(box.value.length, box.value.length);

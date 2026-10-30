@@ -56,20 +56,3 @@ export function withoutPage(progress: Record<string, AnyProgress>, url: string):
   const page = progressKeyFor(url);
   return Object.fromEntries(Object.entries(progress).filter(([, entry]) => progressKeyFor(entry.url) !== page));
 }
-
-/**
- * Minutes left at the pace you have read this item so far: active seconds
- * per percent, times the percent still to go. A real measurement of you, not
- * a words-per-minute guess. Nothing until there is a pace worth extrapolating
- * (5% read and a minute spent), and nothing once it is nearly done.
- */
-export function paceMinutesLeft(progress: AnyProgress): number | null {
-  if (progress.kind === 'video') return null;
-  const { maxPercent, activeSeconds } = progress;
-  if (maxPercent < 5 || maxPercent > 95 || activeSeconds < 60) return null;
-  return Math.ceil((activeSeconds * (100 - maxPercent)) / maxPercent / 60);
-}
-
-export function paceLabel(minutes: number | null): string {
-  return minutes === null ? '' : `≈${minutes} min at your pace`;
-}

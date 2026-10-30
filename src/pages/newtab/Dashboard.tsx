@@ -9,27 +9,26 @@ import { isTypingTarget } from '../../shared/keys';
 import type { Pick } from '../../shared/llm/triage';
 import { sendMessage, type Message } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
+import { openQuestions } from '../../shared/thinking';
 import type { ResumableItem } from '../../shared/attention';
 import { ActivityHeatmap } from './ActivityHeatmap';
-import { groupByCategory } from '../../shared/videoCategory';
 import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
+import { DeckList, ShowAll } from './DeckList';
 import { EditionIndex } from './EditionIndex';
 import { FocusTimer } from './FocusTimer';
 import { TriageCard } from './TriageCard';
+import { visibleRows } from './visibleRows';
 
 /**
- * The new tab as a front page. The lead story is
- * the newest thing you left unfinished and the page's one primary action
- * (Enter opens it); the sidebar is the feed triaged against what you finish;
- * the index along the bottom holds Papers, Settings and focus.
+ * The new tab in two columns. Now, on the left: the Pomodoro clock, the brain
+ * dump and the activity heatmap. Read, on the right: Continue (what you left
+ * unfinished), Deck (open questions) and News (the feed triaged against what
+ * you finish). The foot holds Papers and Settings.
  *
- * It answers the one question the browser is in a position to answer — "what
- * did I start and not finish in here". Notes, tasks and planning live in
- * Notion, and nothing here keeps a list. J and K walk every story on the page.
- *
- * "Read this page" and "bookmark this page" are not here: from a new tab the
- * active tab is this page. The shortcut and the right-click items do that job.
+ * J and K walk every openable row on the page, Enter opens the selected one,
+ * C clocks in. "Read this page" is not here: from a new tab the active tab is
+ * this page. The shortcut and the right-click item do that job.
  */
 export function Dashboard() {
   // initTheme() in main.tsx only resolves the theme once, at load. Without this
@@ -38,9 +37,11 @@ export function Dashboard() {
   useTheme();
   const [readingProgress] = useStorageValue('readingProgress');
   const [papers] = useStorageValue('papers');
+  const [annotations] = useStorageValue('annotations');
+  const [provocations] = useStorageValue('provocations');
   const [settings] = useSettings();
   const focus = useFocusSession();
-  /** Per group under the lead story: 'Continue reading' / 'Continue watching' show all */
+  /** Per Continue sub-list ('reading' / 'watching'): showing all of it */
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
 
   // The focus and break themes (theme.css) key off the phase on <html>.
@@ -61,6 +62,13 @@ export function Dashboard() {
     () => resumableItems(readingProgress, papers),
     [readingProgress, papers],
   );
+  // Reading and watching are different moods: one mixed list made you scan
+  // past videos for the article, so each gets its own short list.
+  const groups = [
+    ['reading', 'Reading', resumable.filter((item) => item.progress?.kind !== 'video')],
+    ['watching', 'Watching', resumable.filter((item) => item.progress?.kind === 'video')],
+  ] as const;
+  const deck = useMemo(() => openQuestions(papers, annotations, provocations), [papers, annotations, provocations]);
 
   // One clock for the page: the Continue rows read their `now` off it.
   const watchingNow = useWatchClock();
@@ -79,7 +87,7 @@ export function Dashboard() {
   // Step in: the story's title is named for the view transition into the
   // reader's title, then this tab navigates.
   const stepInto = (url: string, from: Element | null) => {
-    const title = from?.querySelector<HTMLElement>('.edition-headline, .relay-row-title, .edition-story-title');
+    const title = from?.querySelector<HTMLElement>('.row-title');
     if (title) title.style.viewTransitionName = 'story-title';
     location.assign(url);
   };
@@ -116,8 +124,8 @@ export function Dashboard() {
     }
   };
 
-  // J/K walk every story on the page (lead, also-unfinished, feed); Enter with
-  // nothing focused opens the selected one, which starts as the lead.
+  // J/K walk every row on the page (Continue, Deck, News); Enter with nothing
+  // focused opens the selected one, which starts as the first.
   const [selected, setSelected] = useState(0);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -144,92 +152,53 @@ export function Dashboard() {
   }, [selected, settings.focusMinutes, focus.active]);
 
   return (
-    <main className="edition grid">
-      <section className="edition-lead-col" aria-labelledby="continue-title">
-        <h2 id="continue-title" className="visually-hidden">
-          Pick back up
-        </h2>
-        {resumable.length === 0 ? (
-          <p className="edition-notice">Nothing open. Press ⌘/Ctrl+Shift+E on any page to read it here.</p>
-        ) : (
-          <>
-            <ul className="edition-lead-list">
-              <ContinueRow
-                lead
-                selected={selected === 0}
-                item={resumable[0]}
-                now={watchingNow}
-                onOpen={(alt, newTab) => open(resumable[0], alt, newTab)}
-              />
-            </ul>
-            {resumable.length > 1 && (
-              // Reading and watching are different moods; one mixed list made you
-              // scan past videos for the article, so each gets its own column.
-              <div className="edition-also">
-                {(
-                  [
-                    ['Continue reading', resumable.slice(1).filter((item) => item.progress?.kind !== 'video')],
-                    ['Continue watching', resumable.slice(1).filter((item) => item.progress?.kind === 'video')],
-                  ] as const
-                )
-                  .filter(([, items]) => items.length > 0)
-                  .map(([label, items]) => (
-                    <section key={label} className="edition-also-group" aria-label={label}>
-                      <p className="edition-kicker">{label}</p>
-                      {/* Videos sort into what they are (Lecture series, AI, Robotics…); reading stays one list. */}
-                      {(label === 'Continue watching'
-                        ? groupByCategory(showAll[label] ? items : items.slice(0, GROUP_VISIBLE), (item) => [
-                            item.title,
-                            item.progress?.source ?? '',
-                          ])
-                        : [['', showAll[label] ? items : items.slice(0, GROUP_VISIBLE)] as [string, ResumableItem[]]]
-                      ).map(([category, shown]) => (
-                        <div key={category}>
-                          {category && <p className="edition-also-category">{category}</p>}
-                          <ul className="edition-also-list">
-                            {shown.map((item) => (
-                              <ContinueRow
-                                key={item.key}
-                                item={item}
-                                now={watchingNow}
-                                onOpen={(alt, newTab) => open(item, alt, newTab)}
-                              />
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                      {items.length > GROUP_VISIBLE && (
-                        <button
-                          type="button"
-                          className="relay-recap-toggle relay-more"
-                          aria-expanded={Boolean(showAll[label])}
-                          onClick={() => setShowAll((current) => ({ ...current, [label]: !current[label] }))}
-                        >
-                          {showAll[label] ? 'Show fewer' : `Show all ${items.length}`}
-                        </button>
-                      )}
-                    </section>
-                  ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      <aside className="edition-side">
+    <main className="edition">
+      <div className="now-col">
         <FocusTimer focus={focus} />
         <BrainDump />
+        <ActivityHeatmap papers={papers} />
+      </div>
+
+      <div className="read-col">
+        <section className="read-section" aria-label="Continue">
+          <h2 className="label">Continue</h2>
+          {resumable.length === 0 ? (
+            <p className="hint">Nothing open. Press ⌘/Ctrl+Shift+E on any page to read it here.</p>
+          ) : (
+            groups
+              .filter(([, , items]) => items.length > 0)
+              .map(([key, label, items]) => {
+                const { shown, hidden } = visibleRows(items, Boolean(showAll[key]));
+                return (
+                  <section key={key} className="sublist" aria-label={`Continue ${key}`}>
+                    <h3 className="sublabel">{label}</h3>
+                    <ul>
+                      {shown.map((item) => (
+                        <ContinueRow
+                          key={item.key}
+                          item={item}
+                          now={watchingNow}
+                          onOpen={(alt, newTab) => open(item, alt, newTab)}
+                        />
+                      ))}
+                    </ul>
+                    <ShowAll
+                      total={items.length}
+                      hidden={hidden}
+                      expanded={Boolean(showAll[key])}
+                      onToggle={() => setShowAll((current) => ({ ...current, [key]: !current[key] }))}
+                    />
+                  </section>
+                );
+              })
+          )}
+        </section>
+        <DeckList items={deck} />
         {/* A focus round is no time for the feed. */}
         {!focus.focusing && <TriageCard onOpen={openPick} />}
-      </aside>
-
-      <ActivityHeatmap papers={papers} />
+      </div>
 
       <EditionIndex />
     </main>
   );
 }
-
-/** Rows per group before "Show all": enough to choose from, few enough to scan. */
-const GROUP_VISIBLE = 5;
-

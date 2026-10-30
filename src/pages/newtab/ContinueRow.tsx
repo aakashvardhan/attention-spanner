@@ -1,41 +1,29 @@
 import { useEffect, useState } from 'react';
 import type { ResumableItem } from '../../shared/attention';
 import { AiNote } from '../../shared/components/AiNote';
-import { formatRelativeDate, formatWatchTime } from '../../shared/format';
+import { formatWatchTime } from '../../shared/format';
 import { useAi } from '../../shared/hooks/useAi';
 import { cachedAi } from '../../shared/llm/generate';
 import { recapRequest, videoSummaryRequest, wantsRecap } from '../../shared/llm/recap';
 import { sendMessage } from '../../shared/messages';
-import { paceLabel, paceMinutesLeft, progressKeyFor } from '../../shared/progress';
+import { progressKeyFor } from '../../shared/progress';
 import type { VideoProgress } from '../../shared/types';
 import { isWatchingNow, livePositionSeconds } from '../../shared/youtube';
 import { Icon } from './Icon';
 
-/** The lead story's status line: where you are, in the unit the thing has. */
-export function leadStatus(item: ResumableItem): string {
+/** The row's right-hand metadata: where you are, in the unit the thing has. */
+export function rowMeta(item: ResumableItem): string {
   const { paper, progress } = item;
-  if (paper) {
-    if (!paper.pdf) return `${Math.round(paper.progressPercent)}% read`;
-    const page = `Page ${paper.pdf.page} of ${paper.pdf.pageCount}`;
-    return paper.leftOff ? `${page} · ${paper.leftOff}` : page;
-  }
-  if (progress?.kind === 'video') {
-    return `${formatWatchTime(progress.positionSeconds)} of ${formatWatchTime(progress.durationSeconds)}`;
-  }
-  const opened = formatRelativeDate(new Date(item.updatedAt)).replace(/^Just now$/, 'just now');
-  const pace = progress ? paceLabel(paceMinutesLeft(progress)) : '';
-  return [`${Math.round(progress?.maxPercent ?? 0)}% read`, `opened ${opened}`, pace].filter(Boolean).join(' · ');
-}
-
-export function kickerFor(item: ResumableItem): string {
-  if (item.paper) return 'Continue reading · paper';
-  return item.progress?.kind === 'video' ? 'Continue watching · video' : 'Continue reading · article';
+  if (paper?.pdf) return `p. ${paper.pdf.page}`;
+  if (progress?.kind === 'video') return formatWatchTime(progress.positionSeconds);
+  return `${Math.round(paper ? paper.progressPercent : (progress?.maxPercent ?? 0))}%`;
 }
 
 /**
- * One "Pick something back up" row, with a Recap control when there is
- * something to recap. Collapsed by default: six rows of bullets would bury the
- * list, and the recap is for the one you are about to open.
+ * One Continue row: title on the left, where you are on the right, and a
+ * Recap control when there is something to recap. Collapsed by default: six
+ * rows of bullets would bury the list, and the recap is for the one you are
+ * about to open.
  *
  * Videos can be recapped from here, since their transcript is fetchable from
  * the new tab, and summarized whole, watched or not. Articles and papers only
@@ -46,15 +34,9 @@ export function ContinueRow({
   item,
   now,
   onOpen,
-  lead = false,
-  selected = false,
 }: {
   item: ResumableItem;
   now: number;
-  /** The front-page lead story: kicker, headline, status and the one primary action. */
-  lead?: boolean;
-  /** Where J/K selection sits; Enter with nothing focused opens it. */
-  selected?: boolean;
   /** `alt`: Option/Alt held, so an arXiv paper opens on alphaXiv instead of the reader; `newTab`: ⌘/Ctrl held. */
   onOpen: (alt: boolean, newTab: boolean) => void;
 }) {
@@ -67,7 +49,6 @@ export function ContinueRow({
 
   const progressKey = item.paper ? `paper:${item.paper.id}` : item.progress ? progressKeyFor(item.progress.url) : '';
   const percent = item.paper ? item.paper.progressPercent : (item.progress?.maxPercent ?? 0);
-  const pace = item.progress ? paceMinutesLeft(item.progress) : null;
   const video: VideoProgress | null = item.progress?.kind === 'video' ? item.progress : null;
   const eligible = wantsRecap(percent);
 
@@ -121,92 +102,49 @@ export function ContinueRow({
 
   const canRecap = eligible && (video !== null || saved);
 
+  const watching = item.progress && isWatchingNow(item.progress, now) ? item.progress : null;
+
   return (
     <li>
-      <div className="relay-row-wrap">
-        <button
-          className={lead ? 'edition-lead' : 'relay-row'}
-          data-story
-          aria-current={selected || undefined}
-          onClick={(e) => {
-            onOpen(e.altKey, e.metaKey || e.ctrlKey);
-          }}
-        >
-          {lead ? (
-            <span className="edition-lead-text">
-              <span className="edition-kicker">{kickerFor(item)}</span>
-              <span className="edition-headline">{item.title}</span>
-              <span className="edition-lead-status">{leadStatus(item)}</span>
-              <span className="relay-row-meter" aria-hidden="true">
-                <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
-                {pace !== null && (
-                  <span className="relay-row-forecast" style={{ left: `${Math.min(100, Math.max(0, percent))}%` }} />
-                )}
-              </span>
-              <span className="edition-cta">
-                Pick it back up <kbd>Enter</kbd>
-              </span>
-            </span>
-          ) : (
-            <span className="relay-row-text">
-              <span className="relay-row-title">{item.title}</span>
-              <small className="relay-row-meta">
-                {[item.paper ? item.paper.venue || 'Paper' : item.progress?.source, `${Math.round(percent)}%`]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </small>
-              <span className="relay-row-meter" aria-hidden="true">
-                <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
-                {pace !== null && (
-                  <span className="relay-row-forecast" style={{ left: `${Math.min(100, Math.max(0, percent))}%` }} />
-                )}
-              </span>
-            </span>
-          )}
-          {/* A video playing in another tab is context, so it marks the
-              row it already occupies rather than earning a card. */}
-          {item.progress && isWatchingNow(item.progress, now) && (
-            <small className="relay-watching">
-              Watching · {formatWatchTime(livePositionSeconds(item.progress, now))}
-            </small>
-          )}
-          <Icon name="chevron" className="relay-row-chevron" />
+      <div className="row-wrap">
+        <button className="row" data-story onClick={(e) => onOpen(e.altKey, e.metaKey || e.ctrlKey)}>
+          <span className="row-title">{item.title}</span>
+          {/* A video playing in another tab is state, so it marks the row it already occupies. */}
+          {watching && <span className="row-state">watching</span>}
+          <span className="row-meta">{watching ? formatWatchTime(livePositionSeconds(watching, now)) : rowMeta(item)}</span>
         </button>
-        {video && (
+        <span className="row-tools">
+          {video && (
+            <button
+              type="button"
+              className="row-tool"
+              aria-expanded={panel === 'summary'}
+              aria-label={panel === 'summary' ? 'Hide summary' : 'Summarize the whole video'}
+              onClick={() => toggle('summary')}
+            >
+              {panel === 'summary' ? 'Hide' : 'Summary'}
+            </button>
+          )}
+          {canRecap && (
+            <button type="button" className="row-tool" aria-expanded={panel === 'recap'} onClick={() => toggle('recap')}>
+              {panel === 'recap' ? 'Hide' : 'Recap'}
+            </button>
+          )}
           <button
             type="button"
-            className="relay-recap-toggle"
-            aria-expanded={panel === 'summary'}
-            aria-label={panel === 'summary' ? 'Hide summary' : 'Summarize the whole video'}
-            onClick={() => toggle('summary')}
+            className="row-remove"
+            aria-label={`Remove ${item.title} from Continue`}
+            title="Remove from Continue"
+            onClick={() => void removeFromContinue(item)}
           >
-            {panel === 'summary' ? 'Hide' : 'Summary'}
+            <Icon name="close" className="row-remove-icon" />
           </button>
-        )}
-        {canRecap && (
-          <button
-            type="button"
-            className="relay-recap-toggle"
-            aria-expanded={panel === 'recap'}
-            onClick={() => toggle('recap')}
-          >
-            {panel === 'recap' ? 'Hide' : 'Recap'}
-          </button>
-        )}
-        <button
-          type="button"
-          className="relay-remove"
-          aria-label={`Remove ${item.title} from Continue`}
-          title="Remove from Continue"
-          onClick={() => void removeFromContinue(item)}
-        >
-          <Icon name="close" />
-        </button>
+        </span>
       </div>
       {panel && (
-        <div className="relay-recap">
+        <div className="row-recap">
           {transcriptError ? (
-            <p className="relay-empty">{transcriptError}</p>
+            <p className="hint">{transcriptError}</p>
           ) : (
             <AiNote view={ai.view} onStop={ai.stop} onApprove={ai.approve} onDismiss={() => setPanel(null)} />
           )}

@@ -6,7 +6,7 @@ import { html } from './sites';
 
 const OFF = { ollamaUrl: 'http://127.0.0.1:9', layaUrl: '' }; // nothing listens on port 9
 
-describe('triage card and muted topics', () => {
+describe('News (triage) and muted topics', () => {
   let ext: Ext;
   beforeAll(async () => {
     ext = await launch();
@@ -25,9 +25,9 @@ describe('triage card and muted topics', () => {
   it('hides muted items, counts them, and links to the setting', async () => {
     await seed(ext, { cachedItems: items, readItems: [], settings: { ...OFF, mutedTopics: ['election', 'Sports Daily'] } });
     const page = await ext.page(PAGES.newtab);
-    const card = page.locator('.edition-feed');
-    await expect.poll(() => card.locator('.edition-story-title').allInnerTexts()).toEqual(['A new compiler release', 'Rust 2.0 is out']);
-    expect(await card.locator('.relay-triage-note').last().innerText()).toContain('3 hidden by muted topics');
+    const card = page.locator('section[aria-label="News"]');
+    await expect.poll(() => card.locator('.row-title').allInnerTexts()).toEqual(['A new compiler release', 'Rust 2.0 is out']);
+    expect(await card.locator('.hint').last().innerText()).toContain('3 hidden by muted topics');
     const opened = ext.ctx.waitForEvent('page');
     await card.getByRole('button', { name: 'Edit muted topics' }).click();
     expect((await opened).url()).toMatch(/options\/index\.html#your-feeds$/);
@@ -39,7 +39,7 @@ describe('triage card and muted topics', () => {
   it('when everything is muted it says so instead of "all caught up"', async () => {
     await seed(ext, { cachedItems: items.slice(0, 1), readItems: [], settings: { ...OFF, mutedTopics: ['election'] } });
     const page = await ext.page(PAGES.newtab);
-    await expect.poll(() => page.locator('.edition-feed .relay-empty').innerText()).toBe('Nothing new outside your muted topics.');
+    await expect.poll(() => page.locator('section[aria-label="News"] .hint').first().innerText()).toBe('Nothing new outside your muted topics.');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
@@ -47,7 +47,7 @@ describe('triage card and muted topics', () => {
   it('a corrupted mutedTopics (a string) still mutes and never crashes', async () => {
     await seed(ext, { cachedItems: items, readItems: [], settings: { ...OFF, mutedTopics: 'election' } });
     const page = await ext.page(PAGES.newtab);
-    await expect.poll(() => page.locator('.edition-feed .edition-story-title').allInnerTexts()).not.toContain('Election night results');
+    await expect.poll(() => page.locator('section[aria-label="News"] .row-title').allInnerTexts()).not.toContain('Election night results');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
@@ -75,10 +75,10 @@ describe('triage card and muted topics', () => {
       settings: { ollamaUrl: ollama.url, ollamaEmbedModel: 'nomic-embed-text', layaUrl: '', mutedTopics: [] },
     });
     const page = await ext.page(PAGES.newtab);
-    const rows = page.locator('.edition-feed .edition-story');
+    const rows = page.locator('section[aria-label="News"] .row');
     await expect.poll(() => rows.count(), { timeout: 15_000 }).toBe(3);
     const fusionRow = rows.filter({ hasText: 'Fusion' });
-    expect(await fusionRow.locator('.edition-story-meta').innerText()).toMatch(/\+2 sources$/);
+    expect(await fusionRow.locator('.row-meta').innerText()).toMatch(/\+2 sources$/);
 
     await fusionRow.click();
     await page.waitForURL(/news\.e2e\.test:\d+\/f\d/);
@@ -88,7 +88,7 @@ describe('triage card and muted topics', () => {
     await ollama.close();
   });
 
-  it('Ollama down: newest first, nothing grouped, and the card says why', async () => {
+  it('Ollama down: newest first, nothing grouped, and News says why', async () => {
     await seed(ext, {
       cachedItems: [feedItem('f1', 'Fusion one'), feedItem('f2', 'Fusion two')],
       readItems: [],
@@ -96,8 +96,8 @@ describe('triage card and muted topics', () => {
       settings: { ...OFF, mutedTopics: [] },
     });
     const page = await ext.page(PAGES.newtab);
-    await expect.poll(() => page.locator('.edition-feed .edition-story').count()).toBe(2);
-    expect(await page.locator('.edition-feed .relay-triage-note').first().innerText()).toContain('local AI is off');
+    await expect.poll(() => page.locator('section[aria-label="News"] .row').count()).toBe(2);
+    expect(await page.locator('section[aria-label="News"] .hint').first().innerText()).toContain('local AI is off');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

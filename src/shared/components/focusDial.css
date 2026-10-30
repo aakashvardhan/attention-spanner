@@ -1,7 +1,6 @@
 /*
- * The Pomodoro dial (FocusDial.tsx), shared by the new tab and the blocked
- * page. Steps, not motion: a segment fades in as its minute lands and nothing
- * moves between. Colours are tokens; a page re-points them on .pomo-dial-wrap.
+ * The Pomodoro dial (FocusDial.tsx) on the blocked page. Steps, not motion:
+ * a segment fades in as its minute lands and nothing moves between. Colours are tokens; a page re-points them on .pomo-dial-wrap.
  */
 .pomo-dial-wrap {
   position: relative;
@@ -100,81 +99,10 @@
   color: var(--accent-text);
 }
 
-/* The breathing guide: 4s in, 6s out. The delay lines every tab up with the
-   guide's start (FocusDial.tsx). */
-.pomo-breath {
-  position: absolute;
-  inset: 16%;
-  z-index: -1;
-  border-radius: 50%;
-  background: var(--accent-wash);
-  /* An even in-and-out, the shape of a breath; not a spring, nothing overshoots. */
-  animation: pomo-breathe 10s cubic-bezier(0.45, 0, 0.55, 1) var(--breath-delay, 0s) infinite;
-}
-@keyframes pomo-breathe {
-  0%,
-  100% {
-    transform: scale(0.6);
-  }
-  40% {
-    transform: scale(1);
-  }
-}
-.pomo-cue {
-  display: grid;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.pomo-cue > span {
-  grid-area: 1 / 1;
-}
-.pomo-cue-in {
-  /* motion-exempt: the words change, nothing moves; under Reduce Motion this is the whole guide */
-  animation: pomo-cue-in 10s linear var(--breath-delay, 0s) infinite;
-}
-.pomo-cue-out {
-  /* motion-exempt: the words change, nothing moves; under Reduce Motion this is the whole guide */
-  animation: pomo-cue-out 10s linear var(--breath-delay, 0s) infinite;
-}
-@keyframes pomo-cue-in {
-  0%,
-  38%,
-  100% {
-    opacity: 1;
-  }
-  42%,
-  98% {
-    opacity: 0;
-  }
-}
-@keyframes pomo-cue-out {
-  0%,
-  38%,
-  100% {
-    opacity: 0;
-  }
-  42%,
-  98% {
-    opacity: 1;
-  }
-}
-.pomo-time-small {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pomo-lit--new,
   .pomo-settle,
   .pomo-dial-text {
     animation: none;
-  }
-  .pomo-breath {
-    display: none;
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { belongsInContinue, isInProgress, paceLabel, paceMinutesLeft, progressKind, withoutPage } from './progress';
+import { belongsInContinue, isInProgress, progressKind, withoutPage } from './progress';
 import type { AnyProgress, ReadingProgress, VideoProgress } from './types';
 
 function article(over: Partial<ReadingProgress> = {}): ReadingProgress {
@@ -101,29 +101,6 @@ describe('progressKind', () => {
     const legacy = { ...article() } as Partial<ReadingProgress>;
     delete legacy.kind;
     expect(progressKind(legacy as AnyProgress)).toBe('article');
-  });
-});
-
-describe('paceMinutesLeft', () => {
-  const article = (maxPercent: number, activeSeconds: number) =>
-    ({ kind: 'article', url: 'u', title: 't', source: 's', maxPercent, activeSeconds, firstOpenedAt: 0, updatedAt: 0,
-       completedAt: null, feedItemId: null, scrollY: 0, pageHeight: 0 }) as AnyProgress;
-
-  it('forecasts the rest at the pace this item was read so far', () => {
-    // 10 minutes for the first 40% → 15 minutes for the other 60%.
-    expect(paceMinutesLeft(article(40, 600))).toBe(15);
-  });
-
-  it('says nothing without enough reading to measure a pace', () => {
-    expect(paceMinutesLeft(article(3, 600))).toBeNull();
-    expect(paceMinutesLeft(article(40, 30))).toBeNull();
-    expect(paceMinutesLeft(article(97, 600))).toBeNull();
-    expect(paceMinutesLeft({ ...article(40, 600), kind: 'video' } as AnyProgress)).toBeNull();
-  });
-
-  it('labels it as a pace, not a promise', () => {
-    expect(paceLabel(15)).toBe('≈15 min at your pace');
-    expect(paceLabel(null)).toBe('');
   });
 });
 

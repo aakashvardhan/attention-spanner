@@ -66,10 +66,11 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('new tab: the lead is first, J/K walk the stories, Enter opens the lead', async () => {
+  it('new tab: the newest Continue row is first, J/K walk the rows, Enter opens it', async () => {
     const page = await ext.page(PAGES.newtab);
     const stories = page.locator('[data-story]');
     await expect.poll(() => stories.count()).toBeGreaterThanOrEqual(2);
+    expect(await page.locator('section[aria-label="Continue"] [data-story]').first().innerText()).toContain('The lead story');
     expect(await stories.first().innerText()).toContain('The lead story');
 
     await page.keyboard.press('j');

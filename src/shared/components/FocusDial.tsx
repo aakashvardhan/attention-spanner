@@ -1,4 +1,4 @@
-import { type CSSProperties, useRef, useState } from 'react';
+import { useRef } from 'react';
 import type { useFocusSession } from '../hooks/useFocusSession';
 import './focusDial.css';
 
@@ -6,17 +6,14 @@ type Focus = ReturnType<typeof useFocusSession>;
 
 /** Circumference of the r=52 ring in viewBox units */
 const CIRC = 2 * Math.PI * 52;
-/** Paced breathing in a break: 4s in, 6s out */
-export const BREATH_MS = 10_000;
 
 /**
  * The Pomodoro dial: one segment per minute. Finished segments are lit, the
  * minute in progress is a faint mark, and nothing moves between steps; a new
  * segment fades in as its minute lands. When a phase ends the full ring settles
- * once and lets go. `breathing` swaps the readout for a paced-breathing disc
- * (the first minute of a break, FocusTimer.tsx).
+ * once and lets go.
  */
-export function FocusDial({ focus, breathing = null }: { focus: Focus; breathing?: { startedAt: number } | null }) {
+export function FocusDial({ focus }: { focus: Focus }) {
   const session = focus.session;
   // The phase this dial first rendered: only a change after that settles.
   const firstPhase = useRef(session?.phaseStartedAt);
@@ -42,32 +39,10 @@ export function FocusDial({ focus, breathing = null }: { focus: Focus; breathing
         {k < n && <circle className="pomo-now" cx="60" cy="60" r="52" pathLength={n} strokeDasharray={`0 ${k} ${seg} ${n}`} />}
         {settled && <circle key={session.phaseStartedAt} className="pomo-settle" cx="60" cy="60" r="52" />}
       </svg>
-      {breathing ? (
-        <Breath key={breathing.startedAt} startedAt={breathing.startedAt} time={focus.display.value} />
-      ) : (
-        <span key={label} className="pomo-dial-text">
-          <span className="pomo-time">{focus.display.value}</span>
-          <span className="pomo-phase">{focus.display.unit ?? label}</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-/**
- * The breathing guide. The delay is fixed at mount, so every open tab breathes
- * in step with the guide's start; recomputing it each render would skip ahead.
- */
-function Breath({ startedAt, time }: { startedAt: number; time: string }) {
-  const [delay] = useState(() => `-${(Date.now() - startedAt) % BREATH_MS}ms`);
-  return (
-    <span className="pomo-dial-text" style={{ '--breath-delay': delay } as CSSProperties}>
-      <span className="pomo-breath" aria-hidden="true" />
-      <span className="pomo-cue">
-        <span className="pomo-cue-in">Breathe in</span>
-        <span className="pomo-cue-out">Breathe out</span>
+      <span key={label} className="pomo-dial-text">
+        <span className="pomo-time">{focus.display.value}</span>
+        <span className="pomo-phase">{focus.display.unit ?? label}</span>
       </span>
-      <span className="pomo-time-small">{time}</span>
-    </span>
+    </div>
   );
 }

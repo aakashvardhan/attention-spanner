@@ -49,7 +49,7 @@ body {
   color: var(--focus-text-secondary);
 }
 
-/* The same dial as the new tab's (FocusDial.tsx), large enough to read from
+/* The Pomodoro dial (FocusDial.tsx), large enough to read from
    across the room, its tokens pointed at the always-dark focus palette. */
 .blocked .pomo-dial-wrap {
   width: 224px;

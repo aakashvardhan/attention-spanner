@@ -49,19 +49,23 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab (the Edition): `.edition` is the page (a `.grid`), there is no masthead,
-  `.edition-lead` is the lead story, and
-  every openable story carries `[data-story]` (J/K walk them, Enter opens the
-  lead). Papers and Settings live in `.edition-index`. The
-  Pomodoro is `.pomo` (FocusTimer.tsx, sidebar in flat, bottom band in the
-  world): idle it is `.pomo-clockin` (or key C); running it carries
-  `data-phase` and so does `<html>`. A seeded `focusSession` needs `phase`,
+- New tab (layout C): `.edition` holds two columns, no masthead. `.now-col` is
+  the Pomodoro (`.pomo`), the brain dump (`section[aria-label="Brain dump"]`)
+  and the heatmap (`.heat`); `.read-col` is `section[aria-label="Continue"]`
+  (sub-lists `Continue reading` / `Continue watching`),
+  `section[aria-label="Deck"]` (open questions) and `section[aria-label="News"]`
+  (hidden during a focus round). Each list shows 5 rows, then `button.show-all`.
+  Every openable row is a `.row` with `[data-story]` (J/K walk them, Enter
+  opens the selected one). Papers and Settings live in `.edition-index`
+  (below 720px the columns stack, Now first). The Pomodoro: idle it is
+  `.pomo-start` (or key C); running it shows `.pomo-status` and carries
+  `data-phase`, and so does `<html>`. A seeded `focusSession` needs `phase`,
   `round` and `phaseStartedAt` or it reads as not focusing. To end a phase,
   set `phaseEndsAt: Date.now()` and fire `focus-phase-end` from the worker
   with `chrome.alarms.create`; the chime is an offscreen document, visible via
   `chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })`. Wait ~1.5s for storage. Seed `readingProgress` with real
-  fields (`maxPercent`, `updatedAt`, `completedAt: null`) or the
-  lead stays empty.
+  fields (`maxPercent`, `updatedAt`, `completedAt: null`) or Continue
+  stays empty.
 - Reader (the Observatory): `.reader-root[data-chrome]` is `awake`/`asleep`
   (sleeps 2.5s after load with no panel open; `mouse.move(x, 10)` wakes it);
   status is `.reader-capsule` (click `.reader-capsule-summary` for page jump and

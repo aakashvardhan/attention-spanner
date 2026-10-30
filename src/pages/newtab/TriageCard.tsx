@@ -25,25 +25,22 @@ const RERANK_POOL = 15;
 const CANDIDATES = 60;
 
 /**
- * The feed, finally on screen — five unread items closest to what you finish,
- * each with the reason it is here. Feeds were fetched for months with nowhere
- * to show them; this card is that somewhere, and it stays a short list on
- * purpose. With no local model it still works, newest first, and says so.
+ * News: five unread feed items closest to what you finish, each with the
+ * reason it is here. A short list on purpose. With no local model it still
+ * works, newest first, and says so.
  */
 export function TriageCard({ onOpen }: { onOpen: (pick: Pick, newTab: boolean) => void }) {
   const { picks, note, mutedCount, hasItems } = useTriage();
-  // No feeds, nothing to triage: no card, rather than an empty one.
+  // No feeds, nothing to triage: no section, rather than an empty one.
   if (!hasItems) return null;
 
   return (
-    <section className="edition-feed" aria-labelledby="triage-title">
-      <h2 id="triage-title" className="edition-kicker">From your feeds</h2>
+    <section className="read-section" aria-label="News">
+      <h2 className="label">News</h2>
       {picks === null ? (
-        <p className="relay-empty">Sorting by what you finish…</p>
+        <p className="hint">Sorting by what you finish…</p>
       ) : picks.length === 0 ? (
-        <p className="relay-empty">
-          {mutedCount > 0 ? 'Nothing new outside your muted topics.' : 'All caught up on your feeds.'}
-        </p>
+        <p className="hint">{mutedCount > 0 ? 'Nothing new outside your muted topics.' : 'All caught up on your feeds.'}</p>
       ) : (
         <ul>
           {picks.map((pick) => (
@@ -53,9 +50,9 @@ export function TriageCard({ onOpen }: { onOpen: (pick: Pick, newTab: boolean) =
           ))}
         </ul>
       )}
-      {note && <p className="relay-triage-note">{note}</p>}
+      {note && <p className="hint">{note}</p>}
       {mutedCount > 0 && (
-        <p className="relay-triage-note">
+        <p className="hint">
           {mutedCount} hidden by muted topics.{' '}
           <button
             type="button"
@@ -75,19 +72,15 @@ export function TriageCard({ onOpen }: { onOpen: (pick: Pick, newTab: boolean) =
 export function TriageRow({ pick, onOpen }: { pick: Pick; onOpen: (pick: Pick, newTab: boolean) => void }) {
   const { item, because, also } = pick;
   return (
-    <button
-      className="edition-story"
-      data-story
-      onClick={(e) => {
-        onOpen(pick, e.metaKey || e.ctrlKey);
-      }}
-    >
-      <span className="edition-story-title">{item.title}</span>
-      <span className="edition-story-meta">
+    <button className="row" data-story onClick={(e) => onOpen(pick, e.metaKey || e.ctrlKey)}>
+      <span className="row-title">
+        {item.title}
+        {because && <span className="row-why">Because you read {because}</span>}
+      </span>
+      <span className="row-meta">
         {item.source}
         {also.length > 0 && ` ${alsoLabel(pick)}`}
       </span>
-      {because && <span className="edition-story-why">Because you read {because}</span>}
     </button>
   );
 }
