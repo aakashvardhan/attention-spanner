@@ -2,7 +2,6 @@ import { ALARMS } from '../shared/constants';
 import { getSettings } from '../shared/storage';
 import { refreshFeeds, updateBadge } from './feeds';
 import { handleFocusPhaseEnd } from './focus';
-import { fireNudge, isNudgeAlarm } from './nudges';
 
 /**
  * Alarms belonging to features that have been cut. An alarm outlives the code
@@ -25,10 +24,13 @@ const RETIRED_ALARMS = [
 
 export async function clearRetiredAlarms(): Promise<void> {
   for (const name of RETIRED_ALARMS) await chrome.alarms.clear(name);
-  // Automations were one alarm per rule, named by id — clear the whole family.
+  // Automations were one alarm per rule and nudges one per article, named by
+  // id — clear the whole family.
   const existing = await chrome.alarms.getAll();
   await Promise.all(
-    existing.filter((a) => a.name.startsWith('automation|')).map((a) => chrome.alarms.clear(a.name)),
+    existing
+      .filter((a) => a.name.startsWith('automation|') || a.name.startsWith('nudge|'))
+      .map((a) => chrome.alarms.clear(a.name)),
   );
 }
 
@@ -39,10 +41,6 @@ export async function setupRefreshAlarm(intervalMinutes?: number): Promise<void>
 }
 
 export function handleAlarm(alarm: chrome.alarms.Alarm): void {
-  if (isNudgeAlarm(alarm.name)) {
-    void fireNudge(alarm.name);
-    return;
-  }
   switch (alarm.name) {
     case ALARMS.refreshFeeds:
       void refreshFeeds();

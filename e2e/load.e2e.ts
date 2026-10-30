@@ -73,7 +73,7 @@ describe('load: a heavy profile stays fast', () => {
     const page = await ext.ctx.newPage();
     const start = Date.now();
     await page.goto(`chrome-extension://${ext.id}/${PAGES.options}`);
-    await page.getByRole('button', { name: 'Suggest from my history' }).waitFor();
+    await page.getByLabel('Hide from your feeds').waitFor();
     expect(Date.now() - start).toBeLessThan(BUDGET.settingsMs);
     expect((await page.getByLabel('Hide from your feeds').inputValue()).split('\n')).toHaveLength(100);
     expect(await longestTask(page)).toBeLessThan(BUDGET.longestTaskMs);

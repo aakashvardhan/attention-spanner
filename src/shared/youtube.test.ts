@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { ReadingProgress, VideoProgress } from './types';
 import {
   currentlyWatching,
-  driftedAway,
   getYouTubeVideoId,
   isWatchingNow,
   isYouTubeWatchUrl,
@@ -82,7 +81,6 @@ function videoProgress(over: Partial<VideoProgress> = {}): VideoProgress {
     updatedAt: NOW,
     completedAt: null,
     playing: true,
-    nudge: { count: 0, lastAt: 0, dismissed: false },
     ...over,
   };
 }
@@ -119,7 +117,6 @@ describe('isWatchingNow', () => {
       firstOpenedAt: NOW - 60_000,
       updatedAt: NOW,
       completedAt: null,
-      nudge: { count: 0, lastAt: 0, dismissed: false },
     };
     expect(isWatchingNow(article, NOW)).toBe(false);
   });
@@ -208,42 +205,11 @@ describe('currentlyWatching', () => {
             firstOpenedAt: NOW - 1000,
             updatedAt: NOW,
             completedAt: null,
-            nudge: { count: 0, lastAt: 0, dismissed: false },
           } as ReadingProgress,
           'yt:legacy': videoProgress({ playing: undefined }),
         }),
         NOW,
       ),
     ).toBeNull();
-  });
-});
-
-/**
- * Drift is "you left this video and you are still on YouTube" — the rabbit
- * hole. Leaving for a non-YouTube page is ordinary abandonment and keeps the
- * existing nudge copy, so it must NOT read as drift.
- */
-describe('driftedAway', () => {
-  const key = videoKey('dQw4w9WgXcQ');
-
-  it('is true for another video, a Short, and a browse page', () => {
-    expect(driftedAway(key, 'https://www.youtube.com/watch?v=someOther1')).toBe(true);
-    expect(driftedAway(key, 'https://www.youtube.com/shorts/abc123xyz')).toBe(true);
-    expect(driftedAway(key, 'https://www.youtube.com/feed/subscriptions')).toBe(true);
-  });
-
-  it('is false while still on the same video, whatever the URL shape', () => {
-    expect(driftedAway(key, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(false);
-    expect(driftedAway(key, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s')).toBe(false);
-    expect(driftedAway(key, 'https://youtu.be/dQw4w9WgXcQ')).toBe(false);
-  });
-
-  it('is false off YouTube entirely — that is plain abandonment', () => {
-    expect(driftedAway(key, 'https://news.ycombinator.com/')).toBe(false);
-  });
-
-  it('is false for article keys and when the active tab is unknown', () => {
-    expect(driftedAway('blog.com/post', 'https://www.youtube.com/feed/subscriptions')).toBe(false);
-    expect(driftedAway(key, undefined)).toBe(false);
   });
 });

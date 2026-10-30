@@ -3,7 +3,7 @@ import type { ResumableItem } from '../../shared/attention';
 import type { Paper, ReadingProgress, VideoProgress } from '../../shared/types';
 import { kickerFor, leadStatus } from './ContinueRow';
 
-const base = { maxPercent: 42, activeSeconds: 0, firstOpenedAt: 0, completedAt: null, nudge: { count: 0, lastAt: 0, dismissed: false } };
+const base = { maxPercent: 42, activeSeconds: 0, firstOpenedAt: 0, completedAt: null };
 const article = (updatedAt: number): ResumableItem => ({
   key: 'a', title: 'A', updatedAt, paper: null,
   progress: { ...base, url: 'https://x.org/a', title: 'A', source: 'Distill', updatedAt, kind: 'article', feedItemId: null, scrollY: 0, pageHeight: 1 } as ReadingProgress,

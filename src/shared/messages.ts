@@ -57,7 +57,7 @@ export type Message =
       leftOff: string;
       /** Reading seconds since the last report,  */
       activeSecondsDelta: number;
-      /** The reader tab went hidden or closed: start the come-back nudge */
+      /** The reader tab went hidden or closed */
       hidden: boolean;
     }
   | { type: 'READER_OPEN_NATIVE'; url: string }

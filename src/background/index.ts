@@ -1,4 +1,4 @@
-import { NEWTAB_PAGE_PATH, NOTIFICATION_IDS } from '../shared/constants';
+import { NEWTAB_PAGE_PATH } from '../shared/constants';
 import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
@@ -6,11 +6,6 @@ import { clearRetiredAlarms, handleAlarm, setupRefreshAlarm } from './alarms';
 import { openArticle, refreshFeeds, updateBadge } from './feeds';
 import { reconcileFocusOnStartup, refreshFocusRules } from './focus';
 import { removeLegacyDailyGateRule } from './accessRules';
-import {
-  dismissNudgesForArticle,
-  isNudgeNotification,
-  resumeArticle,
-} from './nudges';
 import { markPaperReadingByUrl } from './papers';
 import { maybeInterceptPdf, syncPdfRules } from './pdfIntercept';
 import { refreshTimedtextTees, registerTimedtextTee } from './videoContext';
@@ -186,23 +181,4 @@ void syncPdfRules();
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   void handleTabRemoved(tabId);
-});
-
-chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
-  if (isNudgeNotification(notificationId)) {
-    chrome.notifications.clear(notificationId);
-    const key = notificationId.slice(NOTIFICATION_IDS.nudgePrefix.length);
-    if (buttonIndex === 0) {
-      void resumeArticle(key);
-    } else {
-      void dismissNudgesForArticle(key);
-    }
-  }
-});
-
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (isNudgeNotification(notificationId)) {
-    chrome.notifications.clear(notificationId);
-    void resumeArticle(notificationId.slice(NOTIFICATION_IDS.nudgePrefix.length));
-  }
 });

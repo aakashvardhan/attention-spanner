@@ -10,7 +10,6 @@ const base = {
   firstOpenedAt: 1,
   updatedAt: 10,
   completedAt: null,
-  nudge: { count: 0, lastAt: 0, dismissed: false },
 };
 
 describe('attention resume context', () => {

@@ -5,6 +5,8 @@ import {
   migrate,
   v12ReadingProgress,
   v24Dumps,
+  v25Progress,
+  v25StripNudge,
   withDumpLock,
   v22StripSettings,
   v7Annotations,
@@ -211,7 +213,7 @@ describe('v22', () => {
     const remove = vi.fn(() => Promise.resolve());
     vi.stubGlobal('chrome', {
       storage: {
-        local: { get: () => Promise.resolve({ schemaVersion: 24 }), set: vi.fn(), remove: vi.fn() },
+        local: { get: () => Promise.resolve({ schemaVersion: 25 }), set: vi.fn(), remove: vi.fn() },
         session: { remove },
       },
     });
@@ -236,9 +238,9 @@ describe('v22', () => {
 });
 
 describe('provocations key', () => {
-  it('defaults provocations to an empty list and keeps schema 24', () => {
+  it('defaults provocations to an empty list and keeps schema 25', () => {
     expect(DEFAULTS.provocations).toEqual([]);
-    expect(DEFAULTS.schemaVersion).toBe(24);
+    expect(DEFAULTS.schemaVersion).toBe(25);
   });
 });
 
@@ -288,4 +290,106 @@ describe('kept data', () => {
   it('no kept key is ever swept', () => { for (const k of KEPT_LOCAL_KEYS) expect(V22_DEAD_KEYS).not.toContain(k); });
   it('no live setting is ever swept', () => { for (const k of Object.keys(DEFAULT_SETTINGS)) expect(V22_DEAD_SETTINGS).not.toContain(k); });
   it('no live local key is ever swept', () => { for (const k of Object.keys(DEFAULTS)) expect(V22_DEAD_KEYS).not.toContain(k); });
+});
+
+/** v24 → v25: reading nudges are cut, so progress records and papers drop their `nudge` state. */
+describe('v25', () => {
+  const nudge = { count: 1, lastAt: 2, dismissed: false };
+
+  it('strips nudge from progress records', () => {
+    expect(v25Progress({ a: { url: 'u', maxPercent: 40, nudge } })).toEqual({ a: { url: 'u', maxPercent: 40 } });
+  });
+
+  it('returns null when nothing changed, so a clean profile is not rewritten', () => {
+    expect(v25Progress({ a: { url: 'u' } })).toBeNull();
+    expect(v25Progress(undefined)).toBeNull();
+  });
+
+  it('strips nudge from papers and leaves every other field deep-equal', () => {
+    const paper = { id: 'p', title: 'T', url: 'https://x', deckId: 'd', status: 'reading', progressPercent: 30, lastReadAt: 5 };
+    expect([{ ...paper, nudge }, paper].map(v25StripNudge)).toEqual([paper, paper]);
+  });
+
+  it('sweeps the nudges toggle', () => {
+    expect(V22_DEAD_SETTINGS).toContain('nudgesEnabled');
+  });
+});
+
+/** Map-backed chrome.storage, enough for migrate(). */
+function fakeChrome(seed: Record<string, unknown>) {
+  const local = new Map(Object.entries(structuredClone(seed)));
+  const keys = (k: string | string[]) => (Array.isArray(k) ? k : [k]);
+  vi.stubGlobal('chrome', {
+    storage: {
+      local: {
+        get: async (k: string | string[]) =>
+          structuredClone(Object.fromEntries(keys(k).filter((x) => local.has(x)).map((x) => [x, local.get(x)]))),
+        set: async (items: Record<string, unknown>) => {
+          for (const [k, v] of Object.entries(structuredClone(items))) local.set(k, v);
+        },
+        remove: async (k: string | string[]) => {
+          for (const x of keys(k)) local.delete(x);
+        },
+      },
+      session: { remove: async () => {} },
+    },
+  });
+  return () => structuredClone(Object.fromEntries(local));
+}
+
+describe('v25 sweep on a full legacy profile', () => {
+  const sentinel = (k: string) => ({ sentinel: k, nested: [1, { deep: k }] });
+  const nudge = { count: 2, lastAt: 9, dismissed: true };
+  const keptSettings = { theme: 'dark', mutedTopics: ['x'], notificationsEnabled: true, semanticScholarApiKey: 's' };
+  const deadSettings = {
+    displayName: 'A', weatherLocation: 'X', ambientMotion: true, hyperfocusEnabled: true,
+    focusMusicEnabled: true, geminiKey: 'g', nudgesEnabled: true,
+  };
+  const progress = {
+    'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null, nudge },
+    'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30, nudge },
+  };
+  const paper = { id: 'p1', title: 'P', url: 'https://arxiv.org/abs/1', status: 'reading', progressPercent: 20 };
+  // Every key a `// v25` section sweeps, plus a sentinel for every kept key.
+  const seed: Record<string, unknown> = {
+    ...Object.fromEntries(KEPT_LOCAL_KEYS.map((k) => [k, sentinel(k)])),
+    weather: { temp: 1 },
+    bookmarks: [{ id: 'b' }],
+    bookmarkGroups: [{ id: 'g' }],
+    aiStats: { probes: 3 },
+    schemaVersion: 24,
+    settings: { ...keptSettings, ...deadSettings },
+    readingProgress: progress,
+    papers: [{ ...paper, nudge }],
+  };
+
+  it('drops only the cut, keeps every sentinel and lands on 25', async () => {
+    const snapshot = fakeChrome(seed);
+    await migrate();
+    const after = snapshot();
+    vi.unstubAllGlobals();
+    for (const k of ['weather', 'bookmarks', 'bookmarkGroups', 'aiStats']) expect(after).not.toHaveProperty(k);
+    expect(after.settings).toEqual(keptSettings);
+    expect(after.readingProgress).toEqual({
+      'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null },
+      'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30 },
+    });
+    expect(after.papers).toEqual([paper]);
+    expect(JSON.stringify(after)).not.toContain('"nudge"');
+    for (const k of KEPT_LOCAL_KEYS) {
+      if (['schemaVersion', 'settings', 'readingProgress', 'papers'].includes(k)) continue;
+      expect(after[k]).toEqual(sentinel(k));
+    }
+    expect(after.schemaVersion).toBe(25);
+  });
+
+  it('migrate is idempotent', async () => {
+    const snapshot = fakeChrome(seed);
+    await migrate();
+    const first = snapshot();
+    await migrate();
+    const second = snapshot();
+    vi.unstubAllGlobals();
+    expect(second).toEqual(first);
+  });
 });

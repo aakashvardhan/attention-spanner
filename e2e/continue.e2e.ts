@@ -20,7 +20,6 @@ function video(id: string, title: string, updatedAt: number): VideoProgress {
     firstOpenedAt: updatedAt - HOUR,
     updatedAt,
     completedAt: null,
-    nudge: { count: 0, lastAt: 0, dismissed: false },
   };
 }
 

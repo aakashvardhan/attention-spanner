@@ -4,7 +4,6 @@ import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { AnyProgress, FeedItem, ReadingProgress } from '../shared/types';
 import { normalizeUrl } from '../shared/urlNormalize';
 import { isYouTubeWatchUrl } from '../shared/youtube';
-import { scheduleNudge, cancelNudge } from './nudges';
 
 /**
  * Reading-progress tracking. The tracker content script is injected
@@ -165,7 +164,6 @@ export async function handleProgressUpdate(
       firstOpenedAt: now,
       updatedAt: now,
       completedAt: null,
-      nudge: { count: 0, lastAt: 0, dismissed: false },
     };
   }
 
@@ -190,12 +188,6 @@ export async function handleProgressUpdate(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-
-  if (update.hidden) {
-    await scheduleNudge(key);
-  } else {
-    await cancelNudge(key);
-  }
 }
 
 export function prune(progress: Record<string, AnyProgress>): Record<string, AnyProgress> {
@@ -212,10 +204,8 @@ export function prune(progress: Record<string, AnyProgress>): Record<string, Any
   return Object.fromEntries(entries);
 }
 
-/** The X on a Continue row: the page's progress goes, under every key, and so does its resume nudge. */
+/** The X on a Continue row: the page's progress goes, under every key. */
 export async function forgetProgress(url: string): Promise<void> {
   const { readingProgress } = await getLocal('readingProgress');
-  const kept = withoutPage(readingProgress, url);
-  await setLocal({ readingProgress: kept });
-  await Promise.all(Object.keys(readingProgress).filter((key) => !(key in kept)).map((key) => cancelNudge(key)));
+  await setLocal({ readingProgress: withoutPage(readingProgress, url) });
 }

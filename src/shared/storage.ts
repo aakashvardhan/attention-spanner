@@ -58,7 +58,6 @@ export interface SessionSchema {
     number,
     { scrollY: number; percent: number } | { positionSeconds: number }
   >;
-  lastGlobalNudgeAt: number;
   /** PDF URLs the user sent to Chrome's native viewer — don't re-intercept this session */
   pdfNativeBypass: string[];
   /**
@@ -75,7 +74,6 @@ export const DEFAULT_SETTINGS: Settings = {
   readerFocusLine: false,
   refreshInterval: 30,
   notificationsEnabled: true,
-  nudgesEnabled: false,
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   focusMinutes: 50,
   breakMinutes: 10,
@@ -91,7 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULTS: LocalSchema = {
-  schemaVersion: 24,
+  schemaVersion: 25,
   provocations: [],
   feeds: [],
   readItems: [],
@@ -119,7 +117,6 @@ export const DEFAULTS: LocalSchema = {
 export const SESSION_DEFAULTS: SessionSchema = {
   trackedTabs: {},
   pendingResume: {},
-  lastGlobalNudgeAt: 0,
   pdfNativeBypass: [],
   videoTranscripts: {},
 };
@@ -207,6 +204,10 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * Their key and setting join the same cumulative lists, and the sweep re-runs
  * — removing an absent key is a no-op, so re-running v22's entries is free.
  * v23 → v24: brain dumps lose their task fields and sorted points (v24Dumps).
+ * v24 → v25 (minimal revamp): bookmarks, weather, AI stats, Flowtunes, Gemini,
+ * hyperfocus and reading nudges went. Their keys and settings join the same
+ * cumulative lists, so the sweep re-runs; progress records and papers drop
+ * their `nudge` state (v25Progress, v25StripNudge).
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
@@ -216,7 +217,7 @@ export async function migrate(): Promise<void> {
   await chrome.storage.session.remove(['hyperfocus', 'driftChecked', 'lastGlobalNudgeAt']);
   // Must match the version written at the end: this guard was left at 10 when
   // v11 landed, which stranded anyone already on 10 — they never ran v11.
-  if (version >= 24) return;
+  if (version >= 25) return;
 
   // Only branches that repair data a SURVIVING feature reads are kept. Every
   // migration that merely seeded a key now removed — the calendar defaults, the
@@ -238,7 +239,36 @@ export async function migrate(): Promise<void> {
     await chrome.storage.local.set({ dumps: v24Dumps((dumps as unknown[] | undefined) ?? []) });
   }
 
-  await chrome.storage.local.set({ schemaVersion: 24 });
+  if (version < 25) {
+    // Read fresh: v12 and v24 above write these keys themselves.
+    const { readingProgress, papers } = await chrome.storage.local.get(['readingProgress', 'papers']);
+    const progress = v25Progress(readingProgress as Record<string, unknown> | undefined);
+    if (progress) await chrome.storage.local.set({ readingProgress: progress });
+    if (Array.isArray(papers) && papers.some((p) => p && typeof p === 'object' && 'nudge' in p)) {
+      await chrome.storage.local.set({ papers: papers.map((p) => (p && typeof p === 'object' ? v25StripNudge(p) : p)) });
+    }
+  }
+
+  await chrome.storage.local.set({ schemaVersion: 25 });
+}
+
+/** v24 → v25: reading nudges are cut; a record keeps everything but its `nudge`. */
+export function v25StripNudge<T extends object>(record: T): Omit<T, 'nudge'> {
+  const { nudge: _, ...rest } = record as T & { nudge?: unknown };
+  return rest;
+}
+
+/** v25StripNudge over every progress entry. Null when nothing changed, so a clean profile is not rewritten. */
+export function v25Progress(map: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  if (!map || typeof map !== 'object') return null;
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(map)) {
+    const has = !!entry && typeof entry === 'object' && 'nudge' in entry;
+    next[key] = has ? v25StripNudge(entry) : entry;
+    changed ||= has;
+  }
+  return changed ? next : null;
 }
 
 /**
@@ -357,6 +387,7 @@ export const V22_DEAD_SETTINGS = [
   'hyperfocusEnabled',
   'focusMusicEnabled',
   'geminiKey',
+  'nudgesEnabled',
   // Retired earlier; listed so one sweep is the whole truth
   'dashboardMode',
   'dashColumns',

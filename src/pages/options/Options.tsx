@@ -251,7 +251,7 @@ export function Options() {
           {notificationsBlocked && (
             <p className="feedback error">
               Chrome notifications are blocked at the OS level. On macOS, enable them in System
-              Settings → Notifications → Google Chrome, or reminders and nudges will not appear.
+              Settings → Notifications → Google Chrome, or reminders will not appear.
             </p>
           )}
           <div className="setting-row">
@@ -261,19 +261,6 @@ export function Options() {
               type="checkbox"
               checked={settings.notificationsEnabled}
               onChange={(e) => void patchSettings({ notificationsEnabled: e.target.checked })}
-            />
-          </div>
-          <div className="setting-row">
-            <label htmlFor="nudges-enabled">
-              Reading nudges{' '}
-              <span className="hint-inline">(remind me about half-read articles)</span>
-            </label>
-            <input
-              id="nudges-enabled"
-              type="checkbox"
-              checked={settings.nudgesEnabled}
-              disabled={!settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ nudgesEnabled: e.target.checked })}
             />
           </div>
         </section>

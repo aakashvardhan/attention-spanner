@@ -306,7 +306,6 @@ export function PdfReader({ src }: { src: string }) {
   // Leaving the tab (or closing it) flushes the latest position immediately.
   useEffect(() => {
     const onVisibility = () => {
-      // Hidden starts the come-back nudge; visible again calls it off.
       sendProgress(true, document.visibilityState === 'hidden');
     };
     const onPageHide = () => sendProgress(true, true);

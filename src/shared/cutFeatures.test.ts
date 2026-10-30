@@ -17,6 +17,7 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'gemini', pattern: /gemini|GEMINI_|Gemini (key|API|watched|summar)/ },
   { name: 'suggested-feeds', pattern: /SuggestedFeeds|rankDomains|suggestFeeds|isFollowed|isPublicHost|DiscoveryDeps|DiscoveryResult|SiteScore|HistoryVisit|MIN_VISITS/ },
   { name: 'ai-stats', pattern: /recordStat|updateStats|settleProbes|probePercent|aiStats|AiStats|ImpactRows/ },
+  { name: 'nudges', pattern: /scheduleNudge|cancelNudge|fireNudge|nudgesEnabled|NUDGE_|nudgePrefix|lastGlobalNudgeAt/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

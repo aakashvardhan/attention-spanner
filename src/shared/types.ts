@@ -51,7 +51,6 @@ export interface Settings {
   /** Feed refresh interval in minutes (15–360) */
   refreshInterval: number;
   notificationsEnabled: boolean;
-  nudgesEnabled: boolean;
   /** Domains blocked during focus sessions */
   focusBlocklist: string[];
   focusMinutes: number;
@@ -154,8 +153,6 @@ export interface Paper extends RecordMeta {
   updatedAt: number;
   /** Bumped whenever status/progress changes while reading */
   lastReadAt: number | null;
-  /** "Pick it back up" nudge state; absent until the first nudge */
-  nudge?: { count: number; lastAt: number; dismissed: boolean };
 }
 
 /** The editable fields of a Paper; the service worker fills id/timestamps. */
@@ -333,11 +330,6 @@ interface ProgressBase {
   updatedAt: number;
   /** Set when maxPercent >= 90 */
   completedAt: number | null;
-  nudge: {
-    count: number;
-    lastAt: number;
-    dismissed: boolean;
-  };
 }
 
 export interface ReadingProgress extends ProgressBase {

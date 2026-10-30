@@ -2,14 +2,6 @@ export const ACCENT_COLOR = '#0ea5e9';
 
 export const FETCH_TIMEOUT_MS = 15000;
 
-/* Come-back nudges. These were settings; nobody retunes them, and the ADHD-
-   tuned values are the point of the feature. `nudgesEnabled` still switches
-   the whole thing off. */
-/** Minutes away from a partially-read article before a nudge fires */
-export const NUDGE_DELAY_MINUTES = 3;
-/** Per-article cooldown between nudges */
-export const NUDGE_COOLDOWN_MINUTES = 60;
-export const NUDGE_MAX_PER_ARTICLE = 2;
 /** Only auto-track YouTube videos at least this long */
 export const VIDEO_MIN_MINUTES = 15;
 /**
@@ -73,13 +65,11 @@ export const SEMANTIC_SCHOLAR_PAPER_API = 'https://api.semanticscholar.org/graph
 
 export const ALARMS = {
   refreshFeeds: 'refresh-feeds',
-  nudgePrefix: 'nudge|',
   focusPhaseEnd: 'focus-phase-end',
   focusBadgeTick: 'focus-badge-tick',
 } as const;
 
 export const NOTIFICATION_IDS = {
-  nudgePrefix: 'nudge|',
   focusPhase: 'focus-phase',
 } as const;
 

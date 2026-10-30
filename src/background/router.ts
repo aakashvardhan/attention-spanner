@@ -54,7 +54,7 @@ export async function dispatch(
         pageCount: msg.pageCount,
         offset: msg.offset,
         leftOff: msg.leftOff,
-      }, { activeSecondsDelta: msg.activeSecondsDelta, hidden: msg.hidden });
+      });
     case 'ANNOT_ADD':
       return addAnnotation(msg.draft);
     case 'ANNOT_UPDATE':

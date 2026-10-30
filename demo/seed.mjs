@@ -24,7 +24,6 @@ export function buildSeed(now = Date.now()) {
     skin: 'brave',
     refreshInterval: 30,
     notificationsEnabled: true,
-    nudgesEnabled: true,
     focusBlocklist: ['mail.google.com', 'linkedin.com', 'netflix.com'],
     focusMinutes: 50,
     focusBreakMinutes: 10,
@@ -47,7 +46,6 @@ export function buildSeed(now = Date.now()) {
       firstOpenedAt: day(1),
       updatedAt: h(5),
       completedAt: null,
-      nudge: { count: 1, lastAt: h(4), dismissed: false },
     },
     'youtube.com/watch?v=demo-focus-toolkit': {
       kind: 'video',
@@ -62,7 +60,6 @@ export function buildSeed(now = Date.now()) {
       firstOpenedAt: day(2),
       updatedAt: h(26),
       completedAt: null,
-      nudge: { count: 0, lastAt: 0, dismissed: false },
     },
   };
 

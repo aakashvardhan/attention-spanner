@@ -16,7 +16,6 @@ function article(over: Partial<ReadingProgress> = {}): ReadingProgress {
     firstOpenedAt: 0,
     updatedAt: 0,
     completedAt: null,
-    nudge: { count: 0, lastAt: 0, dismissed: false },
     ...over,
   };
 }
@@ -108,7 +107,7 @@ describe('progressKind', () => {
 describe('paceMinutesLeft', () => {
   const article = (maxPercent: number, activeSeconds: number) =>
     ({ kind: 'article', url: 'u', title: 't', source: 's', maxPercent, activeSeconds, firstOpenedAt: 0, updatedAt: 0,
-       completedAt: null, nudge: { count: 0, lastAt: 0, dismissed: false }, feedItemId: null, scrollY: 0, pageHeight: 0 }) as AnyProgress;
+       completedAt: null, feedItemId: null, scrollY: 0, pageHeight: 0 }) as AnyProgress;
 
   it('forecasts the rest at the pace this item was read so far', () => {
     // 10 minutes for the first 40% → 15 minutes for the other 60%.

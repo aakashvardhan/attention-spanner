@@ -103,25 +103,6 @@ export function currentlyWatching(
   return best;
 }
 
-/**
- * Did the user leave this video and stay on YouTube? That is the rabbit hole —
- * another video, a Short, or the subscriptions feed — and it reads differently
- * from closing the tab, which is ordinary abandonment and keeps the existing
- * nudge copy. Called at nudge fire time against the active tab, so it needs no
- * state of its own and no second alarm.
- */
-export function driftedAway(key: string, activeUrl: string | undefined): boolean {
-  if (!activeUrl || !key.startsWith(VIDEO_KEY_PREFIX)) return false;
-  let host: string;
-  try {
-    host = new URL(activeUrl).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  const onYouTube = host === 'youtu.be' || YT_HOSTS.has(host);
-  return onYouTube && !keyMatchesUrl(key, activeUrl);
-}
-
 /** Does this tab URL correspond to this progress key (article or video)? */
 export function keyMatchesUrl(key: string, url: string): boolean {
   if (key.startsWith(VIDEO_KEY_PREFIX)) {

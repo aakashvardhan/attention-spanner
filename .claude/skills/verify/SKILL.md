@@ -60,7 +60,7 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
   set `phaseEndsAt: Date.now()` and fire `focus-phase-end` from the worker
   with `chrome.alarms.create`; the chime is an offscreen document, visible via
   `chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })`. Wait ~1.5s for storage. Seed `readingProgress` with real
-  fields (`maxPercent`, `updatedAt`, `completedAt: null`, `nudge`) or the
+  fields (`maxPercent`, `updatedAt`, `completedAt: null`) or the
   lead stays empty.
 - Reader (the Observatory): `.reader-root[data-chrome]` is `awake`/`asleep`
   (sleeps 2.5s after load with no panel open; `mouse.move(x, 10)` wakes it);

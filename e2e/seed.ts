@@ -17,7 +17,6 @@ export function article(url: string, title: string, overrides: Partial<ReadingPr
     firstOpenedAt: now - 24 * HOUR,
     updatedAt: now - HOUR,
     completedAt: null,
-    nudge: { count: 0, lastAt: 0, dismissed: false },
     ...overrides,
   };
 }

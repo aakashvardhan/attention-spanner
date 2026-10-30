@@ -2,7 +2,6 @@ import { VIDEO_MIN_MINUTES } from '../shared/constants';
 import { getLocal, getSession, setLocal, setSession } from '../shared/storage';
 import type { VideoProgress } from '../shared/types';
 import { cleanVideoTitle, getYouTubeVideoId, isYouTubeWatchUrl, videoKey } from '../shared/youtube';
-import { cancelNudge, scheduleNudge } from './nudges';
 import { prune } from './tracking';
 
 /**
@@ -37,7 +36,7 @@ export async function handleVideoReady(
     msg.durationSeconds >= VIDEO_MIN_MINUTES * 60;
   if (!longEnough) return { ok: true, track: false, resume: null };
 
-  // Prefer an explicit pending resume (tab opened from Continue Watching / nudge)
+  // Prefer an explicit pending resume (tab opened from Continue Watching)
   let resume: { positionSeconds: number } | null = null;
   const tabId = sender.tab?.id;
   if (tabId !== undefined) {
@@ -103,7 +102,6 @@ export async function handleVideoProgress(
       firstOpenedAt: now,
       updatedAt: now,
       completedAt: null,
-      nudge: { count: 0, lastAt: 0, dismissed: false },
     };
   }
 
@@ -129,13 +127,6 @@ export async function handleVideoProgress(
 
   readingProgress[key] = progress;
   await setLocal({ readingProgress: prune(readingProgress) });
-
-  // Playing on in a hidden tab is leaving too: the heartbeat must not cancel it.
-  if (msg.stopped || msg.lookedAwayAt !== undefined) {
-    await scheduleNudge(key);
-  } else {
-    await cancelNudge(key);
-  }
 }
 
 /**
@@ -153,44 +144,4 @@ export async function focusExistingVideoTab(videoId: string): Promise<boolean> {
     await chrome.windows.update(existing.windowId, { focused: true });
   }
   return true;
-}
-
-async function seekOpenVideo(videoId: string, seconds: number): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: ['*://*.youtube.com/*', '*://youtu.be/*'] });
-  const tab = tabs.find((t) => t.url && getYouTubeVideoId(t.url) === videoId);
-  if (tab?.id === undefined) return;
-  await chrome.scripting
-    .executeScript({
-      target: { tabId: tab.id },
-      func: (t: number) => {
-        const video = document.querySelector('video');
-        if (video) video.currentTime = t;
-      },
-      args: [seconds],
-    })
-    .catch(() => undefined);
-}
-
-/**
- * Nudge-resume path: focus an open tab with this video, else reopen at &t=.
- * `seek` also moves an open tab's player to positionSeconds — the "rewind to
- * where you looked away" case, where the tab is still open and playing on.
- */
-export async function resumeVideo(progress: VideoProgress, seek = false): Promise<void> {
-  if (await focusExistingVideoTab(progress.videoId)) {
-    if (seek) await seekOpenVideo(progress.videoId, progress.positionSeconds);
-    return;
-  }
-
-  const t = Math.max(0, Math.floor(progress.positionSeconds));
-  const tab = await chrome.tabs.create({
-    url: `https://www.youtube.com/watch?v=${progress.videoId}&t=${t}s`,
-  });
-  if (tab.id !== undefined) {
-    // Handshake resume is more precise than &t=; harmless double
-    const { trackedTabs, pendingResume } = await getSession('trackedTabs', 'pendingResume');
-    trackedTabs[tab.id] = { normalizedUrl: videoKey(progress.videoId), injectedAt: 0 };
-    pendingResume[tab.id] = { positionSeconds: progress.positionSeconds };
-    await setSession({ trackedTabs, pendingResume });
-  }
 }
