@@ -1,6 +1,6 @@
 import { extensionAlive, sendMessage } from '../shared/messages';
 import { getYouTubeVideoId } from '../shared/youtube';
-import { trustedWatchMeta } from './watchMeta';
+import { shouldKeepPolling, trustedWatchMeta } from './watchMeta';
 
 /**
  * YouTube watch tracker, injected dynamically into youtube.com tabs.
@@ -119,14 +119,16 @@ const UNKNOWN_META = { title: '', channel: '' };
 /**
  * Waits (up to 2 s) for the watch page to show this video, then reads its own
  * title and channel. Still another page by then: no title, which the worker
- * keeps rather than misfile by topic.
+ * keeps rather than misfile by topic. Null when the tab left this video.
  */
-async function watchMetaFor(videoId: string): Promise<{ title: string; channel: string }> {
-  for (let waited = 0; waited < 2000; waited += 100) {
+async function watchMetaFor(videoId: string): Promise<{ title: string; channel: string } | null> {
+  const startedAt = Date.now();
+  while (shouldKeepPolling(getYouTubeVideoId(location.href), videoId, Date.now() - startedAt)) {
     const meta = trustedWatchMeta(document, videoId);
     if (meta) return meta;
     await new Promise((r) => setTimeout(r, 100));
   }
+  if (getYouTubeVideoId(location.href) !== videoId) return null;
   return trustedWatchMeta(document, videoId) ?? UNKNOWN_META;
 }
 
@@ -151,6 +153,9 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
   await awaitMetadata(video);
   if (!Number.isFinite(video.duration) || video.duration <= 0) return null; // live stream
   const meta = await watchMetaFor(videoId);
+  // Navigated away while starting: no ready, no session, no stop flush that
+  // would report this video with the next one's URL and position.
+  if (!meta || getYouTubeVideoId(location.href) !== videoId) return null;
 
   let track = false;
   let resume: { positionSeconds: number } | null = null;
@@ -168,7 +173,7 @@ async function startSession(videoId: string): Promise<{ stop: () => void } | nul
   } catch {
     return null; // extension reloaded; orphaned script
   }
-  if (!track) return null;
+  if (!track || getYouTubeVideoId(location.href) !== videoId) return null; // left while ready was in flight
 
   let watchedSecondsPending = 0;
   let lastSentStopped = false;

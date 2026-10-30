@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trustedWatchMeta } from './watchMeta';
+import { shouldKeepPolling, trustedWatchMeta } from './watchMeta';
 
 /** Just enough of a Document: selectors map to elements with text and attributes. */
 function fakeDoc(title: string, nodes: Record<string, { text?: string; attrs?: Record<string, string> }>) {
@@ -33,5 +33,28 @@ describe('trustedWatchMeta', () => {
   it('home page markup with a grid card channel is not trusted', () => {
     const doc = fakeDoc('YouTube', { 'ytd-channel-name a': { text: 'Some grid card channel' } });
     expect(trustedWatchMeta(doc, 'abc')).toBeNull();
+  });
+
+  it('a matching video-id with its title not rendered yet is not trusted', () => {
+    const doc = fakeDoc('YouTube', {
+      'ytd-watch-flexy': { attrs: { 'video-id': 'abc' } },
+      'ytd-watch-metadata h1': { text: '  ' },
+    });
+    expect(trustedWatchMeta(doc, 'abc')).toBeNull();
+  });
+});
+
+describe('shouldKeepPolling', () => {
+  it('keeps polling on this video inside the wait', () => {
+    expect(shouldKeepPolling('abc', 'abc', 1900)).toBe(true);
+  });
+
+  it('stops once the wait is over', () => {
+    expect(shouldKeepPolling('abc', 'abc', 2000)).toBe(false);
+  });
+
+  it('stops as soon as the tab is on another video or page', () => {
+    expect(shouldKeepPolling('xyz', 'abc', 0)).toBe(false);
+    expect(shouldKeepPolling(null, 'abc', 0)).toBe(false);
   });
 });
