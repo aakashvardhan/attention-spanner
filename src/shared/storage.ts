@@ -67,6 +67,8 @@ export interface SessionSchema {
    * on screen — caching them to disk would grow without a bound anyone watches.
    */
   videoTranscripts: Record<string, TranscriptSegment[]>;
+  /** Gemini's topic answers, keyed by normalized URL or videoId, so an item is asked once. */
+  topicVerdicts: Record<string, boolean>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -122,6 +124,7 @@ export const SESSION_DEFAULTS: SessionSchema = {
   pendingResume: {},
   pdfNativeBypass: [],
   videoTranscripts: {},
+  topicVerdicts: {},
 };
 
 export async function getLocal<K extends keyof LocalSchema>(
