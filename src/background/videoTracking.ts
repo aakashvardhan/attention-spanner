@@ -90,17 +90,23 @@ export async function handleVideoProgress(
   },
 ): Promise<void> {
   const key = videoKey(msg.videoId);
-  const { readingProgress } = await getLocal('readingProgress');
+  let { readingProgress } = await getLocal('readingProgress');
   const now = Date.now();
 
-  const existing = readingProgress[key];
+  let existing = readingProgress[key];
+  if (existing?.kind !== 'video') {
+    // No entry: ready was answered with a stale SPA title, a late verdict
+    // removed it, or topics changed. Ask again with this heartbeat's title;
+    // the same text is answered from the cache.
+    const title = cleanVideoTitle(msg.title);
+    if (title && (await gateNewItem(key, `${title} ${msg.channel}`, () => forgetKey(key))) === 'drop') return;
+    ({ readingProgress } = await getLocal('readingProgress')); // the gate may have waited on Gemini
+    existing = readingProgress[key];
+  }
   let progress: VideoProgress;
   if (existing?.kind === 'video') {
     progress = existing;
   } else {
-    // A late off-topic verdict removed it; the tracker in the tab doesn't know.
-    const { topicVerdicts } = await getSession('topicVerdicts');
-    if (topicVerdicts[key] === false) return;
     progress = {
       kind: 'video',
       videoId: msg.videoId,

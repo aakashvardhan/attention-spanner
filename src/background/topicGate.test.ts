@@ -79,6 +79,15 @@ describe('topicVerdict', () => {
     expect(ask).toHaveBeenCalledTimes(1);
   });
 
+  it('a new title for one key is a new question', async () => {
+    const ask = stubAsk(false);
+    await topicVerdict('yt:x', 'Old video title Chan', { ask });
+    await topicVerdict('yt:x', 'New video title Chan', { ask });
+    expect(ask).toHaveBeenCalledTimes(2);
+    await topicVerdict('yt:x', 'New video title Chan', { ask });
+    expect(ask).toHaveBeenCalledTimes(2);
+  });
+
   it('cache answers repeat', async () => {
     const ask = stubAsk(false);
     await topicVerdict('a.com/x', 'Pasta recipe a.com', { ask });

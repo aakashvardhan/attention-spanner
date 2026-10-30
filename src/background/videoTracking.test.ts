@@ -56,12 +56,29 @@ describe('handleVideoReady topic gate', () => {
     expect(vi.mocked(gateNewItem).mock.calls[0].slice(0, 2)).toEqual([KEY, 'Best pasta recipe Some Channel']);
   });
 
-  it('a video dropped by a late verdict is not recreated by its tracker', async () => {
-    store.topicVerdicts = { [KEY]: false };
-    await handleVideoProgress(sender, {
+  const heartbeat = (title: string) =>
+    handleVideoProgress(sender, {
       videoId: 'abcdefghijk', positionSeconds: 60, durationSeconds: 3600, watchedSecondsDelta: 5,
-      stopped: false, title: 'Best pasta recipe', channel: 'Some Channel',
+      stopped: false, title, channel: 'Some Channel',
     });
+
+  it('a video dropped by a late verdict is not recreated by its tracker', async () => {
+    expect((await ready('Best pasta recipe')).track).toBe(false);
+    await heartbeat('Best pasta recipe');
     expect(store.readingProgress).toEqual({});
+  });
+
+  it('stale title then correct title', async () => {
+    // After an SPA hop the page can still show the previous video's title.
+    expect((await ready('Best pasta recipe')).track).toBe(false);
+    await heartbeat('RL Course by David Silver - Lecture 1');
+    expect(Object.keys(store.readingProgress as object)).toEqual([KEY]);
+  });
+
+  it('topics emptied mid-session', async () => {
+    expect((await ready('Best pasta recipe')).track).toBe(false);
+    store.settings = { ...DEFAULT_SETTINGS, trackTopics: [], geminiTopicKey: 'k' };
+    await heartbeat('Best pasta recipe');
+    expect(Object.keys(store.readingProgress as object)).toEqual([KEY]);
   });
 });

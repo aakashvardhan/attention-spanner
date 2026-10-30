@@ -20,23 +20,26 @@ export async function topicVerdict(key: string, text: string, deps: Deps = {}): 
   const topics = normalizeTrackTopics(settings.trackTopics);
   if (keywordOnTopic(text, topics)) return true;
 
+  // Keyed by the text too: a video seen under a stale SPA title, or a page
+  // retitled, is a different question.
+  const asked = `${key}\u0000${text}`;
   const { topicVerdicts } = await getSession('topicVerdicts');
-  if (key in topicVerdicts) return topicVerdicts[key];
+  if (asked in topicVerdicts) return topicVerdicts[asked];
   if (!settings.geminiTopicKey) return false;
 
   // Back-to-back progress updates for one new page share a single call.
-  const running = inFlight.get(key);
+  const running = inFlight.get(asked);
   if (running) return running;
   const call = (async () => {
     const verdict = await (deps.ask ?? askGeminiOnTopic)({ apiKey: settings.geminiTopicKey, topics, text });
     if (verdict !== null) {
       // ponytail: read-modify-write; two verdicts landing at once can lose one. It is a cache.
       const { topicVerdicts: latest } = await getSession('topicVerdicts');
-      await setSession({ topicVerdicts: { ...latest, [key]: verdict } });
+      await setSession({ topicVerdicts: { ...latest, [asked]: verdict } });
     }
     return verdict;
-  })().finally(() => inFlight.delete(key));
-  inFlight.set(key, call);
+  })().finally(() => inFlight.delete(asked));
+  inFlight.set(asked, call);
   return call;
 }
 
