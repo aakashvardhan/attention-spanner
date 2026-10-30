@@ -15,7 +15,7 @@ import { useStorageValue } from './useStorageValue';
  * it never reproduces.
  *
  * Every consumer used to spread DEFAULT_SETTINGS itself. That worked until one
- * of them forgot, and `settings.weatherLocation.trim()` threw on the new tab.
+ * of them forgot, and `settings.mutedTopics.map(...)` threw on the new tab.
  * The merge belongs in one place rather than in the memory of whoever adds the
  * next surface. `getSettings()` does the same thing for the worker side.
  */

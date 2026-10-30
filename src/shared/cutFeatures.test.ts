@@ -3,7 +3,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Later tasks append { name, pattern } here; each cut feature must never come back.
-const CUT = [] as { name: string; pattern: RegExp }[];
+const CUT: { name: string; pattern: RegExp }[] = [
+  { name: 'Hero', pattern: /\bHero\b|edition-masthead/ },
+  { name: 'weather', pattern: /weatherLocation|WeatherCache|\bWeather\b/ },
+  { name: 'greeting', pattern: /displayName/ },
+  { name: 'ambient', pattern: /ambientMotion|useAmbient|ObstacleCourse/ },
+  { name: 'quote', pattern: /quoteOfDay/ },
+];
 
 // These name dead keys on purpose (sweep lists and fixtures).
 const SKIP = new Set([

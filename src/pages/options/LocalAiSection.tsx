@@ -5,7 +5,6 @@ import { layaHealth, type LayaHealth } from '../../shared/llm/laya';
 import { health, type Health } from '../../shared/llm/ollama';
 import { patchSettings } from '../../shared/storage';
 import type { AiStats, CloudMode, Settings } from '../../shared/types';
-import { TextRow } from './NewTabSection';
 
 /**
  * Onboarding for on-device AI. Ollama support was deleted once before because
@@ -266,6 +265,50 @@ function ImpactRows({ stats }: { stats: AiStats }) {
         ))}
       </ul>
       <p className="hint">Counted on this device only.</p>
+    </div>
+  );
+}
+
+export function TextRow({
+  id,
+  label,
+  placeholder,
+  value,
+  onCommit,
+  type = 'text',
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onCommit: (value: string) => void;
+  type?: 'text' | 'password';
+}) {
+  const [draft, setDraft] = useState(value);
+  // The saved value wins if it changes underneath the field — another Settings
+  // tab, or the reset in the Data section.
+  const [syncedTo, setSyncedTo] = useState(value);
+  if (value !== syncedTo) {
+    setSyncedTo(value);
+    setDraft(value);
+  }
+
+  return (
+    <div className="setting-row">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type={type}
+        autoComplete="off"
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => draft.trim() !== value && onCommit(draft.trim())}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') setDraft(value);
+        }}
+      />
     </div>
   );
 }

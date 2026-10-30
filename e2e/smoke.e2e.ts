@@ -87,12 +87,11 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: the viewfinder frame and the motion setting are there, the world view is gone', async () => {
+  it('options: the viewfinder frame is there, the world view is gone', async () => {
     const page = await ext.page(PAGES.options);
     expect(await page.locator('.brackets .bracket').count()).toBe(4);
     expect(await page.getByLabel('New tab', { exact: true }).count()).toBe(0);
     expect(await page.getByLabel('Camera', { exact: true }).count()).toBe(0);
-    expect(await page.getByLabel('Ambient motion', { exact: true }).isChecked()).toBe(true);
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

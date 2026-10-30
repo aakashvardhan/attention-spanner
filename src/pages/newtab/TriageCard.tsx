@@ -62,7 +62,7 @@ export function TriageCard({ onOpen }: { onOpen: (pick: Pick, newTab: boolean) =
             type="button"
             className="edition-link"
             aria-label="Edit muted topics"
-            onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/options/index.html#new-tab') })}
+            onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('src/pages/options/index.html#your-feeds') })}
           >
             Edit
           </button>

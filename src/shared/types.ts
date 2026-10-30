@@ -65,10 +65,6 @@ export interface Settings {
   focusMusicEnabled: boolean;
   /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
   semanticScholarApiKey: string;
-  /** Name in the new tab greeting; '' = greet without one */
-  displayName: string;
-  /** City for the new tab weather, geocoded on first use; '' = no weather */
-  weatherLocation: string;
   /** Local Ollama server; every on-device AI call goes here */
   ollamaUrl: string;
   /** Picked from the server's /api/tags; '' = none yet, so generation stays off */
@@ -92,8 +88,6 @@ export interface Settings {
    * normalizeTopics, which also survives a hand-edited value.
    */
   mutedTopics: string[];
-  /** The masthead runners move. Paused during focus and under Reduce Motion regardless. */
-  ambientMotion: boolean;
 }
 
 /** 'all' sends every task and source to Claude, private ones included; the rest keep private sources on device. */
@@ -124,21 +118,6 @@ export interface AiCacheEntry {
   target: string;
   model: string;
   at: number;
-}
-
-/** Last weather reading, kept so a new tab paints before the network answers. */
-export interface WeatherCache {
-  /** The settings.weatherLocation this was geocoded from — a change invalidates it */
-  query: string;
-  /** Resolved place name from the geocoder, which is tidier than what was typed */
-  name: string;
-  lat: number;
-  lon: number;
-  /** Always Celsius; the display unit is decided at render */
-  tempC: number;
-  /** WMO weather code — see weatherLabel */
-  code: number;
-  fetchedAt: number;
 }
 
 /* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable

@@ -149,28 +149,6 @@ describe('every stylesheet', () => {
   });
 });
 
-describe('the masthead hover wave', () => {
-  const css = readFileSync(join(ROOT, 'src/pages/newtab/newtab.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  const at = css.indexOf('.edition-name:hover .edition-name-line > span');
-  const rule = css.slice(at, css.indexOf('}', at));
-
-  // The display serif draws as static faces in Chrome, so a weight change
-  // snaps to a wider face and the centred name slides under the cursor.
-  it('moves the letters without changing their weight', () => {
-    expect(at).toBeGreaterThan(-1);
-    expect(rule).not.toMatch(/font-weight/);
-  });
-
-  it('only applies when motion is allowed', () => {
-    const before = css.slice(0, at);
-    const opened = before.lastIndexOf('@media (prefers-reduced-motion: no-preference)');
-    expect(opened).toBeGreaterThan(-1);
-    // Still open: more braces opened than closed since the media query began.
-    const span = before.slice(opened);
-    expect(span.split('{').length - span.split('}').length).toBeGreaterThan(0);
-  });
-});
-
 describe('the reader stays calm', () => {
   const css = readFileSync(join(ROOT, 'src/pages/reader/reader.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   it('marks the fovea with an edge and never animates it', () => {

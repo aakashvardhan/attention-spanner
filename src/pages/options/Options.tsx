@@ -7,11 +7,12 @@ import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
+import { normalizeTopics } from '../../shared/llm/triage';
 import { sendMessage } from '../../shared/messages';
 import { getLocal, patchSettings, setLocal } from '../../shared/storage';
 import type { ThemeSetting } from '../../shared/types';
 import { LocalAiSection } from './LocalAiSection';
-import { NewTabSection } from './NewTabSection';
+import { MutedTopicsRow } from './MutedTopicsRow';
 import { SectionIndex } from './SectionIndex';
 import { PapersSection } from './PapersSection';
 import { SuggestedFeeds } from './SuggestedFeeds';
@@ -173,8 +174,6 @@ export function Options() {
           </div>
         </section>
 
-        <NewTabSection settings={settings} />
-
         <LocalAiSection settings={settings} />
 
         <section className="section" id="add-new-feed">
@@ -228,6 +227,7 @@ export function Options() {
               ))
             )}
           </div>
+          <MutedTopicsRow value={normalizeTopics(settings.mutedTopics)} />
         </section>
 
         <section className="section" id="refresh-interval">

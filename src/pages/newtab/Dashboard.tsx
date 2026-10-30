@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resumableItems, resumeContextFromProgress } from '../../shared/attention';
-import { localDate } from '../../shared/format';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 import { useNowWatching } from '../../shared/hooks/useNowWatching';
 import { useSettings } from '../../shared/hooks/useSettings';
@@ -8,7 +7,7 @@ import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { isTypingTarget } from '../../shared/keys';
 import { probePercent, settleProbes, updateStats } from '../../shared/llm/store';
-import { muteMatcher, unreadItems, type Pick } from '../../shared/llm/triage';
+import type { Pick } from '../../shared/llm/triage';
 import { sendMessage, type Message } from '../../shared/messages';
 import { paperOpenUrl } from '../../shared/pdf';
 import type { ResumableItem } from '../../shared/attention';
@@ -18,13 +17,11 @@ import { BrainDump } from './BrainDump';
 import { ContinueRow } from './ContinueRow';
 import { EditionIndex } from './EditionIndex';
 import { FocusTimer } from './FocusTimer';
-import { Hero } from './Hero';
 import { NowWatching } from './NowWatching';
-import { quoteOfDay } from './quotes';
 import { TriageCard } from './TriageCard';
 
 /**
- * The new tab as a front page. The masthead is the greeting; the lead story is
+ * The new tab as a front page. The lead story is
  * the newest thing you left unfinished and the page's one primary action
  * (Enter opens it); the sidebar is the feed triaged against what you finish;
  * the index along the bottom holds favorites, Papers, Settings and focus.
@@ -61,8 +58,6 @@ export function Dashboard() {
     if (roundStep === null) root.style.removeProperty('--round-progress');
     else root.style.setProperty('--round-progress', String(roundStep));
   }, [roundStep]);
-  const [cachedItems] = useStorageValue('cachedItems');
-  const [readItems] = useStorageValue('readItems');
 
   // Score resume and triage probes whose outcome is now known (llm/store.ts).
   // Once per new tab: the counts behind Settings' "what it has done" rows.
@@ -88,17 +83,6 @@ export function Dashboard() {
   const watching = useNowWatching();
   const watchingNow = watching.now;
 
-  // Counts what the feed card can show: muted topics are not "new" to you.
-  const isMuted = useMemo(() => muteMatcher(settings.mutedTopics), [settings.mutedTopics]);
-  const visibleItems = cachedItems.filter((item) => !isMuted(item));
-  const unreadCount = unreadItems(visibleItems, readItems, visibleItems.length).length;
-  const status = [
-    resumable.length ? `${resumable.length} unfinished` : null,
-    unreadCount ? `${unreadCount} new in your feeds` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
   // One step in at a time: a second click while this tab navigates opens (and marks read) nothing.
   const steppingNow = useRef(false);
   const beginStep = () => {
@@ -109,7 +93,6 @@ export function Dashboard() {
   const endStep = () => {
     steppingNow.current = false;
   };
-  const quote = quoteOfDay(localDate());
 
   // Step in: the story's title is named for the view transition into the
   // reader's title, then this tab navigates.
@@ -180,8 +163,6 @@ export function Dashboard() {
 
   return (
     <main className="edition grid">
-      <Hero status={status} />
-
       {watching.active && <NowWatching watching={watching} />}
 
       <section className="edition-lead-col" aria-labelledby="continue-title">
@@ -260,7 +241,6 @@ export function Dashboard() {
         <BrainDump />
         {/* A focus round is no time for the feed. */}
         {!focus.focusing && <TriageCard onOpen={openPick} />}
-        <p className="edition-quote">{quote}</p>
       </aside>
 
       <ActivityHeatmap papers={papers} />

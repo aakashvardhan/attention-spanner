@@ -187,8 +187,22 @@ describe('v22', () => {
     });
   });
 
+  it('sweeps what v25 retired: the masthead\'s weather, name and runners', () => {
+    expect(V22_DEAD_KEYS).toContain('weather');
+    for (const k of ['displayName', 'weatherLocation', 'ambientMotion']) expect(V22_DEAD_SETTINGS).toContain(k);
+    expect(
+      v22StripSettings({ displayName: 'A', weatherLocation: 'X', ambientMotion: true, mutedTopics: ['x'] }),
+    ).toEqual({ mutedTopics: ['x'] });
+  });
+
   it('is a no-op on a profile that never stored settings', () => {
     expect(v22StripSettings(undefined)).toBeNull();
+  });
+
+  it('returns null for stored settings that are not an object, and {} for {}', () => {
+    expect(v22StripSettings(null as never)).toBeNull();
+    expect(v22StripSettings('string' as never)).toBeNull();
+    expect(v22StripSettings({})).toEqual({});
   });
 
   it('leaves a settings object that carries none of the dead fields alone', () => {

@@ -1,6 +1,6 @@
 /*
  * The new tab as a front page. Every block sits on the shared 12-column .grid
- * (theme.css): masthead and index across all twelve, the lead story in 1–8,
+ * (theme.css): the index across all twelve, the lead story in 1–8,
  * the feed sidebar in 9–12. Colours, sizes and spacing are tokens only —
  * designSystem.test.ts fails the build on anything else.
  */
@@ -32,78 +32,6 @@ ol {
   row-gap: var(--space-5);
   padding-block: var(--space-6) var(--space-7);
   align-content: start;
-}
-
-/* ---------- Masthead ---------- */
-
-.edition-masthead {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: end;
-  column-gap: var(--space-4);
-  border-bottom: 3px double var(--rule);
-  /* A lane above the double rule for the obstacle course (ObstacleCourse.tsx),
-     so the runner never crosses the dek. */
-  padding-bottom: var(--space-7);
-  position: relative;
-  isolation: isolate;
-}
-.edition-scene {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.edition-dateline,
-.edition-weatherline {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  color: var(--text-muted);
-}
-.edition-weatherline {
-  justify-self: end;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-.edition-clock {
-  color: var(--text-primary);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.relay-weather {
-  margin: 0;
-  display: inline-flex;
-  gap: var(--space-2);
-}
-.relay-weather-temp {
-  color: var(--text-primary);
-}
-.edition-name {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  line-height: var(--leading-3xl);
-  font-weight: 700;
-  text-align: center;
-  letter-spacing: -0.01em;
-  overflow: clip;
-}
-.edition-dek {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin: var(--space-2) 0 0;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  color: var(--text-muted);
 }
 
 /* ---------- Kickers, shared by every section ---------- */
@@ -405,15 +333,6 @@ ol {
 .edition-story-why {
   font-style: italic;
 }
-.edition-quote {
-  margin: var(--space-5) 0 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-  color: var(--text-muted);
-}
-
 /* ---------- Pomodoro (FocusTimer.tsx) ---------- */
 
 /* Idle, one big target: the page's other primary action, so it is ink like
@@ -1210,7 +1129,7 @@ ol {
 
 /* ---------- Motion ---------- */
 
-/* The page prints in: masthead, then lead, then sidebar. */
+/* The page prints in: lead, then sidebar. */
 @keyframes edition-rise {
   from {
     opacity: 0;
@@ -1222,7 +1141,6 @@ ol {
     transform: scaleX(0);
   }
 }
-.edition-masthead,
 .edition-lead-col,
 .edition-side,
 .heat {
@@ -1269,42 +1187,15 @@ ol {
   }
 }
 
-/* The name rises through its own line, as if set from below the rule. */
-@keyframes edition-mask-rise {
-  from {
-    transform: translateY(100%);
-  }
-}
-.edition-name-line {
-  display: inline-block;
-  animation: edition-mask-rise var(--dur-smooth) var(--spring-smooth) 60ms both;
-}
-/* Hover: the letters lift in a wave, left to right. A weight wave would read
-   better, but Chrome draws the display serif as static faces, so the name
-   would snap to a wider face and slide under the cursor. Inline-block so a
-   letter can move; pre so the spaces keep their width. */
-.edition-name-line > span {
-  display: inline-block;
-  white-space: pre;
-  transition: transform var(--dur-snappy) var(--spring-snappy) calc(var(--i) * 20ms);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .edition-name:hover .edition-name-line > span {
-    transform: translateY(-4px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pomo-clockin {
     transition: none;
   }
-  .edition-masthead,
   .edition-lead-col,
   .edition-side,
   .relay-row-meter > span,
   .relay-recap,
   .bm-add,
-  .edition-name-line,
   .heat,
   .heat-grid .heat-cell,
   .heat-tip {
@@ -1315,7 +1206,6 @@ ol {
   .relay-row-title,
   .edition-cta,
   .nw-meter > span,
-  .edition-name-line > span,
   .heat-seg::before,
   .heat-seg button,
   .heat-grid .heat-cell,
@@ -1372,14 +1262,6 @@ ol {
     padding-left: 0;
     border-top: 1px solid var(--border);
     padding-top: var(--space-4);
-  }
-  .edition-masthead {
-    grid-template-columns: 1fr;
-    row-gap: var(--space-1);
-    text-align: center;
-  }
-  .edition-weatherline {
-    justify-self: center;
   }
   .edition-fav-head,
   .edition-actions {

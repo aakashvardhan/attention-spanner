@@ -17,7 +17,6 @@ import type {
   Provocation,
   Settings,
   Vault,
-  WeatherCache,
 } from './types';
 import type { TranscriptSegment } from './youtubeCaptions';
 
@@ -38,8 +37,6 @@ export interface LocalSchema {
   papers: Paper[];
   /** Reader highlights & sticky notes (PDFs and articles), keyed by docKey */
   annotations: Annotation[];
-  /** Last weather reading for the new tab, refetched when it goes stale */
-  weather: WeatherCache | null;
   /** Generated text keyed 'task:hash' (llm/cache.ts); a cache, so loss is harmless */
   aiCache: Record<string, AiCacheEntry>;
   aiStats: AiStats;
@@ -96,8 +93,6 @@ export const DEFAULT_SETTINGS: Settings = {
   focusSound: true,
   focusMusicEnabled: false,
   semanticScholarApiKey: '',
-  displayName: '',
-  weatherLocation: '',
   ollamaUrl: 'http://localhost:11434',
   ollamaChatModel: '',
   ollamaEmbedModel: 'nomic-embed-text',
@@ -106,7 +101,6 @@ export const DEFAULT_SETTINGS: Settings = {
   geminiKey: '',
   layaUrl: '',
   mutedTopics: [],
-  ambientMotion: true,
 };
 
 export const DEFAULTS: LocalSchema = {
@@ -128,7 +122,6 @@ export const DEFAULTS: LocalSchema = {
   // DEFAULTS for a key that was never written, and getSettings spreads over
   // DEFAULT_SETTINGS. migrate() is for repairing data a live feature reads, not
   // for seeding keys — see the note above it.
-  weather: null,
   aiCache: {},
   aiStats: { counts: {}, latencies: [], probes: [] },
   aiVectors: {},
@@ -343,6 +336,8 @@ export const V22_DEAD_KEYS = [
   'xBookmarksLastSyncedAt',
   // v23: the new tab's daily focus line
   'focusOfDay',
+  // v25: minimal revamp
+  'weather',
 ];
 
 export const V22_DEAD_SETTINGS = [
@@ -385,6 +380,10 @@ export const V22_DEAD_SETTINGS = [
   'questFocusPerWeek',
   // v23: Pomodoro could never be started, so its break length was never read
   'focusBreakMinutes',
+  // v25: minimal revamp
+  'displayName',
+  'weatherLocation',
+  'ambientMotion',
 ];
 
 /** Pure core of v22's settings half, so the delete rule is testable. */

@@ -49,8 +49,8 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab (the Edition): `.edition` is the page (a `.grid`), `.edition-masthead`
-  the top band (h1 is the edition name), `.edition-lead` the lead story, and
+- New tab (the Edition): `.edition` is the page (a `.grid`), there is no masthead,
+  `.edition-lead` is the lead story, and
   every openable story carries `[data-story]` (J/K walk them, Enter opens the
   lead). Favorites, Papers and Settings live in `.edition-index`. The
   Pomodoro is `.pomo` (FocusTimer.tsx, sidebar in flat, bottom band in the
