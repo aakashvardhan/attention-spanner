@@ -279,6 +279,30 @@ pub fn parse_source(path: &Path) -> anyhow::Result<ExtensionMetadata> {
     parse_source_str(&source)
 }
 
+/// Every `.rs` file under `dir`, so pages and handlers can live in modules,
+/// not only in lib.rs. Files are visited in sorted order, so the output is stable.
+pub fn parse_source_dir(dir: &Path) -> anyhow::Result<ExtensionMetadata> {
+    fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
+        for entry in std::fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                walk(&path, out)?;
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+        Ok(())
+    }
+    let mut files = Vec::new();
+    walk(dir, &mut files)?;
+    files.sort();
+    let mut visitor = MetadataVisitor::new();
+    for file in files {
+        visitor.visit_file(&syn::parse_file(&std::fs::read_to_string(&file)?)?);
+    }
+    Ok(visitor.metadata)
+}
+
 pub fn parse_source_str(source: &str) -> anyhow::Result<ExtensionMetadata> {
     let file = syn::parse_file(source)?;
     let mut visitor = MetadataVisitor::new();
@@ -416,6 +440,18 @@ mod page_tests {
             Page { fn_name: "NewTab".into(), path: "src/pages/newtab/index.html".into(), title: Some("New Tab".into()), css: vec!["theme.css".into(), "newtab.css".into()] },
             Page { fn_name: "Blocked".into(), path: "blocked.html".into(), title: None, css: vec![] },
         ]);
+    }
+
+    #[test]
+    fn pages_in_modules_are_found() {
+        let dir = std::env::temp_dir().join(format!("oxichrome-parse-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("pages")).unwrap();
+        std::fs::write(dir.join("lib.rs"), r#"#[oxichrome::extension(name = "X", version = "1.0.0")] struct X;"#).unwrap();
+        std::fs::write(dir.join("pages/a.rs"), r#"#[oxichrome::page(path = "a.html")] fn A() {}"#).unwrap();
+        let m = parse_source_dir(&dir).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(m.name.as_deref(), Some("X"));
+        assert_eq!(m.pages.iter().map(|p| p.path.as_str()).collect::<Vec<_>>(), ["a.html"]);
     }
 
     #[test]

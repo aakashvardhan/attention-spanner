@@ -82,9 +82,10 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
     }
 
     let src_lib = find_lib_rs(&crate_dir)?;
-    println!("[oxichrome] Parsing {}...", src_lib.display());
+    let src_dir = src_lib.parent().unwrap_or(&crate_dir).to_path_buf();
+    println!("[oxichrome] Parsing {}...", src_dir.display());
     let metadata =
-        source_parser::parse_source(&src_lib).context("failed to parse extension source")?;
+        source_parser::parse_source_dir(&src_dir).context("failed to parse extension source")?;
 
     let mut manifest_json = manifest::generate_manifest(&metadata, browser)?;
     let patch_path = crate_dir.join("manifest.patch.json");
