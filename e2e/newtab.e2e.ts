@@ -51,6 +51,9 @@ describe('new tab: Now / Continue reading', () => {
     await expect.poll(() => link.innerText()).toContain('Latest paper');
     expect(await link.innerText()).toContain('3.2 Attention');
     await expectA11y(page, 'newtab');
+    expect(await link.getAttribute('href')).toMatch(/reader\/index\.html\?src=.*2601\.00002/);
+    // The Rust build gets its reader in phase 4; until then the link is checked, not followed.
+    if (process.env.DIST?.includes('rust')) return void (await page.close());
     await link.click();
     await page.waitForURL(/reader\/index\.html\?src=.*2601\.00002/);
     await page.close();

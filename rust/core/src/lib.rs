@@ -9,6 +9,7 @@ pub mod alphaxiv;
 pub mod annotations;
 pub mod brain_dump;
 pub mod civil_date;
+pub mod claude;
 pub mod clicked_word;
 pub mod constants;
 pub mod figures;
@@ -23,6 +24,7 @@ pub mod pdf;
 pub mod reader_progress;
 pub mod reading_aids;
 pub mod types;
+pub mod vault;
 
 /// The extension's name, shared by the manifest and the pages.
 pub const APP_NAME: &str = "Reader";

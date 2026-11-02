@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIST_LIBRARY } from '../src/shared/alphaxiv.fixtures';
-import { NETWORK_NOISE, PAGES, expectA11y, expectClean, launch, seed, storage, type Ext } from './harness';
+import { NETWORK_NOISE, PAGES, expectA11y, expectClean, launch, mockClaude, seed, storage, type Ext } from './harness';
 import { paper } from './seed';
 
 /**
@@ -23,9 +23,9 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 0 skeleto
 
   it('the new tab override mounts a Leptos page with the shared stylesheets, accessibly', async () => {
     const page = await ext.page(PAGES.newtab);
-    await expect.poll(() => page.locator('main.edition .hint').innerText()).toBe('Reader, in Rust.');
+    await expect.poll(() => page.locator('main.edition .label').first().innerText()).toBeTruthy();
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
-    expect(await page.title()).toBe('New Tab');
+    expect(await page.title()).toBe('Focus workspace');
     // theme.css loaded: the walnut ground, not the browser's white
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(28, 20, 16)');
     await expectA11y(page, 'newtab');
@@ -163,5 +163,107 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 2 worker'
     expect((await storage<unknown[]>(ext, 'papers')).length).toBe(5);
     expect(await storage(ext, 'alphaxivAuth')).toMatchObject({ accessToken: 'fresh', refreshToken: 'r2' });
     expect(await storage(ext, 'alphaxivStatus')).toMatchObject({ error: '' });
+  });
+});
+
+describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain dump and vault', () => {
+  let ext: Ext;
+  const DUMPS = 'src/pages/dumps/index.html';
+
+  beforeAll(async () => {
+    ext = await launch();
+  });
+  afterAll(async () => ext?.close());
+
+  it('first dump: Haiku streams bullets, setup makes a vault, and the dump locks', async () => {
+    await mockClaude(ext, (system) => (system.includes('looping') ? '- Work feels heavy today.\n- That is a feeling, not a verdict.' : ''));
+    await seed(ext, { settings: { claudeKey: 'sk-e2e' }, vault: null, lockedDumps: [], dumps: [] });
+    const page = await ext.page(PAGES.newtab);
+    const box = page.getByLabel('Empty your head here');
+    await box.fill('work is too much and I am behind');
+    await box.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+    const bullets = page.locator('.notebook-bullets li');
+    await expect.poll(() => bullets.allInnerTexts()).toEqual(['Work feels heavy today.', 'That is a feeling, not a verdict.']);
+    // Parked in the clear until setup finishes.
+    expect((await storage<{ text: string }[]>(ext, 'dumps'))[0].text).toBe('work is too much and I am behind');
+
+    await page.getByLabel('Passphrase', { exact: true }).fill('correct horse');
+    await page.getByLabel('Passphrase again').fill('correct horse');
+    await page.getByRole('button', { name: 'Lock it' }).click();
+    await expect.poll(() => page.locator('.notebook-code').innerText(), { timeout: 20_000 }).toMatch(/^[A-Z2-7]{4}(-[A-Z2-7]{1,4}){6}$/);
+    await page.getByRole('button', { name: 'I wrote it down' }).click();
+    await expect.poll(() => page.locator('.notebook-count').innerText(), { timeout: 20_000 }).toContain('1 locked');
+    expect(await storage(ext, 'dumps')).toEqual([]);
+    expect(JSON.stringify(await storage(ext, 'lockedDumps'))).not.toContain('behind');
+    await expectA11y(page, 'newtab');
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('without a key the words are kept and the box says how to get bullets', async () => {
+    await seed(ext, { settings: { claudeKey: '' }, vault: null, lockedDumps: [], dumps: [] });
+    const page = await ext.page(PAGES.newtab);
+    await page.getByLabel('Empty your head here').fill('just this');
+    await page.getByLabel('Empty your head here').press('Meta+Enter');
+    await expect.poll(() => page.getByRole('alert').innerText()).toContain('Add a Claude key in Settings');
+    expect((await storage<{ text: string }[]>(ext, 'dumps'))[0].text).toBe('just this');
+    await page.close();
+  });
+
+  it('the vault is byte-compatible with the TypeScript one, both ways', async () => {
+    // TypeScript makes the vault and seals an entry...
+    const ts = await import('../src/shared/vault');
+    const { vault, recoveryCode } = await ts.createVault('correct horse');
+    const entry = { text: 'made by TypeScript', bullets: ['A bullet from TS.'], createdAt: Date.now() - 60_000 };
+    await seed(ext, { vault, lockedDumps: [await ts.sealEntry(vault.publicKey, entry, 'ts-1')], dumps: [] });
+
+    // ...Rust opens it with the passphrase...
+    const page = await ext.page(DUMPS);
+    await page.getByLabel('Passphrase').fill('wrong');
+    await page.getByLabel('Passphrase').press('Enter');
+    await expect.poll(() => page.getByRole('alert').innerText(), { timeout: 20_000 }).toBe("That didn't unlock it.");
+    await page.getByLabel('Passphrase').fill('correct horse');
+    await page.getByLabel('Passphrase').press('Enter');
+    await expect.poll(() => page.locator('.dumps-bullets li').allInnerTexts(), { timeout: 20_000 }).toEqual(['A bullet from TS.']);
+    await page.getByRole('button', { name: 'Show what I wrote' }).click();
+    expect(await page.locator('.dumps-raw').innerText()).toBe('made by TypeScript');
+    await expectA11y(page, 'dumps');
+    await page.close();
+
+    // ...and with the recovery code, typed sloppily.
+    const again = await ext.page(DUMPS);
+    await again.getByRole('button', { name: 'Use recovery code instead' }).click();
+    await again.getByLabel('Recovery code').fill(recoveryCode.toLowerCase().replace(/-/g, ' '));
+    await again.getByLabel('Recovery code').press('Enter');
+    await expect.poll(() => again.locator('.dumps-bullets li').count(), { timeout: 20_000 }).toBe(1);
+    await again.close();
+
+    // Rust seals a new dump into that vault, and TypeScript opens it.
+    await mockClaude(ext, () => '- Rust sealed this.');
+    await seed(ext, { settings: { claudeKey: 'sk-e2e' } });
+    const tab = await ext.page(PAGES.newtab);
+    await tab.getByLabel('Empty your head here').fill('written in the Rust build');
+    await tab.getByLabel('Empty your head here').press('Meta+Enter');
+    await expect.poll(() => tab.locator('.notebook-count').innerText(), { timeout: 20_000 }).toContain('2 locked');
+    const locked = await storage<{ id: string }[]>(ext, 'lockedDumps');
+    const key = await ts.unlockVault(vault, 'correct horse', 'passphrase');
+    const opened = await ts.openEntry(key, locked.find((d) => d.id !== 'ts-1') as never);
+    expect(opened).toMatchObject({ text: 'written in the Rust build', bullets: ['Rust sealed this.'] });
+    await tab.close();
+  });
+
+  it('deleting an entry asks first and removes only that one', async () => {
+    const page = await ext.page(DUMPS);
+    await page.getByLabel('Passphrase').fill('correct horse');
+    await page.getByLabel('Passphrase').press('Enter');
+    await expect.poll(() => page.locator('.dumps-entry').count(), { timeout: 20_000 }).toBe(2);
+    await page.locator('.dumps-entry').first().getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Keep' }).click();
+    expect(await page.locator('.dumps-entry').count()).toBe(2);
+    await page.locator('.dumps-entry').first().getByRole('button', { name: 'Delete' }).click();
+    await page.locator('.dumps-confirm').getByRole('button', { name: 'Delete' }).click();
+    await expect.poll(() => page.locator('.dumps-entry').count()).toBe(1);
+    expect((await storage<unknown[]>(ext, 'lockedDumps')).length).toBe(1);
+    await page.close();
   });
 });

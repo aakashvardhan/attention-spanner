@@ -3,6 +3,8 @@
 //! same way: the screenshot baselines are the check.
 
 pub mod blocked;
+pub mod dumps;
+pub mod newtab;
 pub mod options;
 
 use crate::chrome;

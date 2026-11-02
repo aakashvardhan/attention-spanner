@@ -133,3 +133,31 @@ Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported
 6. **Recursion in async code** (`Box::pin(call_once(..)).await`). An `async fn`
    that calls itself would have an infinitely sized future; boxing it gives
    the recursive call a fixed-size pointer.
+
+## Phase 3: the pages in Leptos (`rust/ext/src/pages`)
+
+The blocked page, Settings, the new tab and the dumps page match the
+TypeScript screenshot baselines; 35 browser tests run on the Rust build.
+
+1. **Signals** (`pages/mod.rs`, `use_storage`). `signal(T)` gives a read and a
+   write half; reading one inside `move || …` in `view!` subscribes that spot
+   of the DOM, so only it re-renders. `use_storage` fills a signal from
+   `chrome.storage` and keeps it in step through `onChanged`: the Leptos
+   version of the React hook, without a re-render of the whole component.
+2. **`Memo` and `Signal::derive`**: values computed from other signals, cached
+   (`Memo`) or recomputed (`derive`). The heatmap model is a `Memo`.
+3. **Branches in views** return different types, so each arm ends in
+   `.into_any()`; `Option<View>` renders nothing for `None`.
+4. **`Callback`, `StoredValue`, `NodeRef`**: a callback a child can call; a
+   non-reactive value a closure can share; a handle on a real DOM element
+   (focus, selection, measuring).
+5. **Byte-compatible cryptography** (`vault.rs`). WebCrypto is called through
+   our own externs on `crypto.subtle`; algorithm objects are built from JSON
+   plus `Reflect::set` for the typed-array fields. The e2e test proves both
+   directions with the TypeScript implementation itself.
+6. **Streaming a response body** (`claude.rs`). `res.body().get_reader()`,
+   `read()` in a loop, a `TextDecoder` in stream mode (a UTF-8 character can
+   straddle two chunks), and `SseBuffer` (core) cutting events at any byte.
+7. **Borrows in a tail expression** (`with_dump_lock`): the compiler error
+   E0597 there is because a temporary in the last expression lives until the
+   end of the block, after `out` is gone. Binding it to a variable first fixes it.

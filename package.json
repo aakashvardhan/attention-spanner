@@ -16,11 +16,11 @@
     "brain": "npm run -s build:mcp && node dist-mcp/cli.mjs",
     "brain:diff-obsidian": "npm run -s brain -- diff-obsidian",
     "build:rust": "node scripts/rust-assets.mjs && cd rust/ext && cargo run -q --manifest-path ../../vendor/oxichrome/oxichrome-cli/Cargo.toml -- oxichrome build",
-    "test:rust": "cd rust && cargo test -q && cargo clippy -q --all-targets -- -D warnings && cargo fmt --check",
+    "test:rust": "cd rust && cargo test -q && cargo clippy -q --all-targets -- -D warnings && cargo clippy -q -p reader-ext --target wasm32-unknown-unknown -- -D warnings && cargo fmt --check",
     "check": "npm run typecheck && npm test && npm run test:rust && npm run build:e2e && npm run test:e2e && npm run build:rust && npm run test:e2e:rust",
     "check:fast": "npm run typecheck && npm test && npm run test:rust",
     "prepare": "git config core.hooksPath .githooks",
-    "test:e2e:rust": "DIST=rust/ext/dist/chromium PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1 vitest run --config vitest.e2e.config.ts e2e/port.e2e.ts e2e/port-migration.e2e.ts e2e/smoke.e2e.ts"
+    "test:e2e:rust": "DIST=rust/ext/dist/chromium PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1 vitest run --config vitest.e2e.config.ts e2e/port.e2e.ts e2e/port-migration.e2e.ts e2e/smoke.e2e.ts e2e/newtab.e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

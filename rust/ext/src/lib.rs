@@ -2,12 +2,12 @@
 //! module: the background worker and every page load it and call the export
 //! they need (oxichrome generates the loaders from the attributes below).
 
-use leptos::prelude::*;
-
 mod chrome;
+mod claude;
 mod js;
 mod pages;
 mod store;
+mod vault;
 mod worker;
 
 #[oxichrome::extension(
@@ -18,18 +18,3 @@ mod worker;
     host_permissions = ["<all_urls>"]
 )]
 struct Reader;
-
-/// Phase 0's only page: proves a Leptos component mounts on the new tab with
-/// the shared stylesheets. Replaced by the real new tab in phase 3.
-#[oxichrome::page(
-    path = "src/pages/newtab/index.html",
-    title = "New Tab",
-    css = ["assets/theme.css", "assets/newtab.css"]
-)]
-fn NewTab() -> impl IntoView {
-    view! {
-        <main class="edition">
-            <p class="hint">{reader_core::APP_NAME}", in Rust."</p>
-        </main>
-    }
-}
