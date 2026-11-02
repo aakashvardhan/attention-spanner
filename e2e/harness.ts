@@ -191,7 +191,8 @@ export async function mockClaude(ext: Ext, reply: (system: string, prompt: strin
   return calls;
 }
 
-const BASELINES = resolve(__dirname, 'baselines');
+/** Per OS: font rendering differs between macOS and Linux CI, and a baseline only means something on the OS that drew it. */
+const BASELINES = resolve(__dirname, 'baselines', process.platform);
 
 /**
  * Screenshot regression without a new dependency: the baseline and the fresh
@@ -199,7 +200,8 @@ const BASELINES = resolve(__dirname, 'baselines');
  * baseline is written (commit it); UPDATE_BASELINES=1 rewrites them after an
  * intended change. Fails when more than 0.5% of pixels move by more than 24
  * in any channel, which absorbs anti-aliasing but not a layout or colour change.
- * ponytail: baselines are per machine (fonts, GPU); move to per-OS folders if CI renders differently.
+ * Baselines are per OS (macOS is committed). CI on another OS writes its own
+ * on first run and uploads them; commit those to make CI compare too.
  */
 export async function expectScreenshot(page: Page, name: string): Promise<void> {
   await settle(page);

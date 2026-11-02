@@ -1,0 +1,6 @@
+#!/bin/sh
+# Every commit passes the fast layer: TS typecheck + unit tests, Rust tests,
+# clippy (-D warnings) and rustfmt. The browser suites run in CI and in
+# `npm run check`. Skip once with `git commit --no-verify` only if you must.
+set -e
+npm run -s check:fast
