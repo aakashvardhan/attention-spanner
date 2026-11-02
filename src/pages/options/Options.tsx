@@ -4,6 +4,7 @@ import { useSettings } from '../../shared/hooks/useSettings';
 import { useTheme } from '../../shared/hooks/useTheme';
 import { patchSettings } from '../../shared/storage';
 import type { ThemeSetting } from '../../shared/types';
+import { AlphaxivSection } from './AlphaxivSection';
 import { SectionIndex } from './SectionIndex';
 
 export function Options() {
@@ -41,6 +42,8 @@ export function Options() {
       <SectionIndex />
 
       <main className="colophon-main">
+        <AlphaxivSection />
+
         <section className="section" id="appearance">
           <h2>Appearance</h2>
           <div className="setting-row">

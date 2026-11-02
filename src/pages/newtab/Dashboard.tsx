@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { sendMessage } from '../../shared/messages';
 import { PAPERS_PAGE_PATH } from '../../shared/constants';
 import { usePapers } from '../../shared/hooks/usePapers';
 import { useTheme } from '../../shared/hooks/useTheme';
@@ -13,6 +15,8 @@ export function Dashboard() {
   // initTheme() in main.tsx resolves the theme once; this keeps it live.
   useTheme();
   const { papers, lastRead } = usePapers();
+  // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
+  useEffect(() => void sendMessage({ type: 'ALPHAXIV_SYNC' }).catch(() => undefined), []);
 
   return (
     <main className="edition">

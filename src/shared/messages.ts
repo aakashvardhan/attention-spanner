@@ -5,6 +5,11 @@ export type Message =
   | { type: 'READER_OPENED'; title: string }
   /** The blocked page's "Back to your paper" */
   | { type: 'FOCUS_READER' }
+  /** Settings: open alphaXiv's login window, then sync */
+  | { type: 'ALPHAXIV_SIGN_IN' }
+  | { type: 'ALPHAXIV_SIGN_OUT' }
+  /** New tab open, or "Sync now" (force) */
+  | { type: 'ALPHAXIV_SYNC'; force?: boolean }
   // PDF reader → service worker (single writer keeps progress monotonic)
   | {
       type: 'PAPER_READER_PROGRESS';
@@ -27,6 +32,9 @@ export type Message =
 export interface MessageResponses {
   READER_OPENED: { ok: boolean };
   FOCUS_READER: { ok: boolean };
+  ALPHAXIV_SIGN_IN: { ok: boolean; error?: string };
+  ALPHAXIV_SIGN_OUT: { ok: boolean };
+  ALPHAXIV_SYNC: { ok: boolean; error?: string };
   PAPER_READER_PROGRESS: { ok: boolean; error?: string };
   READER_OPEN_NATIVE: { ok: boolean };
   ANNOT_ADD: { ok: boolean; annotation?: Annotation; error?: string };

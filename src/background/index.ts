@@ -3,6 +3,7 @@ import { migrate } from '../shared/storage';
 import { setLocalDispatcher, type Message } from '../shared/messages';
 import type { Settings } from '../shared/types';
 import { clearRetiredAlarms } from './alarms';
+import { SYNC_ALARM, syncLibrary } from './alphaxiv';
 import { isReaderUrl, readerClosed, reconcileFocusOnStartup, refreshFocusRules } from './focus';
 import { removeLegacyDailyGateRule } from './accessRules';
 import { syncPdfRules } from './pdfIntercept';
@@ -27,6 +28,10 @@ chrome.runtime.onStartup.addListener(() => {
     await removeLegacyDailyGateRule();
     await reconcileFocusOnStartup();
   })();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SYNC_ALARM) void syncLibrary();
 });
 
 chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) =>

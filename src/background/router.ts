@@ -1,4 +1,5 @@
 import type { Message } from '../shared/messages';
+import { signIn, signOut, syncLibrary } from './alphaxiv';
 import { addAnnotation, deleteAnnotation, moveAnnotation, updateAnnotation } from './annotations';
 import { focusReader, readerOpened } from './focus';
 import { handleReaderProgress } from './papers';
@@ -17,6 +18,12 @@ export async function dispatch(
     }
     case 'FOCUS_READER':
       return focusReader();
+    case 'ALPHAXIV_SIGN_IN':
+      return signIn();
+    case 'ALPHAXIV_SIGN_OUT':
+      return signOut();
+    case 'ALPHAXIV_SYNC':
+      return syncLibrary(msg.force ?? false);
     case 'PAPER_READER_PROGRESS':
       return handleReaderProgress(msg.paperId, {
         pdfUrl: msg.pdfUrl,

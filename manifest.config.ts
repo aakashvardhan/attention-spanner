@@ -38,9 +38,10 @@ export default defineManifest(async (env) => {
       service_worker: 'src/background/index.ts',
       type: 'module',
     },
-    permissions: ['storage', 'alarms', 'declarativeNetRequest'],
-    // Any blocklisted site can be redirected while you read, and any PDF link
-    // can open in the reader, so the redirect rules need every host.
+    // identity: alphaXiv's login window (chrome.identity.launchWebAuthFlow)
+    permissions: ['storage', 'alarms', 'declarativeNetRequest', 'identity'],
+    // Any blocklisted site can be redirected while you read, so the redirect
+    // rules need every host; api.alphaxiv.org is reached from the worker.
     host_permissions: ['<all_urls>'],
     content_security_policy: {
       // wasm-unsafe-eval lets pdf.js compile its image decoders (vite.config.ts)

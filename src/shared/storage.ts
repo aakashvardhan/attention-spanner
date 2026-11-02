@@ -1,3 +1,4 @@
+import type { AlphaxivAuth, AlphaxivStatus } from './alphaxiv';
 import { DEFAULT_FOCUS_BLOCKLIST } from './constants';
 import { arxivId } from './papers';
 import type {
@@ -23,6 +24,12 @@ export interface LocalSchema {
   papers: Paper[];
   /** v27 papers to save once into alphaXiv, into a folder named after their old deck */
   alphaxivPush: { id: string; folder: string }[];
+  /** alphaXiv sign-in (background/alphaxiv.ts is the only reader and writer); null = signed out */
+  alphaxivAuth: AlphaxivAuth | null;
+  /** The OAuth client registered for this extension's redirect URI */
+  alphaxivClient: { clientId: string; redirectUri: string } | null;
+  /** Who is signed in, the last sync, and the last error, for Settings */
+  alphaxivStatus: AlphaxivStatus;
   /** Reader highlights & sticky notes, keyed by docKey */
   annotations: Annotation[];
   /** Generated text keyed 'task:hash' (llm/store.ts); a cache, so loss is harmless */
@@ -63,6 +70,9 @@ export const DEFAULTS: LocalSchema = {
   folders: [],
   papers: [],
   alphaxivPush: [],
+  alphaxivAuth: null,
+  alphaxivClient: null,
+  alphaxivStatus: { email: '', lastSyncAt: null, error: '' },
   annotations: [],
   // Additive, so no migration: getLocal and useStorageValue fall back to
   // DEFAULTS for a key that was never written.

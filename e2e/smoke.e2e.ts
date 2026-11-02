@@ -74,6 +74,34 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
+  it('options: alphaXiv sign-in, signed out then signed in, accessible both ways', async () => {
+    await seed(ext, { alphaxivAuth: null, alphaxivStatus: { email: '', lastSyncAt: null, error: '' } });
+    const page = await ext.page(PAGES.options);
+    const section = page.locator('section#alphaxiv');
+    expect(await section.getByRole('button', { name: 'Sign in to alphaXiv' }).count()).toBe(1);
+    // The section sits first: nothing else works until the shelf exists.
+    expect(await page.locator('main section[id]').first().getAttribute('id')).toBe('alphaxiv');
+    expect(await page.locator('.colophon-index a').first().innerText()).toBe('alphaXiv');
+    await expectA11y(page, 'options');
+
+    await seed(ext, {
+      alphaxivAuth: { clientId: 'c', redirectUri: 'r', accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 3_600_000 },
+      alphaxivStatus: { email: 'me@example.edu', lastSyncAt: Date.now() - 5 * 60_000, error: 'alphaXiv asked us to slow down. The next sync will try again.' },
+    });
+    await expect.poll(() => section.innerText()).toContain('Signed in as me@example.edu');
+    expect(await section.innerText()).toContain('Synced 5m ago.');
+    expect(await section.getByRole('alert').innerText()).toContain('slow down');
+    expect(await section.getByRole('button', { name: 'Sync now' }).count()).toBe(1);
+    await expectA11y(page, 'options');
+    await shot(page, 'options-alphaxiv-signed-in');
+
+    // Sign out works locally even when alphaXiv cannot be reached.
+    await section.getByRole('button', { name: 'Sign out' }).click();
+    await expect.poll(() => storage(ext, 'alphaxivAuth')).toBeNull();
+    await expect.poll(() => section.getByRole('button', { name: 'Sign in to alphaXiv' }).count()).toBe(1);
+    await page.close();
+  });
+
   it('options: nothing of the cut features is left', async () => {
     const page = await ext.page(PAGES.options);
     for (const gone of ['Add New Feed', 'Your Feeds', 'Refresh Interval', 'Local AI', 'Continue', 'Focus length:', 'Semantic Scholar'])
