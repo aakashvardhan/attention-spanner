@@ -14,9 +14,10 @@ import { PAGES, axe, expectClean, launch, mockClaude, seed, shot, storage, type 
 
 const LINE = 'The transformer reads a sentence and BLEU scores the translation it writes back out.';
 
-/** A minimal valid PDF: each page holds a few lines of plain Helvetica text. */
-function makePdf(pages: number): Buffer {
-  const objs: string[] = ['<< /Type /Catalog /Pages 2 0 R >>'];
+/** A minimal valid PDF: each page holds a few lines of plain Helvetica text; with `outline`, each page is a section. */
+function makePdf(pages: number, outline = false): Buffer {
+  const root = 3 + pages * 2;
+  const objs: string[] = [`<< /Type /Catalog /Pages 2 0 R${outline ? ` /Outlines ${root} 0 R` : ''} >>`];
   const kids = Array.from({ length: pages }, (_, i) => `${3 + i * 2} 0 R`).join(' ');
   objs.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`);
   for (let i = 0; i < pages; i++) {
@@ -27,6 +28,13 @@ function makePdf(pages: number): Buffer {
     const lines = Array.from({ length: 6 }, (_, l) => `1 0 0 1 72 ${700 - l * 40} Tm (${LINE}) Tj`).join(' ');
     const stream = `BT /F1 11 Tf ${lines} ET`;
     objs.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  }
+  if (outline) {
+    objs.push(`<< /Type /Outlines /First ${root + 1} 0 R /Last ${root + pages} 0 R /Count ${pages} >>`);
+    for (let i = 0; i < pages; i++) {
+      const sib = `${i > 0 ? ` /Prev ${root + i} 0 R` : ''}${i < pages - 1 ? ` /Next ${root + i + 2} 0 R` : ''}`;
+      objs.push(`<< /Title (Section ${i + 1}) /Parent ${root} 0 R /Dest [${3 + i * 2} 0 R /XYZ 0 792 0]${sib} >>`);
+    }
   }
   let out = '%PDF-1.4\n';
   const offsets: number[] = [];
@@ -91,7 +99,13 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
   beforeAll(async () => {
     ext = await launch();
     claude = await mockClaude(ext, (system, prompt) =>
-      !system.includes('clicked')
+      system.includes('asking, never telling')
+        ? 'What would break if the translation were scored without BLEU?'
+        : system.includes('check whether a reader understood')
+          ? '```json\n[{"part":"problem","status":"got","gap":"","page":null},' +
+            '{"part":"trick","status":"partial","gap":"You named attention but not what it replaces.","page":2,"answer":"SECRET-ANSWER"},' +
+            '{"part":"why","status":"missing","gap":"Say why the score tracks quality.","page":3}]\n```'
+          : !system.includes('clicked')
         ? 'Unexpected call.'
         : prompt.includes('BLEU')
           ? '**BLEU**: a precision score, $\\text{BP}\\cdot\\exp(\\sum_n w_n \\log p_n)$.'
@@ -103,6 +117,11 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
       res.end(pdf);
     });
     pdfUrl = `${ext.sites.origin('papers')}/paper.pdf`;
+    const sectioned = makePdf(4, true);
+    ext.sites.setRoute('papers', '/sections.pdf', (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/pdf' });
+      res.end(sectioned);
+    });
     const scanned = makeScannedPdf();
     ext.sites.setRoute('papers', '/scanned.pdf', (_req, res) => {
       res.writeHead(200, { 'content-type': 'application/pdf' });
@@ -285,10 +304,13 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     expect(await notes.textContent()).toContain('the key claim');
     await shot(page, 'reader-notes');
     expect(await axe(page)).toEqual([]);
-    // The delete mark shows on hover only (mouse-only today; see rust/NOTES.md, phase 4b).
+    // Delete by keyboard: Tab from the row's jump button reaches its delete button.
     const row = notes.locator('.annot-row', { hasText: 'the key claim' });
-    await row.hover();
-    await row.locator('.annot-row-delete').click();
+    await row.locator('.annot-row-jump').focus();
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.className)).toBe('annot-row-delete');
+    expect(await page.evaluate(() => getComputedStyle(document.activeElement!).opacity)).toBe('1');
+    await page.keyboard.press('Enter');
     await expect.poll(async () => (await all()).some((a) => a.id === highlight.id)).toBe(false);
     await expect.poll(() => notes.textContent()).not.toContain('the key claim');
     await page.close();
@@ -347,7 +369,89 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
         const ctx = canvas.getContext('2d')!;
         return Array.from(ctx.getImageData(canvas.width >> 1, canvas.height >> 1, 1, 1).data.slice(0, 3));
       });
+    // Black, not cream: an embedded image keeps its true colour on the walnut page.
     await expect.poll(centre, { timeout: 10_000 }).toEqual([0, 0, 0]);
+  });
+
+  it('asks one question when a section ends, and keeps the answer as a note', async () => {
+    const src = `${ext.sites.origin('papers')}/sections.pdf`;
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(src)}`);
+    await page.waitForSelector('.reader-page[aria-label^="Page 1 "] .reader-canvas[data-ready]');
+    expect(await page.locator('.reader-question').count()).toBe(0);
+    // Scroll into section 2: section 1 is finished.
+    await page.$eval('.reader-viewport', (v) => v.scrollBy(0, (v.querySelector('.reader-page') as HTMLElement).offsetHeight + 40));
+    const card = page.getByRole('complementary', { name: 'A question for you' });
+    await expect.poll(() => card.textContent(), { timeout: 10_000 }).toContain('scored without BLEU');
+    expect(await card.textContent()).toContain('A question about Section 1');
+    const asked = claude.filter((c) => c.system.includes('asking, never telling'));
+    expect(asked.at(-1)!.prompt).toContain('"Section 1"');
+    await card.getByLabel('Your answer, in your own words').fill('It would reward fluent nonsense.');
+    await card.getByRole('button', { name: 'Keep as a note' }).click();
+    await expect.poll(() => card.count()).toBe(0);
+    await expect
+      .poll(async () => (await storage<{ note: string }[]>(ext, 'annotations')).some((a) => a.note.includes('A: It would reward fluent nonsense.')))
+      .toBe(true);
+    expect(await axe(page)).toEqual([]);
+    // Q asks about where you are; Esc puts it away.
+    await page.keyboard.press('q');
+    await expect.poll(() => card.count()).toBe(1);
+    await card.getByRole('button', { name: 'Not now' }).focus();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => card.count()).toBe(0);
+    expectClean(ext);
+    await page.close();
+  });
+
+  it('grades an explain-back to the gap and where to look, never the answer', async () => {
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('.reader-page[aria-label^="Page 1 "] .textLayer span');
+    await page.keyboard.press('e');
+    const panel = page.getByRole('region', { name: 'Explain it back' });
+    await panel.getByLabel('The problem').fill('Scoring translations automatically.');
+    await panel.getByLabel('The key trick').fill('Attention.');
+    await panel.getByRole('button', { name: 'Check my explanation' }).click();
+    await expect.poll(() => panel.textContent(), { timeout: 10_000 }).toContain('You named attention but not what it replaces.');
+    const text = await panel.textContent();
+    expect(text).toContain('The problem: Got it');
+    expect(text).toContain('Why it works: Missing');
+    expect(text).not.toContain('SECRET-ANSWER');
+    expect(text).not.toContain('"status"');
+    const graded = claude.filter((c) => c.system.includes('check whether a reader understood')).at(-1)!;
+    expect(graded.prompt).toContain('Why it works: (left blank)');
+    const saved = await storage<Record<string, { grades: { gap: string }[] }[]>>(ext, 'explainBacks');
+    const history = Object.values(saved)[0];
+    expect(history.at(-1)!.grades).toHaveLength(3);
+    expect(JSON.stringify(saved)).not.toContain('SECRET-ANSWER');
+    await panel.getByRole('button', { name: 'Look at page 3' }).click();
+    await expect.poll(() => page.locator('.reader-capsule').textContent()).toContain('p. 3 of');
+    expect(await axe(page)).toEqual([]);
+    await shot(page, 'reader-explain');
+    expectClean(ext);
+    await page.close();
+  });
+
+  it('recolours text pages to cream ink on walnut paper', async () => {
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('[aria-label^="Page 1 of"] canvas[data-ready]:not(.reader-thumb)');
+    const pixels = await page.$eval('[aria-label^="Page 1 of"] canvas:not(.reader-thumb)', (c) => {
+      const canvas = c as HTMLCanvasElement;
+      const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let darkest = 255 * 3;
+      let ink: number[] = [];
+      for (let i = 0; i < data.length; i += 4) {
+        // The brightest pixel is the glyph core: cream, the --pdf-ink token.
+        const sum = data[i] + data[i + 1] + data[i + 2];
+        if (765 - sum < darkest) {
+          darkest = 765 - sum;
+          ink = [data[i], data[i + 1], data[i + 2]];
+        }
+      }
+      return { paper: Array.from(data.slice(0, 3)), ink };
+    });
+    expect(pixels.paper).toEqual([0x26, 0x1c, 0x16]);
+    expect(pixels.ink).toEqual([0xf3, 0xe8, 0xd6]);
+    expectClean(ext);
+    await page.close();
   });
 
   it('leaves a local PDF and a non-arXiv web PDF in Chrome\'s own viewer', async () => {

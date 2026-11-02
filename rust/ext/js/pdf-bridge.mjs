@@ -9,7 +9,9 @@
 //   title(doc)            → string ('' when absent)
 //   pageTexts(doc)        → string[]  (line breaks rebuilt)
 //   pageLines(doc)        → [[{ text, y }]]  (y = 0-1 down the page of the line's first item)
-//   renderPage(doc, n, canvas, scale, thumb) → { promise, cancel() }
+//   renderPage(doc, n, canvas, scale, thumb, recolor) → { promise, cancel() }
+//     recolor(rgba, width, imageBoxes) repaints the pixels in place before they show;
+//     imageBoxes is [x, y, w, h, ...] in canvas pixels, one box per embedded image
 //   textLayer(doc, n, container, scale)      → { promise, cancel() }
 //   pageLinks(doc, n, scale) → [{ left, top, width, height, url?, dest? }]
 //   resolveDest(doc, dest)   → { page, offset } | null
@@ -98,7 +100,43 @@ export function pageLines(doc) {
   });
 }
 
-export function renderPage(doc, n, canvas, scale, thumb) {
+const mul = (m, n) => [
+  m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+  m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+  m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5],
+];
+
+// Where each embedded image lands: an image paints the unit square under the
+// current transform, so follow save/restore/transform through the operator list.
+async function imageBoxes(page, viewport) {
+  const { OPS } = pdfjs;
+  const images = new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageXObjectRepeat, OPS.paintInlineImageXObjectGroup]);
+  const ops = await page.getOperatorList();
+  const boxes = [];
+  let ctm = viewport.transform;
+  const stack = [];
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    const fn = ops.fnArray[i];
+    const args = ops.argsArray[i];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.transform) ctm = mul(ctm, args);
+    else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      if (args?.[0]) ctm = mul(ctm, args[0]);
+    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
+    else if (images.has(fn)) {
+      const xs = [ctm[4], ctm[0] + ctm[4], ctm[2] + ctm[4], ctm[0] + ctm[2] + ctm[4]];
+      const ys = [ctm[5], ctm[1] + ctm[5], ctm[3] + ctm[5], ctm[1] + ctm[3] + ctm[5]];
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      boxes.push(x, y, Math.max(...xs) - x, Math.max(...ys) - y);
+    }
+  }
+  return boxes;
+}
+
+export function renderPage(doc, n, canvas, scale, thumb, recolor) {
   let task = null;
   let cancelled = false;
   const promise = (async () => {
@@ -118,6 +156,11 @@ export function renderPage(doc, n, canvas, scale, thumb) {
       return; // cancelled
     }
     if (cancelled) return;
+    const ctx = off.getContext('2d');
+    const pixels = ctx.getImageData(0, 0, off.width, off.height);
+    recolor(pixels.data, off.width, new Float64Array(await imageBoxes(page, viewport)));
+    if (cancelled) return;
+    ctx.putImageData(pixels, 0, 0);
     canvas.width = off.width;
     canvas.height = off.height;
     canvas.getContext('2d').drawImage(off, 0, 0);

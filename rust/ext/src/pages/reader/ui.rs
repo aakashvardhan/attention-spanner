@@ -65,6 +65,8 @@ pub fn ReaderToolbar(
     notes_open: Signal<bool>,
     annotation_count: Signal<usize>,
     on_toggle_notes: Callback<()>,
+    explain_open: Signal<bool>,
+    on_toggle_explain: Callback<()>,
     find_open: Signal<bool>,
     on_toggle_find: Callback<()>,
 ) -> impl IntoView {
@@ -140,6 +142,15 @@ pub fn ReaderToolbar(
             </div>
 
             <div class="reader-toolbar-right">
+                <button
+                    class=move || active(explain_open.get(), "ghost-btn reader-explain-btn")
+                    aria-pressed=move || explain_open.get().to_string()
+                    aria-keyshortcuts="E"
+                    title="Explain the paper back in your own words (E)"
+                    on:click=move |_| on_toggle_explain.run(())
+                >
+                    "Explain it back"
+                </button>
                 <button
                     class=move || active(find_open.get(), "reader-icon-btn")
                     aria-label="Find in document"
@@ -340,9 +351,11 @@ pub fn OutlineRail(
                             _ => None,
                         };
                         let page = s.page;
+                        // The label is hidden at rest, which takes it out of the accessibility tree too.
+                        let name = s.title.clone();
                         view! {
                             <li>
-                                <button type="button" class="reader-rail-tick" data-state=state aria-current=move || (current.get() == Some(i)).then_some("location") on:click=move |_| on_jump.run(page)>
+                                <button type="button" class="reader-rail-tick" data-state=state aria-label=name aria-current=move || (current.get() == Some(i)).then_some("location") on:click=move |_| on_jump.run(page)>
                                     <span class="reader-rail-label">{s.title}</span>
                                 </button>
                             </li>

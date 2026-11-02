@@ -272,3 +272,49 @@ release build.
 Seen while switching, not fixed: one run in six had a Chromium "Target
 crashed" (no extension error before it), and one had a new-tab screenshot
 mismatch that did not recur in five runs.
+
+## Phase 6a: the reader asks (`core/src/{recolor,questions,explain}.rs`, `reader/think.rs`)
+
+Papers-library step 4, built in Rust. The page is walnut, the reader asks one
+question at a section's end (or on Q, or after two minutes on one view), and
+E opens the explain-back: problem, trick, why, graded to the gap and the page
+to look at. 56 browser tests pass, 4 of them new.
+
+1. **Pixels across the boundary.** pdf.js paints off-screen; the bridge hands
+   the pixels (`Uint8ClampedArray`) to a Rust closure, which copies them into a
+   `Vec<u8>`, recolours, and copies back (`copy_from`). Two copies of a few MB
+   per page is cheap next to the render. The closure is made once
+   (`thread_local!` + `into_js_value`, which leaks it on purpose: it lives as
+   long as the page) and passed as an ordinary JS function.
+2. **What counts as a figure.** An embedded image paints the unit square under
+   the current transform, so following `save`/`restore`/`transform` (and form
+   XObjects, which push their own matrix) through `getOperatorList()` gives
+   each image's box. Inside a box nothing changes; outside, greys map onto
+   paper-to-ink and anything coloured (plot lines) is left alone. Vector
+   figures drawn in black become cream, which reads fine. The rule is pure
+   (`recolor.rs`), so it is tested natively on a 2x2 pixel image.
+3. **`as_chunks`.** Clippy now prefers `as_chunks_mut::<4>()` to
+   `chunks_exact_mut(4)`: the chunk is a `&mut [u8; 4]`, a fixed-size array,
+   so `px[3]` is checked at compile time rather than at run time.
+4. **The rule lives in the parser.** "Never show the answer" is enforced by
+   `parse_grades`: the model's JSON is read into `Grade { part, status, gap,
+   page }`, and serde drops every other field. A stray `"answer"` cannot reach
+   the page because there is nowhere to put it. The panel shows the raw reply
+   only when it is an error.
+5. **Effects remember.** `Effect::new(move |before| …)` gets its own previous
+   return value, which is how "the reader moved from section 2 into section 3"
+   is detected without another signal. Only a step to the *next* section
+   counts: a jump from the outline did not read what it skipped.
+6. **Grounding.** Questions and grades read the paper text the reader already
+   has (pdf.js's page texts, marked `[page N]`), not alphaXiv's retrieval: the
+   same pages, exact page numbers, no sign-in needed.
+
+Fixed on the way: the notes list's delete is a real button beside the row
+(it was a `span` inside a `button`), faded rather than hidden so Tab reaches
+it; the section rail's buttons had no accessible name while their labels were
+hidden (an outlined test PDF found it). The translucent-panel contrast issue
+went away with the walnut page.
+
+Open: alphaXiv highlights (one-way import) wait on a real `get_paper_notes`
+reply to read the format from. The stall time is a constant, not a setting,
+and the stall itself has no browser test (two minutes of waiting).

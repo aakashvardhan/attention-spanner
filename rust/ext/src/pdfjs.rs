@@ -30,6 +30,7 @@ extern "C" {
         canvas: &web_sys::HtmlCanvasElement,
         scale: f64,
         thumb: bool,
+        recolor: &js_sys::Function,
     ) -> JsValue;
     #[wasm_bindgen(js_name = textLayer)]
     pub fn text_layer(
@@ -42,6 +43,47 @@ extern "C" {
     fn page_links_js(doc: &JsValue, n: u32, scale: f64) -> Promise;
     #[wasm_bindgen(js_name = resolveDest)]
     fn resolve_dest_js(doc: &JsValue, dest: &JsValue) -> Promise;
+}
+
+thread_local! {
+    static RECOLOR: js_sys::Function = {
+        // The theme's tokens, read once: the stylesheet is the one source of the colours.
+        let token = |name: &str| {
+            web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.document_element())
+                .and_then(|el| web_sys::window()?.get_computed_style(&el).ok().flatten())
+                .and_then(|s| s.get_property_value(name).ok())
+                .and_then(|v| reader_core::recolor::parse_hex(&v))
+        };
+        let ink = token("--pdf-ink").unwrap_or([0xf3, 0xe8, 0xd6]);
+        let paper = token("--pdf-paper").unwrap_or([0x26, 0x1c, 0x16]);
+        let f = Closure::<dyn Fn(js_sys::Uint8ClampedArray, u32, js_sys::Float64Array)>::new(
+            move |data: js_sys::Uint8ClampedArray, width: u32, boxes: js_sys::Float64Array| {
+                let mut px = data.to_vec();
+                let images: Vec<_> = boxes
+                    .to_vec()
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|b| {
+                        let x = b[0].max(0.0).floor();
+                        let y = b[1].max(0.0).floor();
+                        (x as usize, y as usize, (b[2] + b[0] - x).ceil() as usize, (b[3] + b[1] - y).ceil() as usize)
+                    })
+                    .collect();
+                reader_core::recolor::recolor(&mut px, width as usize, &images, ink, paper);
+                data.copy_from(&px);
+            },
+        );
+        // One closure for the page's lifetime, shared by every render.
+        f.into_js_value().unchecked_into()
+    };
+}
+
+/// The walnut page: what `renderPage` runs on every page's pixels.
+pub fn recolor_fn() -> js_sys::Function {
+    RECOLOR.with(Clone::clone)
 }
 
 /// A `{ promise, cancel }` task from the bridge: cancel it on unmount.

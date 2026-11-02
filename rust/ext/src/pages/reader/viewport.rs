@@ -550,7 +550,7 @@ fn PageCanvas(
         if let Some(t) = task.try_update_value(Option::take).flatten() {
             pdfjs::cancel(&t);
         }
-        let t = doc.with_value(|d| pdfjs::render_page(d, page, &c, s, thumb));
+        let t = doc.with_value(|d| pdfjs::render_page(d, page, &c, s, thumb, &pdfjs::recolor_fn()));
         task.set_value(Some(t));
     });
     on_cleanup(move || {

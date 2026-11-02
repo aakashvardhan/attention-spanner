@@ -313,18 +313,21 @@ pub fn NotesSidebar(
                         } else {
                             (if a.note.is_empty() { "Sticky note".to_string() } else { a.note.clone() }, None)
                         };
+                        // Two sibling buttons, not one inside the other, so delete is reachable by Tab.
+                        let label = format!("Delete: {text}");
                         view! {
-                            <button class="annot-row" on:click=move |_| on_jump.run((page, offset))>
-                                <span class="annot-row-swatch" style=format!("background: {}", annotation_swatch(a.color))></span>
-                                <span class="annot-row-body">
-                                    <span class="annot-row-text">{text}</span>
-                                    {note.map(|n| view! { <span class="annot-row-note">{n}</span> })}
-                                </span>
-                                <span class="annot-row-delete" role="button" title="Delete" on:click=move |e| {
-                                    e.stop_propagation();
+                            <div class="annot-row">
+                                <button type="button" class="annot-row-jump" on:click=move |_| on_jump.run((page, offset))>
+                                    <span class="annot-row-swatch" style=format!("background: {}", annotation_swatch(a.color))></span>
+                                    <span class="annot-row-body">
+                                        <span class="annot-row-text">{text}</span>
+                                        {note.map(|n| view! { <span class="annot-row-note">{n}</span> })}
+                                    </span>
+                                </button>
+                                <button type="button" class="annot-row-delete" title="Delete" aria-label=label on:click=move |_| {
                                     post(Message::AnnotDelete { id: id.clone() });
-                                }>"×"</span>
-                            </button>
+                                }>"×"</button>
+                            </div>
                         }
                     }).collect_view()}
                 </div>

@@ -12,6 +12,7 @@ pub mod civil_date;
 pub mod claude;
 pub mod clicked_word;
 pub mod constants;
+pub mod explain;
 pub mod figures;
 pub mod find;
 pub mod focus_rules;
@@ -23,8 +24,10 @@ pub mod migrations;
 pub mod outline;
 pub mod papers;
 pub mod pdf;
+pub mod questions;
 pub mod reader_progress;
 pub mod reading_aids;
+pub mod recolor;
 pub mod types;
 pub mod vault;
 

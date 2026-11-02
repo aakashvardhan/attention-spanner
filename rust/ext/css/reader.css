@@ -482,7 +482,7 @@ body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  /* Pages are white regardless of theme — the PDF's own background */
+  /* Walnut paper while the page paints; the canvas is recoloured to match (pdfjs.rs) */
   background: var(--pdf-page);
   outline: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   /* Only the text layer's spans are selectable */
@@ -614,7 +614,8 @@ body {
   position: absolute;
   pointer-events: auto;
   cursor: pointer;
-  mix-blend-mode: multiply;
+  /* Screen, not multiply: on the walnut page a multiplied tint would vanish into the dark. */
+  mix-blend-mode: screen;
   border-radius: var(--radius-sm);
 }
 
@@ -842,19 +843,27 @@ body {
 .annot-row {
   display: flex;
   align-items: flex-start;
+  border-radius: var(--radius-sm);
+}
+
+.annot-row:hover,
+.annot-row:focus-within {
+  background: var(--bg-hover);
+}
+
+.annot-row-jump {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-start;
   gap: var(--space-2);
-  width: 100%;
   text-align: left;
   background: transparent;
   border: none;
   font-family: var(--font-sans);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  padding: 8px 0 8px 12px;
   cursor: pointer;
-}
-
-.annot-row:hover {
-  background: var(--bg-hover);
+  color: inherit;
 }
 
 .annot-row-swatch {
@@ -889,7 +898,8 @@ body {
 }
 
 .annot-row-delete {
-  visibility: hidden;
+  /* Faded, not hidden: a hidden button cannot take keyboard focus. */
+  opacity: 0;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -899,8 +909,9 @@ body {
   flex-shrink: 0;
 }
 
-.annot-row:hover .annot-row-delete {
-  visibility: visible;
+.annot-row:hover .annot-row-delete,
+.annot-row-delete:focus-visible {
+  opacity: 1;
 }
 
 .annot-row-delete:hover {
@@ -1289,3 +1300,72 @@ body {
   font-family: var(--font-display);
 }
 
+
+/* The reader asks: a question card in the margin, and the explain-back panel. */
+.reader-question {
+  position: absolute;
+  right: var(--space-4);
+  bottom: calc(var(--space-5) + var(--space-7));
+  z-index: 20;
+  width: min(360px, calc(100% - var(--space-6)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg);
+  background: var(--material-thick);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  animation: reader-panel-in-right var(--transition-base) var(--ease-out);
+}
+
+.reader-question-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reader-explain {
+  width: 360px;
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+}
+
+.reader-explain form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.reader-explain-lede {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3);
+}
+
+.reader-explain-grades {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reader-explain-grades li {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--accent-border);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.reader-explain-grades li[data-status='got'] {
+  border-left-color: var(--success-border);
+}
+
+.reader-explain-grades p {
+  margin: var(--space-1) 0;
+  color: var(--text-secondary);
+}

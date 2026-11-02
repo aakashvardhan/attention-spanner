@@ -2,6 +2,7 @@
 
 mod annotate;
 mod define;
+mod think;
 mod ui;
 mod viewport;
 
@@ -16,12 +17,14 @@ use reader_core::messages::{AnnotationDraft, Message};
 use reader_core::outline::{heading_for_page, section_index_at, top_level, FlatOutlineItem};
 use reader_core::papers::paper_match_key;
 use reader_core::pdf::{reader_pdf_src, PdfPosition};
+use reader_core::questions::{question_request, section_finished, spot_at, spot_pages, Spot};
 use reader_core::reading_aids::{minutes_left, time_left_label, word_counts};
 use reader_core::types::{
     Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind, AnnotationRect, Paper,
 };
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use think::{ExplainPanel, QuestionCard};
 use ui::{FindPanel, OutlineRail, OutlineSidebar, ReaderCapsule, ReaderToolbar};
 use viewport::{Jump, PdfViewport};
 use wasm_bindgen::JsValue;
@@ -31,6 +34,9 @@ const PROGRESS_THROTTLE_MS: i64 = 5_000;
 /// The toolbar sleeps after this long of reading, and wakes at the top edge or on scroll-up.
 const IDLE_MS: u64 = 2500;
 const WAKE_ZONE_PX: i32 = 48;
+/// This long on one view with no scroll is a stall, and gets a question.
+/// ponytail: a constant; a Settings knob when someone wants a different pace.
+const QUESTION_STALL_MS: i64 = 120_000;
 
 #[oxichrome::page(path = "src/pages/reader/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css", "assets/aiNote.css", "assets/markdown.css", "assets/katex.min.css"])]
 pub fn Reader() -> impl IntoView {
@@ -390,14 +396,104 @@ fn PdfReader(src: String) -> impl IntoView {
         Signal::derive(move || section_index_at(&sections.get(), position.get().page));
     let section_toast = ui::use_section_toast(sections, section_index);
 
+    // Questions: one at a section's end, or after a stall; never twice for one spot.
+    let question = RwSignal::new(None::<(String, reader_core::ai::AiRequest)>);
+    let asked = StoredValue::new(HashSet::<Spot>::new());
+    let ask_key = doc_key.clone();
+    let ask = StoredValue::new(move |spot: Spot, again: bool| {
+        if question.get_untracked().is_some() || (!again && asked.with_value(|a| a.contains(&spot)))
+        {
+            return;
+        }
+        let Some(texts) = page_texts.get_untracked() else {
+            return;
+        };
+        let secs = sections.get_untracked();
+        let (from, to) = spot_pages(&secs, &spot, page_count.get_untracked());
+        let pages: Vec<String> = texts
+            .iter()
+            .skip(from.saturating_sub(1) as usize)
+            .take((to + 1).saturating_sub(from) as usize)
+            .cloned()
+            .collect();
+        if pages.concat().trim().is_empty() {
+            return;
+        }
+        let title = match &spot {
+            Spot::Section(i) => secs.get(*i).map(|s| s.title.clone()).unwrap_or_default(),
+            Spot::Page(_) => String::new(),
+        };
+        let about = if title.is_empty() {
+            format!("page {from}")
+        } else {
+            title.clone()
+        };
+        asked.update_value(|a| {
+            a.insert(spot.clone());
+        });
+        question.set(Some((
+            about,
+            question_request(&ask_key, &spot, &title, &pages),
+        )));
+    });
+    let spot_now = move || {
+        spot_at(
+            &sections.get_untracked(),
+            section_index.get_untracked(),
+            position.get_untracked().page,
+        )
+    };
+    Effect::new(move |before: Option<Option<usize>>| {
+        let now = section_index.get();
+        if restored.get_value() {
+            if let Some(done) = section_finished(before.flatten(), now) {
+                ask.with_value(|f| f(Spot::Section(done), false));
+            }
+        }
+        now
+    });
+    let last_move = StoredValue::new(crate::js::now());
+    let stall = set_interval_with_handle(
+        move || {
+            let quiet = panel.get_untracked() == "none"
+                && define.get_untracked().is_none()
+                && pending.get_untracked().is_none()
+                && document().has_focus().unwrap_or(false);
+            if !restored.get_value() || !quiet {
+                last_move.set_value(crate::js::now());
+            } else if crate::js::now() - last_move.get_value() >= QUESTION_STALL_MS {
+                last_move.set_value(crate::js::now());
+                ask.with_value(|f| f(spot_now(), false));
+            }
+        },
+        std::time::Duration::from_secs(5),
+    )
+    .ok();
+    on_cleanup(move || {
+        if let Some(h) = stall {
+            h.clear();
+        }
+    });
+
     // F toggles the focus line anywhere except text fields.
     let focus_line = Signal::derive(move || settings.get().reader_focus_line);
+    // E opens the explain-back, Q asks a question about where you are now.
     let fkey = window_event_listener(leptos::ev::keydown, move |e| {
-        if e.key() != "f"
-            || e.meta_key()
-            || e.ctrl_key()
-            || e.alt_key()
-            || is_typing_target(e.target())
+        let key = e.key();
+        if e.meta_key() || e.ctrl_key() || e.alt_key() || is_typing_target(e.target()) {
+            return;
+        }
+        if key == "e" {
+            e.prevent_default();
+            panel.update(|p| *p = if *p == "explain" { "none" } else { "explain" });
+            return;
+        }
+        if key == "q" {
+            e.prevent_default();
+            ask.with_value(|f| f(spot_now(), true));
+            return;
+        }
+        if key != "f" || e.meta_key() || e.ctrl_key() || e.alt_key() || is_typing_target(e.target())
         {
             return;
         }
@@ -431,6 +527,7 @@ fn PdfReader(src: String) -> impl IntoView {
         })
     };
     let src_error = src.clone();
+    let explain_key = doc_key.clone();
     let toggle =
         move |name: &'static str| panel.update(|p| *p = if *p == name { "none" } else { name });
 
@@ -446,6 +543,8 @@ fn PdfReader(src: String) -> impl IntoView {
                 notes_open=Signal::derive(move || panel.get() == "notes")
                 annotation_count=annotation_count
                 on_toggle_notes=Callback::new(move |_| toggle("notes"))
+                explain_open=Signal::derive(move || panel.get() == "explain")
+                on_toggle_explain=Callback::new(move |_| toggle("explain"))
                 find_open=Signal::derive(move || panel.get() == "find")
                 on_toggle_find=Callback::new(move |_| toggle("find"))
             />
@@ -493,6 +592,7 @@ fn PdfReader(src: String) -> impl IntoView {
                                 restored.set_value(true);
                             })
                             on_position=Callback::new(move |pos: PdfPosition| {
+                                last_move.set_value(crate::js::now());
                                 position.set(pos);
                                 send_progress(false);
                             })
@@ -533,6 +633,22 @@ fn PdfReader(src: String) -> impl IntoView {
                                 <kbd>"Esc"</kbd>
                             </div>
                         </Show>
+                        {move || question.get().map(|(about, request)| {
+                                view! {
+                                    <QuestionCard
+                                        about=about
+                                        request=request
+                                        on_close=Callback::new(move |_| question.set(None))
+                                        on_keep=Callback::new(move |note: String| {
+                                            // A sticky at the reader's place on the page, holding question and answer.
+                                            let pos = position.get_untracked();
+                                            let mut draft = draft_base.with_value(|d| d(AnnotationKind::Sticky, pos.page, vec![], 0.92, pos.offset.clamp(0.02, 0.98)));
+                                            draft.note = note;
+                                            post(Message::AnnotAdd { draft });
+                                        })
+                                    />
+                                }
+                            })}
                         <Show when=move || focus_line.get()>
                             <div class="reader-focus-band" aria-hidden="true"></div>
                         </Show>
@@ -555,6 +671,15 @@ fn PdfReader(src: String) -> impl IntoView {
                         jump_seq.update_value(|s| *s += 1);
                         set_jump.set(Some((page, offset, jump_seq.get_value())));
                     }) />
+                </Show>
+                <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "explain">
+                    <ExplainPanel
+                        doc_key=explain_key.clone()
+                        page_texts=page_texts.into()
+                        page_count=page_count
+                        on_jump=go
+                        on_close=Callback::new(move |_| panel.set("none"))
+                    />
                 </Show>
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "find">
                     <FindPanel pages=page_texts.into() on_jump=go on_close=Callback::new(move |_| panel.set("none")) />
