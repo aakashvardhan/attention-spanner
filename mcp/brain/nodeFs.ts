@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
-import type { PlanFs } from '../../src/shared/brain/plan';
+import type { PlanFs } from './lib/plan';
 
 export class GuardError extends Error {
   constructor(message: string) {

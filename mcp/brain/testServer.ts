@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { parseQuery } from '../../src/shared/brain/query';
-import { search } from '../../src/shared/brain/search';
+import { parseQuery } from './lib/query';
+import { search } from './lib/search';
 import { createServer, type ServerOptions } from './server';
 import { Vault } from './vault';
 

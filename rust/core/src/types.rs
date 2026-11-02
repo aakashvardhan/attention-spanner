@@ -27,7 +27,7 @@ pub struct PdfState {
 }
 
 /// A paper on the shelf: alphaXiv's record mirrored, plus local reading state.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Paper {
     /// arXiv id ('2406.09246'): alphaXiv's universal_paper_id

@@ -5,7 +5,7 @@ import { launch, seed, storage } from './harness';
  * An old (v26) profile migrated by the Rust worker. It seeds the old shapes on
  * purpose, so cutFeatures.test.ts skips this file.
  */
-describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 2 migration on update', () => {
+describe('rust port: phase 2 migration on update', () => {
   it('migrates a v26 profile when the extension updates', async () => {
     const ext = await launch();
     await seed(ext, {

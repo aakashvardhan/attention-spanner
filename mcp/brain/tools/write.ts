@@ -1,10 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { dailyPath, dailyText, ymd } from '../../../src/shared/brain/daily';
-import { asList, getField, parseNote, setField, toText } from '../../../src/shared/brain/frontmatter';
-import { nfc, safeTitle, titleKey } from '../../../src/shared/brain/names';
-import { planDelete, planMove, planRename, STARRED } from '../../../src/shared/brain/rename';
+import { dailyPath, dailyText, ymd } from '../lib/daily';
+import { asList, getField, parseNote, setField, toText } from '../lib/frontmatter';
+import { nfc, safeTitle, titleKey } from '../lib/names';
+import { planDelete, planMove, planRename, STARRED } from '../lib/rename';
 import type { Vault } from '../vault';
 import { DESTRUCTIVE, fail, guard, IDEMPOTENT, ok, WRITE } from './common';
 

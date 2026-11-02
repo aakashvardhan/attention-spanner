@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { structure } from '../../src/shared/brain/blocks';
+import { structure } from './lib/blocks';
 import spec from './fixtures/commonmark-0.31.2.json';
 
 // Headings and code inside quotes and list items are part of that block by design (spec, Index entry), so those examples are out.

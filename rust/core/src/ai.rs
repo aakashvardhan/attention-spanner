@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(cache.len(), AI_CACHE_MAX_ENTRIES);
         assert!(cache_hit(&cache, "k0").is_none());
         assert!(cache_hit(&cache, "k3").is_some());
-        cache.insert("old".into(), entry(999, "ollama"));
+        cache.insert("old".into(), entry(999, "retired-model"));
         assert!(cache_hit(&cache, "old").is_none());
     }
 }

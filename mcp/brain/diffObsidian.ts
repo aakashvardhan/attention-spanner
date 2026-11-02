@@ -1,9 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import type { IndexEntry } from '../../src/shared/brain/entry';
-import { resolve, type Targets } from '../../src/shared/brain/links';
-import { nfc } from '../../src/shared/brain/names';
+import type { IndexEntry } from './lib/entry';
+import { resolve, type Targets } from './lib/links';
+import { nfc } from './lib/names';
 import { reportsDir, vaultPath } from './args';
 import { Vault } from './vault';
 

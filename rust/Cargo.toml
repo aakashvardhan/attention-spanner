@@ -8,3 +8,12 @@ license = "MIT"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+
+# The extension ships one wasm module that every page loads. Function names
+# (the wasm `name` section) were 6 of its 10.5 MB; panics still name their
+# message, just not the frames.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"

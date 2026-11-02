@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { parseQuery } from '../../src/shared/brain/query';
-import { search, toSearchDoc } from '../../src/shared/brain/search';
+import { parseQuery } from './lib/query';
+import { search, toSearchDoc } from './lib/search';
 import { Vault } from './vault';
 
 let vault: Vault;

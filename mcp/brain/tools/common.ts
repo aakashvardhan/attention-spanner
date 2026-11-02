@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { QueryError } from '../../../src/shared/brain/query';
+import { QueryError } from '../lib/query';
 import type { Vault } from '../vault';
 
 export const ok = (text: string): CallToolResult => ({ content: [{ type: 'text', text }] });

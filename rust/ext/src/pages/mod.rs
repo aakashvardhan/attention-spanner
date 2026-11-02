@@ -7,6 +7,7 @@ pub mod blocked;
 pub mod dumps;
 pub mod newtab;
 pub mod options;
+pub mod papers;
 pub mod reader;
 
 use crate::chrome;

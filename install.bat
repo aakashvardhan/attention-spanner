@@ -27,6 +27,20 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM --- 1b. Make sure Rust is available (the extension is Rust compiled to wasm) -
+where cargo >nul 2>nul
+if errorlevel 1 (
+  echo   Rust is not installed - the build needs it.
+  echo.
+  echo   Install it once from  https://rustup.rs  then double-click install.bat again.
+  echo.
+  start "" "https://rustup.rs"
+  echo Press any key to close.
+  pause >nul
+  exit /b 1
+)
+rustup target add wasm32-unknown-unknown >nul 2>nul
+
 REM --- 2. Build the extension -------------------------------------------------
 echo Installing dependencies ^(first run downloads a bit - please wait^)...
 call npm install
@@ -38,7 +52,7 @@ call npm run build
 if errorlevel 1 goto fail
 
 echo.
-echo   Built. The extension is the  dist  folder inside this project.
+echo   Built. The extension is the  rust\ext\dist\chromium  folder inside this project.
 echo.
 
 REM --- 3. Hand off to Chrome for the one manual step --------------------------
@@ -47,11 +61,11 @@ echo   1. Chrome will open to  chrome://extensions
 echo   2. Turn ON "Developer mode" ^(toggle, top-right^)
 echo   3. Click "Load unpacked"
 echo   4. Pick this folder:
-echo         %cd%\dist
+echo         %cd%\rust\ext\dist\chromium
 echo.
 
 start chrome "chrome://extensions/"
-start "" "%cd%\dist"
+start "" "%cd%\rust\ext\dist\chromium"
 
 echo Done - you can close this window.
 echo.

@@ -4,5 +4,5 @@
     "types": ["node"],
     "resolveJsonModule": true
   },
-  "include": [".", "../src/shared/brain"]
+  "include": ["."]
 }

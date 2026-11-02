@@ -1,8 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { resolve } from '../../../src/shared/brain/links';
-import { hasRegex, parseQuery } from '../../../src/shared/brain/query';
-import { search, toSearchDoc } from '../../../src/shared/brain/search';
+import { resolve } from '../lib/links';
+import { hasRegex, parseQuery } from '../lib/query';
+import { search, toSearchDoc } from '../lib/search';
 import type { SearchRunner } from '../regexSearch';
 import type { Vault } from '../vault';
 import { fail, guard, ok, READ } from './common';

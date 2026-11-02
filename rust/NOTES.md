@@ -238,3 +238,37 @@ Found, not fixed (the port keeps behaviour; for phase 6):
   low contrast. The walnut page recolour should fix it; the AAA tests should check.
 - pdf-bridge imports pdf.js statically, so every page (and the worker)
   loads it. Phase 5 should make it lazy, as KaTeX now is.
+
+## Phase 5: the switch (`rust/ext/src/pages/papers.rs`, `package.json`, `rust/Cargo.toml`)
+
+The Rust build is now the extension. The TypeScript tree (`src/`, Vite,
+React) is gone; what stays TypeScript is the Playwright suite, the brain MCP
+server (`mcp/brain`, its library moved from `src/shared/brain` to
+`mcp/brain/lib`), and the stylesheet guards, which moved with the CSS to
+`rust/ext/css`. 53 browser tests and the screenshot baselines pass on the
+release build.
+
+1. **Debug vs release wasm.** oxichrome builds debug unless told `--release`:
+   54 MB. Release is 10.5 MB, and 6 MB of that was the `name` custom section
+   (every function's name, for stack traces). `strip = "symbols"` drops it;
+   `lto = true` and `codegen-units = 1` let the optimiser see the whole
+   program at once. 3.9 MB. `opt-level = "s"` made it *bigger* here (14 MB,
+   the names section grew), a reminder to measure rather than assume.
+   Reading a wasm file's sections is a 15-line LEB128 walk (id byte, size,
+   payload); that is how the 6 MB showed up.
+2. **Lazy JS, again.** pdf.js joined KaTeX behind a dynamic `import()` in its
+   bridge. Every bridge function except `openPdf` takes a document, so only
+   `openPdf` has to await the load; the rest find it already there. The
+   service worker imports the bridge too but never calls `openPdf`, which
+   matters: `import()` is not allowed in a service worker. A new-tab test
+   checks neither library is requested.
+3. **Proof that outlives the code it proves against.** The vault test used to
+   import the TypeScript vault to make a locked dump. Before deleting it, a
+   one-off script made one (`e2e/fixtures/ts-vault.json`); the test now opens
+   that, so profiles with TypeScript-sealed dumps stay covered.
+4. **Guards follow the code.** The cut-features test scans `rust/` now, `.rs`
+   included; it caught a test of mine using a retired model name as a sample.
+
+Seen while switching, not fixed: one run in six had a Chromium "Target
+crashed" (no extension error before it), and one had a new-tab screenshot
+mismatch that did not recur in five runs.

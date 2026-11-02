@@ -13,18 +13,16 @@ import { fileURLToPath } from 'node:url';
  *      embedded zip to ~/ReaderExtension and opens chrome://extensions with
  *      instructions. Chrome forbids programmatic installs outside the Web
  *      Store, so "Load unpacked" is the one manual step left.
- *
- * Note: the build embeds whatever is in .env.local (Firebase config, Google
- * OAuth client id) — package from a clean env if that shouldn't ship.
  */
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const release = join(root, 'release');
 
 console.log('▸ building…');
-execSync('npm run build', { cwd: root, stdio: 'inherit' });
+execSync('npm run build:ext', { cwd: root, stdio: 'inherit' });
+const dist = join(root, 'rust/ext/dist/chromium');
 
-const manifest = JSON.parse(readFileSync(join(root, 'dist/manifest.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8'));
 const version = manifest.version;
 
 rmSync(release, { recursive: true, force: true });
@@ -32,8 +30,8 @@ mkdirSync(release, { recursive: true });
 
 const zipName = `reader-extension-v${version}.zip`;
 const zipPath = join(release, zipName);
-console.log(`▸ zipping dist → release/${zipName}`);
-execSync(`cd "${join(root, 'dist')}" && zip -qr "${zipPath}" .`, { cwd: root });
+console.log(`▸ zipping rust/ext/dist/chromium → release/${zipName}`);
+execSync(`cd "${dist}" && zip -qr "${zipPath}" .`, { cwd: root });
 
 console.log('▸ writing release/install-reader.command');
 const payload = readFileSync(zipPath).toString('base64').replace(/(.{76})/g, '$1\n');

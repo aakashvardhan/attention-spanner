@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Build the extension and drive it end-to-end in Chromium via Playwright — load dist/ unpacked, open the newtab/options/papers/reader pages, interact, screenshot.
+description: Build the extension and drive it end-to-end in Chromium via Playwright — load rust/ext/dist/chromium unpacked, open the newtab/options/papers/reader pages, interact, screenshot.
 ---
 
 # Verifying this Chrome extension
@@ -8,12 +8,12 @@ description: Build the extension and drive it end-to-end in Chromium via Playwri
 ## Build
 
 ```bash
-npm run build        # vite build → dist/ (+ the brain MCP server → dist-mcp/)
+npm run build:ext    # Rust → wasm → rust/ext/dist/chromium (npm run build adds the brain MCP server)
 ```
 
 ## Drive with Playwright (dev dependency)
 
-Load `dist/` as an unpacked extension in a persistent context. Works headless.
+Load `rust/ext/dist/chromium` as an unpacked extension in a persistent context. Works headless.
 Resolve playwright via the repo (scripts outside the repo need `createRequire`):
 
 ```js

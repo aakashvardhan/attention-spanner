@@ -1,4 +1,23 @@
-import type { Folder, Paper } from '../src/shared/types';
+/** The storage shapes the suite seeds (rust/core/src/types.rs is the source of truth). */
+export interface Folder {
+  id: string;
+  name: string;
+  type: string;
+}
+export interface Paper {
+  id: string;
+  title: string;
+  authors: string;
+  year: number | null;
+  url: string;
+  folderIds: string[];
+  progressPercent: number;
+  leftOff: string;
+  pdf?: { url: string; page: number; pageCount: number; offset: number };
+  addedAt: number;
+  updatedAt: number;
+  lastReadAt: number | null;
+}
 
 const HOUR = 60 * 60_000;
 

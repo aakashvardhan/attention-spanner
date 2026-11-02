@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { parseQuery } from '../../src/shared/brain/query';
-import { search, type SearchDoc } from '../../src/shared/brain/search';
+import { parseQuery } from './lib/query';
+import { search, type SearchDoc } from './lib/search';
 
 const { query, docs } = workerData as { query: string; docs: SearchDoc[] };
 const q = parseQuery(query);

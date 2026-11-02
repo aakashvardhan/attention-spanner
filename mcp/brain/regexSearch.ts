@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { rankHits, type Hit, type SearchDoc } from '../../src/shared/brain/search';
+import { rankHits, type Hit, type SearchDoc } from './lib/search';
 
 export type SearchRunner = (query: string, docs: SearchDoc[], limit: number) => Promise<{ hits: Hit[]; partial: boolean }>;
 

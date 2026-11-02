@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { ymd } from '../../src/shared/brain/daily';
-import { backlinks, buildEntry, duplicateTitles, targetsOf, type IndexEntry } from '../../src/shared/brain/entry';
-import type { Link, Targets } from '../../src/shared/brain/links';
-import { titleKey, titleOf } from '../../src/shared/brain/names';
-import { recover, runPlan, type Plan } from '../../src/shared/brain/plan';
+import { ymd } from './lib/daily';
+import { backlinks, buildEntry, duplicateTitles, targetsOf, type IndexEntry } from './lib/entry';
+import type { Link, Targets } from './lib/links';
+import { titleKey, titleOf } from './lib/names';
+import { recover, runPlan, type Plan } from './lib/plan';
 import { indexSkips, serverMayWrite } from './guards';
 import { nodeFs, type VaultFs } from './nodeFs';
 

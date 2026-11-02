@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { ymd } from '../../../src/shared/brain/daily';
+import { ymd } from '../lib/daily';
 import { reportsDir, terminal, vaultPath, type Io } from '../args';
 
 export interface RecallRow { n: number; ms: number; success: boolean }

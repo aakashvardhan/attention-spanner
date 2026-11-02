@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { safeTitle, titleKey, titleOf } from '../../../src/shared/brain/names';
-import { newPlanId, type Step } from '../../../src/shared/brain/plan';
+import { safeTitle, titleKey, titleOf } from '../lib/names';
+import { newPlanId, type Step } from '../lib/plan';
 import type { Vault } from '../vault';
 import { DESTRUCTIVE, fail, guard, IDEMPOTENT, IDEMPOTENT_OPEN, ok } from './common';
 

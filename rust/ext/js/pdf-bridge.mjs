@@ -13,14 +13,20 @@
 //   textLayer(doc, n, container, scale)      → { promise, cancel() }
 //   pageLinks(doc, n, scale) → [{ left, top, width, height, url?, dest? }]
 //   resolveDest(doc, dest)   → { page, offset } | null
-import { getDocument, GlobalWorkerOptions, TextLayer, VerbosityLevel } from '/pdfjs/pdf.min.mjs';
-
-GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+//
+// pdf.js loads with the first document, not with this module: every page and
+// the service worker share one wasm module and so import this file, and only
+// the reader needs pdf.js. Everything else takes a doc, so it runs after openPdf.
+let pdfjs = null;
 
 export async function openPdf(bytes) {
+  if (!pdfjs) {
+    pdfjs = await import('/pdfjs/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+  }
   // wasmUrl: without it scanned (CCITT/JBIG2) and JPEG 2000 pages render blank.
   // Warnings about junk pdf.js recovers from would bury real errors.
-  return getDocument({ data: bytes, verbosity: VerbosityLevel.ERRORS, wasmUrl: '/pdfjs/' }).promise;
+  return pdfjs.getDocument({ data: bytes, verbosity: pdfjs.VerbosityLevel.ERRORS, wasmUrl: '/pdfjs/' }).promise;
 }
 
 export async function pageSize(doc, n) {
@@ -127,7 +133,7 @@ export function textLayer(doc, n, container, scale) {
     const page = await doc.getPage(n);
     if (cancelled) return;
     container.replaceChildren();
-    layer = new TextLayer({ textContentSource: page.streamTextContent(), container, viewport: page.getViewport({ scale }) });
+    layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container, viewport: page.getViewport({ scale }) });
     await layer.render().catch(() => undefined);
   })();
   return { promise, cancel: () => { cancelled = true; layer?.cancel(); } };

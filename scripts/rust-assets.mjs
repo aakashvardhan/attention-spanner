@@ -1,19 +1,17 @@
 // Copies the shared static assets into the Rust crate's static/ dir, which
-// oxichrome copies into dist. public/ (fonts, icons) as is; every stylesheet
-// under src/ flat into assets/. One source of truth until the TS tree goes.
-import { cpSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+// oxichrome copies into dist. public/ (fonts, icons) as is; the stylesheets
+// from rust/ext/css into assets/.
+import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 const out = 'rust/ext/static';
 rmSync(out, { recursive: true, force: true });
+// oxichrome adds to dist without clearing it; start clean so stale files never ship.
+rmSync('rust/ext/dist', { recursive: true, force: true });
 mkdirSync(join(out, 'assets'), { recursive: true });
 cpSync('public', out, { recursive: true });
-const walk = (dir) =>
-  readdirSync(dir).flatMap((name) => {
-    const p = join(dir, name);
-    return statSync(p).isDirectory() ? walk(p) : p.endsWith('.css') ? [p] : [];
-  });
-for (const css of walk('src')) cpSync(css, join(out, 'assets', basename(css)));
+for (const css of readdirSync('rust/ext/css').filter((f) => f.endsWith('.css')))
+  cpSync(join('rust/ext/css', css), join(out, 'assets', css));
 // Hand-written JS the crate ships as is (the worker's synchronous listeners).
 cpSync('rust/ext/js/worker.js', join(out, 'worker.js'));
 // pdf.js, unmodified: the library, its worker, and the wasm decoders for scanned pages.

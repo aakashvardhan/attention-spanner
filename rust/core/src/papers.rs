@@ -70,6 +70,23 @@ pub(crate) fn strip_prefix_ignore_case<'a>(s: &'a str, prefix: &str) -> &'a str 
     }
 }
 
+/// Papers by alphaXiv folder id, most recently read first within each (a
+/// paper in two folders is listed in both).
+pub fn group_by_folder(
+    papers: &[crate::types::Paper],
+) -> std::collections::HashMap<String, Vec<crate::types::Paper>> {
+    let mut map: std::collections::HashMap<String, Vec<crate::types::Paper>> = Default::default();
+    for p in papers {
+        for id in &p.folder_ids {
+            map.entry(id.clone()).or_default().push(p.clone());
+        }
+    }
+    for list in map.values_mut() {
+        list.sort_by_key(|p| std::cmp::Reverse(p.last_read_at.unwrap_or(0)));
+    }
+    map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +193,23 @@ mod tests {
         assert_eq!(arxiv_id("10.1145/3290605"), None);
         assert_eq!(arxiv_id("https://example.com/paper.pdf"), None);
         assert_eq!(arxiv_id(""), None);
+    }
+
+    #[test]
+    fn groups_by_folder_most_recently_read_first() {
+        let paper = |id: &str, folders: &[&str], read: Option<i64>| crate::types::Paper {
+            id: id.into(),
+            folder_ids: folders.iter().map(|f| f.to_string()).collect(),
+            last_read_at: read,
+            ..Default::default()
+        };
+        let by = group_by_folder(&[
+            paper("a", &["x"], Some(1)),
+            paper("b", &["x", "y"], Some(5)),
+            paper("c", &["x"], None),
+        ]);
+        let ids = |f: &str| by[f].iter().map(|p| p.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids("x"), ["b", "a", "c"]);
+        assert_eq!(ids("y"), ["b"]);
     }
 }

@@ -6,8 +6,8 @@
 #
 # It builds the extension from source and then walks you through the single
 # manual step Chrome requires ("Load unpacked" — Chrome does not allow
-# installs from outside the Web Store). No prior setup needed except Node.js,
-# which it checks for and points you to if it is missing.
+# installs from outside the Web Store). Needs Node.js and Rust, which it checks
+# for and points you to if either is missing.
 set -e
 
 # Double-clicking runs from your home folder, so move into the repo the script
@@ -35,6 +35,19 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
+# --- 1b. Make sure Rust is available (the extension is Rust compiled to wasm) -
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "✗  Rust is not installed — the build needs it."
+  echo ""
+  echo "   Install it once from  https://rustup.rs  (one command), then"
+  echo "   double-click install.command again."
+  echo ""
+  echo "Press Return to close."
+  read _ || true
+  exit 1
+fi
+rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true
+
 # --- 2. Build the extension -------------------------------------------------
 echo "▸  Installing dependencies (first run downloads a bit — please wait)…"
 npm install
@@ -44,11 +57,11 @@ echo "▸  Building the extension…"
 npm run build
 
 echo ""
-echo "✓  Built. The extension is the  dist  folder inside this project."
+echo "✓  Built. The extension is the  rust/ext/dist/chromium  folder inside this project."
 echo ""
 
 # --- 3. Hand off to Chrome for the one manual step --------------------------
-DIST="$(pwd)/dist"
+DIST="$(pwd)/rust/ext/dist/chromium"
 echo "Finish in Chrome (one time, ~15 seconds):"
 echo "  1. Chrome will open to  chrome://extensions"
 echo "  2. Turn ON \"Developer mode\" (toggle, top-right)"

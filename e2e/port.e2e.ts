@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LIST_LIBRARY } from '../src/shared/alphaxiv.fixtures';
+import { LIST_LIBRARY } from './fixtures/alphaxiv';
+import TS_VAULT from './fixtures/ts-vault.json';
 import { NETWORK_NOISE, PAGES, expectA11y, expectClean, launch, mockClaude, seed, storage, type Ext } from './harness';
 import { paper } from './seed';
 
 /**
- * The Rust port, phase by phase. Runs only against the Rust build
- * (DIST=rust/ext/dist/chromium npm run test:e2e); the rest of the suite is the
- * port's finish line and is pointed at it page by page as each lands.
+ * What the Rust port added, phase by phase: the skeleton, the worker, the
+ * brain dump and vault. Kept as regression tests now the port is the build.
  */
-describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 0 skeleton', () => {
+describe('rust port: phase 0 skeleton', () => {
   let ext: Ext;
   beforeAll(async () => {
     ext = await launch();
@@ -34,7 +34,7 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 0 skeleto
   });
 });
 
-describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 2 worker', () => {
+describe('rust port: phase 2 worker', () => {
   let ext: Ext;
   let page: import('playwright').Page;
   const send = (msg: object) => page.evaluate((m) => chrome.runtime.sendMessage(m), msg) as Promise<Record<string, unknown>>;
@@ -166,7 +166,7 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 2 worker'
   });
 });
 
-describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain dump and vault', () => {
+describe('rust port: phase 3 brain dump and vault', () => {
   let ext: Ext;
   const DUMPS = 'src/pages/dumps/index.html';
 
@@ -210,12 +210,11 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain d
     await page.close();
   });
 
-  it('the vault is byte-compatible with the TypeScript one, both ways', async () => {
-    // TypeScript makes the vault and seals an entry...
-    const ts = await import('../src/shared/vault');
-    const { vault, recoveryCode } = await ts.createVault('correct horse');
-    const entry = { text: 'made by TypeScript', bullets: ['A bullet from TS.'], createdAt: Date.now() - 60_000 };
-    await seed(ext, { vault, lockedDumps: [await ts.sealEntry(vault.publicKey, entry, 'ts-1')], dumps: [] });
+  it('opens a vault the TypeScript build made, and seals into it', async () => {
+    // Made and sealed by the TypeScript implementation before it was deleted
+    // (e2e/fixtures/ts-vault.json): profiles carry such vaults, so they must keep opening.
+    const { vault, lockedDumps, recoveryCode } = TS_VAULT;
+    await seed(ext, { vault, lockedDumps, dumps: [] });
 
     // ...Rust opens it with the passphrase...
     const page = await ext.page(DUMPS);
@@ -238,17 +237,14 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain d
     await expect.poll(() => again.locator('.dumps-bullets li').count(), { timeout: 20_000 }).toBe(1);
     await again.close();
 
-    // Rust seals a new dump into that vault, and TypeScript opens it.
+    // Rust seals a new dump into that vault; the next test opens both.
     await mockClaude(ext, () => '- Rust sealed this.');
     await seed(ext, { settings: { claudeKey: 'sk-e2e' } });
     const tab = await ext.page(PAGES.newtab);
     await tab.getByLabel('Empty your head here').fill('written in the Rust build');
     await tab.getByLabel('Empty your head here').press('Meta+Enter');
     await expect.poll(() => tab.locator('.notebook-count').innerText(), { timeout: 20_000 }).toContain('2 locked');
-    const locked = await storage<{ id: string }[]>(ext, 'lockedDumps');
-    const key = await ts.unlockVault(vault, 'correct horse', 'passphrase');
-    const opened = await ts.openEntry(key, locked.find((d) => d.id !== 'ts-1') as never);
-    expect(opened).toMatchObject({ text: 'written in the Rust build', bullets: ['Rust sealed this.'] });
+    expect(JSON.stringify(await storage(ext, 'lockedDumps'))).not.toContain('written in the Rust build');
     await tab.close();
   });
 
@@ -257,6 +253,8 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain d
     await page.getByLabel('Passphrase').fill('correct horse');
     await page.getByLabel('Passphrase').press('Enter');
     await expect.poll(() => page.locator('.dumps-entry').count(), { timeout: 20_000 }).toBe(2);
+    // Both open with the one passphrase: TypeScript's sealed entry and the Rust one.
+    expect(await page.locator('.dumps-bullets li').allInnerTexts()).toEqual(expect.arrayContaining(['A bullet from TS.', 'Rust sealed this.']));
     await page.locator('.dumps-entry').first().getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Keep' }).click();
     expect(await page.locator('.dumps-entry').count()).toBe(2);

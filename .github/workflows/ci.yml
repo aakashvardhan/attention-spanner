@@ -3,6 +3,8 @@ on:
   push:
   pull_request:
 jobs:
+  # TypeScript that remains: the brain MCP server, the stylesheet guards
+  # (AAA contrast, tokens, motion) and the cut-features guard.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -14,27 +16,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build:e2e
-      - run: npm run test:e2e
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-screenshots
-          path: |
-            e2e/out/
-            e2e/baselines/
-  rust:
+      - run: npm run build:mcp
+  # The extension: Rust compiled to wasm, then the browser suite against it.
+  extension:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,11 +40,12 @@ jobs:
       - run: npm run test:rust
       - run: cd vendor/oxichrome && cargo test --workspace --exclude oxichrome --exclude oxichrome-core
       - run: npx playwright install --with-deps chromium
-      - run: npm run build:rust
-      # Grows as pages are ported; the whole suite at phase 5.
-      - run: npm run test:e2e:rust
+      - run: npm run build:ext
+      - run: npm run test:e2e
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rust-e2e-screenshots
-          path: e2e/out/
+          name: e2e-screenshots
+          path: |
+            e2e/out/
+            e2e/baselines/

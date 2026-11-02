@@ -2,7 +2,7 @@ import { readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import fc from 'fast-check';
 import { afterEach, describe, expect, it } from 'vitest';
-import { FC } from '../../src/shared/brain/testing';
+import { FC } from './lib/testing';
 import { testServer } from './testServer';
 
 let t: Awaited<ReturnType<typeof testServer>>;

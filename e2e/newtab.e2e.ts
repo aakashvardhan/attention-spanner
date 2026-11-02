@@ -23,6 +23,20 @@ describe('new tab: Now / Continue reading', () => {
     });
   });
 
+  it('loads neither pdf.js nor KaTeX: the reader fetches them on first use', async () => {
+    const loaded: string[] = [];
+    const record = (r: { url(): string }) => loaded.push(r.url());
+    ext.ctx.on('request', record);
+    const page = await ext.page(PAGES.newtab);
+    await page.locator('.continue-paper').waitFor();
+    ext.ctx.off('request', record);
+    // The bridges themselves load (every page shares the wasm module that imports them)...
+    expect(loaded.some((u) => u.endsWith('/pdf-bridge.mjs'))).toBe(true);
+    // ...but not what they bridge to.
+    expect(loaded.filter((u) => /\/(pdfjs|katex)\//.test(u))).toEqual([]);
+    await page.close();
+  });
+
   it('two columns at 1280px: brain dump and heatmap beside Continue reading', async () => {
     const page = await ext.page(PAGES.newtab);
     const now = await page.locator('.edition > .now-col').boundingBox();
