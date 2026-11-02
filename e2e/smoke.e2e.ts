@@ -14,7 +14,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
   beforeEach(() => void ext.errors.splice(0));
 
   // The Rust build joins page by page as each is ported.
-  const RUST_PAGES = ['options', 'blocked', 'newtab'];
+  const RUST_PAGES = ['options', 'blocked', 'newtab', 'reader'];
   const rust = Boolean(process.env.DIST?.includes('rust'));
   const pageTest = (name: string) => (rust && !RUST_PAGES.includes(name) ? it.skip : it);
   for (const [name, path] of Object.entries(PAGES).filter(([n]) => !rust || RUST_PAGES.includes(n))) {

@@ -13,6 +13,7 @@ pub mod claude;
 pub mod clicked_word;
 pub mod constants;
 pub mod figures;
+pub mod find;
 pub mod focus_rules;
 pub mod format;
 pub mod mcp;

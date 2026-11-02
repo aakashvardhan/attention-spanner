@@ -184,8 +184,8 @@ describe.skipIf(!process.env.DIST?.includes('rust'))('rust port: phase 3 brain d
     await box.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
     const bullets = page.locator('.notebook-bullets li');
     await expect.poll(() => bullets.allInnerTexts()).toEqual(['Work feels heavy today.', 'That is a feeling, not a verdict.']);
-    // Parked in the clear until setup finishes.
-    expect((await storage<{ text: string }[]>(ext, 'dumps'))[0].text).toBe('work is too much and I am behind');
+    // Parked in the clear until setup finishes. Bullets show while Haiku streams, before the save: wait for it.
+    await expect.poll(async () => (await storage<{ text: string }[]>(ext, 'dumps'))[0]?.text).toBe('work is too much and I am behind');
 
     await page.getByLabel('Passphrase', { exact: true }).fill('correct horse');
     await page.getByLabel('Passphrase again').fill('correct horse');

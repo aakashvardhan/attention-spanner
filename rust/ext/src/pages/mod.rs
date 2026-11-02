@@ -6,6 +6,7 @@ pub mod blocked;
 pub mod dumps;
 pub mod newtab;
 pub mod options;
+pub mod reader;
 
 use crate::chrome;
 use crate::js::{from_js, to_js, wait};

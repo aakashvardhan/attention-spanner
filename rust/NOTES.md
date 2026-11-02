@@ -161,3 +161,31 @@ TypeScript screenshot baselines; 35 browser tests run on the Rust build.
 7. **Borrows in a tail expression** (`with_dump_lock`): the compiler error
    E0597 there is because a temporary in the last expression lives until the
    end of the block, after `out` is gone. Binding it to a variable first fixes it.
+
+## Phase 4a: the reader (`rust/ext/src/pages/reader`, `rust/ext/js/pdf-bridge.mjs`)
+
+pdf.js stays JavaScript behind a bridge of plain functions; Rust decides
+everything about what comes back. 43 browser tests on the Rust build,
+including pinch-zoom geometry and scanned pages.
+
+1. **Binding a JS module** (`pdfjs.rs`, `#[wasm_bindgen(module = "/js/pdf-bridge.mjs")]`).
+   wasm-bindgen copies the file into the build as a snippet and imports it.
+   The pdf.js document is an opaque `JsValue` Rust holds but never opens.
+2. **Values that are not `Send`.** Leptos signals normally require
+   `Send + Sync`; a `JsValue` is neither. `StoredValue::new_local` and
+   `RwSignal::new_local` are the single-threaded variants, fine in wasm.
+3. **Observers from Rust** (`viewport.rs`). `ResizeObserver` and
+   `IntersectionObserver` take a JS callback: a `Closure` built in Rust,
+   `.forget()`-ed because the observer owns it for the page's life. The bug
+   to read: observers that queried for pages once missed pages that mounted
+   later; each page now registers itself when it mounts.
+4. **Effect ordering** (the pinch fix). A user `Effect` can run before the
+   reactive `style:` update of the same change lands, so the browser saw the
+   old list width and clamped `scrollLeft`. The instrumented log showed
+   it; the effect now writes the new size itself before scrolling.
+5. **Non-passive listeners.** Stopping the browser's own zoom needs
+   `addEventListener('wheel', f, { passive: false })`, built with
+   `AddEventListenerOptions` rather than Leptos's `on:wheel`.
+6. **Copy closures.** A closure that captures a `String` can be called once
+   if it moves it. Holding the string in a `StoredValue` (itself `Copy`)
+   makes the closure `Copy`, so it can be shared by several handlers.

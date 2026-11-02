@@ -1,7 +1,9 @@
 //! In-text figure and table mentions and their captions
 //! (src/pages/reader/figures.ts, the pure half; walking pdf.js text stays in the reader).
 
+use crate::pdf::PdfPosition;
 use regex::Regex;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 /// "Figure 3", "Fig. 3", "Figs. 3", "Table 2", "Tab. 7".
@@ -51,6 +53,61 @@ pub fn caption_key(line: &str) -> Option<Caption> {
     })
 }
 
+/// Where each caption is, from every page's text lines: (line text, 0-1 down
+/// the page of its first item). A colon caption beats a full-stop one for the
+/// same figure; otherwise the first wins.
+pub fn captions_from_lines(pages: &[Vec<(String, f64)>]) -> HashMap<String, PdfPosition> {
+    let mut found: HashMap<String, (PdfPosition, bool)> = HashMap::new();
+    for (i, lines) in pages.iter().enumerate() {
+        for (line, y) in lines {
+            let Some(c) = caption_key(line) else { continue };
+            let pos = PdfPosition {
+                page: i as u32 + 1,
+                offset: y.clamp(0.0, 1.0),
+            };
+            match found.get(&c.key) {
+                Some((_, strong)) if *strong || !c.strong => {}
+                _ => {
+                    found.insert(c.key, (pos, c.strong));
+                }
+            }
+        }
+    }
+    found.into_iter().map(|(k, (p, _))| (k, p)).collect()
+}
+
+/// A run of text cut into plain text and mentions of known figures, so the
+/// reader can wrap the mentions in place (characters unchanged).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Segment {
+    Text(String),
+    Ref { key: String, text: String },
+}
+
+pub fn split_mentions(text: &str, known: &HashSet<String>) -> Vec<Segment> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    for c in MENTION_RE.captures_iter(text) {
+        let key = mention_key(&c[1], &c[2]);
+        if !known.contains(&key) {
+            continue;
+        }
+        let m = c.get(0).unwrap();
+        if m.start() > pos {
+            out.push(Segment::Text(text[pos..m.start()].to_string()));
+        }
+        out.push(Segment::Ref {
+            key,
+            text: m.as_str().to_string(),
+        });
+        pos = m.end();
+    }
+    if pos < text.len() {
+        out.push(Segment::Text(text[pos..].to_string()));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +152,65 @@ mod tests {
         assert_eq!(
             mentions("see Figure 3, Fig. 4, Figs. 5 and Table 2 (Tab. 7)"),
             ["figure:3", "figure:4", "figure:5", "table:2", "table:7"]
+        );
+    }
+
+    #[test]
+    fn captions_from_lines_prefers_the_colon_form_then_the_first() {
+        let pages = vec![
+            vec![
+                ("as shown in".to_string(), 0.1),
+                ("Figure 3. A sentence that ends here".to_string(), 0.2),
+            ],
+            vec![
+                ("Figure 3: The real caption".to_string(), 0.6),
+                ("Table 1: Results".to_string(), 1.4),
+            ],
+            vec![("Table 1: Again".to_string(), 0.3)],
+        ];
+        let found = captions_from_lines(&pages);
+        assert_eq!(
+            found["figure:3"],
+            PdfPosition {
+                page: 2,
+                offset: 0.6
+            }
+        );
+        assert_eq!(
+            found["table:1"],
+            PdfPosition {
+                page: 2,
+                offset: 1.0
+            }
+        );
+    }
+
+    #[test]
+    fn split_mentions_wraps_only_known_figures_keeping_every_character() {
+        let known: HashSet<String> = ["figure:3".to_string()].into();
+        let text = "see Figure 3, and Table 9 too";
+        let parts = split_mentions(text, &known);
+        assert_eq!(
+            parts,
+            vec![
+                Segment::Text("see ".into()),
+                Segment::Ref {
+                    key: "figure:3".into(),
+                    text: "Figure 3".into()
+                },
+                Segment::Text(", and Table 9 too".into()),
+            ]
+        );
+        let joined: String = parts
+            .iter()
+            .map(|p| match p {
+                Segment::Text(t) | Segment::Ref { text: t, .. } => t.as_str(),
+            })
+            .collect();
+        assert_eq!(joined, text);
+        assert_eq!(
+            split_mentions("nothing here", &known),
+            vec![Segment::Text("nothing here".into())]
         );
     }
 

@@ -15,4 +15,8 @@ const walk = (dir) =>
   });
 for (const css of walk('src')) cpSync(css, join(out, 'assets', basename(css)));
 // Hand-written JS the crate ships as is (the worker's synchronous listeners).
-cpSync('rust/ext/js', out, { recursive: true });
+cpSync('rust/ext/js/worker.js', join(out, 'worker.js'));
+// pdf.js, unmodified: the library, its worker, and the wasm decoders for scanned pages.
+mkdirSync(join(out, 'pdfjs'), { recursive: true });
+for (const f of ['build/pdf.min.mjs', 'build/pdf.worker.min.mjs', 'wasm/jbig2.wasm', 'wasm/openjpeg.wasm', 'wasm/qcms_bg.wasm'])
+  cpSync(join('node_modules/pdfjs-dist', f), join(out, 'pdfjs', basename(f)));

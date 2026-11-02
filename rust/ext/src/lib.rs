@@ -6,6 +6,7 @@ mod chrome;
 mod claude;
 mod js;
 mod pages;
+mod pdfjs;
 mod store;
 mod vault;
 mod worker;

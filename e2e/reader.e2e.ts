@@ -83,6 +83,9 @@ function makeScannedPdf(): Buffer {
   return Buffer.concat(parts);
 }
 
+// Click-to-define lands in the Rust build with phase 4b.
+const defineTest = process.env.DIST?.includes('rust') ? it.skip : it;
+
 describe('reader: key terms, reading session, PDF plumbing', () => {
   let ext: Ext;
   let claude: Awaited<ReturnType<typeof mockClaude>>;
@@ -115,7 +118,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await ext?.close();
   });
 
-  it('asks for a guess before defining, and Haiku defines the term', async () => {
+  defineTest('asks for a guess before defining, and Haiku defines the term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
@@ -152,7 +155,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.close();
   });
 
-  it('offers to keep a definition as a note on the clicked term', async () => {
+  defineTest('offers to keep a definition as a note on the clicked term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
     const clickWord = async (word: string, line: number) => {
