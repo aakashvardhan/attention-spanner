@@ -1,6 +1,8 @@
 //! Highlights and sticky notes (src/shared/annotations.ts): turning a
 //! selection's client rects into page fractions, and reading order.
 
+use crate::constants::{ANNOTATION_TEXT_MAX_CHARS, MAX_ANNOTATIONS};
+use crate::messages::{AnnotationDraft, AnnotationPatch};
 use crate::papers::paper_match_key;
 use crate::types::{Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind, AnnotationRect};
 use std::cmp::Ordering;
@@ -152,6 +154,102 @@ pub fn sort_annotations(list: &[Annotation]) -> Vec<Annotation> {
     out
 }
 
+fn truncate(s: &str) -> String {
+    s.chars().take(ANNOTATION_TEXT_MAX_CHARS).collect()
+}
+
+/// A draft is only usable if its anchor can locate something.
+fn anchor_problem(draft: &AnnotationDraft) -> Option<&'static str> {
+    match &draft.anchor {
+        AnnotationAnchor::Pdf { page, .. } if *page < 1 => Some("Invalid page number."),
+        AnnotationAnchor::Pdf { rects, .. }
+            if draft.kind == AnnotationKind::Highlight && rects.is_empty() =>
+        {
+            Some("Highlight has no selection rects.")
+        }
+        AnnotationAnchor::Text { quote, .. }
+            if draft.kind == AnnotationKind::Highlight && quote.trim().is_empty() =>
+        {
+            Some("Highlight has no quoted text.")
+        }
+        _ => None,
+    }
+}
+
+/// The worker's writes (src/background/annotations.ts) as list transforms:
+/// the list in, the new list (and the made record) out, or why not.
+pub fn add_annotation(
+    list: &[Annotation],
+    draft: AnnotationDraft,
+    id: String,
+    now: i64,
+) -> Result<(Vec<Annotation>, Annotation), String> {
+    if draft.doc_key.is_empty() {
+        return Err("Annotation has no document key.".into());
+    }
+    if let Some(problem) = anchor_problem(&draft) {
+        return Err(problem.into());
+    }
+    if list.len() >= MAX_ANNOTATIONS {
+        return Err(format!("Annotation limit reached ({MAX_ANNOTATIONS})."));
+    }
+    let mut annotation = draft.into_annotation(id, now);
+    annotation.text = truncate(&annotation.text);
+    annotation.note = truncate(&annotation.note);
+    let mut next = list.to_vec();
+    next.push(annotation.clone());
+    Ok((next, annotation))
+}
+
+pub fn update_annotation(
+    list: &[Annotation],
+    id: &str,
+    patch: AnnotationPatch,
+    now: i64,
+) -> Result<Vec<Annotation>, String> {
+    let mut next = list.to_vec();
+    let a = next
+        .iter_mut()
+        .find(|a| a.id == id)
+        .ok_or("Annotation not found.")?;
+    if let Some(note) = patch.note {
+        a.note = truncate(&note);
+    }
+    if let Some(color) = patch.color {
+        a.color = color;
+    }
+    if patch.tag.is_some() {
+        a.tag = patch.tag;
+    }
+    a.updated_at = now;
+    Ok(next)
+}
+
+/// Move a sticky pin; PDF-anchored only.
+pub fn move_annotation(
+    list: &[Annotation],
+    id: &str,
+    x: f64,
+    y: f64,
+    now: i64,
+) -> Result<Vec<Annotation>, String> {
+    let mut next = list.to_vec();
+    let a = next
+        .iter_mut()
+        .find(|a| a.id == id)
+        .ok_or("Annotation not found.")?;
+    let AnnotationAnchor::Pdf { x: ax, y: ay, .. } = &mut a.anchor else {
+        return Err("Not a positioned annotation.".into());
+    };
+    (*ax, *ay) = (x, y);
+    a.updated_at = now;
+    Ok(next)
+}
+
+pub fn delete_annotation(list: &[Annotation], id: &str) -> Vec<Annotation> {
+    list.iter().filter(|a| a.id != id).cloned().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +397,137 @@ mod tests {
             annotation_offset(&base("t", AnnotationKind::Highlight, text(3))),
             0.0
         );
+    }
+
+    fn draft(kind: AnnotationKind, anchor: AnnotationAnchor) -> AnnotationDraft {
+        AnnotationDraft {
+            tag: None,
+            doc_key: "arxiv:1".into(),
+            doc_url: "u".into(),
+            paper_id: None,
+            kind,
+            anchor,
+            text: "t".into(),
+            color: AnnotationColor::Yellow,
+            note: String::new(),
+        }
+    }
+
+    #[test]
+    fn add_validates_the_anchor_and_the_limit_and_truncates() {
+        let ok = draft(
+            AnnotationKind::Highlight,
+            pdf(1, vec![r(0.0, 0.0, 0.1, 0.1)], 0.0),
+        );
+        let (list, made) = add_annotation(
+            &[],
+            AnnotationDraft {
+                note: "n".repeat(900),
+                ..ok.clone()
+            },
+            "id1".into(),
+            5,
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                list.len(),
+                made.id.as_str(),
+                made.created_at,
+                made.note.chars().count()
+            ),
+            (1, "id1", 5, 500)
+        );
+        assert_eq!(
+            add_annotation(
+                &[],
+                AnnotationDraft {
+                    doc_key: String::new(),
+                    ..ok.clone()
+                },
+                "x".into(),
+                0
+            )
+            .unwrap_err(),
+            "Annotation has no document key."
+        );
+        assert_eq!(
+            add_annotation(
+                &[],
+                draft(
+                    AnnotationKind::Highlight,
+                    pdf(0, vec![r(0.0, 0.0, 0.1, 0.1)], 0.0)
+                ),
+                "x".into(),
+                0
+            )
+            .unwrap_err(),
+            "Invalid page number."
+        );
+        assert_eq!(
+            add_annotation(
+                &[],
+                draft(AnnotationKind::Highlight, pdf(1, vec![], 0.0)),
+                "x".into(),
+                0
+            )
+            .unwrap_err(),
+            "Highlight has no selection rects."
+        );
+        assert!(add_annotation(
+            &[],
+            draft(AnnotationKind::Sticky, pdf(1, vec![], 0.5)),
+            "x".into(),
+            0
+        )
+        .is_ok());
+        let full = vec![made; MAX_ANNOTATIONS];
+        assert_eq!(
+            add_annotation(&full, ok, "x".into(), 0).unwrap_err(),
+            "Annotation limit reached (2000)."
+        );
+    }
+
+    #[test]
+    fn update_move_and_delete() {
+        let (list, _) = add_annotation(
+            &[],
+            draft(AnnotationKind::Sticky, pdf(1, vec![], 0.5)),
+            "a".into(),
+            1,
+        )
+        .unwrap();
+        let list = update_annotation(
+            &list,
+            "a",
+            AnnotationPatch {
+                note: Some("hi".into()),
+                color: Some(AnnotationColor::Blue),
+                tag: None,
+            },
+            2,
+        )
+        .unwrap();
+        assert_eq!(
+            (list[0].note.as_str(), list[0].color, list[0].updated_at),
+            ("hi", AnnotationColor::Blue, 2)
+        );
+        let list = move_annotation(&list, "a", 0.3, 0.7, 3).unwrap();
+        assert!(
+            matches!(list[0].anchor, AnnotationAnchor::Pdf { x, y, .. } if x == 0.3 && y == 0.7)
+        );
+        assert_eq!(
+            update_annotation(&list, "nope", AnnotationPatch::default(), 4).unwrap_err(),
+            "Annotation not found."
+        );
+        let text = add_annotation(&[], draft(AnnotationKind::Sticky, text(1)), "t".into(), 1)
+            .unwrap()
+            .0;
+        assert_eq!(
+            move_annotation(&text, "t", 0.1, 0.1, 2).unwrap_err(),
+            "Not a positioned annotation."
+        );
+        assert!(delete_annotation(&list, "a").is_empty());
     }
 
     #[test]

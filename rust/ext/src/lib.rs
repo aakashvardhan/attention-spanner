@@ -4,6 +4,11 @@
 
 use leptos::prelude::*;
 
+mod chrome;
+mod js;
+mod store;
+mod worker;
+
 #[oxichrome::extension(
     name = "Reader",
     version = "1.0.0",
@@ -12,11 +17,6 @@ use leptos::prelude::*;
     host_permissions = ["<all_urls>"]
 )]
 struct Reader;
-
-#[oxichrome::background]
-async fn start() {
-    oxichrome::log!("[{}] service worker up (Rust)", reader_core::APP_NAME);
-}
 
 /// Phase 0's only page: proves a Leptos component mounts on the new tab with
 /// the shared stylesheets. Replaced by the real new tab in phase 3.

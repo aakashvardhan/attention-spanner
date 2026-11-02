@@ -20,7 +20,7 @@
     "check": "npm run typecheck && npm test && npm run test:rust && npm run build:e2e && npm run test:e2e && npm run build:rust && npm run test:e2e:rust",
     "check:fast": "npm run typecheck && npm test && npm run test:rust",
     "prepare": "git config core.hooksPath .githooks",
-    "test:e2e:rust": "DIST=rust/ext/dist/chromium vitest run --config vitest.e2e.config.ts e2e/port.e2e.ts"
+    "test:e2e:rust": "DIST=rust/ext/dist/chromium PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1 vitest run --config vitest.e2e.config.ts e2e/port.e2e.ts e2e/port-migration.e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

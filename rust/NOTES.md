@@ -103,3 +103,33 @@ Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported
    change state each call.
 4. **Ranges as sets** (`(FOCUS_DNR_ID_BASE..FOCUS_DNR_ID_LIMIT).contains(&id)`)
    read as the half-open interval they are.
+
+## Phase 2: the background worker (`rust/ext/src/worker`, `rust/ext/js/worker.js`)
+
+`npm run test:e2e:rust`: 11 browser tests drive the Rust worker for real.
+
+1. **Why a hand-written `worker.js`.** MV3 only delivers the event that woke
+   the worker to listeners registered in its first turn; `init()` (loading
+   wasm) is async, so Rust can't register them in time. The JS registers all
+   of them synchronously and forwards each to an exported `async fn`. An
+   `async fn` with `#[wasm_bindgen]` becomes a JS function returning a Promise.
+2. **Binding JS from Rust** (`chrome.rs`). `extern "C"` blocks declare JS
+   functions; `js_namespace = ["chrome", "tabs"]` names where they live;
+   `catch` makes a synchronous JS throw an `Err`. `JsFuture::from(promise).await`
+   (in `js::wait`) turns a JS Promise into a Rust future.
+3. **serde across the boundary** (`js.rs`). `serde_wasm_bindgen` converts Rust
+   values to JS ones; `Serializer::json_compatible()` is essential, because
+   the default turns maps into JS `Map`s, which `chrome.storage` silently stores as `{}`.
+4. **Single-threaded shared state** (`alphaxiv.rs`, `thread_local!` +
+   `RefCell`). wasm has one thread, so "thread local" is "global to the worker".
+   `RefCell` checks borrows at runtime instead of compile time. The in-flight
+   token refresh is stored as a JS `Promise` (`future_to_promise`) so a second
+   caller awaits the same one: alphaXiv's refresh tokens are single-use.
+5. **A protocol client from scratch** (`reader_core::mcp` + `worker/alphaxiv.rs`).
+   MCP is JSON-RPC over HTTP: `initialize`, keep the `mcp-session-id` header,
+   `notifications/initialized`, then `tools/call`; replies come as JSON or as a
+   server-sent event stream. The parsing is pure and tested natively; the
+   e2e test runs the real thing against a mock server, 401 and refresh included.
+6. **Recursion in async code** (`Box::pin(call_once(..)).await`). An `async fn`
+   that calls itself would have an infinitely sized future; boxing it gives
+   the recursive call a fixed-size pointer.

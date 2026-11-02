@@ -1,0 +1,213 @@
+//! The reading session (src/background/focus.ts + accessRules.ts): while a
+//! reader tab is open, the blocklist redirects to the blocked page. Storage
+//! (`focusSession`) is the truth; DNR session rules are rebuilt from it.
+
+use crate::chrome;
+use crate::js::{from_js, local_date, now, to_js, wait, Res};
+use crate::store;
+use reader_core::activity::{add_activity, ActivityEvent, ActivityLog};
+use reader_core::constants::{
+    BLOCKED_PAGE_PATH, DAILY_GATE_DNR_ID, FOCUS_DNR_ID_BASE, FOCUS_DNR_ID_LIMIT, READER_PAGE_PATH,
+};
+use reader_core::focus_rules::{
+    build_session_access_rules, is_blocked_host, is_owned_session_rule, with_reader_tab,
+    without_reader_tab,
+};
+use reader_core::types::FocusSession;
+use serde::Deserialize;
+use serde_json::json;
+
+#[derive(Deserialize)]
+struct Rule {
+    id: i64,
+}
+
+#[derive(Deserialize)]
+struct Tab {
+    id: Option<i32>,
+    url: Option<String>,
+    #[serde(rename = "windowId")]
+    window_id: Option<i32>,
+}
+
+fn blocked_page_url() -> String {
+    chrome::get_url(BLOCKED_PAGE_PATH)
+}
+
+pub fn is_reader_url(url: &str) -> bool {
+    url.starts_with(&chrome::get_url(READER_PAGE_PATH))
+}
+
+/// Fold one event into the heatmap log; the worker is its only writer.
+pub async fn log_activity(event: ActivityEvent) -> Res<()> {
+    let log: ActivityLog = store::get("activity").await?;
+    if let Some(next) = add_activity(&log, &event, local_date(now())) {
+        store::set("activity", &next).await?;
+    }
+    Ok(())
+}
+
+/// Rebuild the session rules in one atomic update; one retry, since startup,
+/// install and a page message can reconcile at the same moment.
+pub async fn sync_session_access_rules() -> Res<()> {
+    let mut last = Ok(());
+    for _ in 0..2 {
+        let session: Option<FocusSession> = store::get("focusSession").await?;
+        let settings = store::settings().await?;
+        let existing: Vec<Rule> = from_js(wait(chrome::dnr_get_session_rules()).await?)?;
+        let remove: Vec<i64> = existing
+            .iter()
+            .map(|r| r.id)
+            .filter(|id| is_owned_session_rule(*id))
+            .collect();
+        let add = build_session_access_rules(
+            session.as_ref(),
+            &settings.focus_blocklist,
+            &blocked_page_url(),
+        );
+        last = wait(chrome::dnr_update_session_rules(&to_js(
+            &json!({ "removeRuleIds": remove, "addRules": add }),
+        )?))
+        .await
+        .map(drop);
+        if last.is_ok() {
+            break;
+        }
+    }
+    last
+}
+
+/// The retired daily gate's dynamic rules survive updates; sweep them on every start.
+pub async fn remove_legacy_daily_gate_rule() -> Res<()> {
+    let rules: Vec<Rule> = from_js(wait(chrome::dnr_get_dynamic_rules()).await?)?;
+    let remove: Vec<i64> = rules
+        .iter()
+        .map(|r| r.id)
+        .filter(|&id| {
+            id == DAILY_GATE_DNR_ID || (FOCUS_DNR_ID_BASE..FOCUS_DNR_ID_LIMIT).contains(&id)
+        })
+        .collect();
+    if !remove.is_empty() {
+        wait(chrome::dnr_update_dynamic_rules(&to_js(
+            &json!({ "removeRuleIds": remove }),
+        )?))
+        .await?;
+    }
+    Ok(())
+}
+
+/// An already-open blocked tab would defeat the point.
+pub async fn redirect_open_blocked_tabs(domains: &[String]) -> Res<()> {
+    let tabs: Vec<Tab> = from_js(
+        wait(chrome::tabs_query(&to_js(
+            &json!({ "url": ["http://*/*", "https://*/*"] }),
+        )?))
+        .await?,
+    )?;
+    for tab in tabs {
+        let (Some(id), Some(url)) = (tab.id, tab.url) else {
+            continue;
+        };
+        let Ok(parsed) = url::Url::parse(&url) else {
+            continue;
+        };
+        if is_blocked_host(parsed.host_str().unwrap_or(""), domains) {
+            let target = format!("{}#{url}", blocked_page_url());
+            wait(chrome::tabs_update(id, &to_js(&json!({ "url": target }))?)).await?;
+        }
+    }
+    Ok(())
+}
+
+/// A reader page announced itself; the first one starts the session.
+pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    let starting = session.is_none();
+    store::set(
+        "focusSession",
+        &with_reader_tab(session, tab_id, title, now()),
+    )
+    .await?;
+    sync_session_access_rules().await?;
+    if starting {
+        redirect_open_blocked_tabs(&store::settings().await?.focus_blocklist).await?;
+    }
+    Ok(())
+}
+
+/// A reader tab closed or left; the last one ends the session.
+pub async fn reader_closed(tab_id: i32) -> Res<()> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    let Some(current) = session.filter(|s| s.tab_ids.contains(&tab_id)) else {
+        return Ok(());
+    };
+    let started = current.started_at;
+    let next = without_reader_tab(Some(current), tab_id);
+    store::set("focusSession", &next).await?;
+    if next.is_none() {
+        // A finished session is the heatmap's "focus" square, and its minutes.
+        log_activity(ActivityEvent::Focus).await?;
+        log_activity(ActivityEvent::Clocked(
+            ((now() - started) / 60_000).max(0) as u32
+        ))
+        .await?;
+    }
+    sync_session_access_rules().await
+}
+
+/// "Back to your paper": bring the last reader tab forward.
+pub async fn focus_reader() -> Res<bool> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    let Some(tab_id) = session.and_then(|s| s.tab_ids.last().copied()) else {
+        return Ok(false);
+    };
+    let Ok(tab) = wait(chrome::tabs_update(
+        tab_id,
+        &to_js(&json!({ "active": true }))?,
+    ))
+    .await
+    else {
+        return Ok(false);
+    };
+    if let Some(window) = from_js::<Tab>(tab).ok().and_then(|t| t.window_id) {
+        wait(chrome::windows_update(
+            window,
+            &to_js(&json!({ "focused": true }))?,
+        ))
+        .await?;
+    }
+    Ok(true)
+}
+
+/// Startup: tab ids do not survive a restart, so drop every id that is no
+/// longer an open reader tab. Rules never outlive state.
+pub async fn reconcile_on_startup() -> Res<()> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    let mut next = session.clone();
+    for id in session.iter().flat_map(|s| s.tab_ids.clone()) {
+        let alive = match wait(chrome::tabs_get(id)).await {
+            Ok(tab) => from_js::<Tab>(tab)
+                .ok()
+                .and_then(|t| t.url)
+                .is_some_and(|u| is_reader_url(&u)),
+            Err(_) => false,
+        };
+        if !alive {
+            next = without_reader_tab(next, id);
+        }
+    }
+    if next != session {
+        store::set("focusSession", &next).await?;
+    }
+    sync_session_access_rules().await
+}
+
+/// The blocklist was edited mid-session.
+pub async fn refresh_focus_rules(blocklist: &[String]) -> Res<()> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    if session.is_some() {
+        sync_session_access_rules().await?;
+        redirect_open_blocked_tabs(blocklist).await?;
+    }
+    Ok(())
+}

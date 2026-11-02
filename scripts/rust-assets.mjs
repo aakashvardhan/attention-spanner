@@ -14,3 +14,5 @@ const walk = (dir) =>
     return statSync(p).isDirectory() ? walk(p) : p.endsWith('.css') ? [p] : [];
   });
 for (const css of walk('src')) cpSync(css, join(out, 'assets', basename(css)));
+// Hand-written JS the crate ships as is (the worker's synchronous listeners).
+cpSync('rust/ext/js', out, { recursive: true });

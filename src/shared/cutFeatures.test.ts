@@ -47,6 +47,8 @@ const SKIP = new Set([
   'src/shared/storage.test.ts',
   'src/background/alarms.test.ts',
   'src/shared/cutFeatures.test.ts',
+  // Seeds a legacy profile for the Rust migration, so it names dead keys.
+  'e2e/port-migration.e2e.ts',
   // Asserts the retired theme blocks are absent, so it names them.
   'src/shared/theme.test.ts',
 ]);

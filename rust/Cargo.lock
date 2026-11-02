@@ -1120,11 +1120,17 @@ dependencies = [
 name = "reader-ext"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "leptos",
  "oxichrome",
  "reader-core",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
