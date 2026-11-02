@@ -16,6 +16,7 @@ pub mod figures;
 pub mod find;
 pub mod focus_rules;
 pub mod format;
+pub mod markdown;
 pub mod mcp;
 pub mod messages;
 pub mod migrations;

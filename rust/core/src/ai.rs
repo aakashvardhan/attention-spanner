@@ -2,7 +2,9 @@
 //! (src/shared/llm/route.ts, terms.ts, generate.ts's request shape).
 //! Haiku is the only writer; alphaXiv supplies the passages.
 
-use crate::constants::CLAUDE_MODEL_QUICK;
+use crate::constants::{AI_CACHE_MAX_ENTRIES, CLAUDE_MODEL_QUICK};
+use crate::types::AiCacheEntry;
+use std::collections::HashMap;
 
 /// For prompts whose answer renders as Markdown: math KaTeX can draw.
 pub const MATH_RULE: &str = " Write any math as LaTeX: $…$ inline, $$…$$ on its own line.";
@@ -90,6 +92,29 @@ pub fn define_request(key: &str, word: &str, context: &str, near: &str) -> AiReq
     }
 }
 
+/// The `aiCache` storage key: `task:cacheKey` → the answer.
+pub type AiCache = HashMap<String, AiCacheEntry>;
+
+/// A saved answer; one from a model target that no longer exists is a miss.
+pub fn cache_hit<'a>(cache: &'a AiCache, key: &str) -> Option<&'a AiCacheEntry> {
+    cache.get(key).filter(|e| e.target == "claude")
+}
+
+/// Save an answer, dropping the oldest past the cap.
+pub fn cache_put(cache: &mut AiCache, key: String, entry: AiCacheEntry) {
+    cache.insert(key, entry);
+    while cache.len() > AI_CACHE_MAX_ENTRIES {
+        let Some(oldest) = cache
+            .iter()
+            .min_by_key(|(_, e)| e.at)
+            .map(|(k, _)| k.clone())
+        else {
+            break;
+        };
+        cache.remove(&oldest);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +156,27 @@ mod tests {
         let a = define_request("doc", "TD", "c", "use TD learning");
         let b = define_request("doc", "TD", "c", "the TD error");
         assert_ne!(a.cache_key, b.cache_key);
+    }
+
+    fn entry(at: i64, target: &str) -> AiCacheEntry {
+        AiCacheEntry {
+            text: format!("t{at}"),
+            target: target.into(),
+            model: "m".into(),
+            at,
+        }
+    }
+
+    #[test]
+    fn the_cache_keeps_the_newest_and_ignores_retired_targets() {
+        let mut cache = AiCache::new();
+        for at in 0..AI_CACHE_MAX_ENTRIES as i64 + 3 {
+            cache_put(&mut cache, format!("k{at}"), entry(at, "claude"));
+        }
+        assert_eq!(cache.len(), AI_CACHE_MAX_ENTRIES);
+        assert!(cache_hit(&cache, "k0").is_none());
+        assert!(cache_hit(&cache, "k3").is_some());
+        cache.insert("old".into(), entry(999, "ollama"));
+        assert!(cache_hit(&cache, "old").is_none());
     }
 }

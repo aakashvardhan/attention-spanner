@@ -20,3 +20,12 @@ cpSync('rust/ext/js/worker.js', join(out, 'worker.js'));
 mkdirSync(join(out, 'pdfjs'), { recursive: true });
 for (const f of ['build/pdf.min.mjs', 'build/pdf.worker.min.mjs', 'wasm/jbig2.wasm', 'wasm/openjpeg.wasm', 'wasm/qcms_bg.wasm'])
   cpSync(join('node_modules/pdfjs-dist', f), join(out, 'pdfjs', basename(f)));
+// KaTeX, unmodified: the module (loaded on first maths), its stylesheet, and the fonts it names relatively.
+mkdirSync(join(out, 'katex'), { recursive: true });
+cpSync('node_modules/katex/dist/katex.mjs', join(out, 'katex', 'katex.mjs'));
+cpSync('node_modules/katex/dist/katex.min.css', join(out, 'assets', 'katex.min.css'));
+// woff2 only (Chrome takes the first source); skip Finder's "name 2.ext" duplicates.
+cpSync('node_modules/katex/dist/fonts', join(out, 'assets', 'fonts'), {
+  recursive: true,
+  filter: (src) => !/ 2\./.test(src) && !/\.(ttf|woff)$/.test(src),
+});

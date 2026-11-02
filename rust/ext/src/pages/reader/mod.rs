@@ -1,17 +1,25 @@
 //! The reader (src/pages/reader/Reader.tsx, PdfReader.tsx).
 
+mod annotate;
+mod define;
 mod ui;
 mod viewport;
 
 use super::{patch_settings, send, use_settings, use_storage};
 use crate::pdfjs::{self, PageSize};
+use annotate::{post, AnnotationLayer, NotesSidebar, SelectionMenu};
+use define::{define_target, pending_selection, DefinePopover, DefineTarget, PendingSelection};
 use leptos::prelude::*;
+use reader_core::annotations::{sort_annotations, DEFAULT_ANNOTATION_COLOR};
 use reader_core::figures::captions_from_lines;
+use reader_core::messages::{AnnotationDraft, Message};
 use reader_core::outline::{heading_for_page, section_index_at, top_level, FlatOutlineItem};
 use reader_core::papers::paper_match_key;
 use reader_core::pdf::{reader_pdf_src, PdfPosition};
 use reader_core::reading_aids::{minutes_left, time_left_label, word_counts};
-use reader_core::types::{Annotation, Paper};
+use reader_core::types::{
+    Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind, AnnotationRect, Paper,
+};
 use serde_json::json;
 use std::collections::HashMap;
 use ui::{FindPanel, OutlineRail, OutlineSidebar, ReaderCapsule, ReaderToolbar};
@@ -24,7 +32,7 @@ const PROGRESS_THROTTLE_MS: i64 = 5_000;
 const IDLE_MS: u64 = 2500;
 const WAKE_ZONE_PX: i32 = 48;
 
-#[oxichrome::page(path = "src/pages/reader/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css"])]
+#[oxichrome::page(path = "src/pages/reader/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css", "assets/aiNote.css", "assets/markdown.css", "assets/katex.min.css"])]
 pub fn Reader() -> impl IntoView {
     // Web-accessible so the PDF redirect can land here; no business inside another site's frame.
     let framed = window()
@@ -83,9 +91,23 @@ fn PdfReader(src: String) -> impl IntoView {
     let src_key = src.clone();
     let paper = Memo::new(move |_| find_paper(&papers.get(), &src_key));
     let doc_key = reader_core::annotations::annotation_doc_key(&src);
-    let annotation_count = Signal::derive(move || {
-        annotations.with(|a| a.iter().filter(|x| x.doc_key == doc_key).count())
-    });
+    // Only page-anchored ones: an article annotation colliding on the key has no page box.
+    let doc_annotations = {
+        let doc_key = doc_key.clone();
+        Memo::new(move |_| {
+            annotations.with(|all| {
+                let mine: Vec<Annotation> = all
+                    .iter()
+                    .filter(|a| {
+                        a.doc_key == doc_key && matches!(a.anchor, AnnotationAnchor::Pdf { .. })
+                    })
+                    .cloned()
+                    .collect();
+                sort_annotations(&mine)
+            })
+        })
+    };
+    let annotation_count = Signal::derive(move || doc_annotations.with(Vec::len));
 
     {
         let src = src.clone();
@@ -139,6 +161,126 @@ fn PdfReader(src: String) -> impl IntoView {
     });
 
     let page_count = Signal::derive(move || sizes.with(Vec::len) as u32);
+
+    // Annotations: the active one's popover, a selection waiting for a colour, a clicked term.
+    let active = RwSignal::new(None::<String>);
+    let pending = RwSignal::new(None::<PendingSelection>);
+    let define = RwSignal::new(None::<DefineTarget>);
+    let draft_base = {
+        let (doc_key, src) = (doc_key.clone(), src.clone());
+        StoredValue::new(
+            move |kind: AnnotationKind, page: u32, rects: Vec<AnnotationRect>, x: f64, y: f64| {
+                AnnotationDraft {
+                    tag: None,
+                    doc_key: doc_key.clone(),
+                    doc_url: src.clone(),
+                    paper_id: paper.get_untracked().map(|p| p.id),
+                    kind,
+                    anchor: AnnotationAnchor::Pdf { page, rects, x, y },
+                    text: String::new(),
+                    color: DEFAULT_ANNOTATION_COLOR,
+                    note: String::new(),
+                }
+            },
+        )
+    };
+    let create_highlight = move |page: u32,
+                                 rects: Vec<AnnotationRect>,
+                                 text: String,
+                                 color: AnnotationColor,
+                                 note: String| {
+        let draft = AnnotationDraft {
+            text,
+            color,
+            note,
+            ..draft_base.with_value(|d| d(AnnotationKind::Highlight, page, rects, 0.0, 0.0))
+        };
+        post(Message::AnnotAdd { draft });
+    };
+    let place_sticky = Callback::new(move |(page, x, y): (u32, f64, f64)| {
+        note_mode.set(false);
+        let draft = draft_base.with_value(|d| d(AnnotationKind::Sticky, page, vec![], x, y));
+        let Ok(msg) = serde_json::to_value(Message::AnnotAdd { draft }) else {
+            return;
+        };
+        leptos::task::spawn_local(async move {
+            let reply = send(msg).await;
+            if let Some(id) = reply["annotation"]["id"].as_str() {
+                active.set(Some(id.to_string()));
+            }
+        });
+    });
+    let pick_color = Callback::new(move |color: AnnotationColor| {
+        if let Some(sel) = pending.get_untracked() {
+            for (page, rects) in sel.by_page {
+                create_highlight(page, rects, sel.text.clone(), color, String::new());
+            }
+        }
+        if let Ok(Some(s)) = window().get_selection() {
+            let _ = s.remove_all_ranges();
+        }
+        pending.set(None);
+    });
+    let page_extra = Callback::new(move |page: u32| {
+        view! { <AnnotationLayer page=page annotations=doc_annotations.into() active=active note_mode=note_mode.into() on_place=place_sticky /> }.into_any()
+    });
+    // A word on the text layer asks for its meaning; note mode places pins instead.
+    let on_text_click = Callback::new(move |e: web_sys::MouseEvent| {
+        if !note_mode.get_untracked() {
+            if let Some(t) = define_target(&e) {
+                define.set(Some(t));
+            }
+        }
+    });
+    let up = window_event_listener(leptos::ev::pointerup, move |_| {
+        if let Some(p) = pending_selection() {
+            pending.set(Some(p));
+        }
+    });
+    // Anything that is not an annotation, its popover, or the colour pill closes the popover.
+    let down = window_event_listener(leptos::ev::pointerdown, move |e| {
+        use wasm_bindgen::JsCast;
+        let keep = e
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|t| {
+                t.closest(".annot-popover, .annot-highlight, .annot-pin, .annot-selection-menu")
+                    .ok()
+                    .flatten()
+            })
+            .is_some();
+        if !keep {
+            active.set(None);
+        }
+    });
+    // selectionchange fires on the document only (it does not reach window).
+    let collapsed = wasm_bindgen::closure::Closure::<dyn Fn()>::new(move || {
+        if window()
+            .get_selection()
+            .ok()
+            .flatten()
+            .is_none_or(|s| s.is_collapsed())
+        {
+            pending.set(None);
+        }
+    });
+    {
+        use wasm_bindgen::JsCast;
+        let _ = document().add_event_listener_with_callback(
+            "selectionchange",
+            collapsed.as_ref().unchecked_ref(),
+        );
+    }
+    let collapsed = StoredValue::new_local(collapsed);
+    on_cleanup(move || {
+        up.remove();
+        down.remove();
+        use wasm_bindgen::JsCast;
+        collapsed.with_value(|c| {
+            let _ = document()
+                .remove_event_listener_with_callback("selectionchange", c.as_ref().unchecked_ref());
+        });
+    });
     let left_off_for = move |page: u32| {
         heading_for_page(&outline.get_untracked(), page)
             .map(str::to_string)
@@ -267,10 +409,12 @@ fn PdfReader(src: String) -> impl IntoView {
     });
     on_cleanup(move || fkey.remove());
 
-    // Escape leaves note-placing mode.
+    // Escape leaves note-placing mode and drops a waiting selection or definition.
     let esc = window_event_listener(leptos::ev::keydown, move |e| {
-        if note_mode.get_untracked() && e.key() == "Escape" {
+        if e.key() == "Escape" {
             note_mode.set(false);
+            pending.set(None);
+            define.set(None);
         }
     });
     on_cleanup(move || esc.remove());
@@ -354,7 +498,28 @@ fn PdfReader(src: String) -> impl IntoView {
                             })
                             jump=jump
                             figures=figures.read_only()
+                            on_text_click=on_text_click
+                            page_extra=page_extra
+                            on_scroll=Callback::new(move |_| {
+                                pending.set(None);
+                                define.set(None);
+                            })
                         />
+                        {move || pending.get().map(|p| view! { <SelectionMenu x=p.x y=p.y on_pick=pick_color /> })}
+                        {
+                            let doc_key = doc_key.clone();
+                            move || define.get().map(|t| {
+                                let (page, rects, word) = (t.page, t.rects.clone(), t.word.clone());
+                                view! {
+                                    <DefinePopover
+                                        target=t
+                                        doc_key=doc_key.clone()
+                                        on_close=Callback::new(move |_| define.set(None))
+                                        on_save=Callback::new(move |note: String| create_highlight(page, rects.clone(), word.clone(), DEFAULT_ANNOTATION_COLOR, note))
+                                    />
+                                }
+                            })
+                        }
                         <Show when=move || looks_scanned() && !scan_dismissed.get()>
                             <div class="reader-toast reader-scan-toast" role="status">
                                 <span>"This looks like a scanned PDF. Search and highlighting may be limited until it has OCR text."</span>
@@ -384,6 +549,12 @@ fn PdfReader(src: String) -> impl IntoView {
                             zoom=zoom
                         />
                     </div>
+                </Show>
+                <Show when=move || matches!(load.get(), Load::Ready) && papers_loaded.get() && panel.get() == "notes">
+                    <NotesSidebar annotations=doc_annotations.into() on_jump=Callback::new(move |(page, offset): (u32, f64)| {
+                        jump_seq.update_value(|s| *s += 1);
+                        set_jump.set(Some((page, offset, jump_seq.get_value())));
+                    }) />
                 </Show>
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "find">
                     <FindPanel pages=page_texts.into() on_jump=go on_close=Callback::new(move |_| panel.set("none")) />

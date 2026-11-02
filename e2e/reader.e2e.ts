@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PAGES, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
+import { PAGES, axe, expectClean, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
 
 /**
  * The PDF reader end to end against a scripted Claude: a clicked term guessed
@@ -83,9 +83,6 @@ function makeScannedPdf(): Buffer {
   return Buffer.concat(parts);
 }
 
-// Click-to-define lands in the Rust build with phase 4b.
-const defineTest = process.env.DIST?.includes('rust') ? it.skip : it;
-
 describe('reader: key terms, reading session, PDF plumbing', () => {
   let ext: Ext;
   let claude: Awaited<ReturnType<typeof mockClaude>>;
@@ -93,8 +90,12 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
 
   beforeAll(async () => {
     ext = await launch();
-    claude = await mockClaude(ext, (system) =>
-      system.includes('clicked') ? '**Transformer**: an attention-based sequence model.' : 'Unexpected call.',
+    claude = await mockClaude(ext, (system, prompt) =>
+      !system.includes('clicked')
+        ? 'Unexpected call.'
+        : prompt.includes('BLEU')
+          ? '**BLEU**: a precision score, $\\text{BP}\\cdot\\exp(\\sum_n w_n \\log p_n)$.'
+          : '**Transformer**: an attention-based sequence model.',
     );
     const pdf = makePdf(4);
     ext.sites.setRoute('papers', '/paper.pdf', (_req, res) => {
@@ -118,7 +119,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await ext?.close();
   });
 
-  defineTest('asks for a guess before defining, and Haiku defines the term', async () => {
+  it('asks for a guess before defining, and Haiku defines the term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
@@ -155,7 +156,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.close();
   });
 
-  defineTest('offers to keep a definition as a note on the clicked term', async () => {
+  it('offers to keep a definition as a note on the clicked term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
     const clickWord = async (word: string, line: number) => {
@@ -204,6 +205,94 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     expect(await page.locator('.annot-popover-snippet').textContent()).toBe('transformer');
     await shot(page, 'reader-define-saved-note');
     await page.close();
+  });
+
+  it('draws the maths in a definition with KaTeX, loaded on first use', async () => {
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
+    const at = await page.$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (span) => {
+      const node = span.firstChild as Text;
+      const start = node.data.indexOf('BLEU');
+      const range = document.createRange();
+      range.setStart(node, start + 1);
+      range.setEnd(node, start + 2);
+      const r = range.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.mouse.click(at.x, at.y);
+    const popover = page.getByRole('dialog', { name: 'Definition of BLEU' });
+    await popover.getByRole('textbox').fill('a score');
+    await popover.getByRole('button', { name: 'Compare' }).click();
+    await expect.poll(() => popover.locator('.md .katex').count(), { timeout: 10_000 }).toBe(1);
+    expect(await popover.locator('.md').textContent()).not.toContain('$');
+    // The term is bold; the formula's own glyphs came with KaTeX's fonts.
+    expect(await popover.locator('.md strong').textContent()).toBe('BLEU');
+    expect(await page.evaluate(() => document.fonts.check('16px KaTeX_Main'))).toBe(true);
+    expect(await axe(page)).toEqual([]);
+    await page.close();
+    expectClean(ext);
+  });
+
+  it('highlights a selection, keeps a note on it, pins a sticky note, and lists both under Notes', async () => {
+    type Stored = { id: string; kind: string; color: string; text: string; note: string };
+    const all = async () => (await storage<Stored[]>(ext, 'annotations')) ?? [];
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
+    const before = (await all()).length;
+
+    // Select the first line; releasing the pointer offers the colours.
+    await page.evaluate(() => {
+      const span = document.querySelector('.reader-page[aria-label^="Page 1 "] .textLayer span')!;
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      getSelection()!.removeAllRanges();
+      getSelection()!.addRange(range);
+      document.querySelector('.reader-viewport')!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    });
+    const menu = page.getByRole('toolbar', { name: 'Highlight colour' });
+    await menu.getByRole('button', { name: 'Highlight in green' }).click();
+    await expect.poll(() => menu.count()).toBe(0);
+    await expect.poll(async () => (await all()).length).toBe(before + 1);
+    const highlight = (await all()).at(-1)!;
+    expect(highlight).toMatchObject({ kind: 'highlight', color: 'green' });
+    expect(highlight.text).toContain('transformer');
+
+    // Its note is kept when a click elsewhere closes the popover (commit on unmount).
+    // The green one (an earlier test leaves a yellow highlight on this page).
+    await page.locator('.reader-page[aria-label^="Page 1 "] .annot-highlight[style*="129, 199, 132"]').first().click();
+    await page.locator('.annot-popover textarea').fill('the key claim');
+    await page.mouse.click(5, 300);
+    await expect.poll(() => page.locator('.annot-popover').count()).toBe(0);
+    await expect.poll(async () => (await all()).find((a) => a.id === highlight.id)?.note).toBe('the key claim');
+
+    // A sticky note: note mode, a click on the page, then Cmd/Ctrl+Enter saves and closes.
+    await page.mouse.move(400, 10);
+    await page.getByRole('button', { name: 'Add a note' }).click();
+    const pageBox = (await page.locator('.reader-page[aria-label^="Page 1 "]').boundingBox())!;
+    await page.mouse.click(pageBox.x + pageBox.width * 0.8, pageBox.y + pageBox.height * 0.5);
+    await expect.poll(() => page.locator('.annot-pin').count()).toBe(1);
+    await page.locator('.annot-popover textarea').fill('ask about the baseline');
+    await page.keyboard.press('Control+Enter');
+    await expect.poll(() => page.locator('.annot-popover').count()).toBe(0);
+    await expect.poll(async () => (await all()).find((a) => a.kind === 'sticky')?.note).toBe('ask about the baseline');
+
+    // Both are listed on page 1; deleting the highlight from the list removes it everywhere.
+    await page.mouse.move(400, 10);
+    await page.getByRole('button', { name: /^Show highlights and notes/ }).click();
+    const notes = page.locator('.reader-notes');
+    await expect.poll(() => notes.locator('h3').first().textContent()).toBe('Page 1');
+    await expect.poll(() => notes.textContent()).toContain('ask about the baseline');
+    expect(await notes.textContent()).toContain('the key claim');
+    await shot(page, 'reader-notes');
+    expect(await axe(page)).toEqual([]);
+    // The delete mark shows on hover only (mouse-only today; see rust/NOTES.md, phase 4b).
+    const row = notes.locator('.annot-row', { hasText: 'the key claim' });
+    await row.hover();
+    await row.locator('.annot-row-delete').click();
+    await expect.poll(async () => (await all()).some((a) => a.id === highlight.id)).toBe(false);
+    await expect.poll(() => notes.textContent()).not.toContain('the key claim');
+    await page.close();
+    expectClean(ext);
   });
 
   it('pinch-zooms as a GPU stretch and lays out once, at the end, around the cursor', async () => {

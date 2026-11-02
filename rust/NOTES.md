@@ -189,3 +189,52 @@ including pinch-zoom geometry and scanned pages.
 6. **Copy closures.** A closure that captures a `String` can be called once
    if it moves it. Holding the string in a `StoredValue` (itself `Copy`)
    makes the closure `Copy`, so it can be shared by several handlers.
+
+## Phase 4b: working on the page (`reader/annotate.rs`, `reader/define.rs`, `pages/ai.rs`, `core/src/markdown.rs`)
+
+Highlights, sticky notes, the notes list, and click-to-define with Markdown
+and maths. 47 browser tests on the Rust build, stable over three runs; the
+three new ones (KaTeX in a definition, the highlight/sticky/notes flow) pass
+on the TypeScript build too, so they test behaviour, not the port.
+
+1. **A parser as an event stream** (`markdown.rs`). `pulldown-cmark` yields
+   `Event`s (`Start(Tag::Link)`, `Text`, `End`…) and `html::push_html` writes
+   them. Sanitising is a `filter_map` over that stream: raw HTML events are
+   dropped, a link with a `javascript:` target loses its tags but keeps its
+   text, a safe one is replaced by our own `<a … rel="noopener">`. Two small
+   stacks remember whether each open link/image was kept, so its end tag matches.
+2. **Hand-written scanning instead of a regex.** The TS maths regex used a
+   back-reference (`\end{\1}`) and a look-behind; the `regex` crate supports
+   neither (by design: it guarantees linear time). Each delimiter is a small
+   function returning `Option<(consumed, content)>`, tried in order with
+   `.or_else`. Same results, and each rule is readable on its own.
+3. **Placeholders that survive the parser.** NUL (the TS choice) is replaced
+   by U+FFFD under CommonMark; private-use characters (U+E000) pass through.
+4. **Lazy JS from wasm** (`js/katex-bridge.mjs`). Every page shares one wasm
+   module and therefore every snippet it imports, so a static `import katex`
+   would load 600 KB on each new tab. The bridge `import()`s KaTeX on the
+   first formula; `renderTex` returns `Option<String>` (JS `null` → `None`).
+5. **`Send` again, from the other side** (`NotePopover`). `on_cleanup`
+   requires `Send + Sync`, so the unmount commit cannot hold an
+   `Rc<RefCell<…>>`; it holds `Arc<Mutex<…>>` (uncontended in wasm, so free).
+   Plain shared cells rather than signals, because by unmount time the
+   popover's signals may be gone.
+6. **Superseding async work** (`Ai::start`). A generation counter in a
+   `StoredValue`: every await is followed by "am I still the latest?", and
+   `try_get_value()` returns `None` once the component is gone, so an answer
+   arriving after the popover closed is dropped instead of panicking. Stop is
+   an `AbortController` passed into the shared Claude stream.
+7. **Two kinds of offsets.** The DOM counts UTF-16 units, Rust strings bytes,
+   `clicked_word` chars. `utf16_to_chars` / `chars_to_utf16` (core, tested
+   with a 2-unit maths italic letter) convert at the boundary.
+8. **Events that do not reach `window`.** `selectionchange` fires on the
+   document only, so `window_event_listener` cannot hear it; that one listener
+   is added by hand with a `Closure` and removed in `on_cleanup`.
+
+Found, not fixed (the port keeps behaviour; for phase 6):
+- The notes list's delete mark shows on hover only and is a `span`, so it
+  cannot be reached from the keyboard (WCAG 2.1.1).
+- The side panels are translucent; over a white PDF page their cream text is
+  low contrast. The walnut page recolour should fix it; the AAA tests should check.
+- pdf-bridge imports pdf.js statically, so every page (and the worker)
+  loads it. Phase 5 should make it lazy, as KaTeX now is.

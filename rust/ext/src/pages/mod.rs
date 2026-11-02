@@ -2,6 +2,7 @@
 //! (element for element, class for class) so the same stylesheets draw it the
 //! same way: the screenshot baselines are the check.
 
+pub mod ai;
 pub mod blocked;
 pub mod dumps;
 pub mod newtab;

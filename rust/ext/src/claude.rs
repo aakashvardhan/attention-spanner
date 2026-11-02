@@ -21,11 +21,16 @@ pub struct Ask<'a> {
     pub cache: bool,
     /// Give up after this long (the brain dump waits a minute)
     pub timeout_ms: i32,
+    /// The caller's, to stop the answer early; one is made otherwise
+    pub controller: Option<web_sys::AbortController>,
 }
 
 /// The whole reply; `on_text` gets the text so far after every chunk.
 pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<String, String> {
-    let controller = web_sys::AbortController::new().map_err(|_| "no AbortController")?;
+    let controller = match ask.controller {
+        Some(c) => c,
+        None => web_sys::AbortController::new().map_err(|_| "no AbortController")?,
+    };
     let init = to_js(&json!({
         "method": "POST",
         "headers": headers(ask.api_key),

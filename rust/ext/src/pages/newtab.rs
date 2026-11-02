@@ -352,6 +352,7 @@ fn BrainDump() -> impl IntoView {
                 prompt: "Give this back to me a little lighter.",
                 cache: false,
                 timeout_ms: ASK_TIMEOUT_MS as i32,
+                controller: None,
             };
             let reply = claude::stream(ask, |t| live.set(t.to_string())).await;
             let parsed = reply.map(|r| parse_reframe(&r)).unwrap_or_default();

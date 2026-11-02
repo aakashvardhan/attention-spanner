@@ -67,6 +67,23 @@ pub fn clicked_word(text: &str, offset: usize) -> Option<ClickedWord> {
     })
 }
 
+/// A DOM offset (UTF-16 units) as a char offset into the same text.
+pub fn utf16_to_chars(s: &str, units: u32) -> usize {
+    let mut seen = 0;
+    s.chars()
+        .take_while(|c| {
+            let fits = seen < units as usize;
+            seen += c.len_utf16();
+            fits
+        })
+        .count()
+}
+
+/// The DOM offset (UTF-16 units) just past these chars.
+pub fn chars_to_utf16(chars: &[char]) -> u32 {
+    chars.iter().map(|c| c.len_utf16() as u32).sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +132,15 @@ mod tests {
         assert!(hit.context.chars().count() < 700);
         assert!(hit.near.contains("eligibility"));
         assert!(hit.near.len() < long.len());
+    }
+
+    #[test]
+    fn dom_offsets_count_utf16_units() {
+        assert_eq!(utf16_to_chars("abc", 2), 2);
+        // 𝑥 is two UTF-16 units and one char
+        assert_eq!(utf16_to_chars("𝑥ab", 2), 1);
+        assert_eq!(utf16_to_chars("𝑥ab", 3), 2);
+        assert_eq!(utf16_to_chars("ab", 9), 2);
+        assert_eq!(chars_to_utf16(&['𝑥', 'a']), 3);
     }
 }

@@ -73,6 +73,9 @@ pub fn PdfViewport(
     /// Extra layers per page (annotations), given the page number
     #[prop(optional, into)]
     page_extra: Option<Callback<u32, AnyView>>,
+    /// Any scroll (a waiting selection menu or definition goes with it)
+    #[prop(optional)]
+    on_scroll: Option<Callback<()>>,
 ) -> impl IntoView {
     let container: NodeRef<html::Div> = NodeRef::new();
     let list: NodeRef<html::Div> = NodeRef::new();
@@ -411,7 +414,11 @@ pub fn PdfViewport(
 
     let raf: StoredValue<Option<AnimationFrameRequestHandle>, LocalStorage> =
         StoredValue::new_local(None);
+    let scrolled = on_scroll;
     let on_scroll = move |_| {
+        if let Some(cb) = scrolled {
+            cb.run(());
+        }
         if let Some(h) = raf.try_update_value(Option::take).flatten() {
             h.cancel();
         }
