@@ -40,3 +40,36 @@ them. Read the files in the order listed.
    `(Value::Object(b), Value::Object(p))` and recursing is the deep merge;
    `entry(k).or_insert(Null)` borrows a slot mutably so the recursion writes in
    place. The borrow checker is why this needs no clones of the base.
+
+## Phase 1a: the first pure modules (`rust/core/src`)
+
+Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported + 1).
+
+1. **serde as the storage contract** (`types.rs`). `#[serde(rename_all = "camelCase")]`
+   makes `folder_ids` read and write `folderIds`; `skip_serializing_if =
+   "Option::is_none"` drops `None` instead of writing `null`, the way TS drops
+   `undefined`. `#[serde(tag = "kind")]` on an enum is TypeScript's
+   discriminated union. `type` is a Rust keyword, so `Folder.kind` carries
+   `#[serde(rename = "type")]`. The round-trip test pins byte compatibility.
+2. **`Option` instead of `null`** (`papers.rs`, `pdf.rs`). `parse_paper_ref`
+   returns `Option<String>`, and `?` inside a function returning `Option`
+   means "return `None` if this is `None`": the early returns of the TS
+   collapse into one character. `.then(|| …)` / `.then_some(…)` turn a `bool`
+   into an `Option`.
+3. **Statics compiled once** (`static ARXIV_URL: LazyLock<Regex>`). Rust has no
+   regex literal; `LazyLock` builds the value on first use and shares it
+   across threads safely.
+4. **Borrowing slices instead of copying** (`strip_prefix_ignore_case<'a>`).
+   The `'a` lifetime says the returned `&str` points into the input; no new
+   string is allocated. `s.get(..n)` returns `None` instead of panicking when
+   `n` is past the end or not on a character boundary.
+5. **Strings are UTF-8, not UTF-16** (`clicked_word.rs`). JavaScript indexes
+   strings in UTF-16 units; Rust `&str` indexes bytes and only on char
+   boundaries. The port collects `Vec<char>` so offsets count characters.
+6. **Iterator chains** (`focus_rules.rs`, `reading_aids.rs`). `enumerate().map().collect()`
+   builds the DNR rules; `position(…)`, `take_while(…).count()` and `sum()`
+   replace index loops. They compile to the same loops, without bounds bugs.
+7. **Generics and closures** (`outline.rs`). `flatten_outline<D>` works for any
+   destination type; `impl Fn(&D) -> Option<u32>` takes the lookup closure.
+   The inner recursive `fn walk` can't capture variables, so the closure is
+   passed in as `&dyn Fn`: a trait object, Rust's dynamic dispatch.

@@ -3,6 +3,16 @@
 //! which is the quickest loop for learning the language. The `ext` crate does
 //! the effects (storage, network, DOM) and calls in here for every decision.
 
+pub mod clicked_word;
+pub mod constants;
+pub mod figures;
+pub mod focus_rules;
+pub mod outline;
+pub mod papers;
+pub mod pdf;
+pub mod reading_aids;
+pub mod types;
+
 /// The extension's name, shared by the manifest and the pages.
 pub const APP_NAME: &str = "Reader";
 

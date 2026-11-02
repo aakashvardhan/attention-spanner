@@ -1107,6 +1107,13 @@ dependencies = [
 [[package]]
 name = "reader-core"
 version = "0.1.0"
+dependencies = [
+ "percent-encoding",
+ "regex",
+ "serde",
+ "serde_json",
+ "url",
+]
 
 [[package]]
 name = "reader-ext"
