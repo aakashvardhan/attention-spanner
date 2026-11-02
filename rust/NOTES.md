@@ -73,3 +73,16 @@ Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported
    destination type; `impl Fn(&D) -> Option<u32>` takes the lookup closure.
    The inner recursive `fn walk` can't capture variables, so the closure is
    passed in as `&dyn Fn`: a trait object, Rust's dynamic dispatch.
+
+## Phase 1b (part 1): alphaXiv rules, activity, annotations, AI, reader progress
+
+115 core tests. Ideas to read for:
+1. **Errors as values** (`alphaxiv.rs`): `Result<T, AlphaxivError>` plus `impl
+   Display` and `std::error::Error`; `map_err` / `ok_or_else` turn one failure
+   into another without exceptions.
+2. **No clock, no time zone in pure code** (`civil_date.rs`): dates are plain
+   values; the browser passes "today" and a timestamp→date closure in.
+3. **Struct update syntax** (`Paper { title, ..paper.clone() }`) builds a
+   changed copy, like `{ ...paper, title }`.
+4. **`include_str!`** embeds the recorded alphaXiv fixtures at compile time.
+5. **Floats have no total order**: `sort_by` with `partial_cmp` in `annotations.rs`.

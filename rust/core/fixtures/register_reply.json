@@ -1,0 +1,18 @@
+{
+  "client_id": "e2eClientIdAAAAAAAAAAAAAAAAAAAAA",
+  "scope": "openid profile email offline_access",
+  "client_name": "ADHD Reader",
+  "redirect_uris": [
+    "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/alphaxiv"
+  ],
+  "token_endpoint_auth_method": "none",
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "public": true,
+  "disabled": false
+}
