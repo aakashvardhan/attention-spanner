@@ -47,3 +47,4 @@ mcp/brain/fixtures/vault/.brain/
 # Rust
 target/
 rust/ext/dist/
+rust/ext/static/

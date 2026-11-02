@@ -7,7 +7,8 @@ import { expect } from 'vitest';
 import { A11Y_BASELINE } from './a11yBaseline';
 import { startSites, type Sites } from './sites';
 
-const DIST = resolve(__dirname, '..', 'dist');
+/** The build under test: dist/ (TypeScript) unless DIST points elsewhere, e.g. the Rust port's rust/ext/dist/chromium. */
+const DIST = process.env.DIST ? resolve(process.env.DIST) : resolve(__dirname, '..', 'dist');
 export const OUT = resolve(__dirname, 'out');
 
 export const PAGES = {

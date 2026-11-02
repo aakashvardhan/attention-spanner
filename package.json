@@ -14,7 +14,9 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "build:mcp": "esbuild mcp/brain/cli.ts mcp/brain/server.ts mcp/brain/searchWorker.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist-mcp --out-extension:.js=.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=error",
     "brain": "npm run -s build:mcp && node dist-mcp/cli.mjs",
-    "brain:diff-obsidian": "npm run -s brain -- diff-obsidian"
+    "brain:diff-obsidian": "npm run -s brain -- diff-obsidian",
+    "build:rust": "node scripts/rust-assets.mjs && cd rust/ext && cargo run -q --manifest-path ../../vendor/oxichrome/oxichrome-cli/Cargo.toml -- oxichrome build",
+    "test:rust": "cd rust && cargo test -q && cargo clippy -q --all-targets -- -D warnings && cargo fmt --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

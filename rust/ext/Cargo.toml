@@ -1,0 +1,19 @@
+[package]
+name = "reader-ext"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "The extension: background worker and Leptos pages, compiled to wasm"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+reader-core = { path = "../core" }
+oxichrome = { path = "../../vendor/oxichrome/oxichrome" }
+leptos = { version = "0.8.15", features = ["csr"] }
+wasm-bindgen = "0.2.108"
+wasm-bindgen-futures = "0.4.58"
+
+[lints]
+workspace = true
