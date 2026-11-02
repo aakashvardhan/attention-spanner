@@ -25,6 +25,18 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'pace-forecast', pattern: /paceMinutesLeft|paceLabel|relay-row-forecast/ },
   { name: 'watching-card', pattern: /relay-watching-card/ },
   { name: 'sweep', pattern: /SAMPLE_FEEDS|sample-feed|ai-impact|FOCUS_VIDEO_TAB/ },
+  // v27: papers library
+  { name: 'rss', pattern: /refreshFeeds|rssParser|FeedItem|VALIDATE_FEED|MARK_ALL_READ|feedDiscovery|TriageCard/ },
+  { name: 'video', pattern: /videoTracker|VIDEO_PROGRESS|VIDEO_TRACKER|youtubeCaptions|timedtextTee|watchMeta/ },
+  { name: 'topic-gate', pattern: /topicGate|geminiTopic|mutedTopics|trackTopics|topicVerdicts/ },
+  { name: 'web-tracking', pattern: /readingTracker|readingProgress|ContinueRow|TRACKER_READY|PROGRESS_UPDATE/ },
+  { name: 'local-ai', pattern: /ollama|Ollama|\blaya|Laya|cloudMode|aiVectors|RecallSearch|RecapCard/ },
+  { name: 'passes', pattern: /ReadingPass|passGate|PassLock|useProvocations|ProvocationCard|CounterpointCard|PROV_ADD/ },
+  { name: 'pomodoro', pattern: /breakMinutes|focusSound|nextPhase|FocusTimer|FocusDial|HoldToQuit|CHIME_PAGE|START_FOCUS/ },
+  { name: 'article-reader', pattern: /ArticleReader|ArticleViewport|articleExtract|articleReaderPath/ },
+  { name: 'citations', pattern: /bibliography|citeFormats|CitationTooltip|cite-marker|TrackPrompt/ },
+  { name: 'semantic-scholar', pattern: /semanticScholar|SEMANTIC_SCHOLAR|fetchPaperMeta/ },
+  { name: 'decks', pattern: /FLASH_ADD_DECK|deckId|DeckList|PaperDeck/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

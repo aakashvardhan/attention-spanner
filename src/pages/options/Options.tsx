@@ -1,109 +1,16 @@
-import { useEffect, useState } from 'react';
-import { ALARM_SECONDS, ring } from '../chime/bell';
-import { findFeedOnPage, withScheme } from '../../shared/feedDiscovery';
+import { useState } from 'react';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
-import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { useTheme } from '../../shared/hooks/useTheme';
-import { normalizeTopics } from '../../shared/llm/triage';
-import { sendMessage } from '../../shared/messages';
-import { getLocal, patchSettings, setLocal } from '../../shared/storage';
+import { patchSettings } from '../../shared/storage';
 import type { ThemeSetting } from '../../shared/types';
-import { LocalAiSection } from './LocalAiSection';
-import { MutedTopicsRow } from './MutedTopicsRow';
-import { TrackTopicsRow } from './TrackTopicsRow';
-import { TextRow } from './LocalAiSection';
-import { normalizeTrackTopics } from '../../shared/topics';
 import { SectionIndex } from './SectionIndex';
-import { PapersSection } from './PapersSection';
-
-type Feedback = { text: string; kind: 'success' | 'error' | 'loading' } | null;
 
 export function Options() {
   useTheme();
-  const [feeds] = useStorageValue('feeds');
   const [settings, settingsLoaded] = useSettings();
-
-  const [url, setUrl] = useState('');
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [dataMessage, setDataMessage] = useState<string | null>(null);
-  const [notificationsBlocked, setNotificationsBlocked] = useState(false);
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    chrome.notifications.getPermissionLevel((level) => {
-      setNotificationsBlocked(level === 'denied');
-    });
-  }, []);
-
-  // The same alarm the offscreen page plays (chime/bell.ts), played here on the
-  // click. One at a time: a second press while it rings does nothing.
-  const [hearing, setHearing] = useState<'focus' | 'break' | null>(null);
-  const hearAlarm = (kind: 'focus' | 'break') => {
-    if (hearing) return;
-    const audio = new AudioContext();
-    ring(audio, kind);
-    setHearing(kind);
-    setTimeout(() => {
-      void audio.close();
-      setHearing(null);
-    }, (ALARM_SECONDS + 0.3) * 1000);
-  };
-
-  const flash = (text: string, kind: 'success' | 'error') => {
-    setFeedback({ text, kind });
-    setTimeout(() => setFeedback(null), 3000);
-  };
-
-  /** Adds a feed and returns what happened, in the words shown to the user. */
-  const addFeed = async (input: string): Promise<string> => {
-    const report = (text: string, kind: 'success' | 'error') => {
-      flash(text, kind);
-      return text;
-    };
-    const typed = withScheme(input);
-    if (!typed) {
-      return report('Enter a web address, like lwn.net or https://lwn.net/feed.', 'error');
-    }
-    if (feeds.includes(typed)) {
-      return report('This feed is already added.', 'error');
-    }
-    setFeedback({ text: 'Checking the feed...', kind: 'loading' });
-    let feedUrl = typed;
-    let res = await sendMessage({ type: 'VALIDATE_FEED', url: feedUrl });
-    if (!res?.valid) {
-      // Not a feed itself: most sites say where theirs is.
-      setFeedback({ text: 'Looking for a feed on that page...', kind: 'loading' });
-      const found = await findFeedOnPage(typed);
-      if (found && found !== typed) {
-        feedUrl = found;
-        res = await sendMessage({ type: 'VALIDATE_FEED', url: feedUrl });
-      }
-    }
-    if (!res?.valid) {
-      return report("Couldn't find a feed there. Check the address, or paste the feed's own URL.", 'error');
-    }
-    // Re-read rather than write back the list this render captured: validation
-    // above is a network round-trip, so the snapshot can be stale by now.
-    const { feeds: live } = await getLocal('feeds');
-    if (live.includes(feedUrl)) {
-      return report('This feed is already added.', 'error');
-    }
-    await setLocal({ feeds: [...live, feedUrl] });
-    void sendMessage({ type: 'REFRESH_FEEDS' });
-    return report(res.title ? `Added "${res.title}"` : 'Feed added.', 'success');
-  };
-
-  const removeFeed = async (feedUrl: string) => {
-    const { feeds: live } = await getLocal('feeds');
-    await setLocal({ feeds: live.filter((f) => f !== feedUrl) });
-  };
-
-  const markAllRead = async () => {
-    const res = await sendMessage({ type: 'MARK_ALL_READ' });
-    setDataMessage(res?.ok ? `Marked ${res.count} items as read.` : 'Failed to mark items.');
-  };
 
   const addBlockDomain = async () => {
     const domain = normalizeBlockDomain(blockInput);
@@ -122,12 +29,6 @@ export function Options() {
 
   const removeBlockDomain = (domain: string) =>
     patchSettings({ focusBlocklist: settings.focusBlocklist.filter((d) => d !== domain) });
-
-  const clearReadHistory = async () => {
-    if (!window.confirm('Clear all read history? Unread counts will be recalculated.')) return;
-    await setLocal({ readItems: [] });
-    setDataMessage('Read history cleared.');
-  };
 
   if (!settingsLoaded) return null;
 
@@ -173,118 +74,25 @@ export function Options() {
           </div>
         </section>
 
-        <LocalAiSection settings={settings} />
-
-        <section className="section" id="add-new-feed">
-          <h2>Add New Feed</h2>
-          <form
-            className="add-feed-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (url.trim()) {
-                void addFeed(url.trim());
-                setUrl('');
-              }
-            }}
-          >
-            <input
-              type="text"
-              inputMode="url"
-              autoComplete="off"
-              aria-label="Feed or site address"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="lwn.net, or a feed URL like https://lwn.net/headlines/rss"
-              required
-            />
-            <button type="submit">Add Feed</button>
-          </form>
-          {feedback && (
-            <p className={`feedback ${feedback.kind}`} role="status" aria-live="polite">
-              {feedback.text}
-            </p>
-          )}
-        </section>
-
-        <section className="section" id="continue">
-          <h2>Continue</h2>
-          <TrackTopicsRow value={normalizeTrackTopics(settings.trackTopics)} />
-          <TextRow
-            id="gemini-topic-key"
-            label="Gemini key"
-            type="password"
-            placeholder=""
-            value={settings.geminiTopicKey ?? ''}
-            onCommit={(k) => void patchSettings({ geminiTopicKey: k.trim() })}
-          />
-          <p id="gemini-topic-key-hint" className="hint">
-            Titles the keywords miss are sent to Gemini to check the topic.
+        <section className="section" id="questions">
+          <h2>Questions</h2>
+          <p className="hint">
+            alphaXiv finds the passages; Claude Haiku writes the questions, checks your explanations and defines terms.
+            It never explains the paper to you.
           </p>
+          <TextRow
+            id="claude-key"
+            label="Anthropic API key"
+            placeholder="sk-ant-…"
+            type="password"
+            value={settings.claudeKey}
+            onCommit={(claudeKey) => void patchSettings({ claudeKey })}
+          />
         </section>
 
-        <section className="section" id="your-feeds">
-          <h2>Your Feeds</h2>
-          <div className="feeds-list">
-            {feeds.length === 0 ? (
-              <p className="empty-message">No feeds added yet.</p>
-            ) : (
-              feeds.map((feedUrl) => (
-                <div className="feed-entry" key={feedUrl}>
-                  <span className="feed-entry-url">{feedUrl}</span>
-                  <button
-                    className="remove-feed-btn"
-                    title="Remove feed"
-                    onClick={() => void removeFeed(feedUrl)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-          <MutedTopicsRow value={normalizeTopics(settings.mutedTopics)} />
-        </section>
-
-        <section className="section" id="refresh-interval">
-          <h2>Refresh Interval</h2>
-          <div className="setting-row">
-            <label htmlFor="refresh-interval">Auto-refresh every:</label>
-            <select
-              id="refresh-interval"
-              value={settings.refreshInterval}
-              onChange={(e) => void patchSettings({ refreshInterval: Number(e.target.value) })}
-            >
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
-              <option value={360}>6 hours</option>
-            </select>
-          </div>
-        </section>
-
-        <section className="section" id="notifications-focus">
-          <h2>Notifications & Focus</h2>
-          {notificationsBlocked && (
-            <p className="feedback error">
-              Chrome notifications are blocked at the OS level. On macOS, enable them in System
-              Settings → Notifications → Google Chrome, or reminders will not appear.
-            </p>
-          )}
-          <div className="setting-row">
-            <label htmlFor="notifications-enabled">Notifications</label>
-            <input
-              id="notifications-enabled"
-              type="checkbox"
-              checked={settings.notificationsEnabled}
-              onChange={(e) => void patchSettings({ notificationsEnabled: e.target.checked })}
-            />
-          </div>
-        </section>
-
-        <section className="section" id="focus-mode">
-          <h2>Focus Mode</h2>
-          <p className="hint">Sites blocked during focus sessions:</p>
+        <section className="section" id="reading-session">
+          <h2>Reading session</h2>
+          <p className="hint">While a paper is open in the reader, these sites are blocked:</p>
           <form
             className="add-feed-form"
             onSubmit={(e) => {
@@ -294,96 +102,78 @@ export function Options() {
           >
             <input
               type="text"
+              aria-label="Domain to block"
               value={blockInput}
               onChange={(e) => setBlockInput(e.target.value)}
               placeholder="Add a domain to block (e.g. netflix.com)"
             />
             <button type="submit">Add</button>
           </form>
-          {blockFeedback && <p className="feedback error">{blockFeedback}</p>}
-          <div className="feeds-list" style={{ marginTop: 10 }}>
+          {blockFeedback && (
+            <p className="feedback error" role="alert">
+              {blockFeedback}
+            </p>
+          )}
+          <ul className="feeds-list">
             {settings.focusBlocklist.map((domain) => (
-              <div className="feed-entry" key={domain}>
+              <li className="feed-entry" key={domain}>
                 <span className="feed-entry-url">{domain}</span>
                 <button
+                  type="button"
                   className="remove-feed-btn"
-                  title="Remove from blocklist"
+                  aria-label={`Unblock ${domain}`}
                   onClick={() => void removeBlockDomain(domain)}
                 >
                   ✕
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
-          <div className="setting-row">
-            <label htmlFor="focus-minutes">Focus length:</label>
-            <select
-              id="focus-minutes"
-              value={settings.focusMinutes}
-              onChange={(e) => void patchSettings({ focusMinutes: Number(e.target.value) })}
-            >
-              {[25, 45, 50, 60, 90].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="break-minutes">Break between rounds:</label>
-            <select
-              id="break-minutes"
-              value={settings.breakMinutes}
-              onChange={(e) => void patchSettings({ breakMinutes: Number(e.target.value) })}
-            >
-              {[5, 10, 15, 20].map((n) => (
-                <option key={n} value={n}>
-                  {n} min
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="setting-row">
-            <label htmlFor="focus-sound">Alarm when a round or a break ends</label>
-            <input
-              id="focus-sound"
-              type="checkbox"
-              checked={settings.focusSound}
-              onChange={(e) => void patchSettings({ focusSound: e.target.checked })}
-            />
-          </div>
-          <div className="setting-row">
-            <span id="hear-alarm" className="setting-row-label">Hear the alarm</span>
-            <div className="button-group" role="group" aria-labelledby="hear-alarm">
-              {(['focus', 'break'] as const).map((kind) => (
-                <button key={kind} type="button" className="secondary-btn" onClick={() => hearAlarm(kind)}>
-                  {hearing === kind ? 'Playing…' : kind === 'focus' ? 'Into focus' : 'Into a break'}
-                </button>
-              ))}
-            </div>
-          </div>
+          </ul>
         </section>
-
-        <PapersSection />
-
-        <section className="section" id="data">
-          <h2>Data</h2>
-          <div className="button-group">
-            <button type="button" className="secondary-btn" onClick={() => void markAllRead()}>
-              Mark All as Read
-            </button>
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() => void clearReadHistory()}
-            >
-              Clear Read History
-            </button>
-          </div>
-          {dataMessage && <p className="feedback success">{dataMessage}</p>}
-        </section>
-
       </main>
+    </div>
+  );
+}
+
+/** A text setting saved on blur or Enter; Escape restores the saved value. */
+function TextRow({
+  id,
+  label,
+  placeholder,
+  value,
+  onCommit,
+  type = 'text',
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onCommit: (value: string) => void;
+  type?: 'text' | 'password';
+}) {
+  const [draft, setDraft] = useState(value);
+  // The saved value wins if it changes underneath the field (another Settings tab).
+  const [syncedTo, setSyncedTo] = useState(value);
+  if (value !== syncedTo) {
+    setSyncedTo(value);
+    setDraft(value);
+  }
+  return (
+    <div className="setting-row">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type={type}
+        autoComplete="off"
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => draft.trim() !== value && onCommit(draft.trim())}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') setDraft(value);
+        }}
+      />
     </div>
   );
 }

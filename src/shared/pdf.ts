@@ -32,16 +32,6 @@ export function isPdfUrl(url: string): boolean {
   return false;
 }
 
-/** A PDF on this computer: a file: URL ending in .pdf. */
-export function isLocalPdfUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'file:' && /\.pdf$/i.test(u.pathname);
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The PDF a reader URL points at. `?src=` is ours, encoded; `?raw=` comes from
  * the DNR redirect, which can only splice the URL in unencoded, so everything
@@ -60,51 +50,6 @@ export function readerPagePath(pdfUrl: string): string {
 /** Absolute chrome-extension:// URL for opening the reader on a PDF. */
 export function readerPageUrl(pdfUrl: string): string {
   return chrome.runtime.getURL(readerPagePath(pdfUrl));
-}
-
-/** Extension-relative reader URL for a web article (the ?article= kind). */
-export function articleReaderPath(url: string): string {
-  return `${READER_PAGE_PATH}?article=${encodeURIComponent(url)}`;
-}
-
-export function articleReaderUrl(url: string): string {
-  return chrome.runtime.getURL(articleReaderPath(url));
-}
-
-/** The reader showing a transcript — the third document kind, alongside ?src= and ?article=. */
-export function recordingReaderPath(id: string): string {
-  return `${READER_PAGE_PATH}?recording=${encodeURIComponent(id)}`;
-}
-
-export function recordingReaderUrl(id: string): string {
-  return chrome.runtime.getURL(recordingReaderPath(id));
-}
-
-/**
- * Should this feed link open in the reader? Only plain http(s) pages: a PDF
- * link goes down the PDF path instead, and anything else (mailto:, a video
- * host) belongs in a normal tab.
- */
-/**
- * Hosts that are somewhere you go, not something you read. Extraction on an app
- * shell yields an empty article, so the reader would open on nothing — which is
- * exactly what a saved link to Gmail or a dashboard used to do once saved links
- * started routing through here.
- */
-const APP_HOSTS =
-  /^(mail\.google\.com|docs\.google\.com|drive\.google\.com|calendar\.google\.com|meet\.google\.com|notion\.so|x\.com|twitter\.com|github\.com|linkedin\.com)$/;
-
-export function shouldOpenInReader(url: string): boolean {
-  if (!/^https?:\/\//i.test(url)) return false;
-  if (isPdfUrl(url)) return false;
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, '');
-    // Video pages are watched, not read — the video tracker handles them
-    if (/^(youtube\.com|youtu\.be|vimeo\.com)$/.test(host)) return false;
-    return !APP_HOSTS.test(host);
-  } catch {
-    return false;
-  }
 }
 
 /**

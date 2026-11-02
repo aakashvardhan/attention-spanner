@@ -1,17 +1,15 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Annotation } from '../src/shared/types';
-import { PAGES, launch, seed, shot, storage, type Ext } from './harness';
+import { PAGES, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
 
 /**
- * The PDF reader's reading aids, end to end against a scripted Ollama: a
- * clicked term guessed then defined in place, a one-liner for the page just left, and the
- * Paperwhite theme. Model output is fixed, so this checks the wiring, not the
- * model.
+ * The PDF reader end to end against a scripted Claude: a clicked term guessed
+ * then defined in place, the reading session that blocks distracting sites
+ * while the reader is open, and the PDF plumbing (zoom, scans, arXiv). Model
+ * output is fixed, so this checks the wiring, not the model.
  */
 
 const LINE = 'The transformer reads a sentence and BLEU scores the translation it writes back out.';
@@ -85,46 +83,16 @@ function makeScannedPdf(): Buffer {
   return Buffer.concat(parts);
 }
 
-/** Ollama's health check and a streaming /api/chat that answers by task. */
-async function startChatMock() {
-  const chats: { system: string; think: unknown }[] = [];
-  const server = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk) => (body += chunk));
-    req.on('end', () => {
-      if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'mock' }] }));
-      if (req.url === '/api/show') return res.end('{}');
-      if (req.url === '/api/chat') {
-        const { messages, think } = JSON.parse(body) as { messages: { content: string }[]; think: unknown };
-        const system = messages[0].content;
-        chats.push({ system, think });
-        const reply = system.includes('clicked')
-          ? '**Transformer**: an attention-based sequence model.'
-          : 'This page explained how the transformer is scored with BLEU.';
-        res.setHeader('content-type', 'application/x-ndjson');
-        // Two chunks, so the reader sees a stream rather than one blob.
-        const mid = Math.floor(reply.length / 2);
-        res.write(JSON.stringify({ message: { content: reply.slice(0, mid) }, done: false }) + '\n');
-        res.end(JSON.stringify({ message: { content: reply.slice(mid) }, done: true }) + '\n');
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = (server.address() as { port: number }).port;
-  return { url: `http://127.0.0.1:${port}`, chats, close: () => new Promise((r) => server.close(() => r(undefined))) };
-}
-
-describe('reader: key terms, page one-liners, paperwhite', () => {
+describe('reader: key terms, reading session, PDF plumbing', () => {
   let ext: Ext;
-  let ollama: Awaited<ReturnType<typeof startChatMock>>;
+  let claude: Awaited<ReturnType<typeof mockClaude>>;
   let pdfUrl: string;
 
   beforeAll(async () => {
     ext = await launch();
-    ollama = await startChatMock();
+    claude = await mockClaude(ext, (system) =>
+      system.includes('clicked') ? '**Transformer**: an attention-based sequence model.' : 'Unexpected call.',
+    );
     const pdf = makePdf(4);
     ext.sites.setRoute('papers', '/paper.pdf', (_req, res) => {
       res.writeHead(200, { 'content-type': 'application/pdf' });
@@ -136,18 +104,18 @@ describe('reader: key terms, page one-liners, paperwhite', () => {
       res.writeHead(200, { 'content-type': 'application/pdf' });
       res.end(scanned);
     });
-    // A web URL is a private source, so every call stays on the (mock) local model.
-    await seed(ext, {
-      settings: { ollamaUrl: ollama.url, ollamaChatModel: 'mock', layaUrl: '', theme: 'paperwhite', cloudMode: 'off' },
+    ext.sites.setRoute('blockme', '/', (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<!doctype html><title>distraction</title><p>distraction</p>');
     });
+    await seed(ext, { settings: { claudeKey: 'sk-e2e', theme: 'paperwhite', focusBlocklist: ['blockme.e2e.test'] } });
   });
 
   afterAll(async () => {
     await ext?.close();
-    await ollama?.close();
   });
 
-  it('asks for a guess before defining, and a one-liner for the page just left', async () => {
+  it('asks for a guess before defining, and Haiku defines the term', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
@@ -174,29 +142,14 @@ describe('reader: key terms, page one-liners, paperwhite', () => {
     await compare.click();
     await expect.poll(() => popover.textContent()).toContain('Your guess');
     await expect.poll(() => popover.textContent(), { timeout: 10_000 }).toContain('attention-based sequence model');
-    const asked = ollama.chats.find((c) => c.system.includes('clicked'));
-    expect(asked).toBeDefined();
+    const asked = claude.find((c) => c.system.includes('clicked'));
+    expect(asked?.model).toBe('claude-haiku-5-5');
     await shot(page, 'reader-paperwhite-define');
 
     // A click elsewhere closes it.
     await page.mouse.click(5, 300);
     await expect.poll(() => popover.count()).toBe(0);
 
-    // Pass 2: settle on page 1, then move to page 2. The capsule asks about page 1.
-    await page.getByRole('radio', { name: 'Pass 2' }).click();
-    await page.waitForTimeout(1500);
-    await page.locator('.reader-viewport').evaluate((el) => {
-      const second = el.querySelector<HTMLElement>('.reader-page[aria-label^="Page 2 "]')!;
-      el.scrollTop = second.offsetTop;
-    });
-    const prompt = page.getByRole('group', { name: 'Reflection prompt' });
-    await expect.poll(() => prompt.textContent(), { timeout: 10_000 }).toContain('what did page 1 claim?');
-    expect(await page.getByRole('complementary', { name: 'Recap of page 1' }).count()).toBe(0);
-    await shot(page, 'reader-paperwhite-one-liner');
-
-    // Every local call skipped the model's thinking: it is most of the latency.
-    expect(ollama.chats.length).toBeGreaterThanOrEqual(1);
-    expect(ollama.chats.every((c) => c.think === false)).toBe(true);
     await page.close();
   });
 
@@ -306,15 +259,18 @@ describe('reader: key terms, page one-liners, paperwhite', () => {
     await expect.poll(centre, { timeout: 10_000 }).toEqual([0, 0, 0]);
   });
 
-  it('opens a PDF from this computer in the reader instead of Chrome\'s viewer', async () => {
+  it('leaves a local PDF and a non-arXiv web PDF in Chrome\'s own viewer', async () => {
     const file = join(mkdtempSync(join(tmpdir(), 'reader-local-')), 'local paper.pdf');
     writeFileSync(file, makePdf(2));
-    const url = pathToFileURL(file).href;
+    const local = pathToFileURL(file).href;
     const page = await ext.ctx.newPage();
-    await page.goto(url).catch(() => undefined); // the redirect aborts this navigation
-    await page.waitForURL((u) => u.protocol === 'chrome-extension:', { timeout: 10_000 });
-    expect(new URL(page.url()).searchParams.get('src')).toBe(url);
-    await page.waitForSelector('[aria-label="Page 1 of 2"] .textLayer span', { timeout: 10_000 });
+    await page.goto(local).catch(() => undefined);
+    await page.waitForTimeout(800);
+    expect(page.url()).toBe(local);
+    await page.goto(pdfUrl).catch(() => undefined);
+    await page.waitForTimeout(800);
+    expect(page.url()).toBe(pdfUrl);
+    await page.close();
   });
 
   it('opens an arXiv PDF in the reader, with alphaXiv one menu item away', async () => {
@@ -338,84 +294,32 @@ describe('reader: key terms, page one-liners, paperwhite', () => {
     expect(await other.getByRole('menuitem', { name: 'Open in alphaXiv' }).count()).toBe(0);
   });
 
-  it('defines an Option/Alt-clicked word on any web page', async () => {
-    ext.sites.setRoute('blog', '/post', (_req, res) => {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      res.end(
-        `<!doctype html><html lang="en"><head><title>post</title></head><body>` +
-          `<p id="para">${LINE}</p><p><a id="link" href="/elsewhere">the transformer paper</a></p></body></html>`,
-      );
-    });
-    const page = await ext.ctx.newPage();
-    await page.goto(`${ext.sites.origin('blog')}/post`);
-    const centreOf = (selector: string) =>
-      page.$eval(selector, (el) => {
-        const node = el.firstChild as Text;
-        const start = node.data.indexOf('transformer');
-        const range = document.createRange();
-        range.setStart(node, start + 3);
-        range.setEnd(node, start + 4);
-        const r = range.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-      });
-    const altClick = async (at: { x: number; y: number }) => {
-      await page.keyboard.down('Alt');
-      await page.mouse.click(at.x, at.y);
-      await page.keyboard.up('Alt');
-    };
-    const card = () => page.frames().find((f) => f.url().includes('/src/pages/define/'));
+  it('blocks the blocklist while a reader tab is open, and lifts it when the reader closes', async () => {
+    const blocked = `${ext.sites.origin('blockme')}/`;
+    // Earlier tests leave reader tabs open; each would hold the session too.
+    for (const p of ext.ctx.pages()) if (p.url().includes('/src/pages/reader/')) await p.close();
+    await expect.poll(() => storage(ext, 'focusSession')).toBeNull();
+    const reader = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await reader.waitForSelector('[aria-label^="Page 1 of"]');
+    await expect
+      .poll(async () => (await storage<{ tabIds: number[] } | null>(ext, 'focusSession'))?.tabIds.length ?? 0)
+      .toBe(1);
 
-    // A plain click defines nothing.
-    await page.mouse.click((await centreOf('#para')).x, (await centreOf('#para')).y);
-    await page.waitForTimeout(300);
-    expect(card()).toBeUndefined();
+    const other = await ext.ctx.newPage();
+    await other.goto(blocked).catch(() => undefined); // the redirect aborts this navigation
+    await other.waitForURL((u) => u.pathname.endsWith('/src/pages/blocked/index.html'), { timeout: 10_000 });
+    await expect.poll(() => other.locator('h1').innerText()).toContain('is blocked while you read');
+    await shot(other, 'reader-session-blocked');
 
-    // Registered at install, so this page (loaded after) already has the script.
-    await altClick(await centreOf('#para'));
-    await expect.poll(() => Boolean(card()), { timeout: 10_000 }).toBe(true);
-    const frame = card()!;
-    expect(new URL(frame.url()).searchParams.get('word')).toBe('transformer');
-    await frame.waitForFunction(() => document.body.textContent?.includes('attention-based sequence model'), null, {
-      timeout: 10_000,
-    });
-    // The answer renders as markdown, as in the reader: the bold is bold, not asterisks.
-    await frame.waitForSelector('strong', { timeout: 5_000 });
-    // The frame fits its answer: one short line plus the provenance, not the loading height.
-    const box = await (await frame.frameElement()).boundingBox();
-    const contentHeight = await frame.evaluate(() => document.body.getBoundingClientRect().height);
-    await expect.poll(async () => Math.abs((await (await frame.frameElement()).boundingBox())!.height - contentHeight)).toBeLessThan(2);
-    expect(box).not.toBeNull();
-    await shot(page, 'web-define');
+    // "Back to your paper" brings the reader forward.
+    await other.getByRole('button', { name: 'Back to your paper' }).click();
 
-    // Esc puts it away.
-    await page.keyboard.press('Escape');
-    await expect.poll(() => Boolean(card())).toBe(false);
-
-    // Alt-clicking a word in a link defines it instead of following (or downloading) the link.
-    await altClick(await centreOf('#link'));
-    await expect.poll(() => Boolean(card())).toBe(true);
-    expect(new URL(page.url()).pathname).toBe('/post');
-
-    // Once written, the card asks to keep the definition as a note on this page. Declined: nothing stored.
-    const linkCard = card()!;
-    await linkCard.getByRole('button', { name: 'No', exact: true }).click({ timeout: 10_000 });
-    expect(await linkCard.getByText('Save as a note here?').count()).toBe(0);
-    await page.mouse.click(5, 5);
-    await expect.poll(() => Boolean(card())).toBe(false);
-    const noteFor = async () =>
-      (await storage<Annotation[]>(ext, 'annotations')).find((a) => a.docUrl === page.url());
-    expect(await noteFor()).toBeUndefined();
-
-    // Accepted: a highlight on the word, anchored by its quote, with the definition as the note.
-    await altClick(await centreOf('#para'));
-    await expect.poll(() => Boolean(card()), { timeout: 10_000 }).toBe(true);
-    await card()!.getByRole('button', { name: 'Save note' }).click({ timeout: 10_000 });
-    await expect.poll(() => Boolean(card())).toBe(false);
-    await expect.poll(noteFor).toMatchObject({
-      kind: 'highlight',
-      text: 'transformer',
-      note: 'Transformer: an attention-based sequence model.',
-      anchor: { kind: 'text', quote: 'transformer', prefix: 'The ', suffix: ' reads a sentence and BLEU score' },
-    });
+    await reader.close();
+    await expect.poll(() => storage(ext, 'focusSession')).toBeNull();
+    // The blocked tab releases itself, and the site loads again.
+    await expect.poll(() => other.locator('h1').innerText()).toBe('Reading session over');
+    await other.goto(blocked);
+    expect(await other.locator('p').innerText()).toBe('distraction');
+    await other.close();
   });
 });

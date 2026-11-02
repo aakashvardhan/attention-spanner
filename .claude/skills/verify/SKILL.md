@@ -8,7 +8,7 @@ description: Build the extension and drive it end-to-end in Chromium via Playwri
 ## Build
 
 ```bash
-npm run build        # vite build + esbuild content scripts → dist/
+npm run build        # vite build → dist/ (+ the brain MCP server → dist-mcp/)
 ```
 
 ## Drive with Playwright (dev dependency)
@@ -35,8 +35,8 @@ Pages to open directly (no need to trigger chrome UI):
 - `chrome-extension://${extId}/src/pages/newtab/index.html` — dashboard
 - `chrome-extension://${extId}/src/pages/options/index.html` — options
 - `chrome-extension://${extId}/src/pages/papers/index.html` — papers
-- `chrome-extension://${extId}/src/pages/reader/index.html?article=<encoded url>`
-  — the reader (`?src=` for a PDF; no param renders the fallback copy)
+- `chrome-extension://${extId}/src/pages/reader/index.html?src=<encoded pdf url>`
+  — the reader (no param renders the fallback copy)
 
 There is no popup and, since the side panel was removed, no docked surface
 either. The toolbar icon runs `chrome.action.onClicked` in the worker and opens
@@ -49,23 +49,15 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab (layout C): `.edition` holds two columns. `.now-col` is
-  the Pomodoro (`.pomo`), the brain dump (`section[aria-label="Brain dump"]`)
-  and the heatmap (`.heat`); `.read-col` is `section[aria-label="Continue"]`
-  (sub-lists `Continue reading` / `Continue watching`),
-  `section[aria-label="Deck"]` (open questions) and `section[aria-label="News"]`
-  (hidden during a focus round). Each list shows 5 rows, then `button.show-all`.
-  Every openable row is a `.row` with `[data-story]` (J/K walk them, Enter
-  opens the selected one). Papers and Settings live in `.edition-index`
-  (below 720px the columns stack, Now first). The Pomodoro: idle it is
-  `.pomo-start` (or key C); running it shows `.pomo-status` and carries
-  `data-phase`, and so does `<html>`. A seeded `focusSession` needs `phase`,
-  `round` and `phaseStartedAt` or it reads as not focusing. To end a phase,
-  set `phaseEndsAt: Date.now()` and fire `focus-phase-end` from the worker
-  with `chrome.alarms.create`; the chime is an offscreen document, visible via
-  `chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })`. Wait ~1.5s for storage. Seed `readingProgress` with real
-  fields (`maxPercent`, `updatedAt`, `completedAt: null`) or Continue
-  stays empty.
+- New tab: `.edition` holds two columns. `.now-col` is the brain dump
+  (`section[aria-label="Brain dump"]`) and the heatmap (`.heat`); `.read-col`
+  is Continue reading (`.continue-paper`, the paper with the latest
+  `lastReadAt`). Papers and Settings live in `.edition-index`.
+- Papers come from alphaXiv: seed `folders` (`{id,name,type}`) and `papers`
+  keyed by arXiv id with `folderIds`. Non-arXiv papers do not exist any more.
+- Reading session: opening the reader sends `READER_OPENED`, which puts the tab
+  in `focusSession.tabIds` and redirects `settings.focusBlocklist` hosts to the
+  blocked page; closing the last reader tab sets `focusSession: null`.
 - Reader (the Observatory): `.reader-root[data-chrome]` is `awake`/`asleep`
   (sleeps 2.5s after load with no panel open; `mouse.move(x, 10)` wakes it);
   status is `.reader-capsule` (click `.reader-capsule-summary` for page jump and
@@ -79,15 +71,10 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Gotchas
 
-- **Local AI runs on Ollama** (`src/shared/llm/`). Drive it with a mock: a node
-  `http` server answering `GET /api/tags`, `POST /api/show`, `POST /api/chat`
-  (NDJSON lines `{"message":{"content":…}}` then `{"done":true}`) and
-  `POST /api/embed` (`{"embeddings":[…]}`), with `settings.ollamaUrl` pointed
-  at it. To mimic real Ollama's origin check, 403 any `/api/*` request whose
-  Origin is `chrome-extension://…` until "allowed" — note Chrome sends no Origin
-  on an extension page's GET, only on POST. Intercept
-  `https://api.anthropic.com/**` with `ctx.route` and assert zero hits for
-  private sources (web pages, local PDFs, highlights).
+- **AI is Claude Haiku only** (`src/shared/llm/`, alphaXiv grounds, Haiku
+  writes). Mock it with `mockClaude(ext, reply)` from `e2e/harness.ts`: a
+  `ctx.route` on `https://api.anthropic.com/**` answering with an SSE stream.
+  Seed `settings.claudeKey` or every AI call reports "unavailable".
 - Settings checkboxes are controlled via an async chrome.storage round-trip:
   Playwright's `check()/uncheck()` post-click assertion races it. Use
   `click({ force: true })` + `waitForFunction` on the storage value.

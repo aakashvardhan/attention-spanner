@@ -3,8 +3,8 @@ import { getLocal, setLocal } from '../storage';
 import type { AiCacheEntry } from '../types';
 
 /**
- * The AI cache and vectors, written straight from the page rather
- * than through the service worker. Neither carries an invariant: a cache entry
+ * The AI cache, written straight from the page rather
+ * than through the service worker. It carries no invariant an invariant: a cache entry
  * lost to two tabs writing at once is regenerated. The worker's single-writer rule is for data a feature
  * depends on.
  *
@@ -29,12 +29,12 @@ export function hashText(text: string): string {
   return (hash >>> 0).toString(16);
 }
 
-const LIVE_TARGETS = new Set<AiCacheEntry['target']>(['claude', 'ollama']);
+const LIVE_TARGETS = new Set<AiCacheEntry['target']>(['claude']);
 
 export async function cacheGet(key: string): Promise<AiCacheEntry | null> {
   const { aiCache } = await getLocal('aiCache');
   const entry = aiCache[key];
-  // An entry saved by a target that no longer exists (Gemini) is a miss.
+  // An entry saved by a model target that no longer exists (anything not Claude) is a miss.
   return entry && LIVE_TARGETS.has(entry.target) ? entry : null;
 }
 
@@ -50,15 +50,5 @@ export function cachePut(key: string, entry: AiCacheEntry): Promise<void> {
         .forEach((old) => delete aiCache[old]);
     }
     await setLocal({ aiCache });
-  });
-}
-
-/** Read-modify-write of the vector cache, in the same queue as the rest. */
-export function updateVectors(
-  change: (vectors: Record<string, string>) => Record<string, string>,
-): Promise<void> {
-  return serial(async () => {
-    const { aiVectors } = await getLocal('aiVectors');
-    await setLocal({ aiVectors: change(aiVectors) });
   });
 }

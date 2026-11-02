@@ -1,5 +1,4 @@
 import { MATH_RULE, type AiRequest } from './generate';
-import type { AiSource } from './route';
 
 /**
  * Click-to-define in the reader: the word you clicked and the text around it.
@@ -21,11 +20,10 @@ export function defineRequest(opts: {
   word: string;
   context: string;
   near: string;
-  source: AiSource;
 }): AiRequest {
   return {
     task: 'terms',
-    source: opts.source,
+    source: 'arxiv',
     system: DEFINE_SYSTEM,
     passages: [opts.context],
     prompt: `The reader clicked "${opts.word}". Define the term it belongs to.`,

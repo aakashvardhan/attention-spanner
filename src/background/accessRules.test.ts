@@ -10,14 +10,7 @@ import { buildSessionAccessRules } from './accessRules';
  * while it is running, and never a moment longer.
  */
 
-const focus: FocusSession = {
-  startedAt: 1,
-  phase: 'focus',
-  phaseStartedAt: 1,
-  phaseEndsAt: Date.now() + 60_000,
-  focusMinutes: 25,
-  round: 1,
-};
+const focus: FocusSession = { startedAt: 1, tabIds: [5], title: 'Paper' };
 
 const build = (focusSession: FocusSession | null) =>
   buildSessionAccessRules({
@@ -37,11 +30,11 @@ describe('session access rule matrix', () => {
     expect(rules[0].priority).toBe(FOCUS_DNR_PRIORITY);
   });
 
-  it('opens the blocklist for a Pomodoro break, still clocked in', () => {
-    expect(build({ ...focus, phase: 'break' })).toEqual([]);
+  it('installs nothing once the last reader tab is gone', () => {
+    expect(build({ ...focus, tabIds: [] })).toEqual([]);
   });
 
-  it('does not resurrect an expired Focus phase while rebuilding access', () => {
-    expect(build({ ...focus, phaseEndsAt: Date.now() - 1 })).toEqual([]);
+  it('treats a pre-reader (Pomodoro-shaped) session as not blocking', () => {
+    expect(build({ startedAt: 1 } as unknown as FocusSession)).toEqual([]);
   });
 });

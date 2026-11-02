@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { AiNote } from '../../../shared/components/AiNote';
 import { SaveNotePrompt } from '../../../shared/components/SaveNotePrompt';
 import { useAi } from '../../../shared/hooks/useAi';
-import type { AiSource } from '../../../shared/llm/route';
 import { defineRequest } from '../../../shared/llm/terms';
 
 export interface DefineTarget {
@@ -23,13 +22,11 @@ export interface DefineTarget {
 export function DefinePopover({
   target,
   docKey,
-  source,
   onClose,
   onSave,
 }: {
   target: DefineTarget;
   docKey: string;
-  source: AiSource;
   onClose: () => void;
   /** Present = once written, ask whether to keep the definition as a note on the term */
   onSave?: (definition: string) => void;
@@ -40,8 +37,8 @@ export function DefinePopover({
   const [draft, setDraft] = useState('');
   const [guess, setGuess] = useState<string | null>(null);
   useEffect(() => {
-    if (guess !== null) void start(defineRequest({ key: docKey, word, context, near, source }));
-  }, [start, guess, docKey, word, context, near, source]);
+    if (guess !== null) void start(defineRequest({ key: docKey, word, context, near }));
+  }, [start, guess, docKey, word, context, near]);
 
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -92,7 +89,7 @@ export function DefinePopover({
           <p className="define-label">Your guess</p>
           <p className="define-guess-text">{guess}</p>
           <p className="define-label">In the paper</p>
-          <AiNote view={ai.view} onStop={ai.stop} onApprove={ai.approve} onDismiss={onClose} />
+          <AiNote view={ai.view} onStop={ai.stop} />
           {onSave && (
             <SaveNotePrompt
               view={ai.view}

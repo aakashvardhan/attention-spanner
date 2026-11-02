@@ -55,18 +55,26 @@ export function buildFocusRules(
   }));
 }
 
-/**
- * The Pomodoro step: a focus round ends in a break, a break in the next round.
- * Timed from now, never from the old phaseEndsAt, so a throttled alarm cannot
- * schedule a phase that is already over.
- */
-export function nextPhase(session: FocusSession, breakMinutes: number, now: number): FocusSession {
-  const toBreak = session.phase === 'focus';
-  return {
-    ...session,
-    phase: toBreak ? 'break' : 'focus',
-    round: toBreak ? session.round : session.round + 1,
-    phaseStartedAt: now,
-    phaseEndsAt: now + (toBreak ? breakMinutes : session.focusMinutes) * 60_000,
-  };
+/** A reader tab opened: start the session, or add the tab to it. Pure. */
+export function withReaderTab(
+  session: FocusSession | null,
+  tabId: number,
+  title: string,
+  now: number,
+): FocusSession {
+  if (!session) return { startedAt: now, tabIds: [tabId], title };
+  const tabIds = session.tabIds.includes(tabId) ? session.tabIds : [...session.tabIds, tabId];
+  return { ...session, tabIds, title: title || session.title };
+}
+
+/** A reader tab closed or navigated away: null once no reader tab is left. Pure. */
+export function withoutReaderTab(session: FocusSession | null, tabId: number): FocusSession | null {
+  if (!session) return null;
+  const tabIds = session.tabIds.filter((id) => id !== tabId);
+  return tabIds.length ? { ...session, tabIds } : null;
+}
+
+/** Rules are on exactly when a session holds a reader tab. */
+export function isBlocking(session: FocusSession | null | undefined): boolean {
+  return !!session && Array.isArray(session.tabIds) && session.tabIds.length > 0;
 }

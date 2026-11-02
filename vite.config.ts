@@ -36,8 +36,6 @@ export default defineConfig({
       // Pages the manifest does not name directly still need an entry.
       input: {
         blocked: 'src/pages/blocked/index.html',
-        chime: 'src/pages/chime/index.html',
-        define: 'src/pages/define/index.html',
         dumps: 'src/pages/dumps/index.html',
         papers: 'src/pages/papers/index.html',
         reader: 'src/pages/reader/index.html',

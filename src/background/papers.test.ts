@@ -6,17 +6,12 @@ const T0 = 1_700_000_000_000;
 
 function paper(over: Partial<Paper> = {}): Paper {
   return {
-    id: 'p1',
-    deckId: 'd1',
+    id: '2006.11239',
     title: 'Denoising Diffusion Probabilistic Models',
     authors: 'Ho, Jain, Abbeel',
-    venue: 'NeurIPS',
     year: 2020,
-    citations: null,
     url: 'https://arxiv.org/abs/2006.11239',
-    abstract: '',
-    relevance: '',
-    status: 'to-read',
+    folderIds: [],
     progressPercent: 0,
     leftOff: '',
     addedAt: T0,
@@ -38,28 +33,21 @@ function pos(over: Partial<ReaderPosition> = {}): ReaderPosition {
 }
 
 describe('applyReaderProgress', () => {
-  it('stores the position, ratchets percent, and promotes to-read → reading', () => {
+  it('stores the position and ratchets percent', () => {
     const p = paper();
     expect(applyReaderProgress(p, pos(), T0 + 1000)).toBe(true);
     expect(p.pdf).toEqual({ url: 'https://arxiv.org/pdf/2006.11239', page: 5, pageCount: 20, offset: 0.5 });
     expect(p.progressPercent).toBe(23); // (4 + 0.5) / 20
-    expect(p.status).toBe('reading');
     expect(p.leftOff).toBe('3 Diffusion models');
     expect(p.lastReadAt).toBe(T0 + 1000);
     expect(p.updatedAt).toBe(T0 + 1000);
   });
 
   it('never lowers progressPercent when scrolling back up', () => {
-    const p = paper({ status: 'reading', progressPercent: 60 });
+    const p = paper({ progressPercent: 60 });
     applyReaderProgress(p, pos({ page: 2, offset: 0 }), T0 + 1000);
     expect(p.progressPercent).toBe(60);
     expect(p.pdf?.page).toBe(2); // resume position still follows the reader
-  });
-
-  it('leaves a finished paper marked read', () => {
-    const p = paper({ status: 'read', progressPercent: 100 });
-    applyReaderProgress(p, pos(), T0 + 1000);
-    expect(p.status).toBe('read');
   });
 
   it('keeps the existing leftOff when the reader reports an empty one', () => {
@@ -69,7 +57,7 @@ describe('applyReaderProgress', () => {
   });
 
   it('throttles lastReadAt but always bumps updatedAt on a position change', () => {
-    const p = paper({ status: 'reading', lastReadAt: T0 });
+    const p = paper({ lastReadAt: T0 });
     applyReaderProgress(p, pos(), T0 + 5000); // inside the 60s throttle
     expect(p.lastReadAt).toBe(T0);
     expect(p.updatedAt).toBe(T0 + 5000);

@@ -1,28 +1,15 @@
-import { ArticleReader } from './ArticleReader';
 import { readerPdfSrc } from '../../shared/pdf';
 import { PdfReader } from './PdfReader';
 
-/**
- * One reader, two document kinds. `?src=` opens a PDF (pdf.js, page boxes) and
- * `?article=` opens a web article (fetched, extracted into reading blocks).
- * Both get the same toolbar, outline, highlights and notes.
- */
+/** The paper reader: `?src=` (or the PDF redirect's `?raw=`) opens a PDF. */
 export function Reader() {
   // Web-accessible so the PDF redirect can land here; no business inside another site's frame.
   if (window.top !== window) return null;
-  const params = new URLSearchParams(location.search);
   const pdf = readerPdfSrc(location.search);
-  const article = params.get('article') ?? '';
-
   if (pdf) return <PdfReader src={pdf} />;
-  if (article) return <ArticleReader url={article} />;
-
   return (
-    <div className="reader-fallback">
-      <p>
-        Nothing to show — press ⌘/Ctrl+Shift+E on a page to read it here, right-click and
-        choose “Read in Reader”, or pick something up from Continue reading on a new tab.
-      </p>
-    </div>
+    <main className="reader-fallback">
+      <p>Nothing to show. Open a paper from your shelf on the new tab.</p>
+    </main>
   );
 }

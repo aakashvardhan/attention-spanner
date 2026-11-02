@@ -13,23 +13,17 @@ import { TextLayer, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
 import { ANNOTATION_TEXT_MAX_CHARS } from '../../../shared/constants';
 import { DEFAULT_ANNOTATION_COLOR, mergeLineRects, normalizeRects } from '../../../shared/annotations';
 import { positionFromScroll, type PdfPosition } from '../../../shared/pdf';
-import type { AnnotationColor, AnnotationRect, HighlightTag, PdfAnchoredAnnotation } from '../../../shared/types';
+import type { AnnotationColor, AnnotationRect, PdfAnchoredAnnotation } from '../../../shared/types';
 import type { PdfPageSize } from '../usePdfDocument';
-import { citationHref, resolveCitation, type Reference, type ReferenceIndex } from '../references';
-import { knownTargetFor, type KnownTarget } from '../citationLinks';
 import { MENTION_RE, mentionKey, type FigureKey } from '../figures';
 import { clickedWord } from '../clickedWord';
-import type { AiSource } from '../../../shared/llm/route';
 import { DefinePopover, type DefineTarget } from './DefinePopover';
 import { AnnotationLayer } from './AnnotationLayer';
 import { SelectionMenu } from './SelectionMenu';
-import { CitationTooltip } from './CitationTooltip';
 import { ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
 
 /** Vertical gap between pages, and padding above the first / below the last. */
 const PAGE_GAP = 16;
-/** Share of the viewport under a locked page's bottom for the lock card (under 0.5 keeps the middle on the page). */
-const LOCK_ROOM = 0.45;
 /** Pages within this margin of the viewport get (and keep) a rendered canvas. */
 const RENDER_MARGIN = '1500px 0px';
 /**
@@ -51,12 +45,6 @@ function navBehavior(): ScrollBehavior {
   return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 }
 
-/** A text selection, split into rects per page it spans. */
-export interface PdfSelection {
-  text: string;
-  byPage: Map<number, AnnotationRect[]>;
-}
-
 export interface PdfViewportHandle {
   scrollToPosition(page: number, offset: number): void;
 }
@@ -68,124 +56,10 @@ interface PendingSelection {
   byPage: Map<number, AnnotationRect[]>;
 }
 
-interface CitationHover {
-  refs: Reference[];
-  x: number;
-  y: number;
-  /** Place below the marker instead of above (marker near the viewport top). */
-  flip: boolean;
-}
-
-/** What a matched marker resolves against; mirrors resolveCitation's argument. */
-interface MarkerData {
-  labels?: string[];
-  author?: string;
-  year?: number;
-}
-
-/** Expand a bracket group's inner text ("3, 4", "5-7") into individual labels. */
-function expandLabels(inner: string): string[] {
-  const out: string[] = [];
-  for (const token of inner.split(',')) {
-    const range = token.trim().match(/^(\d{1,3})\s*[–-]\s*(\d{1,3})$/);
-    if (range) {
-      const a = Number(range[1]);
-      const b = Number(range[2]);
-      if (b >= a && b - a < 100) for (let n = a; n <= b; n++) out.push(String(n));
-    } else if (/^\d{1,3}$/.test(token.trim())) {
-      out.push(token.trim());
-    }
-  }
-  return out;
-}
-
-/** Find citation markers in a run of text: numeric [n] and author-year forms. */
-function findMarkers(text: string): { start: number; end: number; data: MarkerData }[] {
-  const found: { start: number; end: number; data: MarkerData }[] = [];
-  for (const m of text.matchAll(/\[(\d{1,3}(?:\s*[,–-]\s*\d{1,3})*)\]/g)) {
-    found.push({ start: m.index, end: m.index + m[0].length, data: { labels: expandLabels(m[1]) } });
-  }
-  // Parenthetical: (Vaswani et al., 2017), (Devlin & Chang, 2019), (Smith, 2020).
-  for (const m of text.matchAll(/\(([A-Z][A-Za-z'’-]+)[^)]*?\b(19|20)(\d{2})[a-z]?\)/g)) {
-    found.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      data: { author: m[1], year: Number(`${m[2]}${m[3]}`) },
-    });
-  }
-  // Narrative: Vaswani et al. (2017), Devlin and Chang (2019), Smith (2020).
-  for (const m of text.matchAll(
-    /\b([A-Z][A-Za-z'’-]+)(?:\s+et al\.?)?(?:\s*(?:and|&)\s*[A-Z][A-Za-z'’-]+)?\s*\((19|20)(\d{2})[a-z]?\)/g,
-  )) {
-    found.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      data: { author: m[1], year: Number(`${m[2]}${m[3]}`) },
-    });
-  }
-  // Sort by position and drop overlaps (keep the earlier match).
-  found.sort((a, b) => a.start - b.start);
-  const result: typeof found = [];
-  let lastEnd = -1;
-  for (const f of found) {
-    if (f.start >= lastEnd) {
-      result.push(f);
-      lastEnd = f.end;
-    }
-  }
-  return result;
-}
-
-/**
- * Wrap resolvable citation markers in the rendered text layer with
- * `<span class="cite-marker">` so they become hover targets. Splits text nodes
- * in place — the characters are unchanged, so native selection/copy still work
- * (the same guarantee the transparent-glyph overlay already relies on).
- */
-function wrapCitations(
-  container: HTMLElement,
-  index: ReferenceIndex,
-  known: Map<string, KnownTarget>,
-): void {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n as Text);
-
-  for (const textNode of textNodes) {
-    // Skip nodes already inside a marker (guards against a second wrapping pass).
-    if (textNode.parentElement?.classList.contains('cite-marker')) continue;
-    const text = textNode.nodeValue ?? '';
-    if (text.length < 3) continue;
-    const resolved = findMarkers(text)
-      .map((m) => ({ ...m, refs: resolveCitation(index, m.data) }))
-      .filter((m) => m.refs.length > 0);
-    if (!resolved.length) continue;
-    const markers = resolved;
-
-    const frag = document.createDocumentFragment();
-    let pos = 0;
-    for (const marker of markers) {
-      if (marker.start > pos) frag.appendChild(document.createTextNode(text.slice(pos, marker.start)));
-      const span = document.createElement('span');
-      span.className = 'cite-marker';
-      if (marker.data.labels) span.dataset.labels = marker.data.labels.join(',');
-      if (marker.data.author) span.dataset.author = marker.data.author;
-      if (marker.data.year !== undefined) span.dataset.year = String(marker.data.year);
-      // A citation you already have reads differently from one you don't —
-      // Wikipedia's blue link. One attribute; the styling is in reader.css.
-      if (marker.refs.some((r) => knownTargetFor(r, known))) span.dataset.known = 'true';
-      span.textContent = text.slice(marker.start, marker.end);
-      frag.appendChild(span);
-      pos = marker.end;
-    }
-    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
-    textNode.parentNode?.replaceChild(frag, textNode);
-  }
-}
-
 /**
  * Wrap figure/table mentions whose caption was found in
- * `<span class="fig-ref">`, the same in-place split wrapCitations does.
+ * `<span class="fig-ref">`. Splits text nodes in place: the characters are
+ * unchanged, so native selection and copy still work.
  */
 function wrapFigureRefs(container: HTMLElement, figures: Map<FigureKey, PdfPosition>): void {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -193,7 +67,7 @@ function wrapFigureRefs(container: HTMLElement, figures: Map<FigureKey, PdfPosit
   for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n as Text);
 
   for (const textNode of textNodes) {
-    if (textNode.parentElement?.closest('.fig-ref, .cite-marker')) continue;
+    if (textNode.parentElement?.closest('.fig-ref')) continue;
     const text = textNode.nodeValue ?? '';
     const hits = [...text.matchAll(MENTION_RE)].filter((m) => figures.has(mentionKey(m[1], m[2])));
     if (!hits.length) continue;
@@ -237,15 +111,8 @@ export function PdfViewport({
   onUpdateNote,
   onUpdateColor,
   onDeleteAnnotation,
-  references,
-  known,
   figures,
   docKey,
-  source,
-  lockAfterPage = null,
-  selectionMode = 'colors',
-  onTag,
-  onQuestion,
 }: {
   doc: PDFDocumentProxy;
   pageSizes: PdfPageSize[];
@@ -269,21 +136,10 @@ export function PdfViewport({
   onUpdateNote: (id: string, note: string) => void;
   onUpdateColor: (id: string, color: AnnotationColor) => void;
   onDeleteAnnotation: (id: string) => void;
-  /** Bibliography index for citation hover previews; null until extracted. */
-  references: ReferenceIndex | null;
-  /** Citations that resolve to something the reader already has, by match key. */
-  known: Map<string, KnownTarget>;
   /** Where each figure/table caption sits; null until scanned. */
   figures: Map<FigureKey, PdfPosition> | null;
-  /** Click-to-define caches per document and routes by source */
+  /** Click-to-define caches per document */
   docKey: string;
-  source: AiSource;
-  /** Pass 3: nothing past this page's bottom, by scroll or by jump; going back stays allowed */
-  lockAfterPage?: number | null;
-  /** 'tags': the selection menu asks what the passage is (Claim / Evidence / Doubt) */
-  selectionMode?: 'colors' | 'tags';
-  onTag?: (selection: PdfSelection, tag: HighlightTag | null) => void;
-  onQuestion?: (selection: PdfSelection) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -337,26 +193,11 @@ export function PdfViewport({
   }, [pageSizes, scale]);
 
   const lastPosRef = useRef<PdfPosition>({ page: 1, offset: 0 });
-  const lockRef = useRef(lockAfterPage);
-  lockRef.current = lockAfterPage;
-  /**
-   * The furthest scrollTop the lock allows: the locked page's bottom a little
-   * above the viewport's bottom, leaving a faded strip under it for the lock's
-   * card, while the viewport's middle stays on the locked page.
-   */
-  const lockMax = (el: HTMLElement) => {
-    const page = lockRef.current;
-    if (page == null || tops.length === 0) return Infinity;
-    const i = Math.min(tops.length, Math.max(1, page)) - 1;
-    return Math.max(tops[i], tops[i] + heights[i] - el.clientHeight * (1 - LOCK_ROOM));
-  };
-
   /** anchorY: where in the viewport the position lands; the middle by default. */
   const scrollToPosition = useCallback(
     (page: number, offset: number, behavior: ScrollBehavior = 'instant', anchorY?: number) => {
       const el = containerRef.current;
       if (!el || tops.length === 0) return;
-      if (lockRef.current != null && page > lockRef.current) return;
       const index = Math.min(tops.length, Math.max(1, page)) - 1;
       const target = Math.max(0, tops[index] + offset * heights[index] - (anchorY ?? el.clientHeight / 2));
       // Chrome's glide lengthens with distance (~1.4s across a paper). Cut to
@@ -473,46 +314,6 @@ export function PdfViewport({
 
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
 
-  // Citation hover preview. A short close grace lets the pointer travel from the
-  // marker into the tooltip (to click the link) without it vanishing.
-  const [citationHover, setCitationHover] = useState<CitationHover | null>(null);
-  const hoverCloseRef = useRef(0);
-  const cancelHoverClose = () => clearTimeout(hoverCloseRef.current);
-  const scheduleHoverClose = () => {
-    cancelHoverClose();
-    hoverCloseRef.current = window.setTimeout(() => setCitationHover(null), 300);
-  };
-  useEffect(() => () => clearTimeout(hoverCloseRef.current), []);
-
-  const handleCitationOver = (e: ReactMouseEvent) => {
-    if (!references) return;
-    const marker = markerUnder(e);
-    if (!marker) return;
-    const refs = resolveCitation(references, {
-      labels: marker.dataset.labels ? marker.dataset.labels.split(',') : undefined,
-      author: marker.dataset.author,
-      year: marker.dataset.year ? Number(marker.dataset.year) : undefined,
-    });
-    if (!refs.length) return;
-    cancelHoverClose();
-    const rect = marker.getBoundingClientRect();
-    // Open toward the side with more room; the tooltip caps its height to it.
-    const flip = rect.top < window.innerHeight / 2;
-    setCitationHover({
-      refs,
-      x: Math.min(Math.max(rect.left + rect.width / 2, 184), window.innerWidth - 184),
-      y: flip ? rect.bottom + 6 : rect.top - 6,
-      flip,
-    });
-  };
-
-  const handleCitationOut = (e: ReactMouseEvent) => {
-    if (!(e.target as HTMLElement).closest('.cite-marker, .reader-link')) return;
-    const related = e.relatedTarget as HTMLElement | null;
-    if (related?.closest?.('.cite-tooltip')) return;
-    scheduleHoverClose();
-  };
-
   // Clicking a word in the text asks for the meaning of the term it belongs to.
   // It carries the word's page and boxes, where a kept definition becomes a highlight.
   const [define, setDefine] = useState<(DefineTarget & { page: number; rects: AnnotationRect[] }) | null>(null);
@@ -577,10 +378,9 @@ export function PdfViewport({
     [doc, scrollToPosition],
   );
 
-  // Clicking a citation opens its reference; a figure mention jumps to its
-  // caption. Skip when the click is part of a text selection so selecting
-  // across a marker doesn't navigate.
-  const handleCitationClick = (e: ReactMouseEvent) => {
+  // A figure mention jumps to its caption; any other word asks for its meaning.
+  // Skip when the click is part of a text selection.
+  const handleClick = (e: ReactMouseEvent) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('.reader-link')) return;
     const figRef = (e.target as HTMLElement).closest<HTMLElement>('.fig-ref');
     const target = figRef && figures?.get(figRef.dataset.figure ?? '');
@@ -593,29 +393,12 @@ export function PdfViewport({
       scrollToPosition(target.page, target.offset, navBehavior());
       return;
     }
-    const marker = (e.target as HTMLElement).closest<HTMLElement>('.cite-marker');
-    if (!marker) {
-      if (!figRef) defineAt(e);
-      return;
-    }
-    if (!references) return;
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) return;
-    const refs = resolveCitation(references, {
-      labels: marker.dataset.labels ? marker.dataset.labels.split(',') : undefined,
-      author: marker.dataset.author,
-      year: marker.dataset.year ? Number(marker.dataset.year) : undefined,
-    });
-    if (!refs.length) return;
-    window.open(citationHref(refs[0]), '_blank', 'noopener,noreferrer');
+    if (!figRef) defineAt(e);
   };
 
   const rafRef = useRef(0);
   const handleScroll = () => {
-    const box = containerRef.current;
-    if (box && box.scrollTop > lockMax(box)) box.scrollTop = lockMax(box);
     setPendingSelection(null);
-    setCitationHover(null);
     setDefine(null);
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
@@ -717,19 +500,6 @@ export function PdfViewport({
     });
   };
 
-  // A lock that lands while the page is scrolled past it pulls back at once.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (el && el.scrollTop > lockMax(el)) el.scrollTop = lockMax(el);
-  });
-
-  const takeSelection = (run: (sel: PdfSelection) => void) => {
-    if (!pendingSelection) return;
-    run({ text: pendingSelection.text, byPage: pendingSelection.byPage });
-    window.getSelection()?.removeAllRanges();
-    setPendingSelection(null);
-  };
-
   const handlePickColor = (color: AnnotationColor) => {
     if (!pendingSelection) return;
     for (const [page, rects] of pendingSelection.byPage) {
@@ -747,7 +517,6 @@ export function PdfViewport({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setPendingSelection(null);
-        setCitationHover(null);
         setDefine(null);
       }
     };
@@ -791,22 +560,9 @@ export function PdfViewport({
         tabIndex={0}
         onScroll={handleScroll}
         onPointerUp={handlePointerUp}
-        onMouseOver={handleCitationOver}
-        onMouseOut={handleCitationOut}
-        onClick={handleCitationClick}
+        onClick={handleClick}
       >
         <div className="reader-page-list" ref={listRef} style={{ height: totalHeight, width: listWidth }}>
-          {lockAfterPage != null && scale > 0 && lockAfterPage <= tops.length && (
-            // Pass 3: what lies past the locked page fades out; the page itself stays clear.
-            <div
-              className="reader-lock-fade"
-              aria-hidden="true"
-              style={{
-                top: tops[lockAfterPage - 1] + heights[lockAfterPage - 1],
-                height: totalHeight - tops[lockAfterPage - 1] - heights[lockAfterPage - 1],
-              }}
-            />
-          )}
           {scale > 0 &&
             pageSizes.map((size, i) => {
               const page = i + 1;
@@ -833,8 +589,6 @@ export function PdfViewport({
                         doc={doc}
                         pageNumber={page}
                         scale={renderScale}
-                        references={references}
-                        known={known}
                         figures={figures}
                       />
                       <PageLinkLayer doc={doc} pageNumber={page} scale={renderScale} onDest={followDest} />
@@ -872,9 +626,6 @@ export function PdfViewport({
           x={pendingSelection.menuX}
           y={pendingSelection.menuY}
           onPick={handlePickColor}
-          mode={selectionMode}
-          onTag={(tag) => takeSelection((sel) => onTag?.(sel, tag))}
-          onQuestion={() => takeSelection((sel) => onQuestion?.(sel))}
         />
       )}
       {define && (
@@ -882,20 +633,8 @@ export function PdfViewport({
           key={`${define.x},${define.y}`}
           target={define}
           docKey={docKey}
-          source={source}
           onClose={closeDefine}
           onSave={(note) => onCreateHighlight(define.page, define.rects, define.word, DEFAULT_ANNOTATION_COLOR, note)}
-        />
-      )}
-      {citationHover && (
-        <CitationTooltip
-          refs={citationHover.refs}
-          known={known}
-          x={citationHover.x}
-          y={citationHover.y}
-          flip={citationHover.flip}
-          onEnter={cancelHoverClose}
-          onLeave={scheduleHoverClose}
         />
       )}
     </>
@@ -962,19 +701,15 @@ function PageTextLayer({
   doc,
   pageNumber,
   scale,
-  references,
-  known,
   figures,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
-  references: ReferenceIndex | null;
-  known: Map<string, KnownTarget>;
   figures: Map<FigureKey, PdfPosition> | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Bumps once the text layer has finished rendering, so the citation-wrapping
+  // Bumps once the text layer has finished rendering, so the figure-wrapping
   // effect below runs against real spans (and re-runs after a scale re-render).
   const [renderGen, setRenderGen] = useState(0);
 
@@ -1002,15 +737,6 @@ function PageTextLayer({
     };
   }, [doc, pageNumber, scale]);
 
-  // Wrap citation markers once the layer has rendered and references exist. A
-  // scale change re-renders the layer (clearing wrappers), which bumps renderGen
-  // and re-wraps at the new scale.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !references || references.isEmpty || renderGen === 0) return;
-    wrapCitations(container, references, known);
-  }, [references, renderGen, known]);
-
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !figures?.size || renderGen === 0) return;
@@ -1018,20 +744,6 @@ function PageTextLayer({
   }, [figures, renderGen]);
 
   return <div ref={containerRef} className="textLayer" />;
-}
-
-/**
- * The citation marker at the pointer. A PDF link usually sits over its
- * citation, and the link's box takes the hover, so look beneath it.
- */
-function markerUnder(e: ReactMouseEvent): HTMLElement | null {
-  const target = e.target as HTMLElement;
-  if (!target.closest('.reader-link')) return target.closest<HTMLElement>('.cite-marker');
-  return (
-    document.elementsFromPoint(e.clientX, e.clientY).find((el) => el.classList.contains('cite-marker')) as
-      | HTMLElement
-      | undefined
-  ) ?? null;
 }
 
 /** A link destination as a reader position: the page, and how far down it the target sits. */

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FOCUS_DNR_ID_BASE } from './constants';
-import { buildFocusRules, isBlockedHost, nextPhase, normalizeBlockDomain } from './focusRules';
-import type { FocusSession } from './types';
+import { buildFocusRules, isBlockedHost, isBlocking, normalizeBlockDomain, withoutReaderTab, withReaderTab } from './focusRules';
 
 describe('normalizeBlockDomain', () => {
   it('passes clean domains through', () => {
@@ -70,29 +69,27 @@ describe('buildFocusRules', () => {
   });
 });
 
-describe('nextPhase', () => {
-  const MIN = 60_000;
-  const round1: FocusSession = { startedAt: 0, phase: 'focus', phaseStartedAt: 0, phaseEndsAt: 50 * MIN, focusMinutes: 50, round: 1 };
-
-  it('ends a focus round in a break of the given length, same round', () => {
-    const now = 50 * MIN + 400;
-    expect(nextPhase(round1, 10, now)).toEqual({ ...round1, phase: 'break', phaseStartedAt: now, phaseEndsAt: now + 10 * MIN });
+describe('reader-tab session', () => {
+  it('starts a session on the first reader tab', () => {
+    expect(withReaderTab(null, 3, 'A', 10)).toEqual({ startedAt: 10, tabIds: [3], title: 'A' });
   });
-
-  it('carries the clock-in intention through every phase', () => {
-    const shift = { ...round1, intention: 'finish lit review' };
-    const brk = nextPhase(shift, 10, 50 * MIN);
-    expect(nextPhase(brk, 10, 60 * MIN).intention).toBe('finish lit review');
+  it('adds a second tab once, keeping the start time', () => {
+    const s1 = withReaderTab(null, 3, 'A', 10);
+    const s2 = withReaderTab(withReaderTab(s1, 4, 'B', 20), 4, 'B', 30);
+    expect(s2).toEqual({ startedAt: 10, tabIds: [3, 4], title: 'B' });
   });
-
-  it('ends a break in the next focus round', () => {
-    const now = 61 * MIN;
-    const next = nextPhase(nextPhase(round1, 10, 50 * MIN), 10, now);
-    expect(next).toEqual({ ...round1, round: 2, phaseStartedAt: now, phaseEndsAt: now + 50 * MIN });
+  it('keeps the old title when a tab reports none', () => {
+    expect(withReaderTab(withReaderTab(null, 3, 'A', 1), 3, '', 2).title).toBe('A');
   });
-
-  it('times from now, so a late alarm never schedules a phase in the past', () => {
-    const late = 3 * 60 * MIN;
-    expect(nextPhase(round1, 10, late).phaseEndsAt).toBeGreaterThan(late);
+  it('ends only when the last tab goes', () => {
+    const s = withReaderTab(withReaderTab(null, 3, 'A', 1), 4, 'B', 2);
+    expect(withoutReaderTab(s, 3)?.tabIds).toEqual([4]);
+    expect(withoutReaderTab(withoutReaderTab(s, 3), 4)).toBeNull();
+    expect(withoutReaderTab(null, 3)).toBeNull();
+  });
+  it('blocks exactly while a tab is held', () => {
+    expect(isBlocking(null)).toBe(false);
+    expect(isBlocking({ startedAt: 1, tabIds: [], title: '' })).toBe(false);
+    expect(isBlocking({ startedAt: 1, tabIds: [1], title: '' })).toBe(true);
   });
 });

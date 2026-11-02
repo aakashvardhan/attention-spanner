@@ -1,59 +1,21 @@
-import { useEffect, useState } from 'react';
-import { AiNote } from '../../../shared/components/AiNote';
-import { useAi } from '../../../shared/hooks/useAi';
-import { outlineRequest, parseOutline } from '../../../shared/llm/outline';
-import type { AiSource } from '../../../shared/llm/route';
 import { sectionIndexAt, type FlatOutlineItem } from '../../../shared/pdfOutline';
-
-/** What the AI outline needs; absent on surfaces without one (articles). */
-export interface AiOutlineSource {
-  /** Cache key for the generated outline (the document key) */
-  cacheKey: string;
-  /** One passage per page; null while the text is still loading */
-  passages: string[] | null;
-  source: AiSource;
-}
 
 export function OutlineSidebar({
   outline,
   currentPage,
   onJump,
-  ai,
 }: {
   outline: FlatOutlineItem[];
   currentPage: number;
   onJump: (page: number) => void;
-  ai?: AiOutlineSource;
 }) {
   const active = sectionIndexAt(outline, currentPage);
-  const [tab, setTab] = useState<'ai' | 'contents'>(
-    // The paper's own contents first; the AI outline is for papers without one.
-    outline.length > 0 || !ai ? 'contents' : 'ai',
-  );
-  const showTabs = ai && outline.length > 0;
-
   return (
-    <nav className="reader-outline">
-      {showTabs ? (
-        <div className="reader-outline-tabs" role="tablist">
-          <button role="tab" aria-selected={tab === 'ai'} onClick={() => setTab('ai')}>
-            AI outline
-          </button>
-          <button role="tab" aria-selected={tab === 'contents'} onClick={() => setTab('contents')}>
-            Contents
-          </button>
-        </div>
-      ) : (
-        <h2>{ai ? 'AI outline' : 'Outline'}</h2>
-      )}
-      {/* Hidden rather than unmounted, so switching tabs doesn't abort a stream. */}
-      {ai && (
-        <div hidden={tab !== 'ai'}>
-          <AiOutline {...ai} onJump={onJump} />
-        </div>
-      )}
+    <nav className="reader-outline" aria-label="Outline">
+      <h2>Outline</h2>
+      {outline.length === 0 && <p className="reader-notes-empty">This paper has no outline.</p>}
       {outline.length > 0 && (
-        <ul hidden={tab !== 'contents'}>
+        <ul>
           {outline.map((item, i) => (
             <li key={i}>
               <button
@@ -69,62 +31,5 @@ export function OutlineSidebar({
         </ul>
       )}
     </nav>
-  );
-}
-
-/**
- * Generated on first open and cached per document, so it costs one model call
- * per paper. Each bullet jumps to the page it cites.
- */
-function AiOutline({
-  cacheKey,
-  passages,
-  source,
-  onJump,
-}: AiOutlineSource & { onJump: (page: number) => void }) {
-  const ai = useAi();
-  const { start } = ai;
-  useEffect(() => {
-    if (passages?.length) void start(outlineRequest({ key: cacheKey, passages, source }));
-  }, [start, cacheKey, passages, source]);
-
-  const { status, text } = ai.view;
-  const bullets = status === 'done' || status === 'streaming' ? parseOutline(text, passages?.length ?? 0) : [];
-  if (!passages) return <p className="reader-notes-empty">Reading the text…</p>;
-  if (!bullets.length) {
-    return (
-      <AiNote
-        view={ai.view}
-        onStop={ai.stop}
-        onApprove={ai.approve}
-        onDismiss={ai.dismiss}
-        onRetry={() => void start(outlineRequest({ key: cacheKey, passages, source }))}
-      />
-    );
-  }
-  const { route, model } = ai.view;
-  return (
-    <>
-      <ul className="reader-ai-outline">
-        {bullets.map((b, i) => (
-          <li key={i}>
-            <button
-              className="reader-outline-item"
-              disabled={b.page === null}
-              onClick={() => b.page !== null && onJump(b.page)}
-            >
-              {b.text}
-              {b.page !== null && <span className="reader-ai-outline-page">p. {b.page}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {route && (
-        <small className="ai-note-chip" title={route.reason}>
-          {route.target === 'claude' ? 'Cloud' : 'On device'}
-          {model ? ` · ${model}` : ''}
-        </small>
-      )}
-    </>
   );
 }

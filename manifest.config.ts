@@ -1,23 +1,17 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import { loadEnv } from 'vite';
 
-// The reading tracker is injected dynamically via chrome.scripting (no static
-// content_scripts); it's bundled separately by `npm run build:content`.
-//
 // `key` stays optional: set VITE_CRX_PUBLIC_KEY to pin the extension id across
 // reloads from different paths.
 export default defineManifest(async (env) => {
   const vars = loadEnv(env.mode, process.cwd(), '');
   const crxKey = (vars.VITE_CRX_PUBLIC_KEY ?? '').trim();
-  // Playwright cannot click Chrome's permission prompt, so the E2E build grants
-  // history up front. Every other build asks for it on click, in Settings.
-  const e2e = vars.E2E === '1';
 
   return {
     manifest_version: 3,
     name: 'Reader',
     description:
-      'An RSS reader and document reader that tracks what you start, brings you back to it, and blocks what pulls you away.',
+      'A quiet companion to alphaXiv: a paper shelf, and a reader that asks instead of tells and blocks what pulls you away.',
     version: '1.0.0',
     ...(crxKey ? { key: crxKey } : {}),
     icons: {
@@ -44,19 +38,9 @@ export default defineManifest(async (env) => {
       service_worker: 'src/background/index.ts',
       type: 'module',
     },
-    permissions: [
-      'storage',
-      'alarms',
-      'notifications',
-      'scripting',
-      'declarativeNetRequest',
-      'contextMenus',
-      // The Pomodoro chime: a service worker cannot play audio (focus.ts)
-      'offscreen',
-      ...(e2e ? (['history'] as const) : []),
-    ],
-    // Read only when you click "Suggest from my history" in Settings.
-    ...(e2e ? {} : { optional_permissions: ['history' as const] }),
+    permissions: ['storage', 'alarms', 'declarativeNetRequest'],
+    // Any blocklisted site can be redirected while you read, and any PDF link
+    // can open in the reader, so the redirect rules need every host.
     host_permissions: ['<all_urls>'],
     content_security_policy: {
       // wasm-unsafe-eval lets pdf.js compile its image decoders (vite.config.ts)
@@ -68,25 +52,6 @@ export default defineManifest(async (env) => {
         resources: ['src/pages/blocked/index.html', 'src/pages/reader/index.html'],
         matches: ['http://*/*', 'https://*/*'],
       },
-      {
-        // The Option/Alt-click definition card, framed into web pages. A
-        // per-session URL keeps other sites from framing it to spend the key.
-        resources: ['src/pages/define/index.html'],
-        matches: ['http://*/*', 'https://*/*'],
-        use_dynamic_url: true,
-      },
     ],
-    commands: {
-      // Shift+E is unclaimed in both Chrome and Brave; on an update the key
-      // only binds if the user has not customised their shortcuts, so it is
-      // worth checking chrome://extensions/shortcuts after installing.
-      'read-this-page': {
-        suggested_key: {
-          default: 'Ctrl+Shift+E',
-          mac: 'Command+Shift+E',
-        },
-        description: 'Read this page in Reader',
-      },
-    },
   };
 });

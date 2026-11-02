@@ -5,7 +5,7 @@ import {
   FOCUS_DNR_ID_BASE,
   FOCUS_DNR_ID_LIMIT,
 } from '../shared/constants';
-import { buildFocusRules } from '../shared/focusRules';
+import { buildFocusRules, isBlocking } from '../shared/focusRules';
 import { getLocal, getSettings } from '../shared/storage';
 import type { FocusSession } from '../shared/types';
 
@@ -66,11 +66,7 @@ export function buildSessionAccessRules(config: {
   focusDomains: string[];
   focusRedirectUrl: string;
 }): chrome.declarativeNetRequest.Rule[] {
-  const session = config.focusSession;
-  if (session && session.phase !== 'break' && session.phaseEndsAt > Date.now()) {
-    return buildFocusRules(config.focusDomains, config.focusRedirectUrl);
-  }
-  return [];
+  return isBlocking(config.focusSession) ? buildFocusRules(config.focusDomains, config.focusRedirectUrl) : [];
 }
 
 /**

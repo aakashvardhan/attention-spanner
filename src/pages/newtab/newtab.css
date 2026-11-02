@@ -133,16 +133,7 @@ ul {
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.sublabel {
-  margin: var(--space-3) 0 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: 400;
-  color: var(--text-muted);
-}
-.label + .sublist .sublabel {
-  margin-top: 0;
-}
+
 .hint {
   margin: 0;
   font-size: var(--text-sm);
@@ -154,13 +145,6 @@ ul + .hint {
   margin-top: var(--space-2);
 }
 
-/* ---------- Rows: title left, metadata right ---------- */
-
-.row-wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
 .row {
   flex: 1;
   min-width: 0;
@@ -186,179 +170,26 @@ ul + .hint {
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+/* Continue reading: the paper read last, and where you stopped. */
+.continue-paper {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.continue-paper:hover .row-title {
+  text-decoration: underline;
+}
+.continue-paper:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 .row-title {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.row-why {
-  display: block;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-}
-.row-meta,
-.row-state {
-  flex: none;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  color: var(--text-muted);
-}
-.row-state {
-  color: var(--accent-text);
-}
-/* Recap, Summary and the X: in flow beside the metadata, their width kept so
-   nothing shifts, and invisible (so not clickable) until the row is reached
-   for. Always shown where there is no hover. */
-.row-tools {
-  flex: none;
-  width: var(--tools-w);
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--space-1);
-  visibility: hidden;
-}
-.row-wrap:hover .row-tools,
-.row-wrap:focus-within .row-tools,
-.row-tools:has([aria-expanded='true']) {
-  visibility: visible;
-}
-@media (hover: none) {
-  .row-tools {
-    visibility: visible;
-  }
-}
-.row-tool,
-.row-remove {
-  flex: none;
-  border: 0;
-  background: none;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  cursor: pointer;
-}
-.row-tool {
-  padding: var(--space-1) var(--space-2);
-}
-.row-remove {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-}
-.row-tool:hover,
-.row-remove:hover {
-  color: var(--text-primary);
-}
-.row-remove-icon {
-  width: 16px;
-  height: 16px;
-}
-.row-recap {
-  padding-bottom: var(--space-3);
-}
-.show-all {
-  margin-top: var(--space-1);
-  padding: var(--space-1) 0;
-  border: 0;
-  background: none;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  cursor: pointer;
-}
-.show-all:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-/* ---------- Pomodoro (FocusTimer.tsx) ---------- */
-
-.pomo {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-2);
-}
-.pomo > p {
-  margin: 0;
-}
-/* The page's one serif. A static face in Chrome: never animate its weight. */
-.pomo-clock {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  line-height: var(--leading-3xl);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-.pomo-status,
-.pomo-start {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  color: var(--accent-text);
-}
-.pomo-start {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.pomo-start:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.pomo-start kbd {
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: 400;
-}
-.pomo-note {
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-}
-.pomo-intention-input {
-  width: 100%;
-  padding: var(--space-2) 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-}
-.pomo-intention-input::placeholder {
-  color: var(--text-muted);
-}
-.pomo-intention-input:focus {
-  outline: none;
-  border-bottom-color: var(--accent);
-}
-.pomo-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
 }
 
 /* ---------- Brain dump (BrainDump.tsx) ---------- */

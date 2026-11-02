@@ -49,35 +49,6 @@ body {
   color: var(--focus-text-secondary);
 }
 
-/* The Pomodoro dial (FocusDial.tsx), large enough to read from
-   across the room, its tokens pointed at the always-dark focus palette. */
-.blocked .pomo-dial-wrap {
-  width: 224px;
-  height: 224px;
-  --accent: var(--focus-accent);
-  --accent-text: var(--focus-accent);
-  --accent-track: var(--focus-rule);
-  --text-primary: var(--focus-text);
-}
-.blocked .pomo-time {
-  font-size: var(--text-3xl);
-  line-height: var(--leading-3xl);
-}
-
-.blocked-quit {
-  margin-top: var(--space-6);
-}
-
-.blocked-quit .hold-to-quit {
-  border-color: var(--focus-rule);
-  color: var(--focus-faint);
-}
-
-.blocked-quit .hold-to-quit:hover {
-  border-color: var(--focus-danger);
-  color: var(--focus-danger);
-}
-
 .blocked-continue {
   margin-top: var(--space-3);
   padding: var(--space-3) var(--space-5);

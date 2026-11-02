@@ -3,8 +3,8 @@ import { clearRetiredAlarms } from './alarms';
 
 afterEach(() => vi.unstubAllGlobals());
 
-it('clearRetiredAlarms clears every nudge alarm and leaves live ones', async () => {
-  const alarms = new Set(['nudge|abc', 'nudge|paper:1', 'refresh-feeds', 'focus-phase-end']);
+it('clearRetiredAlarms clears nudges, feeds and Pomodoro alarms and leaves live ones', async () => {
+  const alarms = new Set(['nudge|abc', 'nudge|paper:1', 'refresh-feeds', 'focus-phase-end', 'focus-badge-tick', 'a-live-alarm']);
   vi.stubGlobal('chrome', {
     alarms: {
       clear: async (name: string) => alarms.delete(name),
@@ -12,5 +12,5 @@ it('clearRetiredAlarms clears every nudge alarm and leaves live ones', async () 
     },
   });
   await clearRetiredAlarms();
-  expect([...alarms].sort()).toEqual(['focus-phase-end', 'refresh-feeds']);
+  expect([...alarms]).toEqual(['a-live-alarm']);
 });

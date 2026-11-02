@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { ReadingPass } from '../../../shared/types';
 import { ToolbarIcon, ZOOM_MAX, ZOOM_MIN } from './ReaderToolbar';
 
-const PASSES: ReadingPass[] = [1, 2, 3];
 
 /**
  * Where you are and how long is left, floating under the page. Click to open
@@ -24,8 +22,6 @@ export function ReaderCapsule({
   onZoom,
   message = null,
   action = null,
-  pass,
-  onPass,
   prompt = null,
   children,
 }: {
@@ -42,9 +38,6 @@ export function ReaderCapsule({
   onZoom?: (zoom: number) => void;
   message?: string | null;
   action?: { label: string; run: () => void } | null;
-  /** The reading pass; the switch renders only when `onPass` is set */
-  pass?: ReadingPass;
-  onPass?: (pass: ReadingPass) => void;
   /** One reflection question, answered in place */
   prompt?: { text: string; onAnswer: (answer: string) => void; onSkip: () => void } | null;
   /** The tracking chip, when the document is not tracked yet */
@@ -202,23 +195,6 @@ export function ReaderCapsule({
             <span className="reader-capsule-dot" aria-hidden="true" />
             {label}
           </button>
-        )}
-        {!open && onPass && (
-          <div className="capsule-pass" role="radiogroup" aria-label="Reading pass">
-            <span aria-hidden="true">Pass</span>
-            {PASSES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                role="radio"
-                aria-checked={pass === p}
-                aria-label={`Pass ${p}`}
-                onClick={() => onPass(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
         )}
         {!open && !shown && prompt && (
           <CapsulePrompt key={prompt.text} {...prompt} expanded={promptExpanded} setExpanded={setPromptExpanded} />

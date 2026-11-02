@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { afterAll, beforeAll, it } from 'vitest';
-import { PAGES, launch, seed, type Ext } from './harness';
+import { afterAll, beforeAll, describe, it } from 'vitest';
+import { PAGES, launch, type Ext } from './harness';
 
-// Throwaway benchmark: trackpad-style flicks over a real PDF.
+// Throwaway benchmark: trackpad-style flicks over a real PDF. Run with PDF=<path> V0=<px> DECAY=<0-1>.
+describe.skipIf(!process.env.PDF)('scroll perf', () => {
 let ext: Ext;
 beforeAll(async () => {
   ext = await launch();
@@ -11,7 +12,6 @@ beforeAll(async () => {
     res.writeHead(200, { 'content-type': 'application/pdf' });
     res.end(pdf);
   });
-  await seed(ext, { settings: { ollamaUrl: '', layaUrl: '', cloudMode: 'off' } });
 });
 afterAll(async () => ext?.close());
 
@@ -61,4 +61,5 @@ it('scroll perf', async () => {
     };
   });
   console.log('SCROLLPERF', JSON.stringify(r));
+});
 });

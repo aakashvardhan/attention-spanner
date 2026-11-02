@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTitle, paperMatchKey, parsePaperRef } from './papers';
+import { arxivId, paperMatchKey, parsePaperRef } from './papers';
 
 describe('parsePaperRef', () => {
   it('recognizes arXiv abs/pdf/versioned/.pdf as the same id', () => {
@@ -57,17 +57,16 @@ describe('paperMatchKey', () => {
   });
 });
 
-describe('normalizeTitle', () => {
-  it('collapses case, punctuation, and whitespace', () => {
-    expect(normalizeTitle('Learning Fine-Grained  Bimanual Manipulation')).toBe(
-      normalizeTitle('learning fine grained bimanual manipulation'),
-    );
-    expect(normalizeTitle('ALOHA: A Low-cost System')).toBe('aloha a low cost system');
+describe('arxivId', () => {
+  it('pulls the bare id from abs, pdf, versioned and alphaXiv links', () => {
+    expect(arxivId('https://arxiv.org/abs/2006.11239v2')).toBe('2006.11239');
+    expect(arxivId('https://arxiv.org/pdf/2006.11239.pdf')).toBe('2006.11239');
+    expect(arxivId('https://www.alphaxiv.org/overview/2406.09246')).toBe('2406.09246');
+    expect(arxivId('hep-th/9901001')).toBe('hep-th/9901001');
   });
-
-  it('keeps distinct titles distinct', () => {
-    expect(normalizeTitle('Attention Is All You Need')).not.toBe(
-      normalizeTitle('Attention Is Not All You Need'),
-    );
+  it('is null for DOIs, other links and junk', () => {
+    expect(arxivId('10.1145/3290605')).toBeNull();
+    expect(arxivId('https://example.com/paper.pdf')).toBeNull();
+    expect(arxivId('')).toBeNull();
   });
 });

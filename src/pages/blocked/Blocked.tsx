@@ -1,13 +1,10 @@
 import { useMemo } from 'react';
-import { FocusDial } from '../../shared/components/FocusDial';
-import { HoldToQuit } from '../../shared/components/HoldToQuit';
 import { useFocusSession } from '../../shared/hooks/useFocusSession';
 
 /**
- * Shown when a blocked site is hit during focus. Zero SW dependency —
- * everything renders from storage, and when the session ends the page
- * live-updates to a "continue" link (blocked tabs
- * self-release; no tab bookkeeping in the worker).
+ * Shown when a blocked site is hit while a paper is open in the reader. Renders
+ * from storage only: when the session ends (the reader closes) the page
+ * live-updates to a "continue" link, so blocked tabs release themselves.
  */
 export function Blocked() {
   const focus = useFocusSession();
@@ -17,10 +14,8 @@ export function Blocked() {
     if (!hash) return null;
     try {
       const url = new URL(hash);
-      // This page is web-accessible, so any site can navigate the user here
-      // with a fragment of its choosing. `new URL` accepts javascript: and
-      // data: as readily as https, and the href below is rendered as a link
-      // in an extension-origin page — only http(s) may become one.
+      // This page is web-accessible, so any site can navigate here with a
+      // fragment of its choosing; only http(s) may become a link.
       return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
     } catch {
       return null;
@@ -28,36 +23,33 @@ export function Blocked() {
   }, []);
   const host = blockedUrl?.hostname.replace(/^www\./, '');
 
-  // A break unblocks too: the page releases the tab the same way.
-  if (!focus.focusing) {
+  if (!focus.reading) {
     return (
-      <div className="blocked grid">
+      <main className="blocked grid">
         <div className="blocked-inner">
-          <h1>{focus.active ? `Break · ${focus.countdown}` : 'Focus session over'}</h1>
+          <h1>Reading session over</h1>
           {blockedUrl ? (
             <a className="blocked-continue" href={blockedUrl.href}>
-              Continue to {host} →
+              Continue to {host}
             </a>
           ) : (
             <p className="blocked-sub">You're free to browse.</p>
           )}
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="blocked grid">
+    <main className="blocked grid">
       <div className="blocked-inner">
-        <h1>{host ? `${host} is blocked` : 'This site is blocked'}</h1>
-        {focus.session?.intention && <p className="blocked-intention">You said: {focus.session.intention}</p>}
-        <p className="blocked-sub">Focus round {focus.round}. The rest of it:</p>
-        <FocusDial focus={focus} />
-
-        <div className="blocked-quit">
-          <HoldToQuit label="Hold 5s to clock out" onConfirm={() => void focus.stop(true)} />
-        </div>
+        <h1>{host ? `${host} is blocked while you read` : 'This site is blocked while you read'}</h1>
+        {focus.title && <p className="blocked-intention">You're reading: {focus.title}</p>}
+        <button type="button" className="blocked-continue" onClick={() => void focus.backToPaper()} autoFocus>
+          Back to your paper
+        </button>
+        <p className="blocked-sub">Close the reader to end the session.</p>
       </div>
-    </div>
+    </main>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defineRequest } from './terms';
 
 describe('defineRequest', () => {
-  const base = { key: 'doc', word: 'TD', context: 'We use TD learning here.', source: 'web' as const };
+  const base = { key: 'doc', word: 'TD', context: 'We use TD learning here.' as const };
 
   it('sends the passage and names the clicked word', () => {
     const r = defineRequest({ ...base, near: 'use TD learning' });

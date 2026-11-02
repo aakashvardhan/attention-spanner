@@ -14,32 +14,7 @@ export interface RecordMeta {
   deletedAt?: number | null;
 }
 
-export interface FeedItem {
-  /** 16 hex chars, hashed from link + title — see generateItemId */
-  id: string;
-  title: string;
-  link: string;
-  normalizedLink: string;
-  /** ISO 8601 */
-  pubDate: string;
-  /** HTML-stripped, max 200 chars */
-  snippet: string;
-  /** Feed (channel) title */
-  source: string;
-  /** Feed-declared category/tag labels; absent on pre-category cached items */
-  categories?: string[];
-}
-
-export interface ResumeTarget {
-  kind: 'article' | 'video';
-  url: string;
-  title: string;
-  /** Reading position fields are optional because each medium uses a different one. */
-  scrollY?: number;
-  positionSeconds?: number;
-}
-
-/** UI color theme; paperwhite is a warm e-ink light theme; 'system' follows the OS prefers-color-scheme */
+/** UI color theme; 'system' follows the OS prefers-color-scheme (retired in the wood redesign) */
 export type ThemeSetting = 'light' | 'dark' | 'paperwhite' | 'system';
 
 export interface Settings {
@@ -48,47 +23,11 @@ export interface Settings {
   readerNight: boolean;
   /** Reader focus line: dim everything but the passage being read (key F) */
   readerFocusLine: boolean;
-  /** Feed refresh interval in minutes (15–360) */
-  refreshInterval: number;
-  notificationsEnabled: boolean;
-  /** Domains blocked during focus sessions */
+  /** Domains blocked while a reader tab is open */
   focusBlocklist: string[];
-  focusMinutes: number;
-  /** Pomodoro break between focus rounds, unblocked */
-  breakMinutes: number;
-  /** Chime when a focus round or a break ends */
-  focusSound: boolean;
-  /** Semantic Scholar API key for paper metadata lookups; '' = unauthenticated */
-  semanticScholarApiKey: string;
-  /** Local Ollama server; every on-device AI call goes here */
-  ollamaUrl: string;
-  /** Picked from the server's /api/tags; '' = none yet, so generation stays off */
-  ollamaChatModel: string;
-  ollamaEmbedModel: string;
-  /**
-   * When public content (RSS, arXiv/DOI papers, YouTube) may go to Claude:
-   * never, after a per-request confirm, or whenever the local model cannot
-   * take it. Private content never goes, whatever this says (llm/route.ts).
-   */
-  cloudMode: CloudMode;
-  /** User's own Anthropic API key; '' = no cloud */
+  /** User's own Anthropic API key: Haiku writes questions, grades and definitions; '' = off */
   claudeKey: string;
-  /** Local Laya sidecar (scripts/laya-server); '' = off */
-  layaUrl: string;
-  /**
-   * Topics hidden from the feed card on the new tab: whole words, any case,
-   * matched against title, snippet and source name. Read through
-   * normalizeTopics, which also survives a hand-edited value.
-   */
-  mutedTopics: string[];
-  /** Topics Continue keeps (new tab); [] turns the filter off. Read through normalizeTrackTopics. */
-  trackTopics: string[];
-  /** Gemini key for the topic check on titles the keywords miss; '' = keywords only. */
-  geminiTopicKey: string;
 }
-
-/** 'all' sends every task and source to Claude, private ones included; the rest keep private sources on device. */
-export type CloudMode = 'off' | 'ask' | 'public' | 'all';
 
 export interface AiCacheEntry {
   text: string;
@@ -97,70 +36,47 @@ export interface AiCacheEntry {
   at: number;
 }
 
-/* Flashcards (Anki-style SRS). One authored FlashNote generates N reviewable
-   FlashCards (cloze indexes / reversed direction); card ids are deterministic
-   `${noteId}#${variant}` so note edits reconcile instead of resetting scheduling. */
-
-/** A deck is dedicated to one purpose — flashcards or research papers. */
-export type DeckKind = 'flashcards' | 'papers';
-
-export interface Deck extends RecordMeta {
+/** An alphaXiv folder (bookmark collection). alphaXiv is the master copy; each folder is a shelf. */
+export interface Folder {
   id: string;
   name: string;
-  createdAt: number;
-  /** Decks created before this field default to 'flashcards' (see migrate) */
-  kind: DeckKind;
+  /** 'default-to-read' | 'default-reading' | 'default-completed' | 'default-publications' | custom */
+  type: string;
 }
 
-export type PaperStatus = 'to-read' | 'reading' | 'read';
-
-export type PaperKind = 'survey' | 'method' | 'benchmark' | 'dataset' | 'position' | 'theory';
-
+/**
+ * A paper on the shelf: alphaXiv's record mirrored, plus the reading state only
+ * this extension keeps (progress, where you stopped).
+ */
 export interface Paper extends RecordMeta {
+  /** arXiv id ('2406.09246'): alphaXiv's universal_paper_id */
   id: string;
-  pass?: ReadingPass;
-  verdict?: string;
-  /** Reuses Deck.id — the same decks as flashcards */
-  deckId: string;
   title: string;
-  /** Comma-joined author names */
+  /** Comma-joined author names; '' until known */
   authors: string;
-  /** Conference / journal */
-  venue: string;
   year: number | null;
-  /** Citation count from the metadata lookup */
-  citations: number | null;
-  /** arXiv / DOI / paper URL; used by "Open paper" */
+  /** https://arxiv.org/abs/<id>; "Open paper" and the PDF helpers derive from it */
   url: string;
-  /** The abstract / description */
-  abstract: string;
-  /** Free text: why this paper matters to me */
-  relevance: string;
-  /** Absent on papers filed before it existed, or never set */
-  kind?: PaperKind;
-  status: PaperStatus;
-  /** 0–100; auto-ratcheted by the PDF reader, editable by hand */
+  /** alphaXiv folders this paper sits in (a paper can be in several) */
+  folderIds: string[];
+  /** 0-100; ratcheted by the PDF reader */
   progressPercent: number;
-  /** "Where I left off" note, e.g. "Section 4.2 — ablations" */
+  /** "Where I stopped", e.g. "Section 4.2: ablations" */
   leftOff: string;
   /** Set by the in-extension PDF reader; absent until the paper is opened there */
   pdf?: {
-    /** The PDF URL the reader loaded (`url` above is often the abs/DOI page) */
+    /** The PDF URL the reader loaded */
     url: string;
     /** 1-based page the user was last on */
     page: number;
     pageCount: number;
-    /** Scroll position within `page`, 0–1 */
+    /** Scroll position within `page`, 0-1 */
     offset: number;
   };
   addedAt: number;
   updatedAt: number;
-  /** Bumped whenever status/progress changes while reading */
   lastReadAt: number | null;
 }
-
-/** The editable fields of a Paper; the service worker fills id/timestamps. */
-export type PaperDraft = Omit<Paper, 'id' | 'addedAt' | 'updatedAt' | 'lastReadAt'>;
 
 /* Reader annotations: text highlights and free-floating sticky notes made in
    src/pages/reader/. Keyed by docKey (not paperId) so they work on untracked
@@ -227,14 +143,6 @@ export interface Annotation extends RecordMeta {
   updatedAt: number;
 }
 
-/** What Laya read a highlight as, and how sure it was (the layaRoles cache; its writer, llm/matrix.ts, is gone). */
-export interface HighlightRole {
-  role: string;
-  p: number;
-  /** Of the text it was classified from; an edited note re-classifies */
-  hash: string;
-}
-
 /** Draft from the reader; the service worker fills id/timestamps. */
 export type AnnotationDraft = Omit<Annotation, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -245,15 +153,6 @@ export type PdfAnchoredAnnotation = Annotation & {
 
 export function isPdfAnchored(a: Annotation): a is PdfAnchoredAnnotation {
   return a.anchor.kind === 'pdf';
-}
-
-/** An annotation anchored in reflowing text. */
-export type TextAnchoredAnnotation = Annotation & {
-  anchor: Extract<AnnotationAnchor, { kind: 'text' }>;
-};
-
-export function isTextAnchored(a: Annotation): a is TextAnchoredAnnotation {
-  return a.anchor.kind === 'text';
 }
 
 /** A brain dump waiting for first-time vault setup; after that every dump is a LockedDump */
@@ -304,93 +203,15 @@ export interface DayActivity {
 }
 
 /**
- * A clocked-in shift: Pomodoro rounds, focus then break, until clock out.
- * Sites are blocked only in the focus phase.
+ * A reading session: distracting sites are blocked while at least one reader
+ * tab is open. It ends when the last reader tab closes or leaves the reader.
  */
 export interface FocusSession {
-  /** Clock-in time */
   startedAt: number;
-  phase: 'focus' | 'break';
-  phaseStartedAt: number;
-  phaseEndsAt: number;
-  focusMinutes: number;
-  /** 1-based round of the shift; a break belongs to the round before it */
-  round: number;
-  /** What the shift is for, in the user's words; the blocked page quotes it */
-  intention?: string;
-}
-
-interface ProgressBase {
-  /** Original URL, used for reopening */
-  url: string;
+  /** Open reader tabs; the session ends when this empties */
+  tabIds: number[];
+  /** The paper being read, quoted on the blocked page */
   title: string;
-  /** Feed title for articles; channel name for videos */
-  source: string;
-  /** 0–100, monotonically increasing */
-  maxPercent: number;
-  /** Active reading seconds / watched playback seconds */
-  activeSeconds: number;
-  firstOpenedAt: number;
-  updatedAt: number;
-  /** Set when maxPercent >= 90 */
-  completedAt: number | null;
 }
 
-export interface ReadingProgress extends ProgressBase {
-  /** Optional: entries stored before Phase 6 have no kind field */
-  kind?: 'article';
-  feedItemId: string | null;
-  scrollY: number;
-  pageHeight: number;
-}
-
-export interface VideoProgress extends ProgressBase {
-  kind: 'video';
-  videoId: string;
-  durationSeconds: number;
-  positionSeconds: number;
-  /**
-   * Whether the last tracker report was a heartbeat rather than a stop flush.
-   * A hint, not a fact — a tab that dies mid-playback leaves it stuck true, so
-   * always pair it with the staleness check in `isWatchingNow`.
-   * Absent on entries written before this field existed; read with `=== true`.
-   */
-  playing?: boolean;
-  /**
-   * The player's current chapter title, scraped from the DOM. Decoration only:
-   * YouTube owns that class name, most videos have no chapters at all, and an
-   * absent chapter must render as absence rather than an invented "Chapter 1".
-   */
-  chapter?: string;
-  /**
-   * Player position when the tab went hidden while the video kept playing —
-   * where attention left a lecture. Cleared by the next report from a visible tab.
-   */
-  lookedAwayAt?: number;
-}
-
-export type AnyProgress = ReadingProgress | VideoProgress;
-export type ReadingPass = 1 | 2 | 3;
 export type HighlightTag = 'claim' | 'evidence' | 'doubt';
-export type ProvocationKind = 'page' | 'equation' | 'lock' | 'counterpoint' | 'verdict';
-/** open = skipped or left unanswered; unsure = "I don't know yet" (also open) */
-export type ProvocationStatus = 'open' | 'unsure' | 'answered';
-export interface Provocation {
-  id: string;
-  docKey: string;
-  paperId: string | null;
-  page: number;
-  kind: ProvocationKind;
-  question: string;
-  answer: string;
-  status: ProvocationStatus;
-  /** counterpoint → the highlight it challenges */
-  annotationId: string | null;
-  /** counterpoint only */
-  response?: 'defended' | 'revised';
-  citedPage?: number;
-  xp: number;
-  createdAt: number;
-  updatedAt: number;
-}
-export type ProvocationDraft = Omit<Provocation, 'id' | 'xp' | 'createdAt' | 'updatedAt'>;

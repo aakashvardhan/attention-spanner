@@ -2,29 +2,26 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cachedAi, planAi, runAi, type AiPlan, type AiRequest, type AiResult } from '../llm/generate';
 import type { Route } from '../llm/route';
 
-export type AiStatus = 'idle' | 'working' | 'streaming' | 'confirm' | 'done' | 'error' | 'unavailable';
+export type AiStatus = 'idle' | 'working' | 'streaming' | 'done' | 'error' | 'unavailable';
 
 export interface AiView {
   status: AiStatus;
   text: string;
   route: Route | null;
   model: string;
-  /** Passage indices the model was given (citations outside it are dropped) */
-  sent: number[];
   error: string;
 }
 
-const IDLE: AiView = { status: 'idle', text: '', route: null, model: '', sent: [], error: '' };
+const IDLE: AiView = { status: 'idle', text: '', route: null, model: '', error: '' };
 
 /**
- * One AI call's lifecycle for a component: cache → plan → (confirm) → stream.
+ * One AI call's lifecycle for a component: cache → plan → stream.
  * A newer `start` supersedes an older one, and unmounting aborts the stream,
  * so a stale answer can never land in the wrong card.
  */
 export function useAi() {
   const [view, setView] = useState<AiView>(IDLE);
   const controller = useRef<AbortController | null>(null);
-  const pending = useRef<{ request: AiRequest; plan: AiPlan } | null>(null);
   const generation = useRef(0);
 
   useEffect(() => () => controller.current?.abort(), []);
@@ -45,7 +42,7 @@ export function useAi() {
           if (generation.current === id) setView((v) => ({ ...v, status: 'streaming', text }));
         });
         if (generation.current !== id) return;
-        setView({ ...IDLE, status: 'done', text: result.text, route: result.route, model: result.model, sent: result.sent });
+        setView({ ...IDLE, status: 'done', text: result.text, route: result.route, model: result.model });
       } catch (err) {
         if (generation.current !== id) return;
         if (ctrl.signal.aborted) {
@@ -85,15 +82,10 @@ export function useAi() {
         return;
       }
       setView({ ...IDLE, status: 'working' });
-      const plan = await planAi(request);
+      const plan = await planAi();
       if (generation.current !== id) return;
       if (plan.route.target === 'none') {
         setView({ ...IDLE, status: 'unavailable', route: plan.route, error: plan.route.reason });
-        return;
-      }
-      if (plan.route.target === 'claude' && plan.route.confirm) {
-        pending.current = { request, plan };
-        setView({ ...IDLE, status: 'confirm', route: plan.route });
         return;
       }
       await execute(request, plan, id);
@@ -101,20 +93,13 @@ export function useAi() {
     [execute],
   );
 
-  const approve = useCallback(() => {
-    const next = pending.current;
-    pending.current = null;
-    if (next) void execute(next.request, next.plan, generation.current);
-  }, [execute]);
-
   const stop = useCallback(() => controller.current?.abort(), []);
 
   const dismiss = useCallback(() => {
     generation.current++;
-    pending.current = null;
     controller.current?.abort();
     setView(IDLE);
   }, []);
 
-  return { view, start, approve, stop, dismiss, showCached };
+  return { view, start, stop, dismiss, showCached };
 }

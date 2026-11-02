@@ -3,11 +3,11 @@ import {
   DEFAULT_SETTINGS,
   DEFAULTS,
   migrate,
-  v12ReadingProgress,
+  SCHEMA_VERSION,
   v24Dumps,
-  v25Progress,
-  v25StripNudge,
-v26Progress,
+  v27Annotations,
+  v27FocusSession,
+  v27Papers,
   withDumpLock,
   v22StripSettings,
   v7Annotations,
@@ -69,59 +69,14 @@ describe('v7Annotations', () => {
   });
 });
 
-describe('v12ReadingProgress', () => {
-  const entry = (over: Record<string, unknown>) =>
-    ({ title: 'A post', url: 'https://example.com/a', maxPercent: 20, ...over }) as never;
-
-  it('restores the article URL from the reader link and drops the "Reader" name', () => {
-    const repaired = v12ReadingProgress({
-      'example.com/a': entry({
-        title: 'Reader',
-        url: 'chrome-extension://abc/src/pages/reader/index.html?article=https%3A%2F%2Fexample.com%2Fa%3Fx%3D1',
-      }),
-    });
-    expect(repaired?.['example.com/a']).toMatchObject({
-      title: '',
-      url: 'https://example.com/a?x=1',
-      maxPercent: 20,
-    });
-  });
-
-  it('handles the PDF reader link too, keeping a real title', () => {
-    const repaired = v12ReadingProgress({
-      'example.com/p': entry({
-        title: 'A paper',
-        url: 'chrome-extension://abc/src/pages/reader/index.html?src=https%3A%2F%2Fexample.com%2Fp.pdf',
-      }),
-    });
-    expect(repaired?.['example.com/p']).toMatchObject({
-      title: 'A paper',
-      url: 'https://example.com/p.pdf',
-    });
-  });
-
-  it('returns null when nothing is corrupted, so a clean profile is not rewritten', () => {
-    expect(v12ReadingProgress({ 'example.com/a': entry({}) })).toBeNull();
-    expect(v12ReadingProgress({})).toBeNull();
-  });
-
-  it('leaves videos alone', () => {
-    expect(
-      v12ReadingProgress({
-        'yt:abc': entry({ kind: 'video', url: 'https://www.youtube.com/watch?v=abc' }),
-      }),
-    ).toBeNull();
-  });
-});
-
 /*
  * The skin setting is gone, but patchSettings persisted whole settings
  * objects for months, so real profiles still carry `skin`. It must be inert.
  */
 describe('a stored settings object from before the skins were retired', () => {
   it('merges over the defaults without resurrecting skin as a known field', () => {
-    const merged = { ...DEFAULT_SETTINGS, ...({ skin: 'alert', focusMinutes: 25 } as Partial<Settings>) };
-    expect(merged.focusMinutes).toBe(25);
+    const merged = { ...DEFAULT_SETTINGS, ...({ skin: 'alert', readerFocusLine: true } as Partial<Settings>) };
+    expect(merged.readerFocusLine).toBe(true);
     expect('skin' in DEFAULT_SETTINGS).toBe(false);
   });
 });
@@ -139,12 +94,8 @@ describe('v22', () => {
     // The surviving collections must never appear here: this list is passed
     // straight to storage.remove, so a stray entry is silent data loss.
     for (const alive of [
-      'feeds',
-      'readItems',
-      'cachedItems',
       'settings',
-      'readingProgress',
-      'decks',
+      'folders',
       'papers',
       'annotations',
       'focusSession',
@@ -170,7 +121,7 @@ describe('v22', () => {
       timePillHosts: ['youtube.com'],
       gmailTriageTime: '08:30',
     });
-    expect(next).toEqual({ theme: 'dark', focusMinutes: 50 });
+    expect(next).toEqual({ theme: 'dark' });
   });
 
   // Derived from DEFAULT_SETTINGS rather than listed by hand: a hand-written
@@ -184,17 +135,15 @@ describe('v22', () => {
 
   it('sweeps what v23 retired: the daily focus and the Pomodoro break length', () => {
     expect(V22_DEAD_KEYS).toContain('focusOfDay');
-    expect(v22StripSettings({ focusMinutes: 50, focusBreakMinutes: 10 })).toEqual({
-      focusMinutes: 50,
-    });
+    expect(v22StripSettings({ theme: 'dark', focusBreakMinutes: 10 })).toEqual({ theme: 'dark' });
   });
 
   it('sweeps what v25 retired: the masthead\'s weather, name and runners', () => {
     expect(V22_DEAD_KEYS).toContain('weather');
     for (const k of ['displayName', 'weatherLocation', 'ambientMotion']) expect(V22_DEAD_SETTINGS).toContain(k);
     expect(
-      v22StripSettings({ displayName: 'A', weatherLocation: 'X', ambientMotion: true, mutedTopics: ['x'] }),
-    ).toEqual({ mutedTopics: ['x'] });
+      v22StripSettings({ displayName: 'A', weatherLocation: 'X', ambientMotion: true, theme: 'dark' }),
+    ).toEqual({ theme: 'dark' });
   });
 
   it('sweeps what v25 retired: the hyperfocus check-in', () => {
@@ -208,8 +157,12 @@ describe('v22', () => {
     expect(v22StripSettings({ focusMusicEnabled: true, geminiKey: 'k', theme: 'dark' })).toEqual({ theme: 'dark' });
   });
 
-  it('topic key survives the sweep', () => {
-    expect(v22StripSettings({ geminiTopicKey: 'k' })).toEqual({ geminiTopicKey: 'k' });
+  it('sweeps what v27 retired: feeds, video, topics, local AI, decks, provocations, Pomodoro', () => {
+    for (const k of ['feeds', 'readItems', 'cachedItems', 'readingProgress', 'aiVectors', 'layaRoles', 'provocations', 'decks'])
+      expect(V22_DEAD_KEYS).toContain(k);
+    expect(
+      v22StripSettings({ theme: 'dark', geminiTopicKey: 'k', ollamaUrl: 'u', cloudMode: 'all', focusMinutes: 50, mutedTopics: [] }),
+    ).toEqual({ theme: 'dark' });
   });
 
   // Session storage survives an extension update, so the dead keys go on every
@@ -218,7 +171,7 @@ describe('v22', () => {
     const remove = vi.fn(() => Promise.resolve());
     vi.stubGlobal('chrome', {
       storage: {
-        local: { get: () => Promise.resolve({ schemaVersion: 26 }), set: vi.fn(), remove: vi.fn() },
+        local: { get: () => Promise.resolve({ schemaVersion: SCHEMA_VERSION }), set: vi.fn(), remove: vi.fn() },
         session: { remove },
       },
     });
@@ -242,10 +195,11 @@ describe('v22', () => {
   });
 });
 
-describe('provocations key', () => {
-  it('defaults provocations to an empty list and keeps schema 26', () => {
-    expect(DEFAULTS.provocations).toEqual([]);
-    expect(DEFAULTS.schemaVersion).toBe(26);
+describe('schema', () => {
+  it('starts at 27 with an empty shelf and push queue', () => {
+    expect(DEFAULTS.schemaVersion).toBe(27);
+    expect(DEFAULTS.folders).toEqual([]);
+    expect(DEFAULTS.alphaxivPush).toEqual([]);
   });
 });
 
@@ -287,9 +241,8 @@ describe('withDumpLock', () => {
   });
 });
 
-const KEPT_LOCAL_KEYS = ['schemaVersion','provocations','feeds','readItems','cachedItems','cacheTimestamp','settings',
-  'readingProgress','focusSession','decks','papers','annotations','aiCache','aiVectors','layaRoles','activity',
-  'dumps','vault','lockedDumps'] as const;
+const KEPT_LOCAL_KEYS = ['schemaVersion','settings','focusSession','folders','papers','alphaxivPush','annotations',
+  'aiCache','activity','dumps','vault','lockedDumps'] as const;
 describe('kept data', () => {
   it('every kept key still has a default', () => { for (const k of KEPT_LOCAL_KEYS) expect(DEFAULTS).toHaveProperty(k); });
   it('no kept key is ever swept', () => { for (const k of KEPT_LOCAL_KEYS) expect(V22_DEAD_KEYS).not.toContain(k); });
@@ -297,36 +250,65 @@ describe('kept data', () => {
   it('no live local key is ever swept', () => { for (const k of Object.keys(DEFAULTS)) expect(V22_DEAD_KEYS).not.toContain(k); });
 });
 
-/** v24 → v25: reading nudges are cut, so progress records and papers drop their `nudge` state. */
-describe('v26', () => {
-  it('drops non-http(s) progress entries', () => {
-    expect(v26Progress({ a: { url: 'chrome-extension://x/n.html' }, b: { url: 'https://ex.com' } })).toEqual({ b: { url: 'https://ex.com' } });
+describe('v27Papers', () => {
+  const decks = [{ id: 'd1', name: 'Diffusion' }, { id: 'd2', name: 'Robotics' }];
+  const old = (over: Record<string, unknown>) => ({
+    id: 'x', deckId: 'd1', title: 'T', authors: 'A', venue: 'V', year: 2020, citations: 3, abstract: 'ab',
+    relevance: 'r', status: 'reading', pass: 2, progressPercent: 40, leftOff: '§3', addedAt: 1, updatedAt: 2, lastReadAt: 3,
+    url: 'https://arxiv.org/abs/2006.11239v2', ...over,
   });
-  it('returns null when nothing changed', () => {
-    expect(v26Progress({ b: { url: 'https://ex.com' } })).toBeNull();
-    expect(v26Progress(undefined)).toBeNull();
+
+  it('keeps an arXiv paper, re-keyed by id, with its reading state and nothing else', () => {
+    const { papers, push } = v27Papers([old({})], decks);
+    expect(papers).toEqual([
+      {
+        id: '2006.11239', title: 'T', authors: 'A', year: 2020, url: 'https://arxiv.org/abs/2006.11239',
+        folderIds: [], progressPercent: 40, leftOff: '§3', addedAt: 1, updatedAt: 2, lastReadAt: 3,
+      },
+    ]);
+    expect(push).toEqual([{ id: '2006.11239', folder: 'Diffusion' }]);
+  });
+
+  it('finds the arXiv id through the saved PDF url when the link is not arXiv', () => {
+    const pdf = { url: 'https://arxiv.org/pdf/2406.09246', page: 3, pageCount: 20, offset: 0.2 };
+    const { papers } = v27Papers([old({ url: 'https://openvla.github.io', pdf })], decks);
+    expect(papers[0]).toMatchObject({ id: '2406.09246', pdf });
+  });
+
+  it('drops DOI, plain-web and malformed papers', () => {
+    const { papers, push } = v27Papers(
+      [old({ url: 'https://doi.org/10.1145/3290605' }), old({ url: 'https://example.com/p.pdf' }), null, 'junk', 7],
+      decks,
+    );
+    expect(papers).toEqual([]);
+    expect(push).toEqual([]);
+  });
+
+  it('keeps the first of two records for the same paper', () => {
+    const { papers, push } = v27Papers([old({ deckId: 'd1' }), old({ deckId: 'd2', url: 'https://arxiv.org/pdf/2006.11239' })], decks);
+    expect(papers).toHaveLength(1);
+    expect(push).toEqual([{ id: '2006.11239', folder: 'Diffusion' }]);
+  });
+
+  it('files a paper whose deck is gone under Want to read, and titles an untitled one by id', () => {
+    const { papers, push } = v27Papers([old({ deckId: 'missing', title: '' })], decks);
+    expect(push[0].folder).toBe('Want to read');
+    expect(papers[0].title).toBe('2006.11239');
   });
 });
 
-describe('v25', () => {
-  const nudge = { count: 1, lastAt: 2, dismissed: false };
-
-  it('strips nudge from progress records', () => {
-    expect(v25Progress({ a: { url: 'u', maxPercent: 40, nudge } })).toEqual({ a: { url: 'u', maxPercent: 40 } });
+describe('v27Annotations / v27FocusSession', () => {
+  it('keeps annotations on arXiv documents only', () => {
+    const a = (docKey: string) => ({ id: docKey, docKey });
+    expect(v27Annotations([a('arxiv:2006.11239'), a('doi:10.1/x'), a('url:example.com/p'), null]).map((x) => x.id)).toEqual([
+      'arxiv:2006.11239',
+    ]);
   });
-
-  it('returns null when nothing changed, so a clean profile is not rewritten', () => {
-    expect(v25Progress({ a: { url: 'u' } })).toBeNull();
-    expect(v25Progress(undefined)).toBeNull();
-  });
-
-  it('strips nudge from papers and leaves every other field deep-equal', () => {
-    const paper = { id: 'p', title: 'T', url: 'https://x', deckId: 'd', status: 'reading', progressPercent: 30, lastReadAt: 5 };
-    expect([{ ...paper, nudge }, paper].map(v25StripNudge)).toEqual([paper, paper]);
-  });
-
-  it('sweeps the nudges toggle', () => {
-    expect(V22_DEAD_SETTINGS).toContain('nudgesEnabled');
+  it('drops a Pomodoro-shaped session and keeps a reader session', () => {
+    expect(v27FocusSession({ startedAt: 1, phase: 'focus', phaseEndsAt: 9, round: 1 })).toBeNull();
+    expect(v27FocusSession(null)).toBeNull();
+    const reading = { startedAt: 1, tabIds: [4], title: 'T' };
+    expect(v27FocusSession(reading)).toBe(reading);
   });
 });
 
@@ -352,60 +334,54 @@ function fakeChrome(seed: Record<string, unknown>) {
   return () => structuredClone(Object.fromEntries(local));
 }
 
-describe('v25 sweep on a full legacy profile', () => {
+describe('v27 on a full legacy profile', () => {
   const sentinel = (k: string) => ({ sentinel: k, nested: [1, { deep: k }] });
-  const nudge = { count: 2, lastAt: 9, dismissed: true };
-  const keptSettings = { theme: 'dark', mutedTopics: ['x'], notificationsEnabled: true, semanticScholarApiKey: 's' };
+  const keptSettings = { theme: 'dark', readerFocusLine: true, claudeKey: 'sk', focusBlocklist: ['x.com'] };
   const deadSettings = {
-    displayName: 'A', weatherLocation: 'X', ambientMotion: true, hyperfocusEnabled: true,
-    focusMusicEnabled: true, geminiKey: 'g', nudgesEnabled: true,
+    displayName: 'A', ollamaUrl: 'u', cloudMode: 'all', mutedTopics: ['x'], trackTopics: ['y'], geminiTopicKey: 'g',
+    focusMinutes: 50, breakMinutes: 10, focusSound: true, semanticScholarApiKey: 's', refreshInterval: 30,
+    notificationsEnabled: true,
   };
-  const progress = {
-    'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null, nudge },
-    'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30, nudge },
-    'ext/newtab': { url: 'chrome-extension://abc/src/pages/newtab/index.html', title: 'Focus workspace', maxPercent: 5, completedAt: null },
-  };
-  const paper = { id: 'p1', title: 'P', url: 'https://arxiv.org/abs/1', status: 'reading', progressPercent: 20 };
-  // Every key a `// v25` section sweeps, plus a sentinel for every kept key.
+  const arxivPaper = { id: 'p1', deckId: 'd1', title: 'P', url: 'https://arxiv.org/abs/2006.11239', status: 'reading', progressPercent: 20 };
+  const webPaper = { id: 'p2', deckId: 'd1', title: 'W', url: 'https://example.com/w.pdf', status: 'to-read', progressPercent: 0 };
   const seed: Record<string, unknown> = {
     ...Object.fromEntries(KEPT_LOCAL_KEYS.map((k) => [k, sentinel(k)])),
-    weather: { temp: 1 },
-    bookmarks: [{ id: 'b' }],
-    bookmarkGroups: [{ id: 'g' }],
-    aiStats: { probes: 3 },
-    schemaVersion: 24,
+    schemaVersion: 26,
     settings: { ...keptSettings, ...deadSettings },
-    readingProgress: progress,
-    papers: [{ ...paper, nudge }],
+    papers: [arxivPaper, webPaper],
+    decks: [{ id: 'd1', name: 'Diffusion' }],
+    annotations: [{ id: 'a1', docKey: 'arxiv:2006.11239' }, { id: 'a2', docKey: 'url:example.com/w.pdf' }],
+    focusSession: { startedAt: 1, phase: 'focus', phaseEndsAt: 2, round: 1 },
+    feeds: ['https://lwn.net/feed'],
+    readingProgress: { a: { url: 'https://a.com' } },
+    provocations: [{ id: 'q' }],
+    aiVectors: { a: 'v' },
   };
 
-  it('drops only the cut, keeps every sentinel and lands on 26', async () => {
+  it('drops only the cut, keeps every sentinel and lands on 27', async () => {
     const snapshot = fakeChrome(seed);
     await migrate();
     const after = snapshot();
     vi.unstubAllGlobals();
-    for (const k of ['weather', 'bookmarks', 'bookmarkGroups', 'aiStats']) expect(after).not.toHaveProperty(k);
+    for (const k of ['feeds', 'readingProgress', 'provocations', 'aiVectors', 'decks']) expect(after).not.toHaveProperty(k);
     expect(after.settings).toEqual(keptSettings);
-    expect(after.readingProgress).toEqual({
-      'a.com/1': { url: 'https://a.com/1', title: 'One', maxPercent: 40, completedAt: null },
-      'yt:abc': { kind: 'video', url: 'https://youtube.com/watch?v=abc', positionSeconds: 30 },
-    });
-    expect(after.readingProgress).not.toHaveProperty('ext/newtab');
-    expect(after.papers).toEqual([paper]);
-    expect(JSON.stringify(after)).not.toContain('"nudge"');
+    expect((after.papers as { id: string }[]).map((p) => p.id)).toEqual(['2006.11239']);
+    expect(after.alphaxivPush).toEqual([{ id: '2006.11239', folder: 'Diffusion' }]);
+    expect((after.annotations as { id: string }[]).map((a) => a.id)).toEqual(['a1']);
+    expect(after.focusSession).toBeNull();
     for (const k of KEPT_LOCAL_KEYS) {
-      if (['schemaVersion', 'settings', 'readingProgress', 'papers'].includes(k)) continue;
+      if (['schemaVersion', 'settings', 'papers', 'alphaxivPush', 'annotations', 'focusSession'].includes(k)) continue;
       expect(after[k]).toEqual(sentinel(k));
     }
-    expect(after.schemaVersion).toBe(26);
+    expect(after.schemaVersion).toBe(27);
   });
 
   it('migrate is idempotent', async () => {
     const snapshot = fakeChrome(seed);
     await migrate();
     const first = snapshot();
-    // Force the sweep to run again rather than pass on the version guard.
-    await chrome.storage.local.set({ schemaVersion: 24 });
+    // Force every step to run again rather than pass on the version guard.
+    await chrome.storage.local.set({ schemaVersion: 26 });
     await migrate();
     const second = snapshot();
     vi.unstubAllGlobals();

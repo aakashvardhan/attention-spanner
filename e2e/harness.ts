@@ -152,3 +152,40 @@ export async function shot(page: Page, name: string): Promise<void> {
 export async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 }
+
+/**
+ * Claude, scripted: every Messages API call is answered by `reply(system, prompt)`
+ * as a two-chunk SSE stream in the shape the Anthropic SDK reads. Calls are
+ * recorded so a test can check what was asked. Extension pages hold host
+ * permissions, so no CORS headers are needed.
+ */
+export async function mockClaude(ext: Ext, reply: (system: string, prompt: string) => string) {
+  const calls: { system: string; prompt: string; model: string }[] = [];
+  await ext.ctx.route('https://api.anthropic.com/**', async (route) => {
+    const body = route.request().postDataJSON() as {
+      model: string;
+      system: string;
+      messages: { content: { text: string }[] }[];
+    };
+    const prompt = body.messages[0].content.at(-1)?.text ?? '';
+    calls.push({ system: body.system, prompt, model: body.model });
+    const text = reply(body.system, prompt);
+    const mid = Math.floor(text.length / 2);
+    const event = (type: string, data: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body:
+        event('message_start', {
+          message: { id: 'msg_e2e', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } },
+        }) +
+        event('content_block_start', { index: 0, content_block: { type: 'text', text: '' } }) +
+        event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: text.slice(0, mid) } }) +
+        event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: text.slice(mid) } }) +
+        event('content_block_stop', { index: 0 }) +
+        event('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 2 } }) +
+        event('message_stop', {}),
+    });
+  });
+  return calls;
+}

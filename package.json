@@ -6,8 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && npm run build:content && npm run build:mcp",
-    "build:content": "esbuild src/content/readingTracker.ts src/content/videoTracker.ts src/content/timedtextTee.ts src/content/define.ts --bundle --format=iife --outdir=dist/content --log-level=error",
+    "build": "tsc --noEmit && vite build && npm run build:mcp",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e && tsc --noEmit -p mcp",
     "package": "node scripts/package.mjs",
@@ -21,7 +20,6 @@
     "@anthropic-ai/sdk": "^0.131.0",
     "@lezer/markdown": "1.7.2",
     "@modelcontextprotocol/sdk": "1.31.0",
-    "fast-xml-parser": "^5.10.1",
     "katex": "^0.18.1",
     "marked": "^18.0.7",
     "pdfjs-dist": "^6.1.200",

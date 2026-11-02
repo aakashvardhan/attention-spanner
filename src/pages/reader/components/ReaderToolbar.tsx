@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { formatCitation, type CiteSource, type CiteStyle } from '../../../shared/citeFormats';
 import { NEWTAB_PAGE_PATH } from '../../../shared/constants';
 import { sendMessage } from '../../../shared/messages';
 import { alphaxivUrl } from '../../../shared/pdf';
 import { useSettings } from '../../../shared/hooks/useSettings';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { patchSettings } from '../../../shared/storage';
-
-const CITE_STYLES: [CiteStyle, string][] = [
-  ['apa', 'APA'],
-  ['mla', 'MLA'],
-  ['bibtex', 'BibTeX'],
-];
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
@@ -56,11 +49,6 @@ export function ReaderToolbar({
   onToggleNotes,
   findOpen,
   onToggleFind,
-  askOpen,
-  onToggleAsk,
-  openCount = 0,
-  onNextOpen,
-  citation,
 }: {
   title: string;
   /** Articles have blocks, not pages; night mode is PDF-only */
@@ -83,17 +71,8 @@ export function ReaderToolbar({
   /** Absent for documents with no reference list to relate (a recording) */
   findOpen?: boolean;
   onToggleFind?: () => void;
-  askOpen?: boolean;
-  onToggleAsk?: () => void;
-  /** Questions skipped or not yet answered; the chip shows only when there are some */
-  openCount?: number;
-  onNextOpen?: () => void;
-  /** What "Copy citation" formats (may look it up); absent where there is nothing to cite */
-  citation?: () => Promise<CiteSource>;
 }) {
   const theme = useTheme();
-  // The PDF asks back; the article reader keeps answering.
-  const askLabel = pageNoun === 'page' ? 'Question it' : 'Ask this document';
   const [settings] = useSettings();
   // Night only exists for PDFs: it inverts the rendered pages.
   const night = pageNoun === 'page' && settings.readerNight && theme.resolved === 'dark';
@@ -104,21 +83,6 @@ export function ReaderToolbar({
       theme: mode === 'light' || mode === 'paperwhite' ? mode : 'dark',
       readerNight: mode === 'night',
     });
-  const [copied, setCopied] = useState<{ style: CiteStyle; label: string } | null>(null);
-  const copyCitation = async (style: CiteStyle) => {
-    if (!citation) return;
-    const flash = (label: string) => {
-      setCopied({ style, label });
-      setTimeout(() => setCopied((c) => (c?.style === style ? null : c)), 1500);
-    };
-    setCopied({ style, label: 'Looking up…' });
-    try {
-      await navigator.clipboard.writeText(formatCitation(await citation(), style));
-      flash('Copied');
-    } catch {
-      flash('Copy failed');
-    }
-  };
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -206,25 +170,6 @@ export function ReaderToolbar({
       </div>
 
       <div className="reader-toolbar-right">
-        {openCount > 0 && onNextOpen && (
-          <button type="button" className="ghost-btn reader-open-questions" onClick={onNextOpen}>
-            Open questions <span className="reader-open-count">{openCount}</span>
-          </button>
-        )}
-        {onToggleAsk && (
-          <button
-            className={askOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
-            aria-label={askLabel}
-            aria-pressed={askOpen}
-            title={askLabel}
-            onClick={onToggleAsk}
-          >
-            <ToolbarIcon>
-              <path d="M12 20.5a8.5 8.5 0 1 0-7.6-4.7L3.5 20.5l4.7-.9A8.46 8.46 0 0 0 12 20.5Z" />
-              <path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.3M12 16.4v.1" />
-            </ToolbarIcon>
-          </button>
-        )}
         {onToggleFind && (
           <button
             className={findOpen ? 'reader-icon-btn active' : 'reader-icon-btn'}
@@ -331,20 +276,6 @@ export function ReaderToolbar({
                   </ToolbarIcon>
                   <span>Night</span>
                 </button>
-              )}
-              {citation && (
-                <>
-                  <div className="reader-menu-separator" role="separator" />
-                  {CITE_STYLES.map(([style, label]) => (
-                    <button key={style} role="menuitem" onClick={() => void copyCitation(style)}>
-                      <ToolbarIcon>
-                        <rect x="8" y="8" width="12" height="12" rx="2" />
-                        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
-                      </ToolbarIcon>
-                      <span>{copied?.style === style ? copied.label : `Copy ${label} citation`}</span>
-                    </button>
-                  ))}
-                </>
               )}
               {src && (
                 <>

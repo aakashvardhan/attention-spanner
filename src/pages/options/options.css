@@ -127,16 +127,9 @@ body {
   border-top: 1px solid var(--border-subtle);
 }
 
-.setting-row label,
-.setting-row-label {
+.setting-row label {
   font-size: var(--text-sm);
   color: var(--text-primary);
-}
-
-.setting-row-stacked {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
 }
 
 .setting-row textarea {
@@ -248,23 +241,6 @@ button:hover {
   border-color: var(--accent);
 }
 
-.button-group {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.secondary-btn {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
-
-.secondary-btn:hover {
-  background: var(--border);
-  /* Without this, button:hover's on-accent (white) text lands on --border. */
-  color: var(--text-primary);
-}
-
 /* ---------- Feeds ---------- */
 
 .feeds-list {
@@ -306,11 +282,6 @@ button:hover {
   color: var(--danger);
 }
 
-.empty-message {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
 /* ---------- Feedback ---------- */
 
 .feedback {
@@ -318,11 +289,6 @@ button:hover {
   font-size: var(--text-sm);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-}
-
-.feedback.success {
-  background: var(--success-bg);
-  color: var(--success);
 }
 
 .feedback.error {
@@ -341,30 +307,6 @@ button:hover {
   .colophon-index::before {
     transition: none;
   }
-}
-
-/* ---------- Local AI ---------- */
-
-.ai-setup {
-  margin: var(--space-2) 0;
-}
-
-/* Selectable in one drag: this line gets pasted into a terminal. */
-.ai-setup-cmd {
-  display: block;
-  margin: var(--space-2) 0;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  font-size: var(--text-xs);
-  overflow-wrap: anywhere;
-  user-select: all;
-}
-
-.ai-subhead {
-  margin-top: var(--space-5);
-  margin-bottom: var(--space-1);
-  font-size: var(--text-sm);
 }
 
 .hint a {

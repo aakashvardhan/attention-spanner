@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FOCUS_DNR_ID_BASE } from '../shared/constants';
 import { DEFAULT_SETTINGS } from '../shared/storage';
 import { buildSessionAccessRules } from './accessRules';
-import { redirectOpenBlockedTabs, startFocus } from './focus';
+import { readerClosed, readerOpened, redirectOpenBlockedTabs } from './focus';
 
 const stored = vi.hoisted(() => ({ session: null as unknown }));
 vi.mock('../shared/storage', async (orig) => ({
   ...(await orig<typeof import('../shared/storage')>()),
   getSettings: () => Promise.resolve({ ...(globalThis as { __s?: object }).__s }),
+  getLocal: () => Promise.resolve({ focusSession: stored.session }),
   setLocal: (patch: { focusSession?: unknown }) => {
     stored.session = patch.focusSession;
     return Promise.resolve();
@@ -17,7 +18,7 @@ vi.mock('./accessRules', async (orig) => ({
   ...(await orig<typeof import('./accessRules')>()),
   syncSessionAccessRules: () => Promise.resolve(),
 }));
-vi.mock('./feeds', () => ({ updateBadge: () => Promise.resolve() }));
+vi.mock('../shared/activity', () => ({ logActivity: () => Promise.resolve() }));
 
 /**
  * "An already-open Netflix tab would defeat the whole point" — so starting a
@@ -70,20 +71,15 @@ describe('redirectOpenBlockedTabs', () => {
   });
 });
 
-// Built in pieces so the cut-features guard stays clean.
-const LEGACY_KEY = ['focus', 'Music', 'Enabled'].join('');
-
-describe('focus survives drift removal', () => {
-  it('a clock-in with an intention still blocks the blocklist and keeps the intention', async () => {
-    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusBlocklist: ['netflix.com'], focusSound: false };
+describe('reading session', () => {
+  it('the first reader tab starts blocking and redirects open blocked tabs', async () => {
+    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusBlocklist: ['netflix.com'] };
+    stored.session = null;
     const update = stubTabs([{ id: 4, url: 'https://www.netflix.com/browse' }]);
-    vi.stubGlobal('chrome', {
-      ...(globalThis as { chrome: object }).chrome,
-      alarms: { create: vi.fn() },
-    });
-    await startFocus({ focusMinutes: 25, intention: '  write ch. 3  ' });
+    await readerOpened(9, 'Attention Is All You Need');
     const session = stored.session as import('../shared/types').FocusSession;
-    expect(session.intention).toBe('write ch. 3');
+    expect(session.tabIds).toEqual([9]);
+    expect(session.title).toBe('Attention Is All You Need');
     expect(update.mock.calls[0][0]).toBe(4);
     const rules = buildSessionAccessRules({
       focusSession: session,
@@ -93,15 +89,17 @@ describe('focus survives drift removal', () => {
     expect(rules.map((r) => r.id)).toEqual([FOCUS_DNR_ID_BASE]);
   });
 
-  it('opens no tabs, even with the legacy music setting stored', async () => {
-    (globalThis as { __s?: object }).__s = { ...DEFAULT_SETTINGS, focusSound: false, [LEGACY_KEY]: true };
-    const create = vi.fn();
-    vi.stubGlobal('chrome', {
-      ...(globalThis as { chrome: object }).chrome,
-      alarms: { create: vi.fn() },
-      tabs: { create, query: vi.fn(async () => []), update: vi.fn() },
-    });
-    await startFocus({ focusMinutes: 25 });
-    expect(create).not.toHaveBeenCalled();
+  it('closing the last reader tab ends the session and lifts the rules', async () => {
+    stored.session = { startedAt: Date.now() - 60_000, tabIds: [9], title: 'x' };
+    await readerClosed(9);
+    expect(stored.session).toBeNull();
+    expect(buildSessionAccessRules({ focusSession: null, focusDomains: ['netflix.com'], focusRedirectUrl: 'r' })).toEqual([]);
+  });
+
+  it('closing an unrelated tab leaves the session alone', async () => {
+    const before = { startedAt: 1, tabIds: [9], title: 'x' };
+    stored.session = before;
+    await readerClosed(3);
+    expect(stored.session).toBe(before);
   });
 });

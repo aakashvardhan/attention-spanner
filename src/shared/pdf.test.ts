@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   alphaxivUrl,
-  articleReaderPath,
   arxivPdfUrl,
   computePdfPercent,
   isPdfUrl,
@@ -10,7 +9,6 @@ import {
   positionFromScroll,
   readerPagePath,
   readerPdfSrc,
-  shouldOpenInReader,
 } from './pdf';
 
 describe('isPdfUrl', () => {
@@ -99,28 +97,6 @@ describe('computePdfPercent', () => {
   });
 });
 
-describe('shouldOpenInReader', () => {
-  it('accepts ordinary web articles', () => {
-    expect(shouldOpenInReader('https://example.com/posts/attention')).toBe(true);
-    expect(shouldOpenInReader('http://blog.example.org/a')).toBe(true);
-  });
-
-  it('rejects PDFs — those take the PDF reader path instead', () => {
-    expect(shouldOpenInReader('https://arxiv.org/pdf/2006.11239')).toBe(false);
-  });
-
-  it('rejects video pages, which are watched rather than read', () => {
-    expect(shouldOpenInReader('https://www.youtube.com/watch?v=abc12345678')).toBe(false);
-    expect(shouldOpenInReader('https://youtu.be/abc12345678')).toBe(false);
-    expect(shouldOpenInReader('https://vimeo.com/12345')).toBe(false);
-  });
-
-  it('rejects non-http schemes and junk', () => {
-    expect(shouldOpenInReader('mailto:someone@example.com')).toBe(false);
-    expect(shouldOpenInReader('not a url')).toBe(false);
-  });
-});
-
 describe('paperPdfSource', () => {
   const paper = (url: string, pdf?: { url: string }) =>
     ({ url, pdf: pdf ? { ...pdf, page: 1, pageCount: 10, offset: 0 } : undefined }) as Parameters<
@@ -151,14 +127,6 @@ describe('paperPdfSource', () => {
   it('has nothing to offer for a publisher page or a paper with no link', () => {
     expect(paperPdfSource(paper('https://dl.acm.org/doi/10.1145/3292500.3330701'))).toBeNull();
     expect(paperPdfSource(paper(''))).toBeNull();
-  });
-});
-
-describe('articleReaderPath', () => {
-  it('encodes the target url into the ?article= param', () => {
-    expect(articleReaderPath('https://example.com/a b?x=1')).toBe(
-      'src/pages/reader/index.html?article=https%3A%2F%2Fexample.com%2Fa%20b%3Fx%3D1',
-    );
   });
 });
 

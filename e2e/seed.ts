@@ -1,53 +1,20 @@
-import type { FeedItem, Paper, ReadingProgress } from '../src/shared/types';
+import type { Folder, Paper } from '../src/shared/types';
 
 const HOUR = 60 * 60_000;
 
-export function article(url: string, title: string, overrides: Partial<ReadingProgress> = {}): ReadingProgress {
-  const now = Date.now();
-  return {
-    kind: 'article',
-    url,
-    title,
-    source: 'E2E Source',
-    feedItemId: null,
-    maxPercent: 40,
-    scrollY: 1200,
-    pageHeight: 6000,
-    activeSeconds: 300,
-    firstOpenedAt: now - 24 * HOUR,
-    updatedAt: now - HOUR,
-    completedAt: null,
-    ...overrides,
-  };
-}
+export const folder: Folder = { id: '01985f0e-9788-7c5f-9cff-fbf84379ca7a', name: 'Reading', type: 'default-reading' };
 
-export function feedItem(id: string, title: string, overrides: Partial<FeedItem> = {}): FeedItem {
+/** A shelved arXiv paper; `n` picks a distinct id like 2601.00001. */
+export function paper(n: string, title: string, overrides: Partial<Paper> = {}): Paper {
+  const now = Date.now();
+  const id = `2601.${n.padStart(5, '0')}`;
   return {
     id,
-    title,
-    link: `http://news.e2e.test/${id}`,
-    normalizedLink: `news.e2e.test/${id}`,
-    pubDate: new Date(Date.now() - HOUR).toISOString(),
-    snippet: '',
-    source: 'E2E Feed',
-    ...overrides,
-  };
-}
-
-export function paper(id: string, title: string, overrides: Partial<Paper> = {}): Paper {
-  const now = Date.now();
-  return {
-    id,
-    deckId: 'e2e-deck',
     title,
     authors: 'A. Author',
-    venue: 'E2E',
     year: 2026,
-    citations: null,
-    url: `https://arxiv.org/abs/2601.${id.padStart(5, '0')}`,
-    abstract: `Abstract of ${title}.`,
-    relevance: '',
-    status: 'reading',
+    url: `https://arxiv.org/abs/${id}`,
+    folderIds: [folder.id],
     progressPercent: 30,
     leftOff: '',
     addedAt: now - 48 * HOUR,
@@ -56,5 +23,3 @@ export function paper(id: string, title: string, overrides: Partial<Paper> = {})
     ...overrides,
   };
 }
-
-export const deck = { id: 'e2e-deck', name: 'E2E deck', kind: 'papers', createdAt: Date.now() };

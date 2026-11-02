@@ -1,20 +1,20 @@
 import { MAX_PDF_NATIVE_BYPASS, PDF_BYPASS_DNR_ID_BASE, PDF_DNR_ID, READER_PAGE_PATH } from '../shared/constants';
-import { isLocalPdfUrl, readerPageUrl } from '../shared/pdf';
 import { getSession, setSession } from '../shared/storage';
 
 /*
- * Sends PDF navigations into the in-extension reader (src/pages/reader/), the
- * way Google Scholar PDF Reader does. A declarativeNetRequest session rule
- * matches the response's Content-Type, so the redirect happens in the network
- * stack before Chrome's own viewer ever paints — no flash of the native viewer
- * and no second load, which the old tabs.onUpdated redirect could not avoid.
- * It also catches extensionless PDFs (allenai.org/papers/…) for free.
+ * Sends arXiv PDF navigations into the in-extension reader (src/pages/reader/).
+ * A declarativeNetRequest session rule matches the URL, so the redirect happens
+ * before the request leaves: no flash of Chrome's viewer and no second load.
+ * Only arXiv: the shelf is alphaXiv's, and every other PDF keeps Chrome's viewer.
  *
  * The reader's "Open in Chrome's viewer" button records the URL in a
  * session-scoped bypass list, mirrored as higher-priority allow rules, so
  * redirecting back to the native viewer (and reloading it) doesn't bounce into
- * the reader again. Focus redirects (priority 300) still win over both.
+ * the reader again. Reading-session redirects (priority 300) still win over both.
  */
+
+/** arXiv PDF links (abs pages are left alone). RE2 syntax: DNR compiles it, and the unit test runs it as a JS RegExp. */
+export const ARXIV_PDF_FILTER = '^https?://(www\\.|export\\.)?arxiv\\.org/pdf/.+';
 
 const PDF_PRIORITY = 1;
 
@@ -28,11 +28,8 @@ function readerRedirectRule(): chrome.declarativeNetRequest.Rule {
       redirect: { regexSubstitution: `${chrome.runtime.getURL(READER_PAGE_PATH)}?raw=\\0` },
     },
     condition: {
-      regexFilter: '^https?://.*',
+      regexFilter: ARXIV_PDF_FILTER,
       resourceTypes: ['main_frame' as chrome.declarativeNetRequest.ResourceType],
-      responseHeaders: [{ header: 'content-type', values: ['application/pdf', 'application/pdf;*'] }],
-      // An attachment is a download, not a page: the tab stays where it is.
-      excludedResponseHeaders: [{ header: 'content-disposition', values: ['attachment*'] }],
     },
   };
 }
@@ -69,24 +66,6 @@ export async function syncPdfRules(): Promise<void> {
     removeRuleIds: existing.map((r) => r.id).filter(isPdfRule),
     addRules: [readerRedirectRule(), ...pdfNativeBypass.map(bypassRule)],
   });
-}
-
-/**
- * Called from tabs.onUpdated with every navigation URL. DNR does not see
- * file:// navigations, so a local PDF is still redirected after the fact.
- */
-export async function maybeInterceptPdf(tabId: number, url: string): Promise<void> {
-  if (!isLocalPdfUrl(url)) return;
-  // A local file is readable only with "Allow access to file URLs" on in
-  // chrome://extensions; without it the reader would fail, so Chrome's viewer keeps it.
-  if (!(await chrome.extension.isAllowedFileSchemeAccess())) return;
-  const { pdfNativeBypass } = await getSession('pdfNativeBypass');
-  if (pdfNativeBypass.includes(url)) return;
-  try {
-    await chrome.tabs.update(tabId, { url: readerPageUrl(url) });
-  } catch {
-    // Tab closed mid-navigation — nothing to redirect.
-  }
 }
 
 /** Reader → native viewer: remember the choice for the session, then navigate. */
