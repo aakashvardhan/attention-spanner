@@ -6,6 +6,7 @@ use leptos::prelude::*;
 
 mod chrome;
 mod js;
+mod pages;
 mod store;
 mod worker;
 

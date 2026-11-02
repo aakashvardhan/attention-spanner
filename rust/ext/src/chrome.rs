@@ -57,6 +57,13 @@ extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["chrome", "identity"], js_name = launchWebAuthFlow)]
     pub fn identity_launch_web_auth_flow(details: &JsValue) -> Result<Promise, JsValue>;
 
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = sendMessage)]
+    pub fn send_message(msg: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = openOptionsPage)]
+    pub fn open_options_page() -> Result<Promise, JsValue>;
+    #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = addListener)]
+    pub fn on_storage_changed(listener: &Closure<dyn FnMut(JsValue, JsValue)>);
+
     /// The global `fetch`, the same in a page and in the service worker.
     #[wasm_bindgen(catch, js_name = fetch)]
     pub fn fetch(url: &str, init: &JsValue) -> Result<Promise, JsValue>;

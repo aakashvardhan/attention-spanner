@@ -13,7 +13,11 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
   // Errors from a test that failed before its own expectClean stay with it.
   beforeEach(() => void ext.errors.splice(0));
 
-  for (const [name, path] of Object.entries(PAGES)) {
+  // The Rust build joins page by page as each is ported.
+  const RUST_PAGES = ['options', 'blocked'];
+  const rust = Boolean(process.env.DIST?.includes('rust'));
+  const pageTest = (name: string) => (rust && !RUST_PAGES.includes(name) ? it.skip : it);
+  for (const [name, path] of Object.entries(PAGES).filter(([n]) => !rust || RUST_PAGES.includes(n))) {
     it(`${name}: no errors, declared language, no new a11y violations, matches its screenshot in either OS scheme`, async () => {
       const page = await ext.page(path);
       expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
@@ -48,7 +52,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     });
   }
 
-  it('new tab: the index along the foot holds exactly Papers and Settings', async () => {
+  pageTest('newtab')('new tab: the index along the foot holds exactly Papers and Settings', async () => {
     const page = await ext.page(PAGES.newtab);
     await expect
       .poll(() => page.locator('.edition-index .edition-link').allInnerTexts())
@@ -57,7 +61,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: no viewfinder frame, no world view', async () => {
+  pageTest('options')('options: no viewfinder frame, no world view', async () => {
     const page = await ext.page(PAGES.options);
     expect(await page.locator('.brackets').count()).toBe(0);
     expect(await page.getByLabel('New tab', { exact: true }).count()).toBe(0);
@@ -66,7 +70,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: the Claude key persists on blur and Escape restores the saved one', async () => {
+  pageTest('options')('options: the Claude key persists on blur and Escape restores the saved one', async () => {
     const page = await ext.page(PAGES.options);
     const field = page.getByLabel('Anthropic API key');
     await field.fill('sk-ant-e2e');
@@ -78,7 +82,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: alphaXiv sign-in, signed out then signed in, accessible both ways', async () => {
+  pageTest('options')('options: alphaXiv sign-in, signed out then signed in, accessible both ways', async () => {
     await seed(ext, { alphaxivAuth: null, alphaxivStatus: { email: '', lastSyncAt: null, error: '' } });
     const page = await ext.page(PAGES.options);
     const section = page.locator('section#alphaxiv');
@@ -108,14 +112,14 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     await page.close();
   });
 
-  it('options: nothing of the cut features is left', async () => {
+  pageTest('options')('options: nothing of the cut features is left', async () => {
     const page = await ext.page(PAGES.options);
     for (const gone of ['Add New Feed', 'Your Feeds', 'Refresh Interval', 'Local AI', 'Continue', 'Focus length:', 'Semantic Scholar'])
       expect(await page.getByText(gone, { exact: true }).count(), gone).toBe(0);
     await page.close();
   });
 
-  it('blocked page: while a paper is open it names the site and the paper, and offers the way back', async () => {
+  pageTest('blocked')('blocked page: while a paper is open it names the site and the paper, and offers the way back', async () => {
     await seed(ext, { focusSession: { startedAt: Date.now(), tabIds: [999999], title: 'Attention Is All You Need' } });
     const page = await ext.page(PAGES.blocked);
     await expect.poll(() => page.locator('h1').innerText()).toBe('example.com is blocked while you read');
