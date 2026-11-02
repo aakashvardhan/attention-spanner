@@ -149,6 +149,26 @@ pub fn generate_manifest(metadata: &ExtensionMetadata, browser: Browser) -> anyh
     Ok(json)
 }
 
+/// Deep-merge `patch` over a generated manifest: objects merge key by key,
+/// anything else (arrays included) is replaced. The escape hatch for every
+/// manifest key oxichrome does not model: `chrome_url_overrides`, icons,
+/// `action`, `commands`, extra `web_accessible_resources`, a custom CSP.
+/// A `null` in the patch removes the key.
+pub fn apply_patch(base: &mut serde_json::Value, patch: &serde_json::Value) {
+    match (base, patch) {
+        (serde_json::Value::Object(b), serde_json::Value::Object(p)) => {
+            for (k, v) in p {
+                if v.is_null() {
+                    b.remove(k);
+                } else {
+                    apply_patch(b.entry(k.clone()).or_insert(serde_json::Value::Null), v);
+                }
+            }
+        }
+        (b, p) => *b = p.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,6 +185,7 @@ mod tests {
             has_popup: true,
             has_options_page: true,
             content_scripts: vec![],
+            pages: vec![],
         }
     }
 
@@ -207,6 +228,7 @@ mod tests {
                     css: vec![],
                 },
             ],
+            pages: vec![],
         };
         let json = generate_manifest(&metadata, Browser::Chromium).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -241,6 +263,7 @@ mod tests {
                     css: vec!["styles.css".to_string()],
                 },
             ],
+            pages: vec![],
         };
         let json = generate_manifest(&metadata, Browser::Chromium).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -286,6 +309,7 @@ mod tests {
             has_popup: false,
             has_options_page: false,
             content_scripts: vec![],
+            pages: vec![],
         };
         let json = generate_manifest(&metadata, Browser::Chromium).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -302,5 +326,27 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert!(parsed.get("host_permissions").is_none());
+    }
+
+    #[test]
+    fn test_apply_patch_merges_objects_replaces_arrays_and_removes_nulls() {
+        let mut base = serde_json::json!({
+            "name": "X",
+            "permissions": ["storage"],
+            "action": { "default_popup": "popup.html" },
+            "content_security_policy": { "extension_pages": "script-src 'self'" }
+        });
+        apply_patch(&mut base, &serde_json::json!({
+            "permissions": ["storage", "alarms"],
+            "action": { "default_popup": null, "default_icon": { "16": "icons/16.png" } },
+            "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
+        }));
+        assert_eq!(base, serde_json::json!({
+            "name": "X",
+            "permissions": ["storage", "alarms"],
+            "action": { "default_icon": { "16": "icons/16.png" } },
+            "content_security_policy": { "extension_pages": "script-src 'self'" },
+            "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
+        }));
     }
 }

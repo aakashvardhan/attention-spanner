@@ -86,10 +86,31 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
     let metadata =
         source_parser::parse_source(&src_lib).context("failed to parse extension source")?;
 
-    let manifest_json = manifest::generate_manifest(&metadata, browser)?;
+    let mut manifest_json = manifest::generate_manifest(&metadata, browser)?;
+    let patch_path = crate_dir.join("manifest.patch.json");
+    if patch_path.exists() {
+        let patch: serde_json::Value = serde_json::from_str(&fs::read_to_string(&patch_path)?)
+            .context("manifest.patch.json is not valid JSON")?;
+        let mut value: serde_json::Value = serde_json::from_str(&manifest_json)?;
+        manifest::apply_patch(&mut value, &patch);
+        manifest_json = serde_json::to_string_pretty(&value)?;
+        println!("[oxichrome] Applied manifest.patch.json");
+    }
     fs::write(dist_dir.join("manifest.json"), &manifest_json)
         .context("failed to write manifest.json")?;
     println!("[oxichrome] Generated manifest.json");
+
+    for page in &metadata.pages {
+        let html_path = dist_dir.join(&page.path);
+        if let Some(parent) = html_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&html_path, shims::generate_page_html(page))
+            .with_context(|| format!("failed to write {}", page.path))?;
+        fs::write(dist_dir.join(shims::page_js_path(page)), shims::generate_page_js(page, &crate_name))
+            .with_context(|| format!("failed to write the loader for {}", page.path))?;
+        println!("[oxichrome] Generated {}", page.path);
+    }
 
     let background_js = shims::generate_background_js(&metadata, &crate_name);
     fs::write(dist_dir.join("background.js"), &background_js)

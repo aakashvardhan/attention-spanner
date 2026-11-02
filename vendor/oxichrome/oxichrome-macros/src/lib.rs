@@ -75,3 +75,16 @@ pub fn content_script(attr: TokenStream, item: TokenStream) -> TokenStream {
         .unwrap_or_else(|e| e.into_compile_error())
         .into()
 }
+
+/// ```ignore
+/// #[oxichrome::page(path = "pages/reader.html", title = "Reader", css = ["theme.css"])]
+/// fn Reader() -> impl IntoView {
+///     view! { <main>"…"</main> }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn page(attr: TokenStream, item: TokenStream) -> TokenStream {
+    codegen::page::expand(attr.into(), item.into())
+        .unwrap_or_else(|e| e.into_compile_error())
+        .into()
+}

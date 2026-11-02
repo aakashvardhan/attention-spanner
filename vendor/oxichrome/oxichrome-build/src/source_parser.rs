@@ -16,6 +16,18 @@ pub struct ExtensionMetadata {
     pub has_popup: bool,
     pub has_options_page: bool,
     pub content_scripts: Vec<ContentScript>,
+    pub pages: Vec<Page>,
+}
+
+/// An extension page from `#[oxichrome::page(...)]`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Page {
+    pub fn_name: String,
+    /// Where the HTML shell goes, relative to the extension root
+    pub path: String,
+    pub title: Option<String>,
+    /// Stylesheets linked in order, paths relative to the extension root
+    pub css: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -162,6 +174,29 @@ impl MetadataVisitor {
         })
     }
 
+    fn parse_page_args(attr: &Attribute, fn_name: String) -> Option<Page> {
+        let nested = attr
+            .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)
+            .ok()?;
+        let mut page = Page { fn_name, path: String::new(), title: None, css: Vec::new() };
+        for meta in &nested {
+            let Meta::NameValue(MetaNameValue { path, value, .. }) = meta else { continue };
+            match value {
+                Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) if path.is_ident("path") => page.path = s.value(),
+                Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) if path.is_ident("title") => page.title = Some(s.value()),
+                Expr::Array(arr) if path.is_ident("css") => {
+                    for elem in &arr.elems {
+                        if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                            page.css.push(s.value());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        (!page.path.is_empty()).then_some(page)
+    }
+
     fn parse_event_args(&self, attr: &Attribute) -> Option<(String, String)> {
         let tokens = attr.meta.require_list().ok()?.tokens.clone();
         let parsed: syn::Result<(syn::Ident, syn::Token![::], syn::Ident)> =
@@ -222,6 +257,11 @@ impl<'ast> Visit<'ast> for MetadataVisitor {
             }
             if Self::is_oxichrome_attr(attr, "options_page") {
                 self.metadata.has_options_page = true;
+            }
+            if Self::is_oxichrome_attr(attr, "page") {
+                if let Some(page) = Self::parse_page_args(attr, node.sig.ident.to_string()) {
+                    self.metadata.pages.push(page);
+                }
             }
             if Self::is_oxichrome_attr(attr, "content_script") {
                 if let Some(mut cs) = self.parse_content_script_args(attr) {
@@ -356,5 +396,31 @@ mod tests {
         assert_eq!(metadata.host_permissions.len(), 2);
         assert_eq!(metadata.host_permissions[0], "*://developer.mozilla.org/*");
         assert_eq!(metadata.host_permissions[1], "*://*.example.org/*");
+    }
+}
+
+#[cfg(test)]
+mod page_tests {
+    use super::*;
+
+    #[test]
+    fn collects_pages_with_path_title_and_css() {
+        let m = parse_source_str(r#"
+            #[oxichrome::page(path = "src/pages/newtab/index.html", title = "New Tab", css = ["theme.css", "newtab.css"])]
+            fn NewTab() -> impl IntoView { view! {} }
+
+            #[oxichrome::page(path = "blocked.html")]
+            fn Blocked() -> impl IntoView { view! {} }
+        "#).unwrap();
+        assert_eq!(m.pages, vec![
+            Page { fn_name: "NewTab".into(), path: "src/pages/newtab/index.html".into(), title: Some("New Tab".into()), css: vec!["theme.css".into(), "newtab.css".into()] },
+            Page { fn_name: "Blocked".into(), path: "blocked.html".into(), title: None, css: vec![] },
+        ]);
+    }
+
+    #[test]
+    fn a_page_without_a_path_is_skipped() {
+        let m = parse_source_str(r#"#[oxichrome::page(title = "x")] fn P() {}"#).unwrap();
+        assert!(m.pages.is_empty());
     }
 }
