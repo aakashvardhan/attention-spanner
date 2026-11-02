@@ -13,7 +13,7 @@ The reader stays "ask, never tell". alphaXiv is the master copy of the library. 
 | Library master | **alphaXiv folders**. The extension mirrors them and adds only reading state: progress, where you stopped, explain-backs, gaps. |
 | alphaXiv access | **Inside the extension.** The background worker calls `https://api.alphaxiv.org/mcp/v1` with OAuth. If the sign-in spike fails, **stop and re-plan with the user**. |
 | alphaXiv features | Feeds (shown as a New-arrivals cart by the shelf), paper content and PDF Q&A (behind the scenes), highlights imported **one-way**. |
-| Extension's own AI | **Delete** Ollama, routing, Laya, recap, outline, recall, triage, terms, provoke. **Keep Haiku (`llm/claude.ts`) only for the brain-dump reframe.** |
+| Extension's own AI | **Delete** Ollama, routing, Laya, recap, outline, recall, triage, provoke. **Keep Haiku (`llm/claude.ts`)** for the brain-dump reframe and as the writer for paper questions, grading and definitions (see spike finding). |
 | Reader | Full PDF, quiet margin. **No pass 1/2/3, no pass-3 lock.** No signposts (the user chooses where to read). |
 | Questions | Shown at the end of a section, or on a stall (long dwell with no scroll). alphaXiv PDF Q&A writes them from the section text. |
 | Explain-back | Problem, trick, and why it works. alphaXiv grades it and replies with the **gap and where to look** ("You named the trick but not why it works; see §3.2"), never the answer. |
@@ -36,6 +36,12 @@ The reader stays "ask, never tell". alphaXiv is the master copy of the library. 
   4. Call `list_library` through `@modelcontextprotocol/sdk`'s `Client` + `StreamableHTTPClientTransport` (already a dependency) with an `OAuthClientProvider`.
 - Record real responses for `list_library`, `get_paper_content`, `answer_pdf_queries`, `get_paper_notes`, `get_hot_feed`, `get_for_you_feed`, `save_papers_to_folder` and `move_papers_between_folders` as fixtures for the contract tests.
 - **Gate:** if alphaXiv refuses the client, the redirect, or CORS from `chrome-extension://`, stop and re-plan with the user.
+
+## Spike finding (2026-11-01)
+- Sign-in prerequisites pass: OAuth metadata, dynamic client registration accepts `https://<id>.chromiumapp.org/...` redirects, PKCE S256, public client (`token_endpoint_auth_method: none`), `offline_access` for refresh tokens. Background worker bypasses CORS via `host_permissions`.
+- Not yet proven: the interactive authorize round-trip (needs the user in a browser).
+- **alphaXiv tools are retrieval, not generation.** `answer_pdf_queries` returns ranked raw `<page>` XML; `get_paper_content` returns an AI summary report (never shown: ask-never-tell); feeds return ids only.
+- Decision (user): **Haiku writes, alphaXiv grounds.** For questions, grading and define, `answer_pdf_queries` retrieves the relevant pages and `llm/claude.ts` writes from them with a no-explaining system prompt. Feed titles come from `list_library`-style lookups or the public arXiv export API.
 
 ## Step 1: First-principles delete
 Delete, along with the tests, messages, settings fields, options rows and manifest permissions/commands that belong to each:
@@ -77,9 +83,9 @@ Delete, along with the tests, messages, settings fields, options rows and manife
   - Every action has a visible label and a key.
   - Where you stopped is restored and shown (support memory).
   - Nothing moves unless the user acts.
-- **Questions:** `useQuestions.ts` replaces `useProvocations`. Section ends come from the `pdfOutline.ts` headings plus the scroll position. A stall is a dwell of N seconds with no scroll; N is a settings knob with a sensible default. It calls `answer_pdf_queries` with a "write one Socratic question about this section, do not explain" prompt and caches per paper and section. Questions appear in a margin card that can be dismissed with a key.
-- **Explain-back:** an `ExplainBack` sheet with three fields (problem, trick, why). It is offered on close, from the button, or by key. `answer_pdf_queries` returns JSON grading `{part, status, gap, where}`. The UI shows only the gap and where, with a link to jump to that page. Stored per paper with history.
-- **Define:** keep `DefinePopover` and `clickedWord.ts`, now backed by `answer_pdf_queries`.
+- **Questions:** `useQuestions.ts` replaces `useProvocations`. Section ends come from the `pdfOutline.ts` headings plus the scroll position. A stall is a dwell of N seconds with no scroll; N is a settings knob with a sensible default. It retrieves the section pages with `answer_pdf_queries`, then Haiku writes one Socratic question ("do not explain") and caches per paper and section. Questions appear in a margin card that can be dismissed with a key.
+- **Explain-back:** an `ExplainBack` sheet with three fields (problem, trick, why). It is offered on close, from the button, or by key. Haiku, given the pages `answer_pdf_queries` retrieves for problem/trick/why, returns JSON grading `{part, status, gap, where}`. The UI shows only the gap and where, with a link to jump to that page. Stored per paper with history.
+- **Define:** keep `DefinePopover` and `clickedWord.ts`, now backed by Haiku over the pages `answer_pdf_queries` retrieves for the term.
 - **Annotations:** the local highlights and notes stay. alphaXiv highlights render in a distinct read-only style.
 - **Session block:** when the reader tab gains or loses activity, background `focus.ts` enables or disables `accessRules` (reusing the existing block list and `pages/blocked`).
 - **Tests:**
