@@ -97,6 +97,55 @@ pub fn paper_open_url(paper: &Paper, via_alphaxiv: bool, extension_base: &str) -
     }
 }
 
+/// arXiv PDF links (abs pages are left alone). RE2 syntax: Chrome compiles it for DNR.
+pub const ARXIV_PDF_FILTER: &str = r"^https?://(www\.|export\.)?arxiv\.org/pdf/.+";
+
+/// The session rule sending arXiv PDFs into the reader, before the request leaves.
+pub fn reader_redirect_rule(reader_url: &str) -> crate::focus_rules::DnrRule {
+    use crate::focus_rules::{DnrAction, DnrCondition, DnrRedirect, DnrRule};
+    DnrRule {
+        id: crate::constants::PDF_DNR_ID,
+        priority: 1,
+        action: DnrAction {
+            kind: "redirect".into(),
+            redirect: Some(DnrRedirect {
+                regex_substitution: format!("{reader_url}?raw=\\0"),
+            }),
+        },
+        condition: DnrCondition {
+            regex_filter: Some(ARXIV_PDF_FILTER.into()),
+            resource_types: vec!["main_frame".into()],
+            ..Default::default()
+        },
+    }
+}
+
+/// "Open in Chrome's viewer" for one URL, for the rest of the session: an allow
+/// rule a step above the redirect.
+pub fn bypass_rule(url: &str, index: usize) -> crate::focus_rules::DnrRule {
+    use crate::focus_rules::{DnrAction, DnrCondition, DnrRule};
+    DnrRule {
+        id: crate::constants::PDF_BYPASS_DNR_ID_BASE + index as i64,
+        priority: 2,
+        action: DnrAction {
+            kind: "allow".into(),
+            redirect: None,
+        },
+        // ponytail: urlFilter treats * ^ | as syntax, so a URL containing them won't match; escape-free regexFilter if it bites.
+        condition: DnrCondition {
+            url_filter: Some(format!("|{url}|")),
+            resource_types: vec!["main_frame".into()],
+            ..Default::default()
+        },
+    }
+}
+
+pub fn is_pdf_rule(id: i64) -> bool {
+    (crate::constants::PDF_DNR_ID
+        ..crate::constants::PDF_BYPASS_DNR_ID_BASE + crate::constants::MAX_PDF_NATIVE_BYPASS as i64)
+        .contains(&id)
+}
+
 /// 1-based page and 0-1 offset within it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PdfPosition {
@@ -366,6 +415,53 @@ mod tests {
             ),
             "https://dl.acm.org/doi/10.1145/3292500.3330701"
         );
+    }
+
+    #[test]
+    fn the_arxiv_filter_sends_pdfs_and_leaves_everything_else() {
+        let re = regex::Regex::new(ARXIV_PDF_FILTER).unwrap();
+        for yes in [
+            "https://arxiv.org/pdf/1706.03762",
+            "https://arxiv.org/pdf/1706.03762v7",
+            "https://www.arxiv.org/pdf/2406.09246.pdf",
+            "http://export.arxiv.org/pdf/hep-th/9901001",
+        ] {
+            assert!(re.is_match(yes), "{yes}");
+        }
+        for no in [
+            "https://arxiv.org/abs/1706.03762",
+            "https://arxiv.org/pdf/",
+            "https://example.com/paper.pdf",
+            "https://notarxiv.org/pdf/1706.03762",
+            "https://arxiv.org.evil.com/pdf/1706.03762",
+            "file:///Users/me/paper.pdf",
+        ] {
+            assert!(!re.is_match(no), "{no}");
+        }
+    }
+
+    #[test]
+    fn pdf_rules_redirect_with_the_raw_url_and_bypass_one_url() {
+        let r = serde_json::to_value(reader_redirect_rule(
+            "chrome-extension://id/src/pages/reader/index.html",
+        ))
+        .unwrap();
+        assert_eq!(
+            r["action"]["redirect"]["regexSubstitution"],
+            "chrome-extension://id/src/pages/reader/index.html?raw=\\0"
+        );
+        assert_eq!(r["condition"]["regexFilter"], ARXIV_PDF_FILTER);
+        let b = serde_json::to_value(bypass_rule("https://arxiv.org/pdf/1", 2)).unwrap();
+        assert_eq!(
+            (
+                b["id"].as_i64(),
+                b["priority"].as_i64(),
+                b["action"]["type"].as_str()
+            ),
+            (Some(3003), Some(2), Some("allow"))
+        );
+        assert_eq!(b["condition"]["urlFilter"], "|https://arxiv.org/pdf/1|");
+        assert!(is_pdf_rule(3000) && is_pdf_rule(3100) && !is_pdf_rule(3101) && !is_pdf_rule(1000));
     }
 
     #[test]

@@ -32,3 +32,24 @@ pub const ANNOTATION_TEXT_MAX_CHARS: usize = 500;
 pub const AI_CACHE_MAX_ENTRIES: usize = 200;
 pub const CLAUDE_MODEL_QUICK: &str = "claude-haiku-5-5";
 pub const CLAUDE_MODEL_DEEP: &str = "claude-sonnet-5-5";
+
+/// Alarms of cut features, cleared by name on install (an alarm outlives its code).
+pub const RETIRED_ALARMS: &[&str] = &[
+    "daily-brain-dump-midnight",
+    "refresh-jobs",
+    "task-reminders",
+    "sprint-end",
+    "gym-reminder",
+    "gym-reminder-snooze",
+    "calendar-refresh",
+    "monitor-evening",
+    "monitor-calendar",
+    "gmail-triage",
+    "refresh-feeds",
+    "focus-phase-end",
+    "focus-badge-tick",
+];
+/// Alarm families named per item (one per rule or article): cleared by prefix.
+pub const RETIRED_ALARM_PREFIXES: &[&str] = &["automation|", "nudge|"];
+/// The alphaXiv library sync.
+pub const SYNC_ALARM: &str = "alphaxiv-sync";

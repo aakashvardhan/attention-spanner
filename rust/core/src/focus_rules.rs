@@ -99,6 +99,26 @@ pub fn build_focus_rules(domains: &[String], redirect_base: &str) -> Vec<DnrRule
         .collect()
 }
 
+/// The session's whole rule set: the blocklist redirects while a reader tab is
+/// open, nothing otherwise. Rebuilt atomically on every change.
+pub fn build_session_access_rules(
+    session: Option<&FocusSession>,
+    domains: &[String],
+    redirect_base: &str,
+) -> Vec<DnrRule> {
+    if is_blocking(session) {
+        build_focus_rules(domains, redirect_base)
+    } else {
+        vec![]
+    }
+}
+
+/// Session rule ids this module owns: the retired gate's allow rule and the focus range.
+pub fn is_owned_session_rule(id: i64) -> bool {
+    id == crate::constants::DAILY_GATE_ALLOW_DNR_ID
+        || (FOCUS_DNR_ID_BASE..crate::constants::FOCUS_DNR_ID_LIMIT).contains(&id)
+}
+
 /// A reader tab opened: start the session, or add the tab to it.
 pub fn with_reader_tab(
     session: Option<FocusSession>,
@@ -221,6 +241,32 @@ mod tests {
         assert_eq!(
             second["action"]["redirect"]["regexSubstitution"],
             "chrome-extension://abc/blocked.html#\\0"
+        );
+    }
+
+    #[test]
+    fn session_rules_exist_exactly_while_a_reader_tab_is_open() {
+        let domains = vec!["netflix.com".to_string()];
+        let open = FocusSession {
+            started_at: 1,
+            tab_ids: vec![5],
+            title: "Paper".into(),
+        };
+        assert_eq!(
+            build_session_access_rules(Some(&open), &domains, "r").len(),
+            1
+        );
+        assert!(build_session_access_rules(None, &domains, "r").is_empty());
+        let empty = FocusSession {
+            tab_ids: vec![],
+            ..open
+        };
+        assert!(build_session_access_rules(Some(&empty), &domains, "r").is_empty());
+        assert!(
+            is_owned_session_rule(901)
+                && is_owned_session_rule(1000)
+                && !is_owned_session_rule(2000)
+                && !is_owned_session_rule(3000)
         );
     }
 

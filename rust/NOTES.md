@@ -86,3 +86,20 @@ Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported
    changed copy, like `{ ...paper, title }`.
 4. **`include_str!`** embeds the recorded alphaXiv fixtures at compile time.
 5. **Floats have no total order**: `sort_by` with `partial_cmp` in `annotations.rs`.
+
+## Phase 1b (part 2): migrations and the worker's rules. Phase 1 done: 131 core tests.
+
+1. **Effects at the edge** (`migrations.rs`). `migrate` takes a snapshot of
+   storage (`serde_json::Map`) and returns a `Plan`; it never touches Chrome.
+   The worker in phase 2 does `remove(plan.remove)` then `set(plan.set)`. So
+   the whole migration, including a full legacy profile and an idempotent
+   re-run, is tested natively with no fakes.
+2. **Working on untyped JSON on purpose**. Old records have shapes no current
+   struct describes; `Value`, `as_array`, `get(..).and_then(Value::as_str)`
+   read them defensively, and only the result is typed (`Vec<Paper>`).
+3. **Injecting what pure code cannot make** (`new_id: impl FnMut() -> String`).
+   UUIDs need randomness; the caller passes a closure (the browser's
+   `crypto.randomUUID`, or a fixed value in tests). `FnMut` because it may
+   change state each call.
+4. **Ranges as sets** (`(FOCUS_DNR_ID_BASE..FOCUS_DNR_ID_LIMIT).contains(&id)`)
+   read as the half-open interval they are.

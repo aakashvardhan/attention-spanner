@@ -13,6 +13,7 @@ pub mod clicked_word;
 pub mod constants;
 pub mod figures;
 pub mod focus_rules;
+pub mod migrations;
 pub mod outline;
 pub mod papers;
 pub mod pdf;
