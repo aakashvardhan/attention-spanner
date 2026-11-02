@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import { normalizeBlockDomain } from '../../shared/focusRules';
 import { useSettings } from '../../shared/hooks/useSettings';
-import { useTheme } from '../../shared/hooks/useTheme';
 import { patchSettings } from '../../shared/storage';
-import type { ThemeSetting } from '../../shared/types';
 import { AlphaxivSection } from './AlphaxivSection';
 import { SectionIndex } from './SectionIndex';
 
 export function Options() {
-  useTheme();
   const [settings, settingsLoaded] = useSettings();
   const [blockInput, setBlockInput] = useState('');
   const [blockFeedback, setBlockFeedback] = useState<string | null>(null);
@@ -43,23 +40,6 @@ export function Options() {
 
       <main className="colophon-main">
         <AlphaxivSection />
-
-        <section className="section" id="appearance">
-          <h2>Appearance</h2>
-          <div className="setting-row">
-            <label htmlFor="theme-select">Theme</label>
-            <select
-              id="theme-select"
-              value={settings.theme}
-              onChange={(e) => void patchSettings({ theme: e.target.value as ThemeSetting })}
-            >
-              <option value="system">Match system</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="paperwhite">Paperwhite</option>
-            </select>
-          </div>
-        </section>
 
         <section className="section" id="reader">
           <h2>Reader</h2>

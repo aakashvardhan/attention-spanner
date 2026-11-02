@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -188,4 +188,54 @@ export async function mockClaude(ext: Ext, reply: (system: string, prompt: strin
     });
   });
   return calls;
+}
+
+const BASELINES = resolve(__dirname, 'baselines');
+
+/**
+ * Screenshot regression without a new dependency: the baseline and the fresh
+ * shot are decoded and compared in the page itself, on canvases. A missing
+ * baseline is written (commit it); UPDATE_BASELINES=1 rewrites them after an
+ * intended change. Fails when more than 0.5% of pixels move by more than 24
+ * in any channel, which absorbs anti-aliasing but not a layout or colour change.
+ * ponytail: baselines are per machine (fonts, GPU); move to per-OS folders if CI renders differently.
+ */
+export async function expectScreenshot(page: Page, name: string): Promise<void> {
+  await settle(page);
+  const actual = await page.screenshot({ fullPage: true });
+  const file = join(BASELINES, `${name}.png`);
+  mkdirSync(BASELINES, { recursive: true });
+  let baseline: Buffer;
+  try {
+    if (process.env.UPDATE_BASELINES) throw new Error('update');
+    baseline = readFileSync(file);
+  } catch {
+    writeFileSync(file, actual);
+    return;
+  }
+  const result = await page.evaluate(
+    async ([a, b]) => {
+      const decode = async (b64: string) => createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+      const [x, y] = await Promise.all([decode(a), decode(b)]);
+      if (x.width !== y.width || x.height !== y.height) return { size: `${x.width}x${x.height} vs ${y.width}x${y.height}`, changed: 1 };
+      const read = (img: ImageBitmap) => {
+        const c = new OffscreenCanvas(img.width, img.height);
+        const ctx = c.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        return ctx.getImageData(0, 0, img.width, img.height).data;
+      };
+      const [p, q] = [read(x), read(y)];
+      let changed = 0;
+      for (let i = 0; i < p.length; i += 4)
+        if (Math.abs(p[i] - q[i]) > 24 || Math.abs(p[i + 1] - q[i + 1]) > 24 || Math.abs(p[i + 2] - q[i + 2]) > 24) changed++;
+      return { size: '', changed: changed / (p.length / 4) };
+    },
+    [baseline.toString('base64'), actual.toString('base64')] as const,
+  );
+  if (result.changed > 0.005) {
+    mkdirSync(OUT, { recursive: true });
+    writeFileSync(join(OUT, `${name}.actual.png`), actual);
+  }
+  expect(result.size, `${name}: page size changed (actual in e2e/out)`).toBe('');
+  expect(result.changed, `${name}: share of pixels changed (actual in e2e/out)`).toBeLessThanOrEqual(0.005);
 }

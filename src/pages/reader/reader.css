@@ -759,44 +759,6 @@ body {
   width: 320px;
 }
 
-/* The previous-page recap sits bottom-left: the left-off recap owns the top
-   right and the related highlight the bottom right. */
-/* Paperwhite: a duotone laid over the rendered page, between the canvases and
-   the text layer. `screen` lifts black to the warm ink, then `multiply` tints
-   white to the paper, with a faint grain. The canvases stay opaque: blending
-   the canvas itself let the soft thumbnail under it show through as a blurred
-   shadow on every line. The page's transform makes it the blend's boundary. */
-:root[data-theme='paperwhite'] .reader-page::before,
-:root[data-theme='paperwhite'] .reader-page::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
-:root[data-theme='paperwhite'] .reader-page::before {
-  background: var(--pdf-ink);
-  mix-blend-mode: screen;
-}
-
-:root[data-theme='paperwhite'] .reader-page::after {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
-    var(--pdf-paper);
-  mix-blend-mode: multiply;
-}
-
-/* Night: the chrome is already dark (theme), and the pages follow. Inverting
-   then rotating hue keeps figure colours recognisable. */
-:root[data-theme='dark'] .reader-root[data-night] .reader-page {
-  background: var(--pdf-page-night);
-}
-
-:root[data-theme='dark'] .reader-root[data-night] .reader-canvas {
-  filter: invert(0.92) hue-rotate(180deg);
-}
-
 /* The click-to-define popover */
 
 .cite-tooltip {

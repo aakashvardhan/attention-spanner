@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { NETWORK_NOISE, PAGES, storage, expectA11y, expectClean, horizontalOverflow, launch, seed, shot, type Ext } from './harness';
+import { NETWORK_NOISE, PAGES, storage, expectA11y, expectClean, expectScreenshot, horizontalOverflow, launch, seed, shot, type Ext } from './harness';
 import { folder, paper } from './seed';
 
 describe('smoke: every page renders, is accessible, and works with Chromium built-ins', () => {
@@ -14,14 +14,18 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
   beforeEach(() => void ext.errors.splice(0));
 
   for (const [name, path] of Object.entries(PAGES)) {
-    it(`${name}: no errors, declared language, no new a11y violations (light and dark)`, async () => {
+    it(`${name}: no errors, declared language, no new a11y violations, matches its screenshot in either OS scheme`, async () => {
       const page = await ext.page(path);
       expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
       await expectA11y(page, name);
-      await shot(page, `smoke-${name}-light`);
-      await page.emulateMedia({ colorScheme: 'dark' });
-      await expectA11y(page, name);
-      await shot(page, `smoke-${name}-dark`);
+      // A fixed clock, so date-driven pieces (the heatmap's months) render the same every run.
+      await page.clock.setFixedTime(new Date('2026-11-01T12:00:00'));
+      await page.reload();
+      await page.waitForTimeout(800);
+      // One walnut theme: the OS colour scheme must not change a pixel.
+      await expectScreenshot(page, `${name}`);
+      await page.emulateMedia({ colorScheme: 'light' });
+      await expectScreenshot(page, `${name}`);
       expectClean(ext, NETWORK_NOISE);
       await page.close();
     });
@@ -84,9 +88,11 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     expect(await page.locator('.colophon-index a').first().innerText()).toBe('alphaXiv');
     await expectA11y(page, 'options');
 
+    // The page's own clock: the screenshot tests pin the context's time.
+    const now = await page.evaluate(() => Date.now());
     await seed(ext, {
-      alphaxivAuth: { clientId: 'c', redirectUri: 'r', accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 3_600_000 },
-      alphaxivStatus: { email: 'me@example.edu', lastSyncAt: Date.now() - 5 * 60_000, error: 'alphaXiv asked us to slow down. The next sync will try again.' },
+      alphaxivAuth: { clientId: 'c', redirectUri: 'r', accessToken: 'a', refreshToken: 'r', expiresAt: now + 3_600_000 },
+      alphaxivStatus: { email: 'me@example.edu', lastSyncAt: now - 5 * 60_000, error: 'alphaXiv asked us to slow down. The next sync will try again.' },
     });
     await expect.poll(() => section.innerText()).toContain('Signed in as me@example.edu');
     expect(await section.innerText()).toContain('Synced 5m ago.');

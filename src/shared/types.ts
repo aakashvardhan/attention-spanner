@@ -14,13 +14,8 @@ export interface RecordMeta {
   deletedAt?: number | null;
 }
 
-/** UI color theme; 'system' follows the OS prefers-color-scheme (retired in the wood redesign) */
-export type ThemeSetting = 'light' | 'dark' | 'paperwhite' | 'system';
 
 export interface Settings {
-  theme: ThemeSetting;
-  /** PDF reader night mode: dark chrome with the pages themselves inverted */
-  readerNight: boolean;
   /** Reader focus line: dim everything but the passage being read (key F) */
   readerFocusLine: boolean;
   /** Domains blocked while a reader tab is open */

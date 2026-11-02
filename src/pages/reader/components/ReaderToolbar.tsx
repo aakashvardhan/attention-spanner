@@ -2,9 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NEWTAB_PAGE_PATH } from '../../../shared/constants';
 import { sendMessage } from '../../../shared/messages';
 import { alphaxivUrl } from '../../../shared/pdf';
-import { useSettings } from '../../../shared/hooks/useSettings';
-import { useTheme } from '../../../shared/hooks/useTheme';
-import { patchSettings } from '../../../shared/storage';
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
@@ -72,17 +69,6 @@ export function ReaderToolbar({
   findOpen?: boolean;
   onToggleFind?: () => void;
 }) {
-  const theme = useTheme();
-  const [settings] = useSettings();
-  // Night only exists for PDFs: it inverts the rendered pages.
-  const night = pageNoun === 'page' && settings.readerNight && theme.resolved === 'dark';
-  const appearance = night ? 'night' : theme.resolved;
-  // One patch: two concurrent read-modify-writes of settings would drop one.
-  const setAppearance = (mode: 'light' | 'dark' | 'night' | 'paperwhite') =>
-    void patchSettings({
-      theme: mode === 'light' || mode === 'paperwhite' ? mode : 'dark',
-      readerNight: mode === 'night',
-    });
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -226,60 +212,8 @@ export function ReaderToolbar({
           </button>
           {moreOpen && (
             <div className="reader-more-menu" role="menu">
-              <button
-                role="menuitemradio"
-                aria-checked={appearance === 'light'}
-                className={appearance === 'light' ? 'active' : undefined}
-                onClick={() => closeAfter(() => setAppearance('light'))}
-              >
-                <ToolbarIcon>
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                </ToolbarIcon>
-                <span>Light</span>
-              </button>
-              <button
-                role="menuitemradio"
-                aria-checked={appearance === 'paperwhite'}
-                className={appearance === 'paperwhite' ? 'active' : undefined}
-                title="Warm e-ink page, like a Kindle"
-                onClick={() => closeAfter(() => setAppearance('paperwhite'))}
-              >
-                <ToolbarIcon>
-                  <path d="M6 3.5h12v17H6z" />
-                  <path d="M9 8h6M9 11.5h6M9 15h4" />
-                </ToolbarIcon>
-                <span>Paperwhite</span>
-              </button>
-              <button
-                role="menuitemradio"
-                aria-checked={appearance === 'dark'}
-                className={appearance === 'dark' ? 'active' : undefined}
-                onClick={() => closeAfter(() => setAppearance('dark'))}
-              >
-                <ToolbarIcon>
-                  <path d="M20.4 15.2A8 8 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z" />
-                </ToolbarIcon>
-                <span>Dark</span>
-              </button>
-              {pageNoun === 'page' && (
-                <button
-                  role="menuitemradio"
-                  aria-checked={appearance === 'night'}
-                  className={appearance === 'night' ? 'active' : undefined}
-                  title="Dark pages too: the PDF's colors are inverted"
-                  onClick={() => closeAfter(() => setAppearance('night'))}
-                >
-                  <ToolbarIcon>
-                    <path d="M20.4 15.2A8 8 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z" />
-                    <path d="M17 3v4M15 5h4" />
-                  </ToolbarIcon>
-                  <span>Night</span>
-                </button>
-              )}
               {src && (
                 <>
-                  <div className="reader-menu-separator" role="separator" />
                   {alphaxivUrl(src) && (
                     <button role="menuitem" onClick={() => closeAfter(() => location.assign(alphaxivUrl(src)!))}>
                       <ToolbarIcon>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { GlobalWorkerOptions } from 'pdfjs-dist';
-import { initTheme } from '../../shared/theme';
 import { Reader } from './Reader';
 import '../../shared/theme.css';
 import './reader.css';
@@ -13,7 +12,6 @@ GlobalWorkerOptions.workerPort = new Worker(
   { type: 'module' },
 );
 
-initTheme();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

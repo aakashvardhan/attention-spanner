@@ -1,7 +1,7 @@
 /*
  * Theme tokens shared by every extension page. Import from main.tsx before the
- * page stylesheet. The resolved theme lands on <html data-theme="light|dark">
- * (see theme.ts); page CSS uses only these tokens for colors.
+ * page stylesheet. One theme (walnut and brass); page CSS uses only these
+ * tokens for colors.
  *
  * Typeface: Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — license
  * ships at /fonts/OFL.txt). Bundled locally; extension pages load their own
@@ -31,7 +31,7 @@
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
   --font-sans: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, sans-serif;
@@ -114,261 +114,95 @@
   /* Telemetry: numbers that are measurements read best in a fixed width. */
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Paper and ink. */
-  --bg-page: #f5f0e6;
-  --bg-surface: #fbf8f2;
-  --bg-subtle: #ece5d7;
-  --bg-hover: #e4dccd;
+  /* Walnut and brass: one calm, dark library room for every page. The only
+     theme; the light, dark and e-ink themes and the focus/break rooms were retired in
+     the papers-library redesign. Every text colour clears WCAG AAA (7:1) on
+     every surface it sits on: contrast.test.ts checks the pairs. */
+  --bg-page: #1c1410;
+  --bg-surface: #261c16;
+  --bg-subtle: #30241c;
+  --bg-hover: #3a2c22;
 
-  --text-primary: #2b2520;
-  --text-secondary: #5a5048;
-  /* Clears 4.5:1 on page, surface and subtle: it carries small supporting copy. */
-  --text-muted: #6b6158;
-  /* Decorative only (rules, glyphs) — never carries words. */
-  --text-faint: #8a7f74;
+  /* Cream, never pure white: halation is the low-vision cost of white on dark. */
+  --text-primary: #f3e8d6;
+  --text-secondary: #e2d3bb;
+  --text-muted: #d4c2a6;
+  /* Decorative only (rules, glyphs): never carries words. */
+  --text-faint: #8c7660;
 
-  /* The ink of the masthead's double rule and of the primary buttons. */
-  --rule: #2b2520;
-  --border: #d9cfbf;
-  --border-subtle: #e4dccd;
-  --disabled: #c9bfb0;
+  --rule: #f3e8d6;
+  --border: #4a382b;
+  --border-subtle: #3a2c22;
+  --disabled: #5a4636;
 
-  /* Clay. #b4552f rather than the brighter #c96442 so white labels on it clear 4.5:1. */
-  --accent: #b4552f;
-  --accent-hover: #9a4528;
-  --accent-soft: #f7ece4;
-  --accent-wash: #f1ddd0;
-  --accent-border: #e2b9a3;
-  --accent-track: #ecd2c3;
-  --accent-text: #9c4a2c;
-  --on-accent: #ffffff;
+  /* Brass. Dark labels on it (--on-accent), since cream on brass would not clear 7:1. */
+  --accent: #d9ad55;
+  --accent-hover: #e7c278;
+  --accent-soft: #2c2117;
+  --accent-wash: #3a2c1a;
+  --accent-border: #6b5330;
+  --accent-track: #4a3920;
+  --accent-text: #e7c278;
+  --on-accent: #1c1410;
 
-  --success: #2d7a31;
-  --success-bg: #e8f1e4;
-  --success-border: #c5dcbf;
-  --danger: #b3261e;
-  --danger-bg: #f9e3df;
-  --danger-wash: rgba(179, 38, 30, 0.18);
-  --warning: #8a5300;
-  --warning-bg: #f6ead2;
+  --success: #a9d6a0;
+  --success-bg: #1d2a1b;
+  --success-border: #35512f;
+  --danger: #f4b0a6;
+  --danger-bg: #33201b;
+  --danger-wash: rgba(244, 176, 166, 0.18);
+  --warning: #ecc888;
+  --warning-bg: #30271a;
 
   /* Focus line: what everything outside the current passage is washed with. */
-  --reading-dim: rgba(245, 240, 230, 0.72);
+  --reading-dim: rgba(28, 20, 16, 0.72);
 
-  /* The PDF page itself: white in both themes, because it is the document's
-     own paper; night mode swaps it for black and inverts the rendering. */
-  --pdf-page: #ffffff;
-  --pdf-page-night: #000000;
-  /* What the PDF's black ink and white paper are drawn as. Identity here;
-     paperwhite maps them to warm ink on cream (reader.css). */
-  --pdf-ink: #000000;
-  --pdf-paper: #ffffff;
-  --selection: rgba(180, 85, 47, 0.3);
-  --cite-hover: rgba(180, 85, 47, 0.2);
+  /* The PDF page: the reader recolours it to cream ink on walnut paper (reader.css). */
+  --pdf-page: #261c16;
+  --pdf-ink: #f3e8d6;
+  --pdf-paper: #261c16;
+  --selection: rgba(217, 173, 85, 0.35);
+  --cite-hover: rgba(217, 173, 85, 0.22);
 
-  /* The one elevation: for what floats over the page (menus, popovers, the
-     recap card). Everything else is separated by space and a hairline. */
-  --shadow-lg: 0 8px 24px rgba(60, 40, 20, 0.16);
+  /* The one elevation: for what floats over the page (menus, popovers). */
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
 
-  /* Glass. --glass-surface stays near-opaque: this typeface and palette were
-     chosen for low-vision legibility, and body copy on a see-through panel
-     gives up the contrast that pass bought. The glass lives in the chrome —
-     the reader toolbar, the capsule, sheets — while text keeps a solid ground. */
-  --glass-surface: rgba(251, 248, 242, 0.92);
-  --glass-bar: rgba(251, 248, 242, 0.6);
-  /* Named material stack, so a rule picks by depth instead of by guess.
-     --material-thin is for bars that float over scrolling content,
-     --material-regular for cards and popovers, --material-thick for anything
-     that must fully occlude what is behind it. */
-  --material-thin: rgba(251, 248, 242, 0.6);
-  --material-regular: rgba(251, 248, 242, 0.92);
-  --material-thick: rgba(251, 248, 242, 0.97);
-  --glass-blur: blur(24px) saturate(180%);
+  /* Glass stays near-opaque: body copy on a see-through panel gives up the
+     contrast this palette is built on. --material-thin floats over scrolling
+     content, --material-regular is cards and popovers, --material-thick occludes. */
+  --glass-surface: rgba(38, 28, 22, 0.94);
+  --glass-bar: rgba(243, 232, 214, 0.05);
+  --material-thin: rgba(28, 20, 16, 0.7);
+  --material-regular: rgba(38, 28, 22, 0.94);
+  --material-thick: rgba(28, 20, 16, 0.97);
+  --glass-blur: blur(24px) saturate(140%);
 
-  /* The focus world (the blocked page): always warm ink, whatever the theme,
-     because hitting a blocked site mid-session should feel like the same
-     quiet room every time. Theme-invariant, so the dark block does not repeat them. */
-  --focus-bg: #0e0c0b;
-  --focus-text: #ece4d8;
-  --focus-text-secondary: #a89c8f;
-  --focus-faint: #7d7268;
-  --focus-rule: #3a332d;
-  --focus-accent: #e3906e;
-  --focus-accent-wash: rgba(227, 144, 110, 0.12);
-  --focus-danger: #f2a39b;
+  /* The blocked page is the same room as everything else now. */
+  --focus-bg: var(--bg-page);
+  --focus-text: var(--text-primary);
+  --focus-text-secondary: var(--text-secondary);
+  --focus-faint: var(--text-faint);
+  --focus-rule: var(--border);
+  --focus-accent: var(--accent);
+  --focus-accent-wash: rgba(217, 173, 85, 0.12);
+  --focus-danger: var(--danger);
 
-  /* Heat scale, derived from the accent so magnitude reads as one colour system. */
-  --heat-0: #ece5d7;
-  --heat-1: #f1ddd0;
-  --heat-2: #e2b9a3;
-  --heat-3: #c96442;
-  --heat-4: #9a4528;
+  /* Heat scale: walnut to brass, one visible step at a time. */
+  --heat-0: #30241c;
+  --heat-1: #4a3920;
+  --heat-2: #7a5d2c;
+  --heat-3: #b48a3e;
+  --heat-4: #e7c278;
 }
 
-/* A focus round on the new tab (Dashboard sets data-phase) is the dark room,
-   whatever the theme: the same warm ink as the blocked page, so every screen
-   you meet mid-round is one quiet room. */
-:root[data-phase='focus'],
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  /* Warm ink. Never pure black under body copy, never pure white text:
-     halation is the low-vision cost of both. */
-  --bg-page: #0e0c0b;
-  --bg-surface: #191512;
-  --bg-subtle: #221d1a;
-  --bg-hover: #2c2622;
-
-  --text-primary: #ece4d8;
-  --text-secondary: #c4b8aa;
-  --text-muted: #a89c8f;
-  --text-faint: #7d7268;
-
-  --rule: #ece4d8;
-  --border: #3a332d;
-  --border-subtle: #2c2622;
-  --disabled: #4a423b;
-
-  --accent: #e3906e;
-  --accent-hover: #f0b79a;
-  --accent-soft: #241912;
-  --accent-wash: #2e2018;
-  --accent-border: #5a3a2a;
-  --accent-track: #3d2a1f;
-  --accent-text: #f0b79a;
-  /* 7.59:1 — a light clay cannot carry white labels */
-  --on-accent: #1a0f0a;
-
-  --success: #8fc79a;
-  --success-bg: #18241b;
-  --success-border: #2f4a35;
-  --danger: #f2a39b;
-  --danger-bg: #2e1a17;
-  --danger-wash: rgba(242, 163, 155, 0.18);
-  --warning: #e8c27a;
-  --warning-bg: #2b2416;
-
-  --reading-dim: rgba(14, 12, 11, 0.72);
-
-  --pdf-page: #ffffff;
-  --pdf-page-night: #000000;
-  --pdf-ink: #000000;
-  --pdf-paper: #ffffff;
-  --selection: rgba(227, 144, 110, 0.35);
-  --cite-hover: rgba(227, 144, 110, 0.25);
-
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-
-  --glass-surface: rgba(25, 21, 18, 0.9);
-  --glass-bar: rgba(236, 228, 216, 0.05);
-  --material-thin: rgba(20, 17, 15, 0.6);
-  --material-regular: rgba(25, 21, 18, 0.9);
-  --material-thick: rgba(20, 17, 15, 0.97);
-  --glass-blur: blur(24px) saturate(160%);
-
-  --heat-0: #221d1a;
-  --heat-1: #3d2a1f;
-  --heat-2: #7a4630;
-  --heat-3: #c96442;
-  --heat-4: #f0b79a;
+/* Native checkboxes, radios and range thumbs in brass, with no custom control to maintain. */
+:root {
+  accent-color: var(--accent);
 }
 
-/* Paperwhite: an e-ink page under a warm front light, like a Kindle at its
-   warm setting. A light theme, so it overrides only what the cream default
-   cannot be: the paper, the ink, the rules and the PDF page itself. The rest
-   (accent, status colors) is inherited from :root. */
-:root[data-theme='paperwhite'] {
-  --bg-page: #f3e5c4;
-  --bg-surface: #f8eed4;
-  --bg-subtle: #eadbb5;
-  --bg-hover: #e2d1a6;
-
-  --text-primary: #25201a;
-  --text-secondary: #4a4033;
-  --text-muted: #675b49;
-  --text-faint: #85785f;
-
-  --rule: #25201a;
-  --border: #d6c49a;
-  --border-subtle: #e2d3ac;
-
-  --reading-dim: rgba(243, 229, 196, 0.72);
-  --pdf-ink: #2b2318;
-  --pdf-paper: #f6ebcd;
-
-  /* The activity grid in the accent's clay, cut from this paper: an empty day
-     is a pressed shade of the page, and "more" deepens toward clay ink. */
-  --heat-0: #eadbb5;
-  --heat-1: #dfc396;
-  --heat-2: #d09b6e;
-  --heat-3: #b2603d;
-  --heat-4: #7a3820;
-}
-
-/* A focus round warms the room by a few percent as it runs, like an afternoon
-   passing: the Dashboard sets --round-progress (0 → 1) in whole-minute steps
-   and the page eases each one, so you never see it move, only that it has.
-   The far end still clears every contrast floor the dark block does. */
-:root[data-phase='focus'] {
-  --bg-page: color-mix(in oklab, #0e0c0b, #1a120c calc(var(--round-progress, 0) * 100%));
-}
-
-/* The break: sage, so it reads as a different room from the focus round at a
-   glance, and light in the light theme. The new tab only. */
-:root[data-phase='break'] {
-  color-scheme: light;
-  --bg-page: #eef2ea;
-  --bg-surface: #f7f9f4;
-  --bg-subtle: #e1e8da;
-  --bg-hover: #d6dfcd;
-  --text-primary: #1f2a22;
-  --text-secondary: #46544a;
-  --text-muted: #56635a;
-  --text-faint: #7f8b82;
-  --rule: #1f2a22;
-  --border: #c9d4c2;
-  --border-subtle: #dbe3d4;
-  --accent: #3b6a4c;
-  --accent-hover: #2f573e;
-  --accent-soft: #e6efe4;
-  --accent-wash: #d7e6d6;
-  --accent-border: #a9c6ad;
-  --accent-track: #c8dccb;
-  --accent-text: #2f5a3e;
-  --on-accent: #ffffff;
-  --glass-surface: rgba(247, 249, 244, 0.92);
-  --glass-bar: rgba(247, 249, 244, 0.6);
-  --material-thin: rgba(247, 249, 244, 0.6);
-  --material-regular: rgba(247, 249, 244, 0.92);
-  --material-thick: rgba(247, 249, 244, 0.97);
-}
-
-:root[data-theme='dark'][data-phase='break'] {
-  color-scheme: dark;
-  --bg-page: #0c110e;
-  --bg-surface: #141b16;
-  --bg-subtle: #1b241e;
-  --bg-hover: #233027;
-  --text-primary: #e4ece4;
-  --text-secondary: #bccabe;
-  --text-muted: #9fafa3;
-  --text-faint: #6f7d72;
-  --rule: #e4ece4;
-  --border: #2f3c33;
-  --border-subtle: #233027;
-  --accent: #8fc79a;
-  --accent-hover: #b3dbbb;
-  --accent-soft: #142019;
-  --accent-wash: #1a2b20;
-  --accent-border: #2f4a35;
-  --accent-track: #24382a;
-  --accent-text: #b3dbbb;
-  --on-accent: #0b1a0f;
-  --glass-surface: rgba(20, 27, 22, 0.9);
-  --glass-bar: rgba(228, 236, 228, 0.05);
-  --material-thin: rgba(16, 22, 18, 0.6);
-  --material-regular: rgba(20, 27, 22, 0.9);
-  --material-thick: rgba(16, 22, 18, 0.97);
+/* Links are brass (AAA on every surface), never the browser's blue; a page sheet may override. */
+a {
+  color: var(--accent-text);
 }
 
 /* One focus ring, everywhere, in the accent.
@@ -400,7 +234,7 @@
   }
 }
 
-/* The one primary button, shared by every page: ink, turning clay on hover.
+/* The one primary button, shared by every page: cream, turning brass on hover.
    Lives here rather than in a page sheet because theme.css is the only
    stylesheet every page loads. */
 .fc-primary-btn {
@@ -432,10 +266,7 @@
    kept. Neutralising the tokens is the whole fallback: every glass rule reads
    them, so no rule downstream needs one of its own. */
 @media (prefers-reduced-transparency: reduce) {
-  :root,
-  :root[data-theme='dark'],
-  :root[data-phase],
-  :root[data-theme='dark'][data-phase] {
+  :root {
     --glass-surface: var(--bg-surface);
     --glass-bar: var(--bg-subtle);
     --glass-blur: none;

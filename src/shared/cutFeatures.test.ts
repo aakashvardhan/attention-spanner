@@ -37,6 +37,8 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'citations', pattern: /bibliography|citeFormats|CitationTooltip|cite-marker|TrackPrompt/ },
   { name: 'semantic-scholar', pattern: /semanticScholar|SEMANTIC_SCHOLAR|fetchPaperMeta/ },
   { name: 'decks', pattern: /FLASH_ADD_DECK|deckId|DeckList|PaperDeck/ },
+  // v28: one walnut theme
+  { name: 'themes', pattern: /paperwhite|readerNight|data-theme|data-phase|useTheme|initTheme|ThemeSetting/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).
@@ -45,6 +47,8 @@ const SKIP = new Set([
   'src/shared/storage.test.ts',
   'src/background/alarms.test.ts',
   'src/shared/cutFeatures.test.ts',
+  // Asserts the retired theme blocks are absent, so it names them.
+  'src/shared/theme.test.ts',
 ]);
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'out']);
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { annotationDocKey, DEFAULT_ANNOTATION_COLOR, sortAnnotations } from '../../shared/annotations';
 import { sendMessage } from '../../shared/messages';
-import { useSettings } from '../../shared/hooks/useSettings';
 import { useStorageValue } from '../../shared/hooks/useStorageValue';
 import { paperMatchKey } from '../../shared/papers';
 import { type PdfPosition } from '../../shared/pdf';
@@ -40,7 +39,6 @@ export function PdfReader({ src }: { src: string }) {
   const state = usePdfDocument(src);
   const [papers, papersLoaded] = useStorageValue('papers');
   const paper = findPaper(papers, src);
-  const [settings] = useSettings();
 
   // #page=N (deck deep link) wins over the saved position.
   const hashPage = useMemo(() => Number(/page=(\d+)/.exec(location.hash)?.[1]) || 0, []);
@@ -259,7 +257,6 @@ export function PdfReader({ src }: { src: string }) {
   return (
     <div
       className="reader-root"
-      data-night={settings.readerNight || undefined}
       data-chrome={awake ? 'awake' : 'asleep'}
       data-focus-line={focusLine || undefined}
     >

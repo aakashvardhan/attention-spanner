@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { sendMessage } from '../../shared/messages';
 import { PAPERS_PAGE_PATH } from '../../shared/constants';
 import { usePapers } from '../../shared/hooks/usePapers';
-import { useTheme } from '../../shared/hooks/useTheme';
 import { paperOpenUrl } from '../../shared/pdf';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { BrainDump } from './BrainDump';
@@ -12,8 +11,6 @@ import { BrainDump } from './BrainDump';
  * heatmap. Everything else lives on the shelf (Papers) or in Settings.
  */
 export function Dashboard() {
-  // initTheme() in main.tsx resolves the theme once; this keeps it live.
-  useTheme();
   const { papers, lastRead } = usePapers();
   // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
   useEffect(() => void sendMessage({ type: 'ALPHAXIV_SYNC' }).catch(() => undefined), []);

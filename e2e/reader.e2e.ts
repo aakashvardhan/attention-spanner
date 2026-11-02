@@ -108,7 +108,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end('<!doctype html><title>distraction</title><p>distraction</p>');
     });
-    await seed(ext, { settings: { claudeKey: 'sk-e2e', theme: 'paperwhite', focusBlocklist: ['blockme.e2e.test'] } });
+    await seed(ext, { settings: { claudeKey: 'sk-e2e', focusBlocklist: ['blockme.e2e.test'] } });
   });
 
   afterAll(async () => {
@@ -119,9 +119,8 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
-    expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('paperwhite');
-    const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(bg).toBe('rgb(243, 229, 196)');
+    // One walnut room: the page behind the paper is --bg-page.
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(28, 20, 16)');
 
     // Click the middle of "transformer" in the first line.
     const at = await page.$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (span) => {
@@ -144,7 +143,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await expect.poll(() => popover.textContent(), { timeout: 10_000 }).toContain('attention-based sequence model');
     const asked = claude.find((c) => c.system.includes('clicked'));
     expect(asked?.model).toBe('claude-haiku-5-5');
-    await shot(page, 'reader-paperwhite-define');
+    await shot(page, 'reader-walnut-define');
 
     // A click elsewhere closes it.
     await page.mouse.click(5, 300);
@@ -304,6 +303,10 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await expect
       .poll(async () => (await storage<{ tabIds: number[] } | null>(ext, 'focusSession'))?.tabIds.length ?? 0)
       .toBe(1);
+    // The session is stored before its redirect rules land; wait for the rule itself.
+    await expect
+      .poll(() => ext.sw.evaluate(async () => (await chrome.declarativeNetRequest.getSessionRules()).some((r) => r.id >= 1000 && r.id < 2000)))
+      .toBe(true);
 
     const other = await ext.ctx.newPage();
     await other.goto(blocked).catch(() => undefined); // the redirect aborts this navigation

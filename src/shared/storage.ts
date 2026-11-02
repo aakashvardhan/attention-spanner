@@ -54,14 +54,12 @@ export interface SessionSchema {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: 'system',
-  readerNight: false,
   readerFocusLine: false,
   focusBlocklist: DEFAULT_FOCUS_BLOCKLIST,
   claudeKey: '',
 };
 
-export const SCHEMA_VERSION = 27;
+export const SCHEMA_VERSION = 28;
 
 export const DEFAULTS: LocalSchema = {
   schemaVersion: SCHEMA_VERSION,
@@ -166,6 +164,8 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
  * decks and provocations went into the cumulative lists. Papers are re-keyed
  * by arXiv id and queued for alphaXiv (v27Papers); non-arXiv papers and
  * annotations go (v27Annotations); a Pomodoro session is dropped (v27FocusSession).
+ * v27 → v28 (walnut and brass): the theme choice and reader night mode are
+ * gone; the cumulative sweep re-runs to drop both settings.
  */
 export async function migrate(): Promise<void> {
   const { schemaVersion } = await chrome.storage.local.get('schemaVersion');
@@ -439,6 +439,9 @@ export const V22_DEAD_SETTINGS = [
   'trackTopics',
   'geminiTopicKey',
   'notificationsEnabled',
+  // v28: one walnut theme
+  'theme',
+  'readerNight',
 ];
 
 /** Pure core of v22's settings half, so the delete rule is testable. */
