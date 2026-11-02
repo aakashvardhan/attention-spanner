@@ -43,3 +43,7 @@ dist-mcp/
 # Obsidian's own files when the fixture vault is opened to regenerate its dump
 mcp/brain/fixtures/vault/.obsidian/
 mcp/brain/fixtures/vault/.brain/
+
+# Rust
+target/
+rust/ext/dist/
