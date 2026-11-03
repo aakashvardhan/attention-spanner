@@ -357,3 +357,26 @@ back to the book on Esc.
 
 Open: no drag between shelves by keyboard other than M (by design: M is the
 keyboard path). The cart is fetched once per page open, not cached.
+
+## Phase 6c: the new tab leads with the paper (`pages/newtab.rs`)
+
+Papers-library step 6, and a new layout. Continue reading now runs across the
+top: the paper in large type with where you stopped, the gaps still open from
+its last explain-back (each with a link straight to its page), and "Also on
+your desk" (other unfinished papers). Under it, the brain dump and the year of
+reading sit side by side. 61 browser tests pass, 1 of them new.
+
+1. **A deep link is a hash.** The reader already read `#page=N` (it wins over
+   the saved position), so a gap's link is the paper's reader URL plus
+   `#page=4`. No new message, no new parameter.
+2. **Two pages, one key.** The reader stores explain-backs under the PDF's
+   doc key; the new tab finds them from the paper's abs URL. Both go through
+   `annotation_doc_key`, which collapses arXiv's abs/pdf/version variants to
+   `arxiv:<id>`, so they meet.
+3. **Overflow in a grid track.** The newest month label sat in the last of 53
+   narrow columns and ran 9px past the frame. `justify-self: end` makes a
+   too-wide grid item overflow towards its start instead, so it ends on the
+   edge. The layout test now checks the heatmap has no inner overflow.
+
+Dropped: the 1440px three-zone layout and the `--tools-w` alignment for deck
+and news rows, both for sections that no longer exist.

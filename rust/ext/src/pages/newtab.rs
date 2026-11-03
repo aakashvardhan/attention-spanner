@@ -6,15 +6,20 @@ use crate::js::{local_date, now};
 use crate::{chrome, claude, store, vault};
 use leptos::prelude::*;
 use reader_core::activity::{build_heat_model, heat_tooltip, plural, ActivityLog, Metric};
+use reader_core::annotations::annotation_doc_key;
 use reader_core::brain_dump::{
     parse_reframe, ASK_TIMEOUT_MS, FAILED_MESSAGE, MAX_DUMP_CHARS, NO_KEY_MESSAGE, REFRAME_SYSTEM,
 };
 use reader_core::constants::{CLAUDE_MODEL_QUICK, PAPERS_PAGE_PATH};
+use reader_core::explain::ExplainBacks;
 use reader_core::pdf::paper_open_url;
 use reader_core::types::Paper;
 use reader_core::vault::{Dump, DumpEntry, LockedDump, Vault};
 use serde_json::json;
 use std::cell::RefCell;
+
+/// Papers listed under "Also on your desk".
+const ALSO_READING_MAX: usize = 3;
 
 #[oxichrome::page(path = "src/pages/newtab/index.html", title = "Focus workspace", css = ["assets/theme.css", "assets/newtab.css"])]
 pub fn NewTab() -> impl IntoView {
@@ -31,31 +36,94 @@ pub fn NewTab() -> impl IntoView {
             .max_by_key(|p| p.last_read_at)
     });
 
+    // The papers read before that one: what else is open on the desk.
+    let also = Memo::new(move |_| {
+        let mut read: Vec<Paper> = papers
+            .get()
+            .into_iter()
+            .filter(|p| p.last_read_at.is_some() && p.progress_percent < 100.0)
+            .collect();
+        read.sort_by_key(|p| std::cmp::Reverse(p.last_read_at));
+        let first = last_read.with(|l| l.as_ref().map(|p| p.id.clone()));
+        read.into_iter()
+            .filter(|p| Some(&p.id) != first.as_ref())
+            .take(ALSO_READING_MAX)
+            .collect::<Vec<_>>()
+    });
+    let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
+    let base = chrome::get_url("");
+
     view! {
         <div id="root">
             <main class="edition">
-                <div class="now-col">
-                    <BrainDump />
-                    <ActivityHeatmap papers=papers />
-                </div>
-
-                <div class="read-col">
-                    <section class="read-section" aria-labelledby="continue-heading">
-                        <h2 id="continue-heading" class="label">"Continue reading"</h2>
-                        {move || match last_read.get() {
-                            Some(p) => {
-                                let note = if p.left_off.is_empty() { format!("{}% read", p.progress_percent) } else { p.left_off.clone() };
-                                view! {
-                                    <a class="continue-paper" href=paper_open_url(&p, false, &chrome::get_url(""))>
+                <section class="read-section" aria-labelledby="continue-heading">
+                    <h2 id="continue-heading" class="label">"Continue reading"</h2>
+                    {move || match last_read.get() {
+                        Some(p) => {
+                            let href = paper_open_url(&p, false, &base);
+                            let note = match (p.left_off.is_empty(), p.progress_percent.round() as i64) {
+                                (true, n) => format!("{n}% read"),
+                                (false, n) => format!("{} · {n}% read", p.left_off),
+                            };
+                            let key = annotation_doc_key(&p.url);
+                            let gaps: Vec<(String, Option<u32>)> = explains.with(|e| {
+                                e.get(&key).and_then(|l| l.last()).map(|x| x.gaps().map(|g| (format!("{}: {}", g.part.label(), g.gap), g.page)).collect()).unwrap_or_default()
+                            });
+                            view! {
+                                <div class="continue">
+                                    <a class="continue-paper" href=href.clone()>
                                         <span class="row-title">{p.title.clone()}</span>
                                         <span class="hint">{note}</span>
                                     </a>
-                                }
-                                .into_any()
+                                    <div class="continue-gaps">
+                                        {if gaps.is_empty() {
+                                            view! { <p class="hint">"No open gaps. Press E in the reader to explain it back."</p> }.into_any()
+                                        } else {
+                                            view! {
+                                                <h3 class="label">"Still open from your explain-back"</h3>
+                                                <ul>
+                                                    {gaps.into_iter().map(|(g, page)| {
+                                                        let href = href.clone();
+                                                        view! {
+                                                            <li>
+                                                                <span>{g}</span>
+                                                                {page.map(|n| view! { <a class="gap-page" href=format!("{href}#page={n}")>{format!("Page {n}")}</a> })}
+                                                            </li>
+                                                        }
+                                                    }).collect_view()}
+                                                </ul>
+                                            }.into_any()
+                                        }}
+                                    </div>
+                                </div>
                             }
-                            None => view! { <p class="hint">"Nothing open yet. Pick a paper from your shelf."</p> }.into_any(),
-                        }}
-                    </section>
+                            .into_any()
+                        }
+                        None => view! { <p class="hint">"Nothing open yet. Pick a paper from your shelf."</p> }.into_any(),
+                    }}
+                    <Show when=move || also.with(|a| !a.is_empty())>
+                        <h3 class="label also-label">"Also on your desk"</h3>
+                        <ul class="also">
+                            {move || also.get().into_iter().map(|p| {
+                                let n = p.progress_percent.round() as i64;
+                                view! {
+                                    <li>
+                                        <a class="row" href=paper_open_url(&p, false, &chrome::get_url(""))>
+                                            <span class="row-title">{p.title.clone()}</span>
+                                            <span class="hint">{format!("{n}%")}</span>
+                                        </a>
+                                    </li>
+                                }
+                            }).collect_view()}
+                        </ul>
+                    </Show>
+                </section>
+
+                <div class="now-col">
+                    <BrainDump />
+                </div>
+                <div class="heat-col">
+                    <ActivityHeatmap papers=papers />
                 </div>
 
                 <footer class="edition-index">
@@ -69,7 +137,6 @@ pub fn NewTab() -> impl IntoView {
     }
 }
 
-/// The new tab's icons: 24-unit grid, 1.75 stroke, round caps.
 #[component]
 fn LockIcon(class: &'static str) -> impl IntoView {
     view! {

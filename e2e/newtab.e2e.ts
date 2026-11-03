@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { NETWORK_NOISE, PAGES, expectA11y, expectClean, horizontalOverflow, launch, seed, type Ext } from './harness';
+import { NETWORK_NOISE, PAGES, expectA11y, expectClean, horizontalOverflow, launch, seed, shot, type Ext } from './harness';
 import { folder, paper } from './seed';
 
 /** Every key the new tab reads, empty: each test seeds over a clean slate. */
-const EMPTY = { papers: [], folders: [folder], annotations: [], focusSession: null };
+const EMPTY = { papers: [], folders: [folder], annotations: [], explainBacks: {}, focusSession: null };
 
 describe('new tab: Now / Continue reading', () => {
   let ext: Ext;
@@ -37,13 +37,19 @@ describe('new tab: Now / Continue reading', () => {
     await page.close();
   });
 
-  it('two columns at 1280px: brain dump and heatmap beside Continue reading', async () => {
+  it('at 1280px: Continue reading across the top, brain dump and heatmap side by side under it', async () => {
     const page = await ext.page(PAGES.newtab);
-    const now = await page.locator('.edition > .now-col').boundingBox();
-    const read = await page.locator('.edition > .read-col').boundingBox();
-    expect(now!.x + now!.width).toBeLessThanOrEqual(read!.x);
+    const read = (await page.locator('.edition > .read-section').boundingBox())!;
+    const now = (await page.locator('.edition > .now-col').boundingBox())!;
+    const heat = (await page.locator('.edition > .heat-col').boundingBox())!;
+    expect(now.y).toBeGreaterThanOrEqual(read.y + read.height);
+    expect(heat.y).toBe(now.y);
+    expect(now.x + now.width).toBeLessThanOrEqual(heat.x);
     expect(await page.locator('.now-col > section[aria-label="Brain dump"]').count()).toBe(1);
-    expect(await page.locator('.now-col > .heat').count()).toBe(1);
+    expect(await page.locator('.heat-col > .heat').count()).toBe(1);
+    // The heatmap has room for its whole year: nothing spills past its column.
+    const heatInner = await page.locator('.heat').evaluate((e) => e.scrollWidth - e.clientWidth);
+    expect(heatInner).toBeLessThanOrEqual(0);
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
@@ -51,10 +57,54 @@ describe('new tab: Now / Continue reading', () => {
   it('stacks under 720px with no sideways scroll', async () => {
     const page = await ext.page(PAGES.newtab);
     await page.setViewportSize({ width: 600, height: 900 });
-    const now = await page.locator('.now-col').boundingBox();
-    const read = await page.locator('.read-col').boundingBox();
-    expect(read!.y).toBeGreaterThanOrEqual(now!.y + now!.height);
+    const read = (await page.locator('.read-section').boundingBox())!;
+    const now = (await page.locator('.now-col').boundingBox())!;
+    const heat = (await page.locator('.heat-col').boundingBox())!;
+    expect(now.y).toBeGreaterThanOrEqual(read.y + read.height);
+    expect(heat.y).toBeGreaterThanOrEqual(now.y + now.height);
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    expectClean(ext, NETWORK_NOISE);
+    await page.close();
+  });
+
+  it('shows the open gaps from the last explain-back, each linking to its page, and the rest of the desk', async () => {
+    await seed(ext, {
+      papers: [
+        paper('1', 'Older paper', { lastReadAt: Date.now() - 3 * 60 * 60_000, progressPercent: 40 }),
+        paper('2', 'Latest paper', { lastReadAt: Date.now() - 60_000, leftOff: '3.2 Attention' }),
+        paper('3', 'Finished paper', { lastReadAt: Date.now() - 2 * 60 * 60_000, progressPercent: 100 }),
+      ],
+      explainBacks: {
+        'arxiv:2601.00002': [
+          { at: 1, problem: '', trick: '', why: '', grades: [{ part: 'trick', status: 'missing', gap: 'An older gap.', page: 2 }] },
+          {
+            at: 2,
+            problem: 'p',
+            trick: 't',
+            why: '',
+            grades: [
+              { part: 'problem', status: 'got', gap: '', page: null },
+              { part: 'trick', status: 'partial', gap: 'You named the layer but not what it attends to.', page: 4 },
+              { part: 'why', status: 'missing', gap: 'Nothing on why it scales.', page: null },
+            ],
+          },
+        ],
+      },
+    });
+    const page = await ext.page(PAGES.newtab);
+    const gaps = page.locator('.continue-gaps li');
+    await expect.poll(() => gaps.count()).toBe(2);
+    expect(await gaps.allInnerTexts()).toEqual([
+      expect.stringContaining('The key trick: You named the layer but not what it attends to.'),
+      'Why it works: Nothing on why it scales.',
+    ]);
+    const jump = gaps.first().locator('a.gap-page');
+    expect(await jump.innerText()).toBe('Page 4');
+    expect(await jump.getAttribute('href')).toMatch(/reader\/index\.html\?src=.*2601\.00002.*#page=4$/);
+    // Finished papers are not on the desk; the one in Continue is not repeated.
+    expect(await page.locator('.also .row-title').allInnerTexts()).toEqual(['Older paper']);
+    await expectA11y(page, 'newtab');
+    await shot(page, 'newtab-gaps');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
   });

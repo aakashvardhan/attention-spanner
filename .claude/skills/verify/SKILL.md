@@ -49,10 +49,16 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab: `.edition` holds two columns. `.now-col` is the brain dump
-  (`section[aria-label="Brain dump"]`) and the heatmap (`.heat`); `.read-col`
-  is Continue reading (`.continue-paper`, the paper with the latest
-  `lastReadAt`). Papers and Settings live in `.edition-index`.
+- New tab: `.edition` leads with `.read-section` across the top: Continue
+  reading (`.continue-paper`, the paper with the latest `lastReadAt`), its
+  open explain-back gaps (`.continue-gaps li`, each with an `a.gap-page` to
+  `#page=N`), and `.also` (other unfinished papers). Under it, `.now-col` is the
+  brain dump (`section[aria-label="Brain dump"]`) and `.heat-col` the heatmap
+  (`.heat`). Papers and Settings live in `.edition-index`.
+- Papers page: a bookcase. `.shelf` per folder, `.book` buttons (one has
+  `tabindex="0"`; arrows move it), Enter opens `.book-card`, M opens
+  `.move-menu`, the cart is `section.cart` (needs `alphaxivAuth` seeded and the
+  MCP endpoint routed).
 - Papers come from alphaXiv: seed `folders` (`{id,name,type}`) and `papers`
   keyed by arXiv id with `folderIds`. Non-arXiv papers do not exist any more.
 - Reading session: opening the reader sends `READER_OPENED`, which puts the tab
