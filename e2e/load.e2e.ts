@@ -40,7 +40,7 @@ describe('load: a heavy shelf stays fast', () => {
 
   for (const [name, path, ready] of [
     ['new tab', PAGES.newtab, '.continue-paper'],
-    ['papers', PAGES.papers, 'section[aria-labelledby^="folder-"] a'],
+    ['papers', PAGES.papers, '.book'],
   ] as const) {
     it(`${name} paints within budget, with no long task over budget`, async () => {
       const page = await ext.ctx.newPage();

@@ -318,3 +318,42 @@ went away with the walnut page.
 Open: alphaXiv highlights (one-way import) wait on a real `get_paper_notes`
 reply to read the format from. The stall time is a constant, not a setting,
 and the stall itself has no browser test (two minutes of waiting).
+
+## Phase 6b: the bookshelf (`core/src/shelf.rs`, `pages/papers.rs`)
+
+Papers-library step 5. One shelf per alphaXiv folder; a spine carries a short
+code ("Mamba '23"), its width is the page count, and a brass band at its foot
+grows with progress. Arrows walk the books, Enter pulls one out (where you
+stopped, the gaps still open from the last explain-back, Continue), M or a
+drag moves it to another folder, and the New-arrivals cart (alphaXiv's Hot and
+For You) shelves a paper with S. 60 browser tests pass, 4 of them new.
+
+1. **One tab stop for a whole bookcase.** A roving tabindex: exactly one book
+   has `tabindex="0"`, the rest `-1`, and the arrow keys move both the focus
+   and that 0. `step(lens, at, key)` is the pure rule (skip empty shelves, keep
+   the column), tested natively; the page only calls `focus()` on the result.
+2. **Optimistic, with the rollback in one place.** The worker moves the book
+   on the local shelf first (the page redraws from storage at once), then asks
+   alphaXiv. If alphaXiv refuses, it reads the shelf *again* and restores only
+   that book's folders, so progress the reader saved meanwhile survives.
+   `move_paper` returns what to restore, which is all the rollback needs.
+3. **Boxing a big variant.** Clippy's `large_enum_variant`: an enum is as big
+   as its largest variant, so `Shelving::Move { paper: Paper }` made every
+   `Shelving` the size of a `Paper`. `Box<Paper>` puts the paper on the heap
+   and the enum shrinks to a pointer plus the small variant.
+4. **Drag carries text.** HTML5 drag-and-drop moves strings, not values: the
+   book writes `"{paper id}\n{folder id}"` under its own type
+   (`application/x-paper`), and a shelf's `drop` reads it back. Every other
+   drag (a link, a file) has no such entry and is ignored.
+5. **Titles from arXiv.** alphaXiv's feeds return ids only. The arXiv export
+   API answers with Atom XML; three small regexes read `<entry>`, `<id>` and
+   `<title>` (no XML crate for a format this regular). An id arXiv does not
+   know keeps its id as its title: shelving still works.
+
+Choices: the title plate is one nameplate under each shelf rather than a
+plate floating over the book, so a book at the right edge cannot push the page
+sideways. The pull-out card and move menu are non-modal panels that hand focus
+back to the book on Esc.
+
+Open: no drag between shelves by keyboard other than M (by design: M is the
+keyboard path). The cart is fetched once per page open, not cached.

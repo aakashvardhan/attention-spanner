@@ -77,20 +77,298 @@ body {
   font-weight: 400;
 }
 
-.library-papers {
-  grid-column: 5 / -1;
-  min-width: 0;
+.library-keys {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.library-status {
+  grid-column: 1 / -1;
+  min-height: var(--leading-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.library-status:empty {
+  display: none;
 }
 
 .library-hint {
+  padding-block: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.define-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   The bookcase: a shelf per alphaXiv folder, books standing on a brass rail.
+   --------------------------------------------------------------------------- */
+
+.bookcase {
+  grid-column: 1 / -1;
+  display: grid;
+  row-gap: var(--space-6);
+}
+
+.shelf h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 400;
+  margin-bottom: var(--space-3);
+}
+
+.shelf-row {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4) var(--space-1);
+  padding-top: var(--space-3);
+  border-bottom: 4px solid var(--accent-border);
+}
+
+.shelf-empty {
   padding-block: var(--space-5);
   color: var(--text-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }
 
-@media (max-width: 900px) {
-  .library-papers {
-    grid-column: 1 / -1;
+/* The shelf's nameplate: the title of the book under the pointer or focus. */
+.shelf-plate {
+  min-height: var(--leading-sm);
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book {
+  /* Set per book from its page count (papers.rs); this is the fallback. */
+  --spine-w: 26px;
+  display: block;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.book-spine {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: var(--spine-w);
+  height: 176px;
+  padding: var(--space-2) 0 var(--space-7);
+  writing-mode: vertical-rl;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  transform-origin: bottom left;
+  transition: transform var(--dur-snappy) var(--spring-snappy);
+}
+
+/* Wear: a brass band at the foot of the spine, taller the further it is read. */
+.book-spine::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 0;
+  background: var(--accent);
+}
+.book[data-wear='1'] .book-spine::after {
+  height: var(--space-2);
+}
+.book[data-wear='2'] .book-spine::after {
+  height: var(--space-4);
+}
+.book[data-wear='3'] .book-spine::after {
+  height: var(--space-6);
+}
+
+/* Pointed at or focused: the book tilts out of the row. */
+.book:hover .book-spine,
+.book:focus-visible .book-spine {
+  transform: rotate(-8deg);
+  background: var(--bg-hover);
+}
+
+.book:focus-visible {
+  outline-offset: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   The pulled-out card and the move menu float over the case.
+   --------------------------------------------------------------------------- */
+
+.book-card,
+.move-menu {
+  position: fixed;
+  z-index: 2;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.book-card {
+  inset: var(--space-6) var(--space-6) auto auto;
+  width: min(420px, calc(100vw - 2 * var(--space-4))); /* ds-exempt: a panel width, not spacing */
+  max-height: calc(100vh - 2 * var(--space-6));
+  display: grid;
+  gap: var(--space-3);
+}
+
+.book-card h2,
+.move-menu h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 400;
+}
+
+.book-card-byline {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.book-card-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.book-card-facts dt {
+  color: var(--text-muted);
+}
+
+.book-card-gaps {
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.book-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.book-card-actions a.fc-primary-btn {
+  text-decoration: none;
+}
+
+kbd {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.move-menu {
+  inset: 20vh auto auto 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 2 * var(--space-4))); /* ds-exempt: a panel width, not spacing */
+  display: grid;
+  gap: var(--space-3);
+}
+
+.move-menu ul {
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.move-menu li .ghost-btn {
+  width: 100%;
+  text-align: left;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* ---------------------------------------------------------------------------
+   The New-arrivals cart: alphaXiv's feeds, waiting to be shelved.
+   --------------------------------------------------------------------------- */
+
+.cart {
+  grid-column: 1 / -1;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.cart h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 400;
+}
+
+.cart-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-5);
+}
+
+.cart-list ul {
+  list-style: none;
+}
+
+.cart-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-spine {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .library-keys {
+    display: none;
+  }
+  .book-card {
+    inset: auto var(--space-4) var(--space-4);
+    width: auto;
   }
 }

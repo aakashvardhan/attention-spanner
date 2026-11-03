@@ -68,6 +68,22 @@ pub enum Message {
         #[serde(default)]
         force: bool,
     },
+    /// The shelf moved a book to another folder (alphaXiv's move)
+    #[serde(rename = "ALPHAXIV_MOVE", rename_all = "camelCase")]
+    AlphaxivMove {
+        paper_id: String,
+        from: String,
+        to: String,
+    },
+    /// A paper from the New-arrivals cart onto a shelf
+    #[serde(rename = "ALPHAXIV_SAVE", rename_all = "camelCase")]
+    AlphaxivSave {
+        paper_id: String,
+        folder_id: String,
+    },
+    /// Hot and For You, with titles
+    #[serde(rename = "ALPHAXIV_ARRIVALS")]
+    AlphaxivArrivals,
     #[serde(rename_all = "camelCase")]
     PaperReaderProgress {
         paper_id: String,
@@ -123,6 +139,25 @@ mod tests {
             (
                 json!({ "type": "ALPHAXIV_SYNC" }),
                 Message::AlphaxivSync { force: false },
+            ),
+            (
+                json!({ "type": "ALPHAXIV_MOVE", "paperId": "p", "from": "a", "to": "b" }),
+                Message::AlphaxivMove {
+                    paper_id: "p".into(),
+                    from: "a".into(),
+                    to: "b".into(),
+                },
+            ),
+            (
+                json!({ "type": "ALPHAXIV_SAVE", "paperId": "p", "folderId": "b" }),
+                Message::AlphaxivSave {
+                    paper_id: "p".into(),
+                    folder_id: "b".into(),
+                },
+            ),
+            (
+                json!({ "type": "ALPHAXIV_ARRIVALS" }),
+                Message::AlphaxivArrivals,
             ),
             (
                 json!({ "type": "ALPHAXIV_SYNC", "force": true }),

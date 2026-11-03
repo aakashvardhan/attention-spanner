@@ -9,12 +9,13 @@ use crate::store;
 use js_sys::Promise;
 use reader_core::alphaxiv::{
     auth_from_token_reply, authorize_url, base64url, code_from_redirect, error_message, folder_key,
-    kind_for_status, merge_library, needs_refresh, parse_folder_id, parse_library, pkce_challenge,
-    plan_push, AlphaxivAuth, AlphaxivError, AlphaxivStatus, ErrorKind, PushItem, MCP_URL,
-    REGISTER_URL, REVOKE_URL, SCOPE, TOKEN_URL, USERINFO_URL,
+    kind_for_status, merge_library, needs_refresh, parse_feed, parse_folder_id, parse_library,
+    pkce_challenge, plan_push, AlphaxivAuth, AlphaxivError, AlphaxivStatus, ErrorKind, PushItem,
+    MCP_URL, REGISTER_URL, REVOKE_URL, SCOPE, TOKEN_URL, USERINFO_URL,
 };
 use reader_core::constants::SYNC_ALARM;
 use reader_core::mcp;
+use reader_core::shelf;
 use reader_core::types::{Folder, Paper};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -548,15 +549,97 @@ async fn sync_inner(force: bool) -> Value {
                 error_message(e.kind).to_string()
             };
             patch_status(|s| s.error = message).await;
-            let kind = match e.kind {
-                ErrorKind::SignedOut => "signed-out",
-                ErrorKind::RateLimited => "rate-limited",
-                ErrorKind::NotFound => "not-found",
-                ErrorKind::Offline => "offline",
-                ErrorKind::Failed => "failed",
-            };
-            json!({ "ok": false, "error": kind })
+            json!({ "ok": false, "error": kind_name(e.kind) })
         }
+    }
+}
+
+fn kind_name(kind: ErrorKind) -> &'static str {
+    match kind {
+        ErrorKind::SignedOut => "signed-out",
+        ErrorKind::RateLimited => "rate-limited",
+        ErrorKind::NotFound => "not-found",
+        ErrorKind::Offline => "offline",
+        ErrorKind::Failed => "failed",
+    }
+}
+
+/// A failed shelf action as a reply the page can say out loud.
+fn failed(e: &AlphaxivError) -> Value {
+    json!({ "ok": false, "error": kind_name(e.kind), "message": error_message(e.kind) })
+}
+
+/* ---------- The shelf's actions ---------- */
+
+/// Move a book between folders: on the shelf at once, then on alphaXiv; if
+/// alphaXiv refuses, the book goes back to the folders it had.
+pub async fn move_paper(id: &str, from: &str, to: &str) -> Value {
+    let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await else {
+        return failed(&offline());
+    };
+    let Some(before) = shelf::move_paper(&mut papers, id, from, to) else {
+        return failed(&AlphaxivError::new(ErrorKind::NotFound, ""));
+    };
+    let _ = store::set("papers", &papers).await;
+    let args = json!({ "paper_ids_or_urls": [id], "from_folder_id": from, "to_folder_id": to });
+    match call_tool("move_papers_between_folders", args).await {
+        Ok(_) => json!({ "ok": true }),
+        Err(e) => {
+            // Read again: the reader may have saved progress while alphaXiv answered.
+            if let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await {
+                if let Some(p) = papers.iter_mut().find(|p| p.id == id) {
+                    p.folder_ids = before;
+                    let _ = store::set("papers", &papers).await;
+                }
+            }
+            failed(&e)
+        }
+    }
+}
+
+/// Shelve a paper from the cart, then pull the library so it arrives with its title.
+pub async fn save_paper(id: &str, folder: &str) -> Value {
+    let run = async {
+        call_tool(
+            "save_papers_to_folder",
+            json!({ "paper_ids_or_urls": [id], "folder_id": folder }),
+        )
+        .await?;
+        pull_library().await
+    };
+    match run.await {
+        Ok(()) => json!({ "ok": true }),
+        Err(e) => failed(&e),
+    }
+}
+
+/// Papers in a cart; enough to choose from, few enough to read.
+const ARRIVALS_PER_FEED: u32 = 8;
+
+/// Hot and For You, with titles from the arXiv export API (the feeds give ids only).
+pub async fn arrivals() -> Value {
+    let run = async {
+        let limit = json!({ "limit": ARRIVALS_PER_FEED });
+        let hot = parse_feed(&call_tool("get_hot_feed", limit.clone()).await?)?;
+        let for_you = parse_feed(&call_tool("get_for_you_feed", limit).await?)?;
+        let ids: Vec<String> = hot.iter().chain(&for_you).cloned().collect();
+        // Titles are a nicety: without arXiv the ids still shelve.
+        let xml = if ids.is_empty() {
+            String::new()
+        } else {
+            http(&shelf::arxiv_query_url(&ids), "GET", json!({}), None)
+                .await
+                .map(|r| r.body)
+                .unwrap_or_default()
+        };
+        AxResult::Ok((
+            shelf::arrivals_from_atom(&xml, &hot),
+            shelf::arrivals_from_atom(&xml, &for_you),
+        ))
+    };
+    match run.await {
+        Ok((hot, for_you)) => json!({ "ok": true, "hot": hot, "forYou": for_you }),
+        Err(e) => failed(&e),
     }
 }
 

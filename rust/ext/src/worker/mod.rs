@@ -178,6 +178,14 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
         Message::AlphaxivSignIn => alphaxiv::sign_in().await,
         Message::AlphaxivSignOut => alphaxiv::sign_out().await?,
         Message::AlphaxivSync { force } => alphaxiv::sync(force).await,
+        Message::AlphaxivMove { paper_id, from, to } => {
+            alphaxiv::move_paper(&paper_id, &from, &to).await
+        }
+        Message::AlphaxivSave {
+            paper_id,
+            folder_id,
+        } => alphaxiv::save_paper(&paper_id, &folder_id).await,
+        Message::AlphaxivArrivals => alphaxiv::arrivals().await,
         Message::PaperReaderProgress {
             paper_id,
             pdf_url,
