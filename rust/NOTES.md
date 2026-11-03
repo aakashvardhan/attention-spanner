@@ -380,3 +380,27 @@ reading sit side by side. 61 browser tests pass, 1 of them new.
 
 Dropped: the 1440px three-zone layout and the `--tools-w` alignment for deck
 and news rows, both for sections that no longer exist.
+
+### Fixed after 6c, found by driving it by hand
+
+- **The reader never restored a position.** Neither a saved place nor a
+  `#page=N` link: every paper opened on page 1, and no test covered it. The
+  restore ran once, as soon as the scale was known, and the browser clamped
+  its scroll to 0 because the page list's reactive `style:height` had not
+  landed yet (or the page sizes were not in, so there was nothing to scroll
+  to, yet it still counted as done). It now waits for the layout and sizes the
+  list itself before scrolling, the trick the zoom code already used.
+- **A restore drifted back to mid-screen.** The reader remembered the place it
+  was *asked* for; when the scrollbar appeared and the pages re-laid out, it
+  re-centred on that, so "page 3 at the top" became "page 3 starts mid-view".
+  It now remembers what is actually mid-view after each scroll.
+- **"ViewTransition opt-in disabled".** Every page opted in to cross-document
+  view transitions for a title morph the TypeScript dashboard used; nothing
+  names that title any more, and Chrome aborted (and logged) the transition
+  whenever the reader navigated somewhere it cannot animate, such as a link
+  redirected back into the reader. The opt-in is gone.
+- Narrow new tab: "Also on your desk" lost its top margin to the shared
+  `.label` rule, and the stretchy grid row left a gap under the brain dump.
+
+Two reader tests are new: a `#page=N` link lands near the top of that page, and
+a saved place reopens.

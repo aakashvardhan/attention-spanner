@@ -101,7 +101,8 @@ ul {
   flex-shrink: 0;
   font-weight: 700;
 }
-.also-label {
+/* Two classes: the shared .label rule further down resets margins. */
+.label.also-label {
   margin-top: var(--space-6);
 }
 .also {
@@ -117,6 +118,10 @@ ul {
 }
 
 @media (max-width: 720px) {
+  /* Stacked, nothing stretches: the footer follows the heatmap. */
+  .edition {
+    grid-template-rows: none;
+  }
   .now-col,
   .heat-col {
     grid-column: 1 / -1;

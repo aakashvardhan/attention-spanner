@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES, axe, expectClean, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
+import { paper } from './seed';
 
 /**
  * The PDF reader end to end against a scripted Claude: a clicked term guessed
@@ -428,6 +429,29 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await shot(page, 'reader-explain');
     expectClean(ext);
     await page.close();
+  });
+
+  it('opens at a #page=N link (an explain-back gap from the new tab) with that page at the top', async () => {
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}#page=3`);
+    await expect.poll(() => page.locator('.reader-capsule').textContent()).toContain('p. 3 of 4');
+    // Near the top, not centred: after the scrollbar re-lays the pages out it may sit a little lower.
+    const [top, height] = await page.locator('.reader-page[aria-label^="Page 3 "]').evaluate((p) => {
+      const view = p.closest('.reader-viewport')!.getBoundingClientRect();
+      return [p.getBoundingClientRect().top - view.top, view.height];
+    });
+    expect(top).toBeGreaterThanOrEqual(-1);
+    expect(top).toBeLessThan(height / 4);
+    expectClean(ext);
+    await page.close();
+  });
+
+  it('reopens a paper where you stopped', async () => {
+    await seed(ext, { papers: [paper('9', 'Saved place', { pdf: { url: pdfUrl, page: 2, pageCount: 4, offset: 0.5 } })] });
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await expect.poll(() => page.locator('.reader-capsule').textContent()).toContain('p. 2 of 4');
+    expectClean(ext);
+    await page.close();
+    await seed(ext, { papers: [] });
   });
 
   it('recolours text pages to cream ink on walnut paper', async () => {

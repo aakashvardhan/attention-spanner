@@ -189,7 +189,13 @@ pub fn PdfViewport(
             web_sys::ScrollBehavior::Instant
         });
         el.scroll_to_with_scroll_to_options(&opts);
-        last_pos.set_value((i as u32 + 1, offset));
+        // Remember what is now mid-view, not what was asked for: a later
+        // re-layout re-centres on it, and a page top asked to sit at the top
+        // would otherwise drift down to the middle.
+        let mid = target + f64::from(el.client_height()) / 2.0;
+        let j = tops.iter().rposition(|t| *t <= mid).unwrap_or(0);
+        let at = ((mid - tops[j]) / heights[j].max(1.0)).clamp(0.0, 1.0);
+        last_pos.set_value((j as u32 + 1, at));
     };
 
     // A page jump (offset 0) puts the page top at the top; a spot inside a page lands mid-view.
@@ -207,12 +213,20 @@ pub fn PdfViewport(
     // The saved position needs real layout, so the restore lives here and runs once.
     let restored = StoredValue::new(false);
     Effect::new(move |_| {
-        if scale.get() <= 0.0 || restored.get_value() {
+        // Wait for the page sizes too: with no layout there is nothing to scroll to.
+        let (tops, _, height) = layout.get();
+        if scale.get() <= 0.0 || tops.is_empty() || restored.get_value() {
             return;
         }
         restored.set_value(true);
+        // The reactive `style:height` may not have landed yet, and the browser
+        // would clamp the scroll to the old (empty) list. Size it now.
+        if let Some(l) = list.get_untracked() {
+            let _ = web_sys::HtmlElement::style(&l).set_property("height", &format!("{height}px"));
+        }
         if let Some((page, offset)) = initial {
-            scroll_to(page, offset, false, None);
+            // As with a jump: the start of a page (a #page=N link) lands at the top.
+            scroll_to(page, offset, false, (offset == 0.0).then_some(PAGE_GAP));
         }
         on_restored.run(());
     });

@@ -275,20 +275,3 @@ a {
     --material-thick: var(--bg-surface);
   }
 }
-
-/* Every page opts in to cross-document view transitions. Chrome 154+ throws
-   "ViewTransition opt-in disabled" on arrival when an opted-in page navigates
-   to one that isn't. Stepping in morphs the story's title into the reader's
-   (Dashboard names it at click time; .reader-title carries the name). */
-@view-transition {
-  navigation: auto;
-}
-::view-transition-group(story-title) {
-  animation-duration: var(--dur-smooth);
-  animation-timing-function: var(--spring-smooth);
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(story-title) {
-    animation: none;
-  }
-}

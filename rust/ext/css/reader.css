@@ -1204,10 +1204,6 @@ body {
   border-left: 2px solid var(--accent);
 }
 
-.reader-title {
-  view-transition-name: story-title;
-}
-
 .provoke-answer {
   width: 100%;
   box-sizing: border-box;
