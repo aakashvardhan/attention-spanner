@@ -559,13 +559,17 @@ ul + .hint {
   line-height: var(--leading-xs);
   color: var(--text-muted);
 }
+/* A label too wide for its month's columns wraps past the zero-width
+   space onto a second line, which the one-line height clips away. */
 .heat-months span {
-  white-space: nowrap;
+  height: var(--leading-xs);
+  overflow: hidden;
 }
-/* The newest month starts in one of the last columns: end it at the edge
-   instead of letting it run past the frame. */
-.heat-months span:last-child {
-  justify-self: end;
+.heat-months span::before {
+  content: "\200B";
+}
+.heat-months b {
+  font-weight: inherit;
 }
 .heat-grid {
   grid-auto-flow: column;

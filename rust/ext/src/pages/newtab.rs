@@ -283,7 +283,12 @@ fn ActivityHeatmap(papers: ReadSignal<Vec<Paper>>) -> impl IntoView {
 
             <div class="heat-frame" node_ref=frame>
                 <div class="heat-months" aria-hidden="true">
-                    {move || model.get().months.into_iter().map(|(col, label)| view! { <span style=format!("grid-column-start: {}", col + 1)>{label}</span> }).collect_view()}
+                    {move || {
+                        // Each label spans to the next month's column; CSS hides one that doesn't fit.
+                        let months = model.get().months;
+                        let ends: Vec<String> = months.iter().skip(1).map(|(c, _)| (c + 1).to_string()).chain(["-1".into()]).collect();
+                        months.into_iter().zip(ends).map(|((col, label), end)| view! { <span style=format!("grid-column: {} / {}", col + 1, end)><b>{label}</b></span> }).collect_view()
+                    }}
                 </div>
                 <div
                     class="heat-grid"
