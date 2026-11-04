@@ -18,7 +18,9 @@ use reader_core::constants::{
 };
 use reader_core::messages::Message;
 use reader_core::migrations::migrate;
+use reader_core::pomodoro::POMODORO_ALARM;
 use reader_core::reader_progress::{apply_reader_progress, ReaderPosition};
+use reader_core::todos::{alarms_due, Todo, TODO_ALARM_PREFIX};
 use reader_core::types::{Annotation, Paper};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -93,7 +95,58 @@ async fn clear_retired_alarms() -> Res<()> {
 pub async fn on_alarm(name: String) {
     if name == SYNC_ALARM {
         alphaxiv::sync(false).await;
+    } else if name == POMODORO_ALARM {
+        guarded("[worker] pomodoro", session::pomodoro_alarm()).await;
+    } else if let Some(id) = name.strip_prefix(TODO_ALARM_PREFIX) {
+        guarded("[worker] reminder", remind(id)).await;
     }
+}
+
+/// A to-do's time came: say so, unless it was ticked off meanwhile.
+async fn remind(id: &str) -> Res<()> {
+    let todos: Vec<Todo> = store::get("todos").await?;
+    let Some(todo) = todos.iter().find(|t| t.id == id && t.done_at.is_none()) else {
+        return Ok(());
+    };
+    let options = to_js(&json!({
+        "type": "basic",
+        "iconUrl": chrome::get_url("icons/icon-128.png"),
+        "title": "Reminder",
+        "message": todo.text,
+        "requireInteraction": true,
+    }))?;
+    wait(chrome::notifications_create(
+        &format!("{TODO_ALARM_PREFIX}{id}"),
+        &options,
+    ))
+    .await
+    .map(drop)
+}
+
+/// Any edit to the list (add, retime, tick, delete) re-plans every reminder.
+#[wasm_bindgen]
+pub async fn on_todos_changed() {
+    guarded("[worker] todos", async {
+        let all: Vec<Alarm> = from_js(wait(chrome::alarms_get_all()).await?)?;
+        for alarm in all.iter().filter(|a| a.name.starts_with(TODO_ALARM_PREFIX)) {
+            wait(chrome::alarms_clear(&alarm.name)).await?;
+        }
+        let todos: Vec<Todo> = store::get("todos").await?;
+        for (name, when) in alarms_due(&todos, now()) {
+            wait(chrome::alarms_create(
+                &name,
+                &to_js(&json!({ "when": when }))?,
+            ))
+            .await?;
+        }
+        Ok(())
+    })
+    .await;
+}
+
+#[wasm_bindgen]
+pub async fn on_pomodoro_changed() {
+    guarded("[worker] pomodoro", session::pomodoro_changed()).await;
 }
 
 #[wasm_bindgen]

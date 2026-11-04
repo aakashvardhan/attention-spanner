@@ -32,5 +32,6 @@
   "background": {
     "service_worker": "worker.js",
     "type": "module"
-  }
+  },
+  "options_page": "src/pages/options/index.html"
 }

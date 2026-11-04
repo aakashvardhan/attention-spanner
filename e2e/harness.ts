@@ -15,6 +15,7 @@ export const PAGES = {
   newtab: 'src/pages/newtab/index.html',
   options: 'src/pages/options/index.html',
   papers: 'src/pages/papers/index.html',
+  lexicon: 'src/pages/lexicon/index.html',
   reader: 'src/pages/reader/index.html',
   blocked: 'src/pages/blocked/index.html#https://example.com/',
 } as const;
@@ -31,7 +32,8 @@ export interface Ext {
   close(): Promise<void>;
 }
 
-export async function launch(): Promise<Ext> {
+/** `fakeAudio`: a WAV the browser plays as the microphone (looped), with the permission prompt auto-accepted. */
+export async function launch(opts: { fakeAudio?: string } = {}): Promise<Ext> {
   const sites = await startSites();
   const profile = mkdtempSync(join(tmpdir(), 'reader-e2e-'));
   const ctx = await chromium.launchPersistentContext(profile, {
@@ -46,6 +48,9 @@ export async function launch(): Promise<Ext> {
       // internet, so Chrome's local-network checks never apply to users; here
       // they would only stand between the suite and its own server.
       '--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights',
+      ...(opts.fakeAudio
+        ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${opts.fakeAudio}`]
+        : []),
     ],
   });
   let [sw] = ctx.serviceWorkers();
@@ -186,6 +191,29 @@ export async function mockClaude(ext: Ext, reply: (system: string, prompt: strin
         event('content_block_stop', { index: 0 }) +
         event('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 2 } }) +
         event('message_stop', {}),
+    });
+  });
+  return calls;
+}
+
+/**
+ * Groq Whisper, scripted: `reply()` answers each transcription as
+ * `{ status, text }`. Each call records the uploaded WAV's PCM byte count
+ * (its `data` chunk) so a test can check silence was trimmed before upload.
+ */
+export async function mockGroq(ext: Ext, reply: () => { status: number; text?: string }) {
+  const calls: { wavBytes: number; model: string }[] = [];
+  await ext.ctx.route('https://api.groq.com/**', async (route) => {
+    const body = route.request().postDataBuffer() ?? Buffer.alloc(0);
+    const riff = body.indexOf('RIFF');
+    const data = body.indexOf('data', riff);
+    const model = /name="model"\r\n\r\n([^\r]+)/.exec(body.toString('latin1'))?.[1] ?? '';
+    calls.push({ wavBytes: riff < 0 || data < 0 ? -1 : body.readUInt32LE(data + 4), model });
+    const { status, text } = reply();
+    await route.fulfill({
+      status,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(status === 200 ? { text } : { error: { message: 'mock' } }),
     });
   });
   return calls;

@@ -70,6 +70,11 @@ body {
   justify-self: end;
 }
 
+.library-nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
 .library-masthead h1 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
@@ -112,7 +117,7 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   The bookcase: a shelf per alphaXiv folder, books standing on a brass rail.
+   The decks: one per alphaXiv folder, papers as cards.
    --------------------------------------------------------------------------- */
 
 .bookcase {
@@ -122,6 +127,9 @@ body {
 }
 
 .shelf h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   font-family: var(--font-display);
   font-size: var(--text-lg);
   line-height: var(--leading-lg);
@@ -129,96 +137,95 @@ body {
   margin-bottom: var(--space-3);
 }
 
+.shelf-count {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+/* A deck: cards in as many columns as fit. */
 .shelf-row {
   list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-4) var(--space-1);
-  padding-top: var(--space-3);
-  border-bottom: 4px solid var(--accent-border);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.shelf-row > li {
+  display: grid;
 }
 
 .shelf-empty {
-  padding-block: var(--space-5);
+  padding-block: var(--space-3);
   color: var(--text-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }
 
-/* The shelf's nameplate: the title of the book under the pointer or focus. */
-.shelf-plate {
-  min-height: var(--leading-sm);
-  margin-top: var(--space-2);
-  color: var(--text-secondary);
+.book {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-2);
+  min-height: 132px;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.book:hover,
+.book:focus-visible {
+  border-color: var(--accent-border);
+  background: var(--bg-hover);
+}
+
+.book-title {
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-meta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.book {
-  /* Set per book from its page count (papers.rs); this is the fallback. */
-  --spine-w: 26px;
-  display: block;
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-
-.book-spine {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: var(--spine-w);
-  height: 176px;
-  padding: var(--space-2) 0 var(--space-7);
-  writing-mode: vertical-rl;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+.book-foot {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
-  font-weight: 700;
-  white-space: nowrap;
+}
+
+/* Progress: --p is set per card (papers.rs). */
+.book-bar {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-track);
   overflow: hidden;
-  transform-origin: bottom left;
-  transition: transform var(--dur-snappy) var(--spring-snappy);
 }
 
-/* Wear: a brass band at the foot of the spine, taller the further it is read. */
-.book-spine::after {
+.book-bar::before {
   content: '';
-  position: absolute;
-  inset: auto 0 0;
-  height: 0;
+  display: block;
+  width: var(--p, 0%);
+  height: 100%;
   background: var(--accent);
-}
-.book[data-wear='1'] .book-spine::after {
-  height: var(--space-2);
-}
-.book[data-wear='2'] .book-spine::after {
-  height: var(--space-4);
-}
-.book[data-wear='3'] .book-spine::after {
-  height: var(--space-6);
-}
-
-/* Pointed at or focused: the book tilts out of the row. */
-.book:hover .book-spine,
-.book:focus-visible .book-spine {
-  transform: rotate(-8deg);
-  background: var(--bg-hover);
-}
-
-.book:focus-visible {
-  outline-offset: 4px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -355,12 +362,6 @@ kbd {
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .book-spine {
-    transition: none;
-  }
 }
 
 @media (max-width: 720px) {

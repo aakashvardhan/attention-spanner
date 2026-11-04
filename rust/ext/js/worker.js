@@ -24,6 +24,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.settings) {
     run(wasm.on_settings_changed, changes.settings.oldValue ?? null, changes.settings.newValue ?? null);
   }
+  if (area === 'local' && changes.todos) run(wasm.on_todos_changed);
+  if (area === 'local' && changes.pomodoro) run(wasm.on_pomodoro_changed);
 });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) run(wasm.on_tab_url, tabId, info.url);

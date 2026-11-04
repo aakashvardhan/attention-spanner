@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:ext && npm run build:mcp",
-    "build:ext": "node scripts/rust-assets.mjs && cd rust/ext && cargo run -q --manifest-path ../../vendor/oxichrome/oxichrome-cli/Cargo.toml -- oxichrome build --release",
+    "build:ext": "node scripts/rust-assets.mjs && cd rust/ext && OXICHROME_DIST=.build cargo run -q --manifest-path ../../vendor/oxichrome/oxichrome-cli/Cargo.toml -- oxichrome build --release && cd ../.. && node scripts/publish-ext.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e && tsc --noEmit -p mcp",
     "package": "node scripts/package.mjs",

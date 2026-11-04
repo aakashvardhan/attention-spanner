@@ -11,6 +11,9 @@ description: Build the extension and drive it end-to-end in Chromium via Playwri
 npm run build:ext    # Rust → wasm → rust/ext/dist/chromium (npm run build adds the brain MCP server)
 ```
 
+The build writes to `rust/ext/.build/chromium` and only swaps it into `dist/chromium` when
+complete (`scripts/publish-ext.mjs`), so a Chrome with dist loaded never sees a half-written build.
+
 ## Drive with Playwright (dev dependency)
 
 Load `rust/ext/dist/chromium` as an unpacked extension in a persistent context. Works headless.
@@ -49,13 +52,15 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Flows worth driving
 
-- New tab: `.edition` leads with `.read-section` across the top: Continue
-  reading (`.continue-paper`, the paper with the latest `lastReadAt`), its
-  open explain-back gaps (`.continue-gaps li`, each with an `a.gap-page` to
-  `#page=N`), and `.also` (other unfinished papers). Under it, `.now-col` is the
-  brain dump (`section[aria-label="Brain dump"]`) and `.heat-col` the heatmap
-  (`.heat`). Papers and Settings live in `.edition-index`.
-- Papers page: a bookcase. `.shelf` per folder, `.book` buttons (one has
+- New tab: `.edition` is `.board` on the left (three `.board-col`: In progress,
+  To read, Completed, bucketed by `progressPercent`/`lastReadAt`; `.paper-card`
+  each, the newest in-progress card lists explain-back gaps with `a.gap-page`)
+  and `.side-col` on the right (brain dump `section[aria-label="Brain dump"]`,
+  heatmap `.heat`). A card whose title equals `focusSession.title` gets
+  `.paper-card--reading` and a blinking `.live-dot`; seed `focusSession` with a
+  real tab id (`chrome.tabs.getCurrent()`) or the worker prunes it. Papers and
+  Settings live in `.edition-index`.
+- Papers page: card decks. `.shelf` per folder, `.book` card buttons (one has
   `tabindex="0"`; arrows move it), Enter opens `.book-card`, M opens
   `.move-menu`, the cart is `section.cart` (needs `alphaxivAuth` seeded and the
   MCP endpoint routed).

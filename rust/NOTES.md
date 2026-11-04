@@ -404,3 +404,51 @@ and news rows, both for sections that no longer exist.
 
 Two reader tests are new: a `#page=N` link lands near the top of that page, and
 a saved place reopens.
+
+## Voice brain dump
+
+Talk instead of typing: **Talk** on the notebook records, stops itself when you
+pause, and Groq Whisper (`whisper-large-v3-turbo`) turns it into words that land
+in the box at the cursor. Cmd+Enter is now one Haiku call that returns the
+lighter bullets (sealed as before, still no advice) *and* up to three top tasks
+for today's board; "Make to-dos" and its second call are gone.
+
+Rust ideas it used:
+
+- **A state machine as a plain struct** (`core::voice::Vad`). Each 30 ms frame
+  goes through `push(&mut self, ..)`, which returns an enum (`Quiet`, `Speech`,
+  `SilenceTimeout`). The onset count, hangover and adaptive noise floor are
+  just fields. `Option<f32>` for the floor ("not measured yet") caught a real
+  bug: the fake mic's first frames are exact zeros (-inf dB), and seeding the
+  floor from them turned `floor + alpha * (db - floor)` into NaN, so plain
+  noise counted as speech. `match self.floor_db { Some(f) => .., None if .. }`
+  now refuses to seed it from silence.
+- **`Range<usize>` merging.** `speech_ranges` builds frame ranges, pads them,
+  and folds each one into `out.last_mut()` when the gap is small. `last_mut()`
+  returns `Option<&mut Range>`, so the merge edits the previous range in place.
+- **Bytes by hand.** `encode_wav` writes the 44-byte RIFF header with
+  `u32::to_le_bytes` / `u16::to_le_bytes` and appends samples as clamped `i16`s:
+  no crate needed for a format this small.
+- **`Drop` as cleanup.** `ext::voice::Recorder` owns the `MediaStream`, the
+  `AudioContext` and the worklet's message `Closure`. However a recording ends
+  (stopped, auto-stopped, Esc, unmount), dropping it stops the tracks and closes
+  the context, so the mic light can't stay on. Finishing from *inside* the
+  recorder's own callback would drop the closure that is running, so `Done`
+  defers it with `spawn_local`.
+- **UTF-16 vs `char`.** The DOM's `selectionStart` counts UTF-16 units and Rust
+  strings count bytes or `char`s, so `utf16_to_char` / `char_to_utf16` sit
+  between them (an emoji is 2 units, 1 char).
+
+Latency: the browser does what it does best (noise suppression, echo
+cancellation, AGC, resampling to 16 kHz via `AudioContext({sampleRate})`, a
+100 Hz `BiquadFilterNode` high-pass). The wasm VAD then uploads only the
+speech, and a noise-only take never reaches Groq. One Haiku call instead of two.
+
+Tests: `core::voice` (synthetic tone-in-noise, clicks, gaps, zeros then noise,
+WAV header, transcript cleanup, Groq statuses, cursor insert), `brain_dump`
+`parse_dump`, and `e2e/voice.e2e.ts`. That suite runs Chromium with
+`--use-file-for-fake-audio-capture` on `e2e/fixtures/{speech,noise}.wav`
+(macOS `say` + deterministic noise) and covers: auto-stop, upload well under
+the recorded length, 429 then Retry with the same clip, 503 auto-retry, a
+rejected key, Esc discards, noise-only sends nothing, and voice then Cmd+Enter
+giving bullets plus tasks.

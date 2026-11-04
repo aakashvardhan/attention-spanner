@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 /**
  * The walnut-and-brass tokens, held to WCAG 2.2 AAA: every text colour on
  * every surface it can land on clears 7:1, and the focus ring and filled
- * controls clear 3:1 (WCAG 2.4.13 / 1.4.11). One theme, so one block.
+ * controls clear 3:1 (WCAG 2.4.13 / 1.4.11). Paper is :root; every alternate
+ * palette (:root[data-theme='x']) is held to the same rules.
  */
 
 const css = readFileSync(join(__dirname, 'theme.css'), 'utf8');
@@ -41,7 +42,17 @@ export function contrast(a: string, b: string): number {
 const SURFACES = ['--bg-page', '--bg-surface', '--bg-subtle', '--bg-hover', '--accent-soft', '--accent-wash'];
 const TEXT = ['--text-primary', '--text-secondary', '--text-muted', '--accent-text'];
 
-describe('walnut and brass: WCAG AAA', () => {
+const PALETTES = ['paper', ...[...css.matchAll(/:root\[data-theme='([a-z]+)'\] \{/g)].map((m) => m[1])];
+
+describe.each(PALETTES)('%s: WCAG AAA', (palette) => {
+  const over = palette === 'paper' ? new Map<string, string>() : block(`:root[data-theme='${palette}']`);
+  const get = (k: string): string => {
+    const v = over.get(k) ?? tokens.get(k);
+    expect(v, `missing ${k}`).toBeDefined();
+    const ref = v!.match(/^var\((--[a-z0-9-]+)\)$/);
+    return ref ? get(ref[1]) : v!;
+  };
+
   it.each(TEXT.flatMap((fg) => SURFACES.map((bg) => [fg, bg])))('%s on %s clears 7:1', (fg, bg) => {
     expect(contrast(get(fg), get(bg))).toBeGreaterThanOrEqual(7);
   });
@@ -68,27 +79,56 @@ describe('walnut and brass: WCAG AAA', () => {
     expect(contrast(get('--accent'), get(bg))).toBeGreaterThanOrEqual(3);
   });
 
-  it('cream is never pure white, walnut never pure black (halation)', () => {
-    expect(get('--text-primary').toLowerCase()).not.toBe('#ffffff');
-    expect(get('--bg-page').toLowerCase()).not.toBe('#000000');
+  it('paper is never pure white (glare), ink never pure black', () => {
+    for (const k of ['--bg-page', '--bg-surface']) expect(get(k).toLowerCase()).not.toBe('#ffffff');
+    expect(get('--text-primary').toLowerCase()).not.toBe('#000000');
+  });
+
+  it('outlines are found at a glance: --border clears 3:1 on the card surfaces', () => {
+    for (const bg of ['--bg-page', '--bg-surface']) expect(contrast(get('--border'), get(bg)), bg).toBeGreaterThanOrEqual(3);
   });
 
   it('the recoloured PDF reads like the rest of the room', () => {
     expect(contrast(get('--pdf-ink'), get('--pdf-paper'))).toBeGreaterThanOrEqual(12);
   });
 
-  it('the heatmap steps from walnut to brass, each step visible', () => {
+  it('the heatmap steps from paper to deep brass, each step visible', () => {
     const lum = [0, 1, 2, 3, 4].map((i) => luminance(get(`--heat-${i}`)));
-    for (let i = 1; i < 5; i++) expect(lum[i], `heat-${i}`).toBeGreaterThan(lum[i - 1]);
+    for (let i = 1; i < 5; i++) expect(lum[i], `heat-${i}`).toBeLessThan(lum[i - 1]);
     for (let i = 1; i < 5; i++)
       expect(contrast(get(`--heat-${i - 1}`), get(`--heat-${i}`)), `heat-${i - 1} → ${i}`).toBeGreaterThanOrEqual(1.2);
   });
 });
 
+describe('the break room: WCAG AAA', () => {
+  const brk = block(":root[data-phase='break']");
+  const bget = (k: string): string => brk.get(k) ?? get(k);
+  it.each(TEXT.flatMap((fg) => SURFACES.map((bg) => [fg, bg])))('%s on %s clears 7:1', (fg, bg) => {
+    expect(contrast(bget(fg), bget(bg))).toBeGreaterThanOrEqual(7);
+  });
+  it.each([
+    ['--on-accent', '--accent'],
+    ['--on-accent', '--accent-hover'],
+    ['--bg-page', '--rule'],
+  ])('%s on %s clears 7:1', (fg, bg) => {
+    expect(contrast(bget(fg), bget(bg))).toBeGreaterThanOrEqual(7);
+  });
+  it.each(SURFACES)('the sage focus ring clears 3:1 on %s', (bg) => {
+    expect(contrast(bget('--accent'), bget(bg))).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('theme structure', () => {
-  it('is one theme: no light/dark/paperwhite, focus/break room or skin blocks', () => {
-    expect(css).not.toMatch(/data-theme|data-phase|data-skin|round-progress/);
-    expect(tokens.get('color-scheme') ?? css.match(/:root \{\n {2}color-scheme: (\w+)/)?.[1]).toBe('dark');
+  it('light palettes plus the Pomodoro break room: no dark, focus room or skin blocks', () => {
+    expect(css).not.toMatch(/data-skin|round-progress|data-phase='focus'|color-scheme: dark/);
+    expect(PALETTES.length).toBeGreaterThan(1);
+    expect(tokens.get('color-scheme') ?? css.match(/:root \{\n {2}color-scheme: (\w+)/)?.[1]).toBe('light');
+  });
+
+  it('the Settings picker lists exactly these palettes', () => {
+    const rs = readFileSync(join(__dirname, '../src/pages/mod.rs'), 'utf8');
+    const list = rs.slice(rs.indexOf('pub const THEMES'), rs.indexOf('];', rs.indexOf('pub const THEMES')));
+    expect([...list.matchAll(/\("([a-z]+)",/g)].map((m) => m[1]).sort()).toEqual([...PALETTES].sort());
   });
 
   it('puts spacing, radii and leading on the 4px grid', () => {
@@ -106,8 +146,8 @@ describe('theme structure', () => {
 
   it('every colour token a stylesheet reads is declared', () => {
     const sheets = readdirSync(__dirname).filter((f) => f.endsWith('.css'));
-    // Set at runtime: by JS (heatmap tooltip, settings index bar) or by pdf.js (text layer).
-    const runtime = ['--x', '--y', '--indicator-y', '--indicator-h', '--scale-factor', '--min-font-size'];
+    // Set at runtime: by JS (heatmap tooltip, settings index bar, card progress, clock hands) or by pdf.js (text layer).
+    const runtime = ['--x', '--y', '--p', '--h', '--m', '--s', '--indicator-y', '--indicator-h', '--scale-factor', '--min-font-size'];
     const declared = new Set([...css.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1]).concat(runtime));
     const missing = new Set<string>();
     for (const sheet of sheets) {

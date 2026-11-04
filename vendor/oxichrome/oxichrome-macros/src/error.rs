@@ -30,12 +30,8 @@ impl From<MacroError> for syn::Error {
             MacroError::UnknownArgument { span, name } => {
                 syn::Error::new(span, format!("unknown argument `{name}`"))
             }
-            MacroError::InvalidValue { span, message } => {
-                syn::Error::new(span, message)
-            }
-            MacroError::InvalidTarget { span, message } => {
-                syn::Error::new(span, message)
-            }
+            MacroError::InvalidValue { span, message } => syn::Error::new(span, message),
+            MacroError::InvalidTarget { span, message } => syn::Error::new(span, message),
             MacroError::Syn(err) => err,
         }
     }

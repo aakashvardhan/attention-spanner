@@ -15,6 +15,7 @@ pub enum Task {
     Grade,
     Terms,
     Reframe,
+    Link,
 }
 
 impl Task {
@@ -25,6 +26,7 @@ impl Task {
             Task::Grade => "grade",
             Task::Terms => "terms",
             Task::Reframe => "reframe",
+            Task::Link => "link",
         }
     }
 }

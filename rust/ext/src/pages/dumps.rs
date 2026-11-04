@@ -10,6 +10,7 @@ use reader_core::vault::{DumpEntry, LockedDump, Vault};
 
 #[oxichrome::page(path = "src/pages/dumps/index.html", title = "Your dumps", css = ["assets/theme.css", "assets/dumps.css"])]
 pub fn Dumps() -> impl IntoView {
+    super::use_theme();
     let (stored, loaded) = use_storage::<Option<Vault>>("vault");
     let entries = RwSignal::new(None::<Vec<(String, DumpEntry)>>);
     let failed = RwSignal::new(0usize);

@@ -289,7 +289,7 @@ pub fn ReaderCapsule(
                 view! {
                     <Show when=move || { page_count.get() > 0 }>
                         <div class="reader-toolbar-group reader-pagination" aria-label="Page navigation">
-                            <button class="reader-icon-btn" aria-label="Previous page" title="Previous page" disabled=move || page.get() <= 1 on:click=move |_| on_page_jump.run(page.get_untracked() - 1)>
+                            <button class="reader-icon-btn" aria-label="Previous page" title="Previous page" disabled={move || page.get() <= 1} on:click=move |_| on_page_jump.run(page.get_untracked() - 1)>
                                 <ToolbarIcon><path d="m14 17-5-5 5-5" /></ToolbarIcon>
                             </button>
                             <label class="reader-page-jump" title="Go to page">
@@ -311,17 +311,17 @@ pub fn ReaderCapsule(
                                 />
                                 <span>"of "{page_count}</span>
                             </label>
-                            <button class="reader-icon-btn" aria-label="Next page" title="Next page" disabled=move || page.get() >= page_count.get() on:click=move |_| on_page_jump.run(page.get_untracked() + 1)>
+                            <button class="reader-icon-btn" aria-label="Next page" title="Next page" disabled={move || page.get() >= page_count.get()} on:click=move |_| on_page_jump.run(page.get_untracked() + 1)>
                                 <ToolbarIcon><path d="m10 17 5-5-5-5" /></ToolbarIcon>
                             </button>
                         </div>
                     </Show>
                     <div class="reader-toolbar-group reader-zoom-controls" aria-label="Zoom controls">
-                        <button class="reader-icon-btn" aria-label="Zoom out" title="Zoom out (⌘−)" disabled=move || zoom.get() <= ZOOM_MIN on:click=move |_| zoom.update(|z| *z = zoom_step(*z, -0.25).max(ZOOM_MIN))>
+                        <button class="reader-icon-btn" aria-label="Zoom out" title="Zoom out (⌘−)" disabled={move || zoom.get() <= ZOOM_MIN} on:click=move |_| zoom.update(|z| *z = zoom_step(*z, -0.25).max(ZOOM_MIN))>
                             <ToolbarIcon><path d="M7 12h10" /></ToolbarIcon>
                         </button>
                         <button class="reader-zoom-value" title="Fit width (⌘0)" on:click=move |_| zoom.set(1.0)>{move || format!("{}%", (zoom.get() * 100.0).round())}</button>
-                        <button class="reader-icon-btn" aria-label="Zoom in" title="Zoom in (⌘+)" disabled=move || zoom.get() >= ZOOM_MAX on:click=move |_| zoom.update(|z| *z = zoom_step(*z, 0.25).min(ZOOM_MAX))>
+                        <button class="reader-icon-btn" aria-label="Zoom in" title="Zoom in (⌘+)" disabled={move || zoom.get() >= ZOOM_MAX} on:click=move |_| zoom.update(|z| *z = zoom_step(*z, 0.25).min(ZOOM_MAX))>
                             <ToolbarIcon><path d="M12 7v10M7 12h10" /></ToolbarIcon>
                         </button>
                     </div>

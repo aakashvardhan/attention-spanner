@@ -43,6 +43,14 @@ extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["chrome", "alarms"], js_name = getAll)]
     pub fn alarms_get_all() -> Result<Promise, JsValue>;
 
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "offscreen"], js_name = createDocument)]
+    pub fn offscreen_create(params: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "offscreen"], js_name = closeDocument)]
+    pub fn offscreen_close() -> Result<Promise, JsValue>;
+
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "notifications"], js_name = create)]
+    pub fn notifications_create(id: &str, options: &JsValue) -> Result<Promise, JsValue>;
+
     #[wasm_bindgen(catch, js_namespace = ["chrome", "declarativeNetRequest"], js_name = getSessionRules)]
     pub fn dnr_get_session_rules() -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "declarativeNetRequest"], js_name = updateSessionRules)]

@@ -70,3 +70,15 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+.blocked-tasks {
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--focus-text-secondary);
+}
+.blocked-tasks .done {
+  text-decoration: line-through;
+}

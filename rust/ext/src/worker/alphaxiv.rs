@@ -43,8 +43,12 @@ struct Http {
 
 /// One fetch. A rejected fetch (no network, DNS) is `Offline`.
 async fn http(url: &str, method: &str, headers: Value, body: Option<String>) -> AxResult<Http> {
-    let init = to_js(&json!({ "method": method, "headers": headers, "body": body }))
-        .map_err(|_| offline())?;
+    // No cookies: alphaXiv's CSRF check answers 403 "Invalid origin" to any
+    // cookie-carrying request from an extension origin. Auth here is the bearer token.
+    let init = to_js(
+        &json!({ "method": method, "headers": headers, "body": body, "credentials": "omit" }),
+    )
+    .map_err(|_| offline())?;
     let res: web_sys::Response = wait(chrome::fetch(url, &init))
         .await
         .map_err(|_| offline())?
@@ -98,6 +102,19 @@ struct ClientRecord {
     redirect_uri: String,
 }
 
+/// alphaXiv's own words for a refusal: its JSON `message`/`error`, a note
+/// when Cloudflare answered with a page instead, else the start of the body.
+fn refusal_reason(r: &Http) -> String {
+    if r.content_type.contains("text/html") {
+        return "Cloudflare blocked the request; open alphaxiv.org in this browser, then try again.".into();
+    }
+    let v: Value = serde_json::from_str(&r.body).unwrap_or_default();
+    ["message", "error_description", "error"]
+        .iter()
+        .find_map(|k| v[*k].as_str().map(str::to_string))
+        .unwrap_or_else(|| r.body.chars().take(160).collect())
+}
+
 /// A client id for this redirect URI: reused while the extension id holds.
 async fn client_for(redirect_uri: &str) -> AxResult<String> {
     let stored: Option<ClientRecord> = store::get("alphaxivClient").await.map_err(|_| offline())?;
@@ -127,7 +144,11 @@ async fn client_for(redirect_uri: &str) -> AxResult<String> {
         .ok_or_else(|| {
             AlphaxivError::new(
                 ErrorKind::Failed,
-                format!("alphaXiv would not register this extension ({}).", r.status),
+                format!(
+                    "alphaXiv would not register this extension ({}): {}",
+                    r.status,
+                    refusal_reason(&r)
+                ),
             )
         })?;
     let _ = store::set(

@@ -21,12 +21,10 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'nudges', pattern: /scheduleNudge|cancelNudge|fireNudge|nudgesEnabled|NUDGE_|nudgePrefix|lastGlobalNudgeAt/ },
   { name: 'lead-story', pattern: /edition-lead|edition-headline|edition-cta|leadStatus|kickerFor/ },
   { name: 'video-categories', pattern: /groupByCategory|videoCategory|edition-also/ },
-  { name: 'breathing-guide', pattern: /pomo-breath|BREATH_MS|breatheAgain/ },
   { name: 'pace-forecast', pattern: /paceMinutesLeft|paceLabel|relay-row-forecast/ },
   { name: 'watching-card', pattern: /relay-watching-card/ },
   { name: 'sweep', pattern: /SAMPLE_FEEDS|sample-feed|ai-impact|FOCUS_VIDEO_TAB/ },
   // v27: papers library
-  { name: 'rss', pattern: /refreshFeeds|rssParser|FeedItem|VALIDATE_FEED|MARK_ALL_READ|feedDiscovery|TriageCard/ },
   { name: 'video', pattern: /videoTracker|VIDEO_PROGRESS|VIDEO_TRACKER|youtubeCaptions|timedtextTee|watchMeta/ },
   { name: 'topic-gate', pattern: /topicGate|geminiTopic|mutedTopics|trackTopics|topicVerdicts/ },
   { name: 'web-tracking', pattern: /readingTracker|readingProgress|ContinueRow|TRACKER_READY|PROGRESS_UPDATE/ },
@@ -38,7 +36,6 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'semantic-scholar', pattern: /semanticScholar|SEMANTIC_SCHOLAR|fetchPaperMeta/ },
   { name: 'decks', pattern: /FLASH_ADD_DECK|deckId|DeckList|PaperDeck/ },
   // v28: one walnut theme
-  { name: 'themes', pattern: /paperwhite|readerNight|data-theme|data-phase|useTheme|initTheme|ThemeSetting/ },
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

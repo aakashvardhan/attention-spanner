@@ -264,4 +264,22 @@ describe('rust port: phase 3 brain dump and vault', () => {
     expect((await storage<unknown[]>(ext, 'lockedDumps')).length).toBe(1);
     await page.close();
   });
+
+  it('one Haiku call gives the bullets and puts at most three top tasks on the board', async () => {
+    const calls = await mockClaude(ext, () =>
+      'Lighter:\n- Rent is on your mind.\n\nTop tasks:\n- 2099-01-02 09:00 | Pay the rent\n- | Call the dentist\n- | Email Sam\n- | A fourth one',
+    );
+    await seed(ext, { settings: { claudeKey: 'sk-e2e' }, vault: null, lockedDumps: [], dumps: [], todos: [] });
+    const page = await ext.page(PAGES.newtab);
+    const box = page.getByLabel('Empty your head here');
+    await box.fill('rent is due, dentist, sam wants the email, ugh');
+    await box.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+    await expect.poll(() => page.locator('.notebook-bullets li').allInnerTexts()).toEqual(['Rent is on your mind.']);
+    await expect.poll(async () => (await storage<{ text: string }[]>(ext, 'todos')).map((t) => t.text)).toEqual(['Pay the rent', 'Call the dentist', 'Email Sam']);
+    expect((await storage<{ dueAt: number | null }[]>(ext, 'todos'))[0].dueAt).toBe(new Date(2099, 0, 2, 9, 0).getTime());
+    expect(calls).toHaveLength(1);
+    expect(await page.getByRole('button', { name: 'Make to-dos' }).count()).toBe(0);
+    await page.close();
+  });
+
 });

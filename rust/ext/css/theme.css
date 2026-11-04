@@ -1,7 +1,7 @@
 /*
  * Theme tokens shared by every extension page. Import from main.tsx before the
  * page stylesheet. One theme (walnut and brass); page CSS uses only these
- * tokens for colors.
+ * tokens for colors. Alternate palettes override them under [data-theme].
  *
  * Typeface: Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — license
  * ships at /fonts/OFL.txt). Bundled locally; extension pages load their own
@@ -31,7 +31,7 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   --font-sans: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, sans-serif;
@@ -114,67 +114,72 @@
   /* Telemetry: numbers that are measurements read best in a fixed width. */
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Walnut and brass: one calm, dark library room for every page. The only
-     theme; the light, dark and e-ink themes and the focus/break rooms were retired in
-     the papers-library redesign. Every text colour clears WCAG AAA (7:1) on
-     every surface it sits on: contrast.test.ts checks the pairs. */
-  --bg-page: #1c1410;
-  --bg-surface: #261c16;
-  --bg-subtle: #30241c;
-  --bg-hover: #3a2c22;
+  /* Warm paper and ink, dimmed a step (light-sensitive eyes: no bright
+     white field), one calm reading room for every page. Chosen for
+     myopic eyes: dark text on a light ground narrows the pupil, which deepens
+     focus and sharpens letter edges, where light-on-dark spreads (halation)
+     and reads blurry. The paper is warm and never pure white, to keep glare
+     down; the ink is near-black, never pure black. Every text colour clears
+     WCAG AAA (7:1) on every surface it sits on, and outlines clear 3:1 so
+     edges are found without straining: theme.test.ts checks the pairs. */
+  --bg-page: #ddd5c6;
+  --bg-surface: #e9e2d5;
+  --bg-subtle: #d4cbba;
+  --bg-hover: #ccc2af;
 
-  /* Cream, never pure white: halation is the low-vision cost of white on dark. */
-  --text-primary: #f3e8d6;
-  --text-secondary: #e2d3bb;
-  --text-muted: #d4c2a6;
+  --text-primary: #1d1813;
+  --text-secondary: #2a231b;
+  --text-muted: #362e25;
   /* Decorative only (rules, glyphs): never carries words. */
-  --text-faint: #8c7660;
+  --text-faint: #8f8270;
 
-  --rule: #f3e8d6;
-  --border: #4a382b;
-  --border-subtle: #3a2c22;
-  --disabled: #5a4636;
+  --rule: #1d1813;
+  /* Card and control outlines: dark enough to see at a glance (3:1). */
+  --border: #7d6f59;
+  --border-subtle: #c0b49e;
+  --disabled: #a99b85;
 
-  /* Brass. Dark labels on it (--on-accent), since cream on brass would not clear 7:1. */
-  --accent: #d9ad55;
-  --accent-hover: #e7c278;
-  --accent-soft: #2c2117;
-  --accent-wash: #3a2c1a;
-  --accent-border: #6b5330;
-  --accent-track: #4a3920;
-  --accent-text: #e7c278;
-  --on-accent: #1c1410;
+  /* Deep brass: light labels on it (--on-accent) clear 7:1. */
+  --accent: #503807;
+  --accent-hover: #402c05;
+  --accent-soft: #e6dcc6;
+  --accent-wash: #e0d2b4;
+  --accent-border: #9c7a33;
+  --accent-track: #d8c7a0;
+  --accent-text: #3d2a04;
+  --on-accent: #f1ebe0;
 
-  --success: #a9d6a0;
-  --success-bg: #1d2a1b;
-  --success-border: #35512f;
-  --danger: #f4b0a6;
-  --danger-bg: #33201b;
-  --danger-wash: rgba(244, 176, 166, 0.18);
-  --warning: #ecc888;
-  --warning-bg: #30271a;
+  --success: #1e5326;
+  --success-bg: #e0eddb;
+  --success-border: #7fa877;
+  --danger: #87251a;
+  --live: #c62828; /* the reading-now dot: a true red, nothing else uses it */
+  --danger-bg: #f5e0db;
+  --danger-wash: rgba(135, 37, 26, 0.14);
+  --warning: #5e4100;
+  --warning-bg: #f3e8cc;
 
   /* Focus line: what everything outside the current passage is washed with. */
-  --reading-dim: rgba(28, 20, 16, 0.72);
+  --reading-dim: rgba(221, 213, 198, 0.72);
 
-  /* The PDF page: the reader recolours it to cream ink on walnut paper (reader.css). */
-  --pdf-page: #261c16;
-  --pdf-ink: #f3e8d6;
-  --pdf-paper: #261c16;
-  --selection: rgba(217, 173, 85, 0.35);
-  --cite-hover: rgba(217, 173, 85, 0.22);
+  /* The PDF page: the reader maps it onto ink on paper (reader.css, recolor.rs). */
+  --pdf-page: #e9e2d5;
+  --pdf-ink: #1d1813;
+  --pdf-paper: #e9e2d5;
+  --selection: rgba(106, 75, 12, 0.22);
+  --cite-hover: rgba(106, 75, 12, 0.14);
 
   /* The one elevation: for what floats over the page (menus, popovers). */
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 8px 24px rgba(60, 42, 20, 0.22);
 
   /* Glass stays near-opaque: body copy on a see-through panel gives up the
      contrast this palette is built on. --material-thin floats over scrolling
      content, --material-regular is cards and popovers, --material-thick occludes. */
-  --glass-surface: rgba(38, 28, 22, 0.94);
-  --glass-bar: rgba(243, 232, 214, 0.05);
-  --material-thin: rgba(28, 20, 16, 0.7);
-  --material-regular: rgba(38, 28, 22, 0.94);
-  --material-thick: rgba(28, 20, 16, 0.97);
+  --glass-surface: rgba(233, 226, 213, 0.95);
+  --glass-bar: rgba(29, 24, 19, 0.05);
+  --material-thin: rgba(221, 213, 198, 0.72);
+  --material-regular: rgba(233, 226, 213, 0.95);
+  --material-thick: rgba(221, 213, 198, 0.97);
   --glass-blur: blur(24px) saturate(140%);
 
   /* The blocked page is the same room as everything else now. */
@@ -184,15 +189,207 @@
   --focus-faint: var(--text-faint);
   --focus-rule: var(--border);
   --focus-accent: var(--accent);
-  --focus-accent-wash: rgba(217, 173, 85, 0.12);
+  --focus-accent-wash: rgba(106, 75, 12, 0.1);
   --focus-danger: var(--danger);
 
-  /* Heat scale: walnut to brass, one visible step at a time. */
-  --heat-0: #30241c;
-  --heat-1: #4a3920;
-  --heat-2: #7a5d2c;
-  --heat-3: #b48a3e;
-  --heat-4: #e7c278;
+  /* Heat scale: paper to deep brass, one visible step at a time. */
+  --heat-0: #d2c8b6;
+  --heat-1: #c9ab62;
+  --heat-2: #b58d35;
+  --heat-3: #87631a;
+  --heat-4: #4f380a;
+}
+
+/* Alternate palettes, picked in Settings (html[data-theme], set by
+   pages::use_theme). The default above is 'paper'. All stay light-ground for
+   myopic eyes and are held to the same AAA rules as paper (theme.test.ts).
+   mist: cool blue-grey. graphite: neutral, no tint. rose: dusty rose.
+   daylight: paper a step brighter, the highest contrast. Declared before the
+   break room so a break still looks like a different place. */
+:root[data-theme='mist'] {
+  --bg-page: #cbd7e4;
+  --bg-surface: #dae4ef;
+  --bg-subtle: #c0cedc;
+  --bg-hover: #b6c5d5;
+  --text-primary: #151a1f;
+  --text-secondary: #1e252d;
+  --text-muted: #283039;
+  --text-faint: #778696;
+  --rule: #151a1f;
+  --border: #617386;
+  --border-subtle: #a6b8ca;
+  --disabled: #8d9fb3;
+  --accent: #1d3f60;
+  --accent-hover: #16324d;
+  --accent-soft: #cedff1;
+  --accent-wash: #bfd6ef;
+  --accent-border: #5084b8;
+  --accent-track: #aeccec;
+  --accent-text: #152f4a;
+  --on-accent: #e4edf6;
+  --pdf-page: #dae4ef;
+  --pdf-ink: #151a1f;
+  --pdf-paper: #dae4ef;
+  --heat-0: #bdcbdb;
+  --heat-1: #7db3eb;
+  --heat-2: #5a98d7;
+  --heat-3: #3a6da0;
+  --heat-4: #1e3f5e;
+  --reading-dim: rgba(203, 215, 228, 0.72);
+  --selection: rgba(80, 132, 184, 0.22);
+  --cite-hover: rgba(80, 132, 184, 0.14);
+  --shadow-lg: 0 8px 24px rgba(21, 26, 31, 0.22);
+  --glass-surface: rgba(218, 228, 239, 0.95);
+  --glass-bar: rgba(21, 26, 31, 0.05);
+  --material-thin: rgba(203, 215, 228, 0.72);
+  --material-regular: rgba(218, 228, 239, 0.95);
+  --material-thick: rgba(203, 215, 228, 0.97);
+  --focus-accent-wash: rgba(80, 132, 184, 0.1);
+}
+:root[data-theme='graphite'] {
+  --bg-page: #d7d6d3;
+  --bg-surface: #e4e3e1;
+  --bg-subtle: #cdccc9;
+  --bg-hover: #c4c3c0;
+  --text-primary: #191918;
+  --text-secondary: #252423;
+  --text-muted: #302f2e;
+  --text-faint: #858481;
+  --rule: #191918;
+  --border: #73716e;
+  --border-subtle: #b7b5b2;
+  --disabled: #9f9d99;
+  --accent: #403c37;
+  --accent-hover: #32302b;
+  --accent-soft: #dedcd9;
+  --accent-wash: #d5d3cf;
+  --accent-border: #847f76;
+  --accent-track: #cbc8c3;
+  --accent-text: #302d29;
+  --on-accent: #ecebea;
+  --pdf-page: #e4e3e1;
+  --pdf-ink: #191918;
+  --pdf-paper: #e4e3e1;
+  --heat-0: #cac9c6;
+  --heat-1: #b4aea4;
+  --heat-2: #999388;
+  --heat-3: #6f6961;
+  --heat-4: #3f3c37;
+  --reading-dim: rgba(215, 214, 211, 0.72);
+  --selection: rgba(132, 127, 118, 0.22);
+  --cite-hover: rgba(132, 127, 118, 0.14);
+  --shadow-lg: 0 8px 24px rgba(25, 25, 24, 0.22);
+  --glass-surface: rgba(228, 227, 225, 0.95);
+  --glass-bar: rgba(25, 25, 24, 0.05);
+  --material-thin: rgba(215, 214, 211, 0.72);
+  --material-regular: rgba(228, 227, 225, 0.95);
+  --material-thick: rgba(215, 214, 211, 0.97);
+  --focus-accent-wash: rgba(132, 127, 118, 0.1);
+}
+:root[data-theme='rose'] {
+  --bg-page: #e6d5d7;
+  --bg-surface: #f1e3e4;
+  --bg-subtle: #ddcacd;
+  --bg-hover: #d6c1c3;
+  --text-primary: #1e1718;
+  --text-secondary: #2b2123;
+  --text-muted: #372c2e;
+  --text-faint: #978284;
+  --rule: #1e1718;
+  --border: #826a6d;
+  --border-subtle: #cbb2b5;
+  --disabled: #b2999c;
+  --accent: #572f36;
+  --accent-hover: #46252a;
+  --accent-soft: #f2dadd;
+  --accent-wash: #eeced2;
+  --accent-border: #ab6a74;
+  --accent-track: #e9c0c5;
+  --accent-text: #432328;
+  --on-accent: #f9eced;
+  --pdf-page: #f1e3e4;
+  --pdf-ink: #1e1718;
+  --pdf-paper: #f1e3e4;
+  --heat-0: #dcc7ca;
+  --heat-1: #e29ca6;
+  --heat-2: #cb7e8a;
+  --heat-3: #93555f;
+  --heat-4: #562f36;
+  --reading-dim: rgba(230, 213, 215, 0.72);
+  --selection: rgba(171, 106, 116, 0.22);
+  --cite-hover: rgba(171, 106, 116, 0.14);
+  --shadow-lg: 0 8px 24px rgba(30, 23, 24, 0.22);
+  --glass-surface: rgba(241, 227, 228, 0.95);
+  --glass-bar: rgba(30, 23, 24, 0.05);
+  --material-thin: rgba(230, 213, 215, 0.72);
+  --material-regular: rgba(241, 227, 228, 0.95);
+  --material-thick: rgba(230, 213, 215, 0.97);
+  --focus-accent-wash: rgba(171, 106, 116, 0.1);
+}
+:root[data-theme='daylight'] {
+  --bg-page: #e8e2d9;
+  --bg-surface: #f4efe8;
+  --bg-subtle: #ded8ce;
+  --bg-hover: #d6cfc4;
+  --text-primary: #1b1915;
+  --text-secondary: #27241f;
+  --text-muted: #332f29;
+  --text-faint: #968f84;
+  --rule: #1b1915;
+  --border: #787063;
+  --border-subtle: #c9c1b4;
+  --disabled: #b1a89b;
+  --accent: #483b23;
+  --accent-hover: #3a2e1b;
+  --accent-soft: #f1e9dc;
+  --accent-wash: #eadfce;
+  --accent-border: #927c57;
+  --accent-track: #e1d4be;
+  --accent-text: #372c19;
+  --on-accent: #fcf8f2;
+  --pdf-page: #f4efe8;
+  --pdf-ink: #1b1915;
+  --pdf-paper: #f4efe8;
+  --heat-0: #dcd5cb;
+  --heat-1: #d0b890;
+  --heat-2: #b79c6f;
+  --heat-3: #7c6642;
+  --heat-4: #483a24;
+  --reading-dim: rgba(232, 226, 217, 0.72);
+  --selection: rgba(146, 124, 87, 0.22);
+  --cite-hover: rgba(146, 124, 87, 0.14);
+  --shadow-lg: 0 8px 24px rgba(27, 25, 21, 0.22);
+  --glass-surface: rgba(244, 239, 232, 0.95);
+  --glass-bar: rgba(27, 25, 21, 0.05);
+  --material-thin: rgba(232, 226, 217, 0.72);
+  --material-regular: rgba(244, 239, 232, 0.95);
+  --material-thick: rgba(232, 226, 217, 0.97);
+  --focus-accent-wash: rgba(146, 124, 87, 0.1);
+}
+
+/* The break room: five minutes of sage and mist instead of paper and brass,
+   so a break looks like a different place. Same AAA rules (theme.test.ts). */
+:root[data-phase='break'] {
+  --bg-page: #d3ddd6;
+  --bg-surface: #e2eae4;
+  --bg-subtle: #c9d6cd;
+  --bg-hover: #bfcfc4;
+  --text-primary: #13201a;
+  --text-secondary: #1b2a22;
+  --text-muted: #273a30;
+  --text-faint: #7f978a;
+  --rule: #13201a;
+  --border: #637d6e;
+  --border-subtle: #bccdc1;
+  --accent: #234a35;
+  --accent-hover: #1b3a29;
+  --accent-soft: #d6e3da;
+  --accent-wash: #c9dccf;
+  --accent-border: #6f9a81;
+  --accent-track: #c1d8c8;
+  --accent-text: #173625;
+  --on-accent: #e9f0eb;
+  --heat-0: #c4d2c8;
 }
 
 /* Native checkboxes, radios and range thumbs in brass, with no custom control to maintain. */

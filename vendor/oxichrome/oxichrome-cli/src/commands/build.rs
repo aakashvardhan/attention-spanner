@@ -59,7 +59,12 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
         Browser::Chromium => "chromium",
         Browser::Firefox => "firefox",
     };
-    let dist_dir = crate_dir.join("dist").join(browser_dir);
+    // OXICHROME_DIST builds somewhere else, so a browser loading dist/ never
+    // sees a half-written build (the caller swaps it in when done).
+    let dist_root = std::env::var_os("OXICHROME_DIST")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| crate_dir.join("dist"));
+    let dist_dir = dist_root.join(browser_dir);
     let wasm_dist_dir = dist_dir.join("wasm");
     fs::create_dir_all(&wasm_dist_dir).context("failed to create dist/wasm directory")?;
 
@@ -108,8 +113,11 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
         }
         fs::write(&html_path, shims::generate_page_html(page))
             .with_context(|| format!("failed to write {}", page.path))?;
-        fs::write(dist_dir.join(shims::page_js_path(page)), shims::generate_page_js(page, &crate_name))
-            .with_context(|| format!("failed to write the loader for {}", page.path))?;
+        fs::write(
+            dist_dir.join(shims::page_js_path(page)),
+            shims::generate_page_js(page, &crate_name),
+        )
+        .with_context(|| format!("failed to write the loader for {}", page.path))?;
         println!("[oxichrome] Generated {}", page.path);
     }
 

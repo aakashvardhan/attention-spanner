@@ -25,6 +25,7 @@ pub const PDF_BYPASS_DNR_ID_BASE: i64 = 3001;
 pub const BLOCKED_PAGE_PATH: &str = "src/pages/blocked/index.html";
 pub const NEWTAB_PAGE_PATH: &str = "src/pages/newtab/index.html";
 pub const PAPERS_PAGE_PATH: &str = "src/pages/papers/index.html";
+pub const LEXICON_PAGE_PATH: &str = "src/pages/lexicon/index.html";
 pub const READER_PAGE_PATH: &str = "src/pages/reader/index.html";
 pub const MAX_ANNOTATIONS: usize = 2000;
 pub const ANNOTATION_TEXT_MAX_CHARS: usize = 500;

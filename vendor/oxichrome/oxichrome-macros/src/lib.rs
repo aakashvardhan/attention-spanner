@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 
+mod codegen;
 mod error;
 mod parse;
-mod codegen;
 
 /// ```ignore
 /// #[oxichrome::extension(

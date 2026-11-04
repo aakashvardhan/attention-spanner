@@ -35,9 +35,7 @@ extern "C" {
     pub fn chrome_storage_local_remove(keys: &JsValue) -> js_sys::Promise;
 
     #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = addListener)]
-    pub fn chrome_storage_on_changed_add_listener(
-        callback: &Closure<dyn FnMut(JsValue, JsValue)>,
-    );
+    pub fn chrome_storage_on_changed_add_listener(callback: &Closure<dyn FnMut(JsValue, JsValue)>);
 }
 
 // chrome.tabs
@@ -59,9 +57,7 @@ extern "C" {
     );
 
     #[wasm_bindgen(js_namespace = ["chrome", "tabs", "onActivated"], js_name = addListener)]
-    pub fn chrome_tabs_on_activated_add_listener(
-        callback: &Closure<dyn FnMut(JsValue)>,
-    );
+    pub fn chrome_tabs_on_activated_add_listener(callback: &Closure<dyn FnMut(JsValue)>);
 }
 
 #[macro_export]

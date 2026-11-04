@@ -6,14 +6,19 @@ import { basename, join } from 'node:path';
 
 const out = 'rust/ext/static';
 rmSync(out, { recursive: true, force: true });
-// oxichrome adds to dist without clearing it; start clean so stale files never ship.
-rmSync('rust/ext/dist', { recursive: true, force: true });
+// oxichrome adds to its output without clearing it; start clean so stale files
+// never ship. It builds into .build; publish-ext.mjs swaps that into dist.
+rmSync('rust/ext/.build', { recursive: true, force: true });
 mkdirSync(join(out, 'assets'), { recursive: true });
 cpSync('public', out, { recursive: true });
 for (const css of readdirSync('rust/ext/css').filter((f) => f.endsWith('.css')))
   cpSync(join('rust/ext/css', css), join(out, 'assets', css));
 // Hand-written JS the crate ships as is (the worker's synchronous listeners).
 cpSync('rust/ext/js/worker.js', join(out, 'worker.js'));
+// The Pomodoro bell: an offscreen page, since a service worker cannot play audio.
+// The brain dump's mic tap (an AudioWorklet module must be its own file).
+cpSync('rust/ext/js/mic-worklet.js', join(out, 'mic-worklet.js'));
+for (const f of ['chime.html', 'chime.js']) cpSync(join('rust/ext/js', f), join(out, f));
 // pdf.js, unmodified: the library, its worker, and the wasm decoders for scanned pages.
 mkdirSync(join(out, 'pdfjs'), { recursive: true });
 for (const f of ['build/pdf.min.mjs', 'build/pdf.worker.min.mjs', 'wasm/jbig2.wasm', 'wasm/openjpeg.wasm', 'wasm/qcms_bg.wasm'])

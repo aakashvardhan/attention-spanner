@@ -10,9 +10,10 @@ use reader_core::constants::{
     BLOCKED_PAGE_PATH, DAILY_GATE_DNR_ID, FOCUS_DNR_ID_BASE, FOCUS_DNR_ID_LIMIT, READER_PAGE_PATH,
 };
 use reader_core::focus_rules::{
-    build_session_access_rules, is_blocked_host, is_owned_session_rule, with_reader_tab,
-    without_reader_tab,
+    build_focus_rules, build_session_access_rules, is_blocked_host, is_owned_session_rule,
+    with_reader_tab, without_reader_tab,
 };
+use reader_core::pomodoro::{advance, focus_blocklist, is_focus, Phase, Pomodoro, POMODORO_ALARM};
 use reader_core::types::FocusSession;
 use serde::Deserialize;
 use serde_json::json;
@@ -60,11 +61,19 @@ pub async fn sync_session_access_rules() -> Res<()> {
             .map(|r| r.id)
             .filter(|id| is_owned_session_rule(*id))
             .collect();
-        let add = build_session_access_rules(
-            session.as_ref(),
-            &settings.focus_blocklist,
-            &blocked_page_url(),
-        );
+        let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
+        let add = if is_focus(pomodoro.as_ref()) {
+            build_focus_rules(
+                &focus_blocklist(&settings.focus_blocklist),
+                &blocked_page_url(),
+            )
+        } else {
+            build_session_access_rules(
+                session.as_ref(),
+                &settings.focus_blocklist,
+                &blocked_page_url(),
+            )
+        };
         last = wait(chrome::dnr_update_session_rules(&to_js(
             &json!({ "removeRuleIds": remove, "addRules": add }),
         )?))
@@ -205,9 +214,84 @@ pub async fn reconcile_on_startup() -> Res<()> {
 /// The blocklist was edited mid-session.
 pub async fn refresh_focus_rules(blocklist: &[String]) -> Res<()> {
     let session: Option<FocusSession> = store::get("focusSession").await?;
-    if session.is_some() {
+    let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
+    if is_focus(pomodoro.as_ref()) {
+        sync_session_access_rules().await?;
+        redirect_open_blocked_tabs(&focus_blocklist(blocklist)).await?;
+    } else if session.is_some() {
         sync_session_access_rules().await?;
         redirect_open_blocked_tabs(blocklist).await?;
     }
     Ok(())
+}
+
+/// The Pomodoro changed (started, ticked, advanced, stopped): one alarm at
+/// the phase end, and the blocklist on exactly while focusing.
+pub async fn pomodoro_changed() -> Res<()> {
+    let p: Option<Pomodoro> = store::get("pomodoro").await?;
+    wait(chrome::alarms_clear(POMODORO_ALARM)).await?;
+    if let Some(p) = &p {
+        wait(chrome::alarms_create(
+            POMODORO_ALARM,
+            &to_js(&json!({ "when": p.ends_at }))?,
+        ))
+        .await?;
+    }
+    sync_session_access_rules().await?;
+    if is_focus(p.as_ref()) {
+        redirect_open_blocked_tabs(&focus_blocklist(&store::settings().await?.focus_blocklist))
+            .await?;
+    }
+    Ok(())
+}
+
+/// The phase is up: move on, ring, and say what comes next.
+pub async fn pomodoro_alarm() -> Res<()> {
+    let Some(p) = store::get::<Option<Pomodoro>>("pomodoro").await? else {
+        return Ok(());
+    };
+    // A stale alarm (the phase was restarted meanwhile) waits for its own.
+    if now() + 1000 < p.ends_at {
+        return Ok(());
+    }
+    let into_break = p.phase == Phase::Focus;
+    if into_break {
+        log_activity(ActivityEvent::Focus).await?;
+        log_activity(ActivityEvent::Clocked(
+            ((p.ends_at - p.started_at) / 60_000) as u32,
+        ))
+        .await?;
+    }
+    store::set("pomodoro", &advance(p, now())).await?;
+    let kind = if into_break { "break" } else { "focus" };
+    let _ = wait(chrome::offscreen_close()).await; // the last chime may still be open
+    let _ = wait(chrome::offscreen_create(&to_js(&json!({
+        "url": format!("chime.html#{kind}"),
+        "reasons": ["AUDIO_PLAYBACK"],
+        "justification": "The Pomodoro bell at the end of a focus round or a break.",
+    }))?))
+    .await;
+    let (title, message) = if into_break {
+        (
+            "Break",
+            "Five minutes. Step away and breathe; the sites are open again.",
+        )
+    } else {
+        (
+            "Break over",
+            "Name three tasks on the new tab when you are ready for the next round.",
+        )
+    };
+    wait(chrome::notifications_create(
+        POMODORO_ALARM,
+        &to_js(&json!({
+            "type": "basic",
+            "iconUrl": chrome::get_url("icons/icon-128.png"),
+            "title": title,
+            "message": message,
+            "silent": true,
+        }))?,
+    ))
+    .await
+    .map(drop)
 }

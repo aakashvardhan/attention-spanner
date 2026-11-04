@@ -1,5 +1,5 @@
-//! The papers page: a bookcase with one shelf per alphaXiv folder. Spines
-//! carry a short code, thickness is page count, the brass band is progress.
+//! The papers page: one deck of cards per alphaXiv folder. Each card carries
+//! the title, byline and a brass progress bar.
 //! Arrow keys walk the books (one tab stop for the whole case), Enter pulls a
 //! book out, M moves it (drag does too), and the New-arrivals cart shelves
 //! papers from alphaXiv's Hot and For You feeds with S.
@@ -8,11 +8,11 @@ use super::{send, use_storage};
 use crate::chrome;
 use leptos::prelude::*;
 use reader_core::annotations::annotation_doc_key;
-use reader_core::constants::NEWTAB_PAGE_PATH;
+use reader_core::constants::{LEXICON_PAGE_PATH, NEWTAB_PAGE_PATH};
 use reader_core::explain::ExplainBacks;
 use reader_core::papers::group_by_folder;
 use reader_core::pdf::paper_open_url;
-use reader_core::shelf::{spine_code, step, thickness, wear, Arrival};
+use reader_core::shelf::{step, Arrival};
 use reader_core::types::{Folder, Paper};
 use serde_json::json;
 use wasm_bindgen::JsCast;
@@ -37,6 +37,17 @@ fn book_id(s: usize, b: usize) -> String {
     format!("book-{s}-{b}")
 }
 
+fn byline(p: &Paper) -> String {
+    [
+        p.authors.clone(),
+        p.year.map(|y| y.to_string()).unwrap_or_default(),
+    ]
+    .into_iter()
+    .filter(|s| !s.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ")
+}
+
 fn progress_label(p: &Paper) -> String {
     match p.progress_percent.round() as i64 {
         0 => "not started".into(),
@@ -47,6 +58,7 @@ fn progress_label(p: &Paper) -> String {
 
 #[oxichrome::page(path = "src/pages/papers/index.html", title = "Papers", css = ["assets/theme.css", "assets/papers.css"])]
 pub fn Papers() -> impl IntoView {
+    super::use_theme();
     let (papers, _) = use_storage::<Vec<Paper>>("papers");
     let (folders, _) = use_storage::<Vec<Folder>>("folders");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
@@ -73,8 +85,6 @@ pub fn Papers() -> impl IntoView {
         })
     });
     let at = RwSignal::new((0usize, 0usize));
-    // The book under the pointer or focus: its shelf's nameplate shows its title.
-    let plate = RwSignal::new(None::<(usize, usize)>);
     // Keep the tab stop on a real book as shelves change.
     Effect::new(move |_| {
         let lens: Vec<usize> = shelves.with(|s| s.iter().map(|(_, b)| b.len()).collect());
@@ -158,7 +168,10 @@ pub fn Papers() -> impl IntoView {
         <div id="root">
             <div class="library grid">
                 <header class="library-masthead">
-                    <a class="ghost-btn" href=chrome::get_url(NEWTAB_PAGE_PATH)>"← Today"</a>
+                    <nav class="library-nav">
+                        <a class="ghost-btn" href=chrome::get_url(NEWTAB_PAGE_PATH)>"← Today"</a>
+                        <a class="ghost-btn" href=chrome::get_url(LEXICON_PAGE_PATH)>"Lexicon"</a>
+                    </nav>
                     <h1>"Papers"</h1>
                     <p class="library-keys" aria-hidden="true">"Arrows to browse · Enter to pull out · M to move"</p>
                 </header>
@@ -171,7 +184,6 @@ pub fn Papers() -> impl IntoView {
                         let heading = format!("folder-{}", folder.id);
                         let labelled_by = heading.clone();
                         let target = folder.clone();
-                        let titles: Vec<String> = books.iter().map(|p| format!("{} · {}", p.title, progress_label(p))).collect();
                         view! {
                             <section class="shelf" aria-labelledby=labelled_by
                                 on:dragover=|e: web_sys::DragEvent| e.prevent_default()
@@ -183,7 +195,7 @@ pub fn Papers() -> impl IntoView {
                                     let Some(paper) = papers.with_untracked(|p| p.iter().find(|p| p.id == paper_id).cloned()) else { return };
                                     shelve(Shelving::Move { paper: Box::new(paper), from: from.to_string() }, target.clone());
                                 }>
-                                <h2 id=heading>{folder.name.clone()}</h2>
+                                <h2 id=heading>{folder.name.clone()}<span class="shelf-count">{books.len()}</span></h2>
                                 <ul class="shelf-row">
                                     {books.is_empty().then(|| view! { <li class="shelf-empty">"Nothing on this shelf yet."</li> })}
                                     {books.into_iter().enumerate().map(|(b, p)| {
@@ -194,13 +206,9 @@ pub fn Papers() -> impl IntoView {
                                             <li>
                                                 <button type="button" class="book" id=book_id(s, b)
                                                     tabindex=move || if at.get() == (s, b) { "0" } else { "-1" }
-                                                    data-wear=wear(p.progress_percent).to_string()
-                                                    style=format!("--spine-w: {}px", thickness(&p))
+                                                    style=format!("--p: {}%", p.progress_percent.clamp(0.0, 100.0).round())
                                                     aria-label=label aria-keyshortcuts="M" draggable="true"
-                                                    on:focus=move |_| { at.set((s, b)); plate.set(Some((s, b))); }
-                                                    on:blur=move |_| plate.set(None)
-                                                    on:mouseenter=move |_| plate.set(Some((s, b)))
-                                                    on:mouseleave=move |_| plate.set(None)
+                                                    on:focus=move |_| at.set((s, b))
                                                     on:dragstart=move |e: web_sys::DragEvent| {
                                                         if let Some(d) = e.data_transfer() { let _ = d.set_data("application/x-paper", &drag); }
                                                     }
@@ -208,15 +216,17 @@ pub fn Papers() -> impl IntoView {
                                                         let p = p.clone();
                                                         move |_| { at.set((s, b)); card.set(Some((p.clone(), from.clone(), (s, b)))); request_animation_frame(|| focus_id("book-card-continue")); }
                                                     }>
-                                                    <span class="book-spine" aria-hidden="true">{spine_code(&p.title, p.year)}</span>
+                                                    <span class="book-title" aria-hidden="true">{p.title.clone()}</span>
+                                                    <span class="book-meta" aria-hidden="true">{byline(&p)}</span>
+                                                    <span class="book-foot" aria-hidden="true">
+                                                        <span class="book-bar"></span>
+                                                        {progress_label(&p)}
+                                                    </span>
                                                 </button>
                                             </li>
                                         }
                                     }).collect_view()}
                                 </ul>
-                                <p class="shelf-plate" aria-hidden="true">
-                                    {move || plate.get().filter(|(ps, _)| *ps == s).and_then(|(_, b)| titles.get(b).cloned())}
-                                </p>
                             </section>
                         }
                     }).collect_view()}
@@ -232,8 +242,7 @@ pub fn Papers() -> impl IntoView {
                         (Some(pdf), true) => format!("Page {} of {}", pdf.page, pdf.page_count),
                         (None, true) => "Not opened yet".into(),
                     };
-                    let byline = [p.authors.clone(), p.year.map(|y| y.to_string()).unwrap_or_default()]
-                        .into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · ");
+                    let byline = byline(&p);
                     let href = paper_open_url(&p, false, &chrome::get_url(""));
                     let mv = Shelving::Move { paper: Box::new(p.clone()), from };
                     view! {

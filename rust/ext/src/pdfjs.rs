@@ -47,7 +47,8 @@ extern "C" {
 
 thread_local! {
     static RECOLOR: js_sys::Function = {
-        // The theme's tokens, read once: the stylesheet is the one source of the colours.
+        // The theme's tokens, read per page: the stylesheet is the one source of
+        // the colours, and the palette (html[data-theme]) can land after load.
         let token = |name: &str| {
             web_sys::window()
                 .and_then(|w| w.document())
@@ -56,10 +57,10 @@ thread_local! {
                 .and_then(|s| s.get_property_value(name).ok())
                 .and_then(|v| reader_core::recolor::parse_hex(&v))
         };
-        let ink = token("--pdf-ink").unwrap_or([0xf3, 0xe8, 0xd6]);
-        let paper = token("--pdf-paper").unwrap_or([0x26, 0x1c, 0x16]);
         let f = Closure::<dyn Fn(js_sys::Uint8ClampedArray, u32, js_sys::Float64Array)>::new(
             move |data: js_sys::Uint8ClampedArray, width: u32, boxes: js_sys::Float64Array| {
+                let ink = token("--pdf-ink").unwrap_or([0x1d, 0x18, 0x13]);
+                let paper = token("--pdf-paper").unwrap_or([0xe9, 0xe2, 0xd5]);
                 let mut px = data.to_vec();
                 let images: Vec<_> = boxes
                     .to_vec()

@@ -40,18 +40,20 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        CargoSubcommand::Oxichrome(args) => match args.command {
-            OxichromeCommand::Build { release, target } => {
-                let browser = match target.as_str() {
+        CargoSubcommand::Oxichrome(args) => {
+            match args.command {
+                OxichromeCommand::Build { release, target } => {
+                    let browser = match target.as_str() {
                     "chromium" | "chrome" => Browser::Chromium,
                     "firefox" => Browser::Firefox,
                     other => anyhow::bail!("unknown target browser: {other} (expected \"chromium\" or \"firefox\")"),
                 };
-                commands::build::run(release, browser)?;
+                    commands::build::run(release, browser)?;
+                }
+                OxichromeCommand::Clean => commands::clean::run()?,
+                OxichromeCommand::New { name } => commands::new::run(&name)?,
             }
-            OxichromeCommand::Clean => commands::clean::run()?,
-            OxichromeCommand::New { name } => commands::new::run(&name)?,
-        },
+        }
     }
 
     Ok(())

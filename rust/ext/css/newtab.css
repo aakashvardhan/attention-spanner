@@ -29,70 +29,150 @@ ul {
 
 /* ---------- Layout ---------- */
 
-/* One 12-column grid across the window. The paper you are reading leads, the
-   whole width; under it, the brain dump and the year of reading sit side by
-   side with a hairline between them in the middle of the gutter. */
+/* Four tracks, all one height (--stage-h): the paper board and the to-do
+   board, each three equal cards stacked, a hairline between them, then the
+   side column. Every card stretches to its track, so there is no blank space. */
 .edition {
-  --page-margin: clamp(16px, 4vw, 96px);
-  --page-gutter: clamp(24px, 3vw, 64px);
+  --stage-h: max(calc(100dvh - 128px), 520px); /* ds-exempt: a floor so quarter windows scroll instead of crushing cards */
+  --page-margin: clamp(16px, 3vw, 48px);
+  --page-gutter: clamp(16px, 2vw, 32px);
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) minmax(0, 1.6fr); /* ds-exempt: the hairline track */
+  grid-template-rows: var(--stage-h) auto;
   column-gap: var(--page-gutter);
   min-height: 100dvh;
-  max-width: 1440px; /* ds-exempt: a measure, not spacing */
+  max-width: 1760px; /* ds-exempt: a measure, not spacing */
   margin-inline: auto;
-  padding: clamp(24px, 6vh, 96px) var(--page-margin) var(--space-6);
+  padding: var(--space-6) var(--page-margin) var(--space-5);
 }
-.read-section {
-  grid-column: 1 / -1;
-  min-width: 0;
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border);
-}
-.now-col,
-.heat-col {
+.board {
   display: grid;
-  align-content: start;
-  gap: var(--space-7);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
   min-width: 0;
+  min-height: 0;
 }
-.now-col {
-  position: relative;
-  grid-column: 1 / span 6;
+.board-divider {
+  background: var(--border);
 }
-.heat-col {
-  grid-column: 7 / -1;
+/* Same height as a full board column, so both end on one line; the feed
+   takes whatever the cards above it leave. */
+.side-col {
+  container: side / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  height: var(--stage-h);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
-.now-col::after {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  right: calc(var(--page-gutter) / -2);
-  border-right: 1px solid var(--border);
+.side-col > * {
+  flex: none;
+}
+/* The brain dump and the feed share whatever height the fixed cards leave,
+   so the column always ends level with the boards. */
+.side-col > .notebook,
+.side-col > .feed {
+  flex: 1 1 0;
+}
+.side-col > * {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
 }
 
-/* The paper on the left, what is still open on the right. */
-.continue {
+/* ---------- Board ---------- */
+
+.board-col {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  column-gap: var(--page-gutter);
-  row-gap: var(--space-5);
-  align-items: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
 }
-.continue-paper .row-title {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  line-height: var(--leading-2xl);
+.label.board-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding-inline: var(--space-1);
 }
-.continue-gaps li {
+.board-count {
+  font-weight: 400;
+}
+.board-list {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.board-empty {
+  padding: var(--space-2) var(--space-1);
+}
+.paper-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  transition: border-color var(--transition-fast);
+}
+.paper-card:hover {
+  border-color: var(--accent-border);
+}
+.paper-card--reading {
+  border-color: var(--live);
+}
+.paper-card-link {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  color: var(--text-primary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+}
+.paper-card-title {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.paper-card-link .hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Progress: a thin brass bar, filled to how far you are. */
+.paper-card-bar {
+  height: 4px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--accent-track);
+  overflow: hidden;
+}
+.paper-card-bar::before {
+  content: '';
+  display: block;
+  width: var(--p);
+  height: 100%;
+  background: var(--accent);
+}
+.paper-card-gaps {
+  display: grid;
+  padding: 0 var(--space-3) var(--space-3);
+}
+.paper-card-gaps li {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding-block: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-2);
+  padding-block: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--text-secondary);
@@ -101,38 +181,57 @@ ul {
   flex-shrink: 0;
   font-weight: 700;
 }
-/* Two classes: the shared .label rule further down resets margins. */
-.label.also-label {
-  margin-top: var(--space-6);
+
+/* The paper open in a reader tab right now. */
+@keyframes live-blink {
+  50% {
+    opacity: 0.2;
+  }
 }
-.also {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  column-gap: var(--page-gutter);
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--live);
+  vertical-align: middle;
+  animation: live-blink 1.2s steps(2, jump-none) infinite;
 }
 
-@media (max-width: 900px) {
-  .continue {
-    grid-template-columns: minmax(0, 1fr);
+/* Half window: the two boards side by side, the side column full width
+   under them. */
+@media (max-width: 1100px) {
+  .edition {
+    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); /* ds-exempt: the hairline track */
+    grid-template-rows: var(--stage-h) auto;
+    row-gap: var(--space-5);
+  }
+  .side-col {
+    grid-column: 1 / -1;
+    height: auto;
+    overflow: visible;
+  }
+  .feed-list {
+    max-height: 50dvh;
   }
 }
 
-@media (max-width: 720px) {
-  /* Stacked, nothing stretches: the footer follows the heatmap. */
+/* Third of a screen: one column, each card as tall as it needs up to half
+   the screen. */
+@media (max-width: 640px) {
   .edition {
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
   }
-  .now-col,
-  .heat-col {
-    grid-column: 1 / -1;
+  .board {
+    grid-template-rows: none;
   }
-  .now-col {
-    padding-bottom: var(--space-6);
-    margin-bottom: var(--space-6);
-    border-bottom: 1px solid var(--border);
+  .board-col {
+    max-height: 50dvh;
   }
-  .now-col::after {
-    content: none;
+  .board-divider {
+    height: 1px; /* ds-exempt: a hairline */
   }
 }
 
@@ -140,8 +239,8 @@ ul {
 
 .label {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -150,8 +249,8 @@ ul {
 
 .hint {
   margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   color: var(--text-muted);
 }
 .hint + .hint,
@@ -176,6 +275,16 @@ ul + .hint {
   cursor: pointer;
 }
 .row:hover .row-title {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.row-title {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -210,6 +319,7 @@ ul + .hint {
 
 .notebook {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-2);
 }
 .notebook-kicker,
@@ -219,8 +329,8 @@ ul + .hint {
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   color: var(--text-muted);
 }
 .notebook-lock {
@@ -230,6 +340,8 @@ ul + .hint {
 }
 .notebook-input,
 .notebook-bullets {
+  min-height: 0;
+  overflow-y: auto;
   margin: 0;
   font-size: var(--text-md);
   line-height: var(--leading-read);
@@ -237,7 +349,8 @@ ul + .hint {
 }
 .notebook-input {
   width: 100%;
-  min-height: calc(var(--leading-read) * 4);
+  height: 100%;
+  min-height: calc(var(--leading-read) * 2);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -268,6 +381,7 @@ ul + .hint {
   color: var(--text-muted);
 }
 .notebook-foot {
+  flex-wrap: wrap;
   justify-content: space-between;
 }
 .notebook-count {
@@ -279,6 +393,32 @@ ul + .hint {
 }
 .notebook-count:hover {
   color: var(--text-primary);
+}
+.notebook-mic {
+  flex: none;
+}
+/* Doubled class: .edition-pill comes later in this file and would win. */
+.edition-pill.notebook-mic--on {
+  background: var(--rule);
+  color: var(--bg-page);
+}
+.notebook-mic-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* Hollow while listening, filled while it hears speech. */
+.notebook-mic-dot {
+  flex: none;
+  width: 0.6em;
+  height: 0.6em;
+  border: 1px solid var(--text-primary);
+  border-radius: var(--radius-pill);
+}
+.notebook-mic-dot--on {
+  background: var(--text-primary);
 }
 .notebook-keys {
   display: inline-flex;
@@ -299,8 +439,8 @@ ul + .hint {
   display: grid;
   gap: var(--space-2);
   padding-top: var(--space-2);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   color: var(--text-secondary);
 }
 .notebook-setup p {
@@ -326,14 +466,14 @@ ul + .hint {
   justify-self: start;
 }
 .edition-pill {
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-2) var(--space-5);
   border: 1px solid var(--rule);
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   font-weight: 700;
   cursor: pointer;
 }
@@ -385,7 +525,7 @@ ul + .hint {
 }
 .heat-seg {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-1);
 }
 .heat-seg button {
   padding: 0;
@@ -486,8 +626,8 @@ ul + .hint {
   background: none;
   color: var(--text-secondary);
   font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
   cursor: pointer;
 }
 .edition-link:hover {
@@ -496,8 +636,583 @@ ul + .hint {
   text-underline-offset: 4px;
 }
 
+/* ---------- Today (brain dump to-dos) ---------- */
+
+.todo {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+/* Drag (todo_drag.rs): cards move on the translate property, on a spring. */
+.board--todos .board-list {
+  position: relative;
+}
+.board--todos .todo {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition:
+    translate var(--dur-snappy) var(--spring-snappy),
+    scale var(--dur-snappy) var(--spring-snappy),
+    box-shadow var(--dur-effect-slow) var(--ease-effect);
+}
+.todo--placeholder {
+  visibility: hidden;
+}
+.todo--ghost {
+  position: fixed;
+  z-index: 10;
+  margin: 0;
+  pointer-events: none;
+  cursor: grabbing;
+  transition:
+    scale var(--dur-snappy) var(--spring-snappy),
+    box-shadow var(--dur-effect-slow) var(--ease-effect);
+}
+.todo--ghost,
+.board--todos .todo {
+  list-style: none;
+}
+.todo--lifted {
+  scale: 1.03;
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-lg);
+}
+body.todo-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+body.todo-dragging .board--todos .board-empty {
+  visibility: hidden;
+}
+.board--todos .board-col {
+  outline: 1px solid transparent;
+  transition: outline-color var(--dur-effect-fast) var(--ease-effect);
+}
+.board--todos .board-col--over {
+  outline-color: var(--accent-border);
+}
 @media (prefers-reduced-motion: reduce) {
+  .board--todos .todo,
+  .todo--ghost {
+    transition: none;
+  }
+  .todo--lifted {
+    scale: 1;
+  }
+}
+.todo-text {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+/* Narrow columns wrap the time onto its own line rather than cutting off a button. */
+.todo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.todo-row .todo-when {
+  flex: 1 1 calc(var(--space-8) * 2.5);
+}
+.todo-row .todo-delete {
+  margin-left: auto;
+}
+.board--todos .board-col {
+  container-type: inline-size;
+}
+@container (max-width: 420px) {
+  .todo-row .todo-when {
+    flex-basis: 100%;
+  }
+}
+.todo--done .todo-text {
+  color: var(--text-muted);
+  font-weight: 400;
+  text-decoration: line-through;
+}
+.todo--late .todo-when {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.todo-when {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  color-scheme: light;
+}
+.todo-move {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.todo-move--fwd {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+.todo-move:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.todo-add input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.todo-delete {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-lg);
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.todo-delete:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ---------- Today, in numbers (beside the clock) ---------- */
+
+.today-stats {
+  display: grid;
+  align-content: center;
+  gap: var(--space-3);
+  flex: 0 1 40%;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--border);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.today-stats .label {
+  margin: 0;
+}
+.today-stats > div,
+.today-stats dd {
+  min-width: 0;
+}
+.today-stats dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+/* Naming three tasks needs the room. */
+.clock:has(.pomo-plan) .today-stats {
+  display: none;
+}
+.today-next {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Shorter windows (laptops): the tall pieces give back height so the side
+   column fits without scrolling. */
+@media (max-height: 960px) {
+  .edition {
+    --stage-h: max(calc(100dvh - 88px), 520px); /* ds-exempt: see .edition */
+    padding-top: var(--space-4);
+  }
+  .edition-index {
+    margin-top: var(--space-4);
+  }
+  .feed {
+    min-height: calc(var(--space-8) * 1.5);
+  }
+  .clock .clock-face {
+    width: 128px;
+    height: 128px;
+  }
+  .side-col {
+    gap: var(--space-3);
+  }
+}
+
+/* A narrow side column (smaller windows): the numbers move under the clock,
+   two by two, instead of squeezing the weather and the button. */
+@container side (max-width: 640px) {
+  .clock {
+    flex-wrap: wrap;
+    row-gap: var(--space-4);
+  }
+  .clock-sky {
+    flex: 1 1 0;
+  }
+  .today-stats {
+    flex: 1 1 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-3);
+    margin: 0;
+    padding: var(--space-3) 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+@container side (max-width: 400px) {
+  .clock .clock-face {
+    width: 128px;
+    height: 128px;
+  }
+  .clock-sky .edition-pill {
+    white-space: normal;
+  }
+}
+
+/* ---------- Pomodoro ---------- */
+
+.clock-pomo-arc {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.clock-sky {
+  flex: 1;
+  min-width: 0;
+}
+.pomo {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-3);
+}
+.pomo .label {
+  margin: 0;
+}
+.pomo-task-input {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.pomo-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.pomo-phase {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.pomo-left {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  color: var(--text-primary);
+}
+.pomo-tasks {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.todo-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.todo-check input {
+  flex: none;
+  accent-color: var(--accent);
+}
+.pomo-tasks .todo--done span {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+/* The break: one circle that fills on the in-breath (4s) and empties on the out-breath (6s). */
+.pomo-breath {
+  display: grid;
+  place-items: center;
+  width: var(--space-8);
+  height: var(--space-8);
+}
+.pomo-breath span {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--accent-wash);
+  border: 2px solid var(--accent);
+  animation: breathe 10s var(--ease-effect) infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.45);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pomo-breath span {
+    animation: none;
+    transform: scale(0.7);
+  }
+}
+body {
+  transition: background-color var(--dur-effect-slow) var(--ease-effect);
+}
+
+/* ---------- Feed ---------- */
+
+/* At least two stories; only a very short window makes the column scroll. */
+.feed {
+  min-height: calc(var(--space-8) * 2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.feed .label {
+  margin: 0;
+}
+.feed-list {
+  min-height: 0;
+  margin: 0;
+  padding-left: var(--space-5);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  font-size: var(--text-md);
+}
+.feed-list li {
+  padding-block: var(--space-1);
+}
+.feed-link {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.feed-link:hover {
+  text-decoration: underline;
+}
+.feed-comments {
+  margin-left: var(--space-2);
+}
+
+/* ---------- Clock ---------- */
+
+.clock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.clock-face {
+  width: 176px;
+  height: 176px;
+  flex: none;
+}
+.clock-case {
+  fill: var(--accent-border);
+}
+.clock-bezel {
+  fill: var(--accent-soft);
+}
+.clock-flute {
+  stroke: var(--accent-border);
+  stroke-width: 1;
+}
+.clock-dial {
+  fill: var(--bg-page);
+  stroke: var(--accent-track);
+  stroke-width: 1;
+}
+.clock-tick {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+}
+.clock-lume {
+  fill: var(--text-primary);
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+.clock-cyclops {
+  fill: none;
+  stroke: var(--accent-hover);
+  stroke-width: 1.5;
+}
+.clock-date {
+  fill: var(--text-primary);
+}
+.clock-date-num {
+  fill: var(--bg-page);
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+.clock-word {
+  fill: var(--accent-text);
+  font-family: var(--font-sans);
+  letter-spacing: 0.2em;
+}
+.clock-hand {
+  fill: var(--accent);
+  stroke: var(--accent);
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.clock-merc-spoke {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.clock-hand-h {
+  animation: clock-turn 43200s linear infinite;
+  animation-delay: calc(var(--h) * -1s);
+  /* motion-exempt: an hour hand moves half a degree a minute */
+}
+.clock-hand-m {
+  animation: clock-turn 3600s linear infinite;
+  animation-delay: calc(var(--m) * -1s);
+  /* motion-exempt: a minute hand moves a tenth of a degree a second */
+}
+.clock-hand-s {
+  stroke: var(--accent-hover);
+  stroke-width: 1.5;
+  animation: clock-turn 60s linear infinite;
+  animation-delay: calc(var(--s) * -1s);
+}
+.clock-pin {
+  fill: var(--accent-hover);
+}
+@keyframes clock-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.clock-sky {
+  display: grid;
+  gap: var(--space-1);
+}
+.clock-sky p {
+  margin: 0;
+}
+.clock-temp {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep is the one hand that visibly moves. */
+  .clock-hand-s {
+    animation: none;
+    display: none;
+  }
   body {
     transition: none;
+  }
+  .live-dot {
+    animation: none;
+  }
+}
+
+/* ---------- Buttons: Apple-sized, and they answer the finger ---------- */
+
+.edition-pill {
+  white-space: nowrap;
+}
+.todo-delete {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+}
+.heat-title,
+.heat .hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* Every control on the page springs down a little while pressed and back on
+   release (scale, so nothing around it moves); colour changes ease. */
+.edition-pill,
+.todo-move,
+.todo-delete,
+.edition-link,
+.heat-seg button,
+.feed-link {
+  transition:
+    scale var(--dur-snappy) var(--spring-snappy),
+    background-color var(--dur-effect-fast) var(--ease-effect),
+    border-color var(--dur-effect-fast) var(--ease-effect),
+    color var(--dur-effect-fast) var(--ease-effect);
+}
+.edition-pill:active:not(:disabled),
+.todo-move:active,
+.todo-delete:active,
+.edition-link:active,
+.heat-seg button:active {
+  scale: 0.96;
+  transition-duration: var(--dur-effect-fast);
+}
+.heat-seg button {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.heat-seg button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.heat-seg button[aria-checked='true'] {
+  background: var(--bg-subtle);
+}
+@media (prefers-reduced-motion: reduce) {
+  .edition-pill,
+  .todo-move,
+  .todo-delete,
+  .edition-link,
+  .heat-seg button,
+  .feed-link {
+    transition: none;
+  }
+  .edition-pill:active:not(:disabled),
+  .todo-move:active,
+  .todo-delete:active,
+  .edition-link:active,
+  .heat-seg button:active {
+    scale: 1;
   }
 }

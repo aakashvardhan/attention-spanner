@@ -4,6 +4,7 @@
 
 use super::{send, use_storage};
 use leptos::prelude::*;
+use reader_core::pomodoro::{is_focus, Pomodoro};
 use reader_core::types::FocusSession;
 use serde_json::json;
 
@@ -17,12 +18,15 @@ fn blocked_url() -> Option<url::Url> {
 
 #[oxichrome::page(path = "src/pages/blocked/index.html", title = "Focus Mode", css = ["assets/theme.css", "assets/blocked.css"])]
 pub fn Blocked() -> impl IntoView {
+    super::use_theme();
     let (session, _) = use_storage::<Option<FocusSession>>("focusSession");
     let url = blocked_url();
     let host = url.as_ref().and_then(|u| {
         u.host_str()
             .map(|h| h.trim_start_matches("www.").to_string())
     });
+    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+    let focusing = move || pomodoro.with(|p| is_focus(p.as_ref()));
     let reading = move || session.get().is_some_and(|s| !s.tab_ids.is_empty());
     let title = move || session.get().map(|s| s.title).unwrap_or_default();
 
@@ -30,6 +34,25 @@ pub fn Blocked() -> impl IntoView {
         <div id="root">
             {move || {
                 let host = host.clone();
+                if focusing() && !reading() {
+                    let heading = match host {
+                        Some(h) => format!("{h} is blocked until your break"),
+                        None => "This site is blocked until your break".to_string(),
+                    };
+                    let tasks = pomodoro.get().map(|p| p.tasks).unwrap_or_default();
+                    return view! {
+                        <main class="blocked grid">
+                            <div class="blocked-inner">
+                                <h1>{heading}</h1>
+                                <p class="blocked-intention">"This round you said you would:"</p>
+                                <ul class="blocked-tasks">
+                                    {tasks.into_iter().map(|t| view! { <li class:done=t.done>{t.text}</li> }).collect_view()}
+                                </ul>
+                            </div>
+                        </main>
+                    }
+                    .into_any();
+                }
                 if !reading() {
                     let link = url.clone().map(|u| {
                         view! { <a class="blocked-continue" href=u.to_string()>"Continue to "{host.clone()}</a> }.into_any()

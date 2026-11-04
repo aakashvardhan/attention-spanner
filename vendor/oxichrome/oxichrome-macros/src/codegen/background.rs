@@ -17,10 +17,7 @@ pub fn expand(item: TokenStream) -> Result<TokenStream, syn::Error> {
     let vis = &func.vis;
     let attrs = &func.attrs;
 
-    let wrapper_name = syn::Ident::new(
-        &format!("__oxichrome_bg_{fn_name}"),
-        fn_name.span(),
-    );
+    let wrapper_name = syn::Ident::new(&format!("__oxichrome_bg_{fn_name}"), fn_name.span());
 
     Ok(quote! {
         #(#attrs)*

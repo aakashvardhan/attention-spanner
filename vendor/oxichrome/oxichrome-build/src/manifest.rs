@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use crate::Browser;
 use crate::source_parser::ExtensionMetadata;
+use crate::Browser;
 
 #[derive(Serialize)]
 struct Manifest {
@@ -106,15 +106,17 @@ pub fn generate_manifest(metadata: &ExtensionMetadata, browser: Browser) -> anyh
         } else {
             None
         },
-        content_scripts: metadata.content_scripts.iter().map(|cs| {
-            ContentScriptEntry {
+        content_scripts: metadata
+            .content_scripts
+            .iter()
+            .map(|cs| ContentScriptEntry {
                 matches: cs.matches.clone(),
                 js: vec![format!("content_script_{}.js", cs.fn_name)],
                 run_at: cs.run_at.clone(),
                 all_frames: cs.all_frames,
                 css: cs.css.clone(),
-            }
-        }).collect(),
+            })
+            .collect(),
         web_accessible_resources: vec![WebAccessibleResource {
             resources: vec!["wasm/*".to_string()],
             matches: vec!["<all_urls>".to_string()],
@@ -219,22 +221,23 @@ mod tests {
             event_handlers: vec![],
             has_popup: false,
             has_options_page: false,
-            content_scripts: vec![
-                ContentScript {
-                    fn_name: "inject".to_string(),
-                    matches: vec!["<all_urls>".to_string()],
-                    run_at: None,
-                    all_frames: None,
-                    css: vec![],
-                },
-            ],
+            content_scripts: vec![ContentScript {
+                fn_name: "inject".to_string(),
+                matches: vec!["<all_urls>".to_string()],
+                run_at: None,
+                all_frames: None,
+                css: vec![],
+            }],
             pages: vec![],
         };
         let json = generate_manifest(&metadata, Browser::Chromium).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(parsed["content_scripts"][0]["matches"][0], "<all_urls>");
-        assert_eq!(parsed["content_scripts"][0]["js"][0], "content_script_inject.js");
+        assert_eq!(
+            parsed["content_scripts"][0]["js"][0],
+            "content_script_inject.js"
+        );
         assert!(parsed["content_scripts"][0].get("run_at").is_none());
         assert!(parsed["content_scripts"][0].get("all_frames").is_none());
         assert!(parsed["content_scripts"][0].get("css").is_none());
@@ -254,15 +257,13 @@ mod tests {
             event_handlers: vec![],
             has_popup: false,
             has_options_page: false,
-            content_scripts: vec![
-                ContentScript {
-                    fn_name: "inject".to_string(),
-                    matches: vec!["<all_urls>".to_string()],
-                    run_at: Some("document_start".to_string()),
-                    all_frames: Some(true),
-                    css: vec!["styles.css".to_string()],
-                },
-            ],
+            content_scripts: vec![ContentScript {
+                fn_name: "inject".to_string(),
+                matches: vec!["<all_urls>".to_string()],
+                run_at: Some("document_start".to_string()),
+                all_frames: Some(true),
+                css: vec!["styles.css".to_string()],
+            }],
             pages: vec![],
         };
         let json = generate_manifest(&metadata, Browser::Chromium).unwrap();
@@ -336,17 +337,23 @@ mod tests {
             "action": { "default_popup": "popup.html" },
             "content_security_policy": { "extension_pages": "script-src 'self'" }
         });
-        apply_patch(&mut base, &serde_json::json!({
-            "permissions": ["storage", "alarms"],
-            "action": { "default_popup": null, "default_icon": { "16": "icons/16.png" } },
-            "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
-        }));
-        assert_eq!(base, serde_json::json!({
-            "name": "X",
-            "permissions": ["storage", "alarms"],
-            "action": { "default_icon": { "16": "icons/16.png" } },
-            "content_security_policy": { "extension_pages": "script-src 'self'" },
-            "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
-        }));
+        apply_patch(
+            &mut base,
+            &serde_json::json!({
+                "permissions": ["storage", "alarms"],
+                "action": { "default_popup": null, "default_icon": { "16": "icons/16.png" } },
+                "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
+            }),
+        );
+        assert_eq!(
+            base,
+            serde_json::json!({
+                "name": "X",
+                "permissions": ["storage", "alarms"],
+                "action": { "default_icon": { "16": "icons/16.png" } },
+                "content_security_policy": { "extension_pages": "script-src 'self'" },
+                "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" }
+            })
+        );
     }
 }

@@ -548,9 +548,11 @@ body {
   pointer-events: auto;
   border-radius: var(--radius-sm);
 }
+/* An underline, not a fill: the layer sits over the canvas, so an opaque wash hides the link text. */
 .reader-link:hover,
 .reader-link:focus-visible {
-  background: var(--accent-wash);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 0;
 }
 
 .textLayer {

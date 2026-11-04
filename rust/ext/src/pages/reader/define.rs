@@ -2,13 +2,15 @@
 //! fractions and words (PdfViewport.tsx's defineAt and handlePointerUp,
 //! components/DefinePopover.tsx). The word rules are reader_core's.
 
-use crate::pages::ai::{use_ai, AiNote, SaveNotePrompt};
+use crate::chrome;
+use crate::pages::ai::{use_ai, AiNote, AiStatus, SaveNotePrompt};
 use leptos::html;
 use leptos::prelude::*;
 use reader_core::ai::define_request;
 use reader_core::annotations::{merge_line_rects, normalize_rects, Box};
 use reader_core::clicked_word::{chars_to_utf16, clicked_word, utf16_to_chars};
 use reader_core::constants::ANNOTATION_TEXT_MAX_CHARS;
+use reader_core::constants::LEXICON_PAGE_PATH;
 use reader_core::types::AnnotationRect;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, Node};
@@ -217,8 +219,15 @@ pub fn DefinePopover(
     on_close: Callback<()>,
     /// Once written: keep the definition as a note on the term
     on_save: Callback<String>,
+    /// Once written: keep the term in the lexicon, with (definition, guess)
+    on_keep: Callback<(String, String)>,
 ) -> impl IntoView {
     let ai = use_ai();
+    let kept = RwSignal::new(false);
+    let written = move || {
+        ai.view
+            .with(|v| v.status == AiStatus::Done && !v.text.is_empty())
+    };
     let draft = RwSignal::new(String::new());
     let guess = RwSignal::new(None::<String>);
     let root: NodeRef<html::Div> = NodeRef::new();
@@ -289,6 +298,21 @@ pub fn DefinePopover(
                     on_save.run(format!("Your guess: {} / Paper: {note}", guess.get_untracked().unwrap_or_default()));
                     on_close.run(());
                 }) />
+                <Show when=written>
+                    <div class="ai-note-actions">
+                        <Show
+                            when=move || kept.get()
+                            fallback=move || view! {
+                                <button type="button" class="ai-note-btn" on:click=move |_| {
+                                    on_keep.run((ai.view.with_untracked(|v| v.text.clone()), guess.get_untracked().unwrap_or_default()));
+                                    kept.set(true);
+                                }>"Add to lexicon"</button>
+                            }
+                        >
+                            <a class="ai-note-link" href=chrome::get_url(LEXICON_PAGE_PATH) target="_blank">"In your lexicon ↗"</a>
+                        </Show>
+                    </div>
+                </Show>
             </Show>
         </div>
     }

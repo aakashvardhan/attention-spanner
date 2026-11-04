@@ -9,6 +9,7 @@ use wasm_bindgen::JsCast;
 
 #[oxichrome::page(path = "src/pages/options/index.html", title = "Reader — Settings", css = ["assets/theme.css", "assets/options.css"])]
 pub fn Options() -> impl IntoView {
+    super::use_theme();
     let (settings, loaded) = use_settings();
     let block_input = RwSignal::new(String::new());
     let block_feedback = RwSignal::new(None::<String>);
@@ -58,6 +59,22 @@ pub fn Options() -> impl IntoView {
                         <section class="section" id="reader">
                             <h2>"Reader"</h2>
                             <div class="setting-row">
+                                <label for="theme">
+                                    "Colours "
+                                    <span class="hint-inline">"(every palette is dark ink on a light, non-white page, AAA contrast)"</span>
+                                </label>
+                                <select
+                                    id="theme"
+                                    prop:value=move || settings.get().theme
+                                    on:change=move |e| {
+                                        let t = event_target_value(&e);
+                                        leptos::task::spawn_local(async move { patch_settings("theme", json!(t)).await });
+                                    }
+                                >
+                                    {super::THEMES.iter().map(|(v, l)| view! { <option value=*v>{*l}</option> }).collect_view()}
+                                </select>
+                            </div>
+                            <div class="setting-row">
                                 <label for="focus-line">
                                     "Focus line "
                                     <span class="hint-inline">"(dim everything but the passage you are reading; F toggles it)"</span>
@@ -86,6 +103,15 @@ pub fn Options() -> impl IntoView {
                                 password=true
                                 value=Signal::derive(move || settings.get().claude_key)
                                 on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("claudeKey", json!(key)).await }))
+                            />
+                            <p class="hint">"Groq Whisper turns what you say into brain dump text. Only the parts with speech are sent."</p>
+                            <TextRow
+                                id="groq-key"
+                                label="Groq API key"
+                                placeholder="gsk_…"
+                                password=true
+                                value=Signal::derive(move || settings.get().groq_key)
+                                on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("groqKey", json!(key)).await }))
                             />
                         </section>
 

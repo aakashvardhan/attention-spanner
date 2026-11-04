@@ -227,6 +227,58 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.close();
   });
 
+  it('keeps a defined term in the lexicon under the name Haiku gave it, once per paper', async () => {
+    type Lex = { terms: { id: string; label: string; sources: { docKey: string; definition: string; guess: string; context: string }[] }[] };
+    await seed(ext, { lexicon: { terms: [], edges: [] } });
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
+    const keep = async (line: number, guess: string) => {
+      const at = await page.$$eval(
+        '.reader-page[aria-label^="Page 1 "] .textLayer span',
+        (spans, n) => {
+          const node = spans[n as number].firstChild as Text;
+          const start = node.data.indexOf('transformer');
+          const range = document.createRange();
+          range.setStart(node, start + 2);
+          range.setEnd(node, start + 3);
+          const r = range.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        },
+        line,
+      );
+      await page.mouse.click(at.x, at.y);
+      const popover = page.getByRole('dialog', { name: 'Definition of transformer' });
+      // Nothing to keep until the paper's meaning is written.
+      expect(await popover.getByRole('button', { name: 'Add to lexicon' }).count()).toBe(0);
+      await popover.getByRole('textbox').fill(guess);
+      await popover.getByRole('button', { name: 'Compare' }).click();
+      await popover.getByRole('button', { name: 'Add to lexicon' }).click({ timeout: 10_000 });
+      // Kept in place: the popover stays, the note prompt is still offered.
+      await expect.poll(() => popover.getByRole('link', { name: /In your lexicon/ }).count()).toBe(1);
+      expect(await popover.getByText('Save as a note here?').count()).toBe(1);
+      await page.keyboard.press('Escape');
+      await page.mouse.click(5, 300);
+    };
+    // Lines 1 and 2 already carry the note test's highlights; a click there opens those instead.
+    await keep(3, 'a model');
+    await expect.poll(async () => (await storage<Lex>(ext, 'lexicon')).terms.length).toBe(1);
+    let lex = await storage<Lex>(ext, 'lexicon');
+    expect(lex.terms[0].id).toBe('transformer');
+    expect(lex.terms[0].label).toBe('Transformer');
+    expect(lex.terms[0].sources[0].definition).toBe('an attention-based sequence model.');
+    expect(lex.terms[0].sources[0].guess).toBe('a model');
+    expect(lex.terms[0].sources[0].context).toContain('BLEU scores');
+
+    // The same term from the same paper again: still one node, one source, the newer guess.
+    await keep(4, 'a network');
+    await expect.poll(async () => (await storage<Lex>(ext, 'lexicon')).terms[0].sources[0].guess).toBe('a network');
+    lex = await storage<Lex>(ext, 'lexicon');
+    expect(lex.terms.length).toBe(1);
+    expect(lex.terms[0].sources.length).toBe(1);
+    await page.close();
+    expectClean(ext);
+  });
+
   it('draws the maths in a definition with KaTeX, loaded on first use', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');

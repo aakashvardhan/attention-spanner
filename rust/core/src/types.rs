@@ -56,7 +56,18 @@ pub struct Paper {
 pub struct FocusSession {
     pub started_at: i64,
     pub tab_ids: Vec<i32>,
+    /// The paper opened last (the blocked page names it).
     pub title: String,
+    /// Every open reader tab's paper, so each one shows as being read.
+    #[serde(default)]
+    pub titles: std::collections::BTreeMap<i32, String>,
+}
+
+impl FocusSession {
+    /// Is this paper open in a reader tab right now?
+    pub fn is_reading(&self, title: &str) -> bool {
+        self.titles.values().any(|t| t == title) || self.title == title
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +151,16 @@ pub struct Settings {
     pub reader_focus_line: bool,
     pub focus_blocklist: Vec<String>,
     pub claude_key: String,
+    /// For the brain dump's voice input (Groq Whisper).
+    #[serde(default)]
+    pub groq_key: String,
+    /// Palette name for html[data-theme] (theme.css); "paper" is the default.
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "paper".into()
 }
 
 impl Default for Settings {
@@ -151,6 +172,8 @@ impl Default for Settings {
                 .map(|d| d.to_string())
                 .collect(),
             claude_key: String::new(),
+            groq_key: String::new(),
+            theme: default_theme(),
         }
     }
 }

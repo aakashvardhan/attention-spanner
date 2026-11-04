@@ -1,74 +1,9 @@
-//! The bookcase: a book's spine (a short code, a thickness from its page
-//! count, wear from how far it is read), arrow keys across shelves, a move
-//! between alphaXiv folders, and the titles for the New-arrivals cart.
+//! The paper decks: arrow keys across decks, a move between alphaXiv
+//! folders, and the titles for the New-arrivals cart.
 
 use crate::types::Paper;
 use regex::Regex;
 use std::sync::LazyLock;
-
-/// Spine letters before the code is cut.
-const SPINE_MAX_CHARS: usize = 10;
-/// A paper the reader has not opened yet has no page count; it gets a typical one.
-const DEFAULT_PAGES: u32 = 12;
-const SPINE_MIN_PX: u32 = 20;
-const SPINE_MAX_PX: u32 = 48;
-
-const SKIP: [&str; 9] = [
-    "a", "an", "the", "on", "of", "towards", "toward", "for", "to",
-];
-
-/// "Mamba: Linear-Time Sequence Modeling…" (2023) → "Mamba '23". A short name
-/// before a colon is the paper's own name; otherwise its first real word.
-pub fn spine_code(title: &str, year: Option<i32>) -> String {
-    let clean = |s: &str| -> String {
-        s.chars()
-            .filter(|c| !matches!(c, '$' | '_' | '{' | '}' | '\\' | '"' | '\''))
-            .collect::<String>()
-            .trim()
-            .to_string()
-    };
-    let name = match title.split_once(':') {
-        Some((head, _)) if head.split_whitespace().count() <= 3 && !clean(head).is_empty() => {
-            clean(head)
-        }
-        _ => title
-            .split_whitespace()
-            .map(clean)
-            .find(|w| !w.is_empty() && !SKIP.contains(&w.to_lowercase().as_str()))
-            .unwrap_or_default(),
-    };
-    let mut code: String = name.chars().take(SPINE_MAX_CHARS).collect();
-    if name.chars().count() > SPINE_MAX_CHARS {
-        code.pop();
-        code.push('…');
-    }
-    if code.is_empty() {
-        code = "?".into();
-    }
-    match year {
-        Some(y) => format!("{code} '{:02}", y.rem_euclid(100)),
-        None => code,
-    }
-}
-
-/// Spine width in px: thicker for longer papers, within a readable range.
-pub fn thickness(paper: &Paper) -> u32 {
-    let pages = paper
-        .pdf
-        .as_ref()
-        .map_or(DEFAULT_PAGES, |p| p.page_count.max(1));
-    (SPINE_MIN_PX + pages / 2).clamp(SPINE_MIN_PX, SPINE_MAX_PX)
-}
-
-/// 0 untouched, 1 started, 2 well into it, 3 finished.
-pub fn wear(progress_percent: f64) -> u8 {
-    match progress_percent {
-        p if p >= 100.0 => 3,
-        p if p >= 50.0 => 2,
-        p if p >= 1.0 => 1,
-        _ => 0,
-    }
-}
 
 /// The arrow keys over the bookcase: `lens` are the books per shelf, `at` is
 /// (shelf, book). Up and down skip empty shelves and keep the column where
@@ -126,16 +61,7 @@ pub fn arrivals_from_atom(xml: &str, ids: &[String]) -> Vec<Arrival> {
             let body = e.get(1)?.as_str();
             let id = ENTRY_ID.captures(body)?.get(1)?.as_str().to_string();
             let raw = TITLE.captures(body)?.get(1)?.as_str();
-            let title = raw
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replace("&amp;", "&");
-            Some((id, title))
+            Some((id, unescape(raw)))
         })
         .collect();
     ids.iter()
@@ -149,6 +75,35 @@ pub fn arrivals_from_atom(xml: &str, ids: &[String]) -> Vec<Arrival> {
         .collect()
 }
 
+static ENTITY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"&(?:#[xX]([0-9a-fA-F]+)|#([0-9]+)|(lt|gt|quot|apos|amp));").unwrap()
+});
+
+/// Collapse whitespace and undo the XML entities: the five named ones and any
+/// numeric one (&#39;, &#x27;). One pass, so &amp;#39; stays &#39;.
+pub fn unescape(raw: &str) -> String {
+    let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    ENTITY
+        .replace_all(&text, |c: &regex::Captures| {
+            let code = c
+                .get(1)
+                .map(|h| u32::from_str_radix(h.as_str(), 16))
+                .or_else(|| c.get(2).map(|d| d.as_str().parse()));
+            match (code, c.get(3).map(|n| n.as_str())) {
+                (Some(Ok(n)), _) => {
+                    char::from_u32(n).map_or_else(|| c[0].to_string(), String::from)
+                }
+                (_, Some("lt")) => "<".into(),
+                (_, Some("gt")) => ">".into(),
+                (_, Some("quot")) => "\"".into(),
+                (_, Some("apos")) => "'".into(),
+                (_, Some("amp")) => "&".into(),
+                _ => c[0].to_string(),
+            }
+        })
+        .into_owned()
+}
+
 pub fn arxiv_query_url(ids: &[String]) -> String {
     format!(
         "https://export.arxiv.org/api/query?id_list={}&max_results={}",
@@ -160,57 +115,6 @@ pub fn arxiv_query_url(ids: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::PdfState;
-
-    #[test]
-    fn spine_codes_name_the_paper_and_its_year() {
-        assert_eq!(
-            spine_code("Mamba: Linear-Time Sequence Modeling", Some(2023)),
-            "Mamba '23"
-        );
-        assert_eq!(
-            spine_code("$π_0$: A Vision-Language-Action Flow Model", Some(2024)),
-            "π0 '24"
-        );
-        assert_eq!(
-            spine_code("Attention Is All You Need", Some(2017)),
-            "Attention '17"
-        );
-        assert_eq!(spine_code("Towards a Theory of Everything", None), "Theory");
-        assert_eq!(
-            spine_code("Superconductivityandmore", Some(2005)),
-            "Supercond… '05"
-        );
-        assert_eq!(
-            spine_code("注意力机制的研究", Some(2020)),
-            "注意力机制的研究 '20"
-        );
-        assert_eq!(spine_code("", None), "?");
-        // A long head before the colon is a sentence, not a name.
-        assert_eq!(
-            spine_code("On the Hardness of Things: A Survey", None),
-            "Hardness"
-        );
-    }
-
-    #[test]
-    fn thickness_follows_pages_and_wear_follows_progress() {
-        let mut p = Paper::default();
-        assert_eq!(thickness(&p), SPINE_MIN_PX + DEFAULT_PAGES / 2);
-        p.pdf = Some(PdfState {
-            url: String::new(),
-            page: 1,
-            page_count: 0,
-            offset: 0.0,
-        });
-        assert_eq!(thickness(&p), SPINE_MIN_PX);
-        p.pdf.as_mut().unwrap().page_count = 400;
-        assert_eq!(thickness(&p), SPINE_MAX_PX);
-        assert_eq!(
-            [0.0, 0.5, 30.0, 50.0, 99.9, 100.0].map(wear),
-            [0, 0, 1, 2, 2, 3]
-        );
-    }
 
     #[test]
     fn arrows_walk_books_and_skip_empty_shelves() {

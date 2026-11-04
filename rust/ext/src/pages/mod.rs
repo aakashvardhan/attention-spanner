@@ -5,10 +5,12 @@
 pub mod ai;
 pub mod blocked;
 pub mod dumps;
+pub mod lexicon;
 pub mod newtab;
 pub mod options;
 pub mod papers;
 pub mod reader;
+mod todo_drag;
 
 use crate::chrome;
 use crate::js::{from_js, to_js, wait};
@@ -64,6 +66,34 @@ pub fn use_settings() -> (Signal<reader_core::types::Settings>, ReadSignal<bool>
         serde_json::from_value(base).unwrap_or_default()
     });
     (merged, loaded)
+}
+
+/// The palettes in theme.css, as (data-theme value, label). "paper" is the
+/// unattributed default.
+pub const THEMES: [(&str, &str); 5] = [
+    ("paper", "Paper"),
+    ("daylight", "Daylight (highest contrast)"),
+    ("mist", "Mist"),
+    ("graphite", "Graphite"),
+    ("rose", "Rose"),
+];
+
+/// Follow the saved palette: sets html[data-theme], live across tabs.
+pub fn use_theme() {
+    let (settings, _) = use_settings();
+    Effect::new(move |_| {
+        let theme = settings.get().theme;
+        if let Some(root) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.document_element())
+        {
+            let _ = if theme == "paper" {
+                root.remove_attribute("data-theme")
+            } else {
+                root.set_attribute("data-theme", &theme)
+            };
+        }
+    });
 }
 
 /// Send a message to the worker; the reply as JSON (`{ ok: false }` on failure).

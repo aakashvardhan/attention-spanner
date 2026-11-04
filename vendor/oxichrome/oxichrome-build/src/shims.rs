@@ -140,7 +140,10 @@ pub fn page_js_path(page: &Page) -> String {
 }
 
 fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// The page shell: a language (screen readers and automatic translation need
@@ -151,7 +154,12 @@ pub fn generate_page_html(page: &Page) -> String {
     let css: String = page
         .css
         .iter()
-        .map(|href| format!("<link rel=\"stylesheet\" href=\"/{}\">\n", escape_html(href.trim_start_matches('/'))))
+        .map(|href| {
+            format!(
+                "<link rel=\"stylesheet\" href=\"/{}\">\n",
+                escape_html(href.trim_start_matches('/'))
+            )
+        })
         .collect();
     let script = page_js_path(page);
     let script = script.rsplit('/').next().unwrap_or(&script);
@@ -290,14 +298,19 @@ mod tests {
     #[test]
     fn test_page_js_mounts_its_component_from_the_root_wasm() {
         let js = generate_page_js(&page(), "reader-ext");
-        assert!(js.contains("import init, { __oxichrome_mount_page_newtab } from '/wasm/reader_ext.js';"));
+        assert!(js.contains(
+            "import init, { __oxichrome_mount_page_newtab } from '/wasm/reader_ext.js';"
+        ));
         assert!(js.contains("__oxichrome_mount_page_newtab();"));
         assert_eq!(page_js_path(&page()), "src/pages/newtab/index.js");
     }
 
     #[test]
     fn test_page_title_defaults_to_the_component_name() {
-        let html = generate_page_html(&Page { title: None, ..page() });
+        let html = generate_page_html(&Page {
+            title: None,
+            ..page()
+        });
         assert!(html.contains("<title>NewTab</title>"));
     }
 }

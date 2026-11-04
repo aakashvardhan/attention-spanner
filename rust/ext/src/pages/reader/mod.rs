@@ -40,6 +40,7 @@ const QUESTION_STALL_MS: i64 = 120_000;
 
 #[oxichrome::page(path = "src/pages/reader/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css", "assets/aiNote.css", "assets/markdown.css", "assets/katex.min.css"])]
 pub fn Reader() -> impl IntoView {
+    crate::pages::use_theme();
     // Web-accessible so the PDF redirect can land here; no business inside another site's frame.
     let framed = window()
         .top()
@@ -610,12 +611,26 @@ fn PdfReader(src: String) -> impl IntoView {
                             let doc_key = doc_key.clone();
                             move || define.get().map(|t| {
                                 let (page, rects, word) = (t.page, t.rects.clone(), t.word.clone());
+                                let (keep_word, keep_context, keep_doc) = (t.word.clone(), t.context.clone(), doc_key.clone());
                                 view! {
                                     <DefinePopover
                                         target=t
                                         doc_key=doc_key.clone()
                                         on_close=Callback::new(move |_| define.set(None))
                                         on_save=Callback::new(move |note: String| create_highlight(page, rects.clone(), word.clone(), DEFAULT_ANNOTATION_COLOR, note))
+                                        on_keep=Callback::new(move |(text, guess): (String, String)| {
+                                            let (named, definition) = reader_core::lexicon::split_definition(&text);
+                                            let source = reader_core::lexicon::Source {
+                                                doc_key: keep_doc.clone(),
+                                                paper_title: title.get_untracked(),
+                                                definition,
+                                                guess,
+                                                context: keep_context.clone(),
+                                                added_at: crate::js::now(),
+                                            };
+                                            let label = named.unwrap_or_else(|| keep_word.clone());
+                                            leptos::task::spawn_local(crate::pages::lexicon::keep_term(label, source));
+                                        })
                                     />
                                 }
                             })

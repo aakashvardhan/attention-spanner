@@ -131,6 +131,10 @@ pub fn with_reader_tab(
             started_at: now,
             tab_ids: vec![tab_id],
             title: title.into(),
+            titles: [(tab_id, title.to_string())]
+                .into_iter()
+                .filter(|(_, t)| !t.is_empty())
+                .collect(),
         },
         Some(mut s) => {
             if !s.tab_ids.contains(&tab_id) {
@@ -138,6 +142,7 @@ pub fn with_reader_tab(
             }
             if !title.is_empty() {
                 s.title = title.into();
+                s.titles.insert(tab_id, title.into());
             }
             s
         }
@@ -148,6 +153,11 @@ pub fn with_reader_tab(
 pub fn without_reader_tab(session: Option<FocusSession>, tab_id: i32) -> Option<FocusSession> {
     let mut s = session?;
     s.tab_ids.retain(|&id| id != tab_id);
+    s.titles.remove(&tab_id);
+    // The blocked page names a paper still open, not the one just closed.
+    if let Some(t) = s.titles.values().last() {
+        s.title = t.clone();
+    }
     (!s.tab_ids.is_empty()).then_some(s)
 }
 
@@ -251,6 +261,7 @@ mod tests {
             started_at: 1,
             tab_ids: vec![5],
             title: "Paper".into(),
+            titles: Default::default(),
         };
         assert_eq!(
             build_session_access_rules(Some(&open), &domains, "r").len(),
@@ -277,7 +288,8 @@ mod tests {
             FocusSession {
                 started_at: 10,
                 tab_ids: vec![3],
-                title: "A".into()
+                title: "A".into(),
+                titles: [(3, "A".to_string())].into()
             }
         );
     }
@@ -291,7 +303,8 @@ mod tests {
             FocusSession {
                 started_at: 10,
                 tab_ids: vec![3, 4],
-                title: "B".into()
+                title: "B".into(),
+                titles: [(3, "A".to_string()), (4, "B".to_string())].into()
             }
         );
     }
@@ -316,17 +329,28 @@ mod tests {
     }
 
     #[test]
+    fn every_open_paper_counts_as_being_read() {
+        let s = with_reader_tab(Some(with_reader_tab(None, 3, "A", 1)), 4, "B", 2);
+        assert!(s.is_reading("A") && s.is_reading("B"));
+        let s = without_reader_tab(Some(s), 4).unwrap();
+        assert!(s.is_reading("A") && !s.is_reading("B"));
+        assert_eq!(s.title, "A");
+    }
+
+    #[test]
     fn blocks_exactly_while_a_tab_is_held() {
         assert!(!is_blocking(None));
         assert!(!is_blocking(Some(&FocusSession {
             started_at: 1,
             tab_ids: vec![],
-            title: String::new()
+            title: String::new(),
+            titles: Default::default()
         })));
         assert!(is_blocking(Some(&FocusSession {
             started_at: 1,
             tab_ids: vec![1],
-            title: String::new()
+            title: String::new(),
+            titles: Default::default()
         })));
     }
 }

@@ -60,22 +60,23 @@ impl MetadataVisitor {
     fn is_oxichrome_attr(attr: &Attribute, name: &str) -> bool {
         let path = attr.path();
         let segments: Vec<_> = path.segments.iter().collect();
-        segments.len() == 2
-            && segments[0].ident == "oxichrome"
-            && segments[1].ident == name
+        segments.len() == 2 && segments[0].ident == "oxichrome" && segments[1].ident == name
     }
 
     fn parse_extension_args(&mut self, attr: &Attribute) {
-        let Ok(nested) = attr.parse_args_with(
-            syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
-        ) else {
+        let Ok(nested) = attr
+            .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)
+        else {
             return;
         };
 
         for meta in nested {
             if let Meta::NameValue(MetaNameValue {
                 path,
-                value: Expr::Lit(ExprLit { lit: Lit::Str(s), .. }),
+                value:
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(s), ..
+                    }),
                 ..
             }) = &meta
             {
@@ -87,16 +88,14 @@ impl MetadataVisitor {
                     self.metadata.description = Some(s.value());
                 }
             }
-            if let Meta::NameValue(MetaNameValue {
-                path,
-                value,
-                ..
-            }) = &meta
-            {
+            if let Meta::NameValue(MetaNameValue { path, value, .. }) = &meta {
                 if path.is_ident("permissions") {
                     if let Expr::Array(arr) = value {
                         for elem in &arr.elems {
-                            if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Str(s), ..
+                            }) = elem
+                            {
                                 self.metadata.permissions.push(s.value());
                             }
                         }
@@ -104,7 +103,10 @@ impl MetadataVisitor {
                 } else if path.is_ident("host_permissions") {
                     if let Expr::Array(arr) = value {
                         for elem in &arr.elems {
-                            if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Str(s), ..
+                            }) = elem
+                            {
                                 self.metadata.host_permissions.push(s.value());
                             }
                         }
@@ -115,9 +117,9 @@ impl MetadataVisitor {
     }
 
     fn parse_content_script_args(&self, attr: &Attribute) -> Option<ContentScript> {
-        let nested = attr.parse_args_with(
-            syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated,
-        ).ok()?;
+        let nested = attr
+            .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)
+            .ok()?;
 
         let mut matches = Vec::new();
         let mut run_at = None;
@@ -129,7 +131,10 @@ impl MetadataVisitor {
                 if path.is_ident("matches") {
                     if let Expr::Array(arr) = value {
                         for elem in &arr.elems {
-                            if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Str(s), ..
+                            }) = elem
+                            {
                                 matches.push(s.value());
                             }
                         }
@@ -146,13 +151,19 @@ impl MetadataVisitor {
                         }
                     }
                 } else if path.is_ident("all_frames") {
-                    if let Expr::Lit(ExprLit { lit: Lit::Bool(b), .. }) = value {
+                    if let Expr::Lit(ExprLit {
+                        lit: Lit::Bool(b), ..
+                    }) = value
+                    {
                         all_frames = Some(b.value());
                     }
                 } else if path.is_ident("css") {
                     if let Expr::Array(arr) = value {
                         for elem in &arr.elems {
-                            if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                            if let Expr::Lit(ExprLit {
+                                lit: Lit::Str(s), ..
+                            }) = elem
+                            {
                                 css.push(s.value());
                             }
                         }
@@ -178,15 +189,29 @@ impl MetadataVisitor {
         let nested = attr
             .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)
             .ok()?;
-        let mut page = Page { fn_name, path: String::new(), title: None, css: Vec::new() };
+        let mut page = Page {
+            fn_name,
+            path: String::new(),
+            title: None,
+            css: Vec::new(),
+        };
         for meta in &nested {
-            let Meta::NameValue(MetaNameValue { path, value, .. }) = meta else { continue };
+            let Meta::NameValue(MetaNameValue { path, value, .. }) = meta else {
+                continue;
+            };
             match value {
-                Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) if path.is_ident("path") => page.path = s.value(),
-                Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) if path.is_ident("title") => page.title = Some(s.value()),
+                Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                }) if path.is_ident("path") => page.path = s.value(),
+                Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                }) if path.is_ident("title") => page.title = Some(s.value()),
                 Expr::Array(arr) if path.is_ident("css") => {
                     for elem in &arr.elems {
-                        if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = elem {
+                        if let Expr::Lit(ExprLit {
+                            lit: Lit::Str(s), ..
+                        }) = elem
+                        {
                             page.css.push(s.value());
                         }
                     }
@@ -373,7 +398,10 @@ mod tests {
         assert_eq!(metadata.content_scripts[0].fn_name, "inject");
         assert_eq!(metadata.content_scripts[0].matches, vec!["<all_urls>"]);
         assert_eq!(metadata.content_scripts[1].fn_name, "inject_specific");
-        assert_eq!(metadata.content_scripts[1].matches, vec!["https://example.com/*", "https://test.com/*"]);
+        assert_eq!(
+            metadata.content_scripts[1].matches,
+            vec!["https://example.com/*", "https://test.com/*"]
+        );
     }
 
     #[test]
@@ -436,22 +464,46 @@ mod page_tests {
             #[oxichrome::page(path = "blocked.html")]
             fn Blocked() -> impl IntoView { view! {} }
         "#).unwrap();
-        assert_eq!(m.pages, vec![
-            Page { fn_name: "NewTab".into(), path: "src/pages/newtab/index.html".into(), title: Some("New Tab".into()), css: vec!["theme.css".into(), "newtab.css".into()] },
-            Page { fn_name: "Blocked".into(), path: "blocked.html".into(), title: None, css: vec![] },
-        ]);
+        assert_eq!(
+            m.pages,
+            vec![
+                Page {
+                    fn_name: "NewTab".into(),
+                    path: "src/pages/newtab/index.html".into(),
+                    title: Some("New Tab".into()),
+                    css: vec!["theme.css".into(), "newtab.css".into()]
+                },
+                Page {
+                    fn_name: "Blocked".into(),
+                    path: "blocked.html".into(),
+                    title: None,
+                    css: vec![]
+                },
+            ]
+        );
     }
 
     #[test]
     fn pages_in_modules_are_found() {
         let dir = std::env::temp_dir().join(format!("oxichrome-parse-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("pages")).unwrap();
-        std::fs::write(dir.join("lib.rs"), r#"#[oxichrome::extension(name = "X", version = "1.0.0")] struct X;"#).unwrap();
-        std::fs::write(dir.join("pages/a.rs"), r#"#[oxichrome::page(path = "a.html")] fn A() {}"#).unwrap();
+        std::fs::write(
+            dir.join("lib.rs"),
+            r#"#[oxichrome::extension(name = "X", version = "1.0.0")] struct X;"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("pages/a.rs"),
+            r#"#[oxichrome::page(path = "a.html")] fn A() {}"#,
+        )
+        .unwrap();
         let m = parse_source_dir(&dir).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!(m.name.as_deref(), Some("X"));
-        assert_eq!(m.pages.iter().map(|p| p.path.as_str()).collect::<Vec<_>>(), ["a.html"]);
+        assert_eq!(
+            m.pages.iter().map(|p| p.path.as_str()).collect::<Vec<_>>(),
+            ["a.html"]
+        );
     }
 
     #[test]

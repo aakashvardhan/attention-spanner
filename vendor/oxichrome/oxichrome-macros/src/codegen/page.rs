@@ -10,23 +10,39 @@ use syn::{Expr, ExprLit, ItemFn, Lit, Meta, MetaNameValue, Token};
 /// mount function the loader calls. `path` is checked here so a typo fails the
 /// compile instead of producing a page that 404s.
 pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::Error> {
-    let args = syn::parse::Parser::parse2(Punctuated::<Meta, Token![,]>::parse_terminated, attr.clone())?;
+    let args = syn::parse::Parser::parse2(
+        Punctuated::<Meta, Token![,]>::parse_terminated,
+        attr.clone(),
+    )?;
     let mut path = None;
     for meta in &args {
-        if let Meta::NameValue(MetaNameValue { path: key, value, .. }) = meta {
+        if let Meta::NameValue(MetaNameValue {
+            path: key, value, ..
+        }) = meta
+        {
             if key.is_ident("path") {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = value {
+                if let Expr::Lit(ExprLit {
+                    lit: Lit::Str(s), ..
+                }) = value
+                {
                     path = Some(s.clone());
                 }
             } else if !(key.is_ident("title") || key.is_ident("css")) {
-                return Err(syn::Error::new_spanned(key, "unknown page argument; expected `path`, `title` or `css`"));
+                return Err(syn::Error::new_spanned(
+                    key,
+                    "unknown page argument; expected `path`, `title` or `css`",
+                ));
             }
         }
     }
-    let path = path.ok_or_else(|| syn::Error::new_spanned(&attr, "a page needs `path = \"…/name.html\"`"))?;
+    let path = path
+        .ok_or_else(|| syn::Error::new_spanned(&attr, "a page needs `path = \"…/name.html\"`"))?;
     let value = path.value();
     if value.starts_with('/') || !value.ends_with(".html") || value.contains("..") {
-        return Err(syn::Error::new_spanned(&path, "page `path` must be relative, inside the extension, and end in `.html`"));
+        return Err(syn::Error::new_spanned(
+            &path,
+            "page `path` must be relative, inside the extension, and end in `.html`",
+        ));
     }
 
     let func: ItemFn = syn::parse2(item)?;
@@ -35,7 +51,10 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::
     let vis = &func.vis;
     let attrs = &func.attrs;
     let ret = &func.sig.output;
-    let mount = format_ident!("__oxichrome_mount_page_{}", fn_name.to_string().to_lowercase());
+    let mount = format_ident!(
+        "__oxichrome_mount_page_{}",
+        fn_name.to_string().to_lowercase()
+    );
 
     Ok(quote! {
         #(#attrs)*

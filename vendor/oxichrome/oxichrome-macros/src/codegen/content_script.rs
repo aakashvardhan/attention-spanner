@@ -22,10 +22,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::
     let vis = &func.vis;
     let attrs = &func.attrs;
 
-    let wrapper_name = syn::Ident::new(
-        &format!("__oxichrome_cs_{fn_name}"),
-        fn_name.span(),
-    );
+    let wrapper_name = syn::Ident::new(&format!("__oxichrome_cs_{fn_name}"), fn_name.span());
 
     let run_at_check = args.run_at.map(|variant| {
         quote! {
@@ -34,13 +31,17 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::
         }
     });
 
-    let css_checks: Vec<_> = args.css.iter().map(|css_file| {
-        let path = format!("static/{}", css_file.value());
-        quote! {
-            #[doc(hidden)]
-            const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #path));
-        }
-    }).collect();
+    let css_checks: Vec<_> = args
+        .css
+        .iter()
+        .map(|css_file| {
+            let path = format!("static/{}", css_file.value());
+            quote! {
+                #[doc(hidden)]
+                const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #path));
+            }
+        })
+        .collect();
 
     Ok(quote! {
         #run_at_check
