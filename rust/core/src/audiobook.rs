@@ -23,7 +23,8 @@ fractions come apart), so read every equation, symbol and formula from the pictu
 the text for the wording of the prose.",
             "the reference list or acknowledgements",
         ),
-        Source::Webpage => (
+        // A video has no Listen; its notes would read as a page.
+        Source::Webpage | Source::Video => (
             format!("one section of the web page \"{title}\""),
             "section",
             "Math arrives as LaTeX between $ or $$ signs; read it from that, and never say \

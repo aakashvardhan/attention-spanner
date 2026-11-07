@@ -157,6 +157,9 @@ pub struct Settings {
     /// For speech when Groq stops (its daily limit): OpenAI gpt-4o-mini-tts.
     #[serde(default)]
     pub openai_key: String,
+    /// For YouTube notes and Talk on videos (Gemini).
+    #[serde(default)]
+    pub gemini_key: String,
     /// Groq Orpheus voice for "Talk it through" (voice_agent::TTS_VOICES).
     #[serde(default = "default_talk_voice")]
     pub talk_voice: String,
@@ -184,6 +187,7 @@ impl Default for Settings {
             claude_key: String::new(),
             groq_key: String::new(),
             openai_key: String::new(),
+            gemini_key: String::new(),
             talk_voice: default_talk_voice(),
             theme: default_theme(),
         }

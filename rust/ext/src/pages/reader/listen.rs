@@ -271,7 +271,7 @@ pub fn ListenPanel(
         (Phase::Off, _, Source::Paper) => {
             "Reads the paper aloud from this page, explaining the math as it goes.".to_string()
         }
-        (Phase::Off, _, Source::Webpage) => {
+        (Phase::Off, _, Source::Webpage | Source::Video) => {
             "Reads the page aloud, explaining the math as it goes.".to_string()
         }
         (Phase::Done, _, _) => format!("That's the end of the {}.", source.noun()),
@@ -299,7 +299,7 @@ pub fn ListenPanel(
                             <button type="button" class="fc-primary-btn" on:click=move |_| play_from(page.get_untracked())>
                                 {move || match source {
                                     Source::Paper => format!("Read from page {}", page.get()),
-                                    Source::Webpage => "Read the page".to_string(),
+                                    Source::Webpage | Source::Video => "Read the page".to_string(),
                                 }}
                             </button>
                         }.into_any(),
@@ -334,7 +334,7 @@ pub fn ListenPanel(
                 view! {
                     <ol class="reader-talk-turns"><li data-who="agent"><strong>{move || hearing.get().map(|p| match source {
                         Source::Paper => format!("Page {p}"),
-                        Source::Webpage => format!("Section {p}"),
+                        Source::Webpage | Source::Video => format!("Section {p}"),
                     })}</strong><p>
                         {before}
                         {(!now.is_empty()).then(|| view! { <mark class="listen-now">{now}</mark> })}

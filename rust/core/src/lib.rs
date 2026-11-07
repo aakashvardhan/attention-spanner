@@ -40,6 +40,7 @@ pub mod vault;
 pub mod voice;
 pub mod voice_agent;
 pub mod webpage;
+pub mod youtube;
 
 /// The extension's name, shared by the manifest and the pages.
 pub const APP_NAME: &str = "Reader";

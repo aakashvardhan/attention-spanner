@@ -310,6 +310,7 @@ pub fn TalkPanel(
             <p class="reader-explain-lede">{match source {
                 Source::Paper => "Say what you think the paper is doing. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
                 Source::Webpage => "Say what you think the page is saying. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
+                Source::Video => "Say what you took from the video so far. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
             }}</p>
             <button type="button" class="fc-primary-btn" aria-pressed=move || (phase.get() != Phase::Off).to_string() on:click=move |_| toggle()>
                 {move || if phase.get() == Phase::Off { "Start talking" } else { "Stop" }}

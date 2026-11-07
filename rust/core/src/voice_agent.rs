@@ -42,6 +42,8 @@ const HISTORY_TURNS: usize = 12;
 pub enum Source {
     Paper,
     Webpage,
+    /// A YouTube video, through its saved notes.
+    Video,
 }
 
 impl Source {
@@ -50,6 +52,7 @@ impl Source {
         match self {
             Source::Paper => "paper",
             Source::Webpage => "page",
+            Source::Video => "video",
         }
     }
 
@@ -58,14 +61,20 @@ impl Source {
         match self {
             Source::Paper => "page",
             Source::Webpage => "section",
+            Source::Video => "moment",
         }
     }
 }
 
 pub fn agent_system(title: &str, source: Source) -> String {
     let (noun, part) = (source.noun(), source.part());
+    let doing = if source == Source::Video {
+        "watching"
+    } else {
+        "reading"
+    };
     format!(
-        "You are a thinking partner, talking out loud with someone reading the {noun} \"{title}\". \
+        "You are a thinking partner, talking out loud with someone {doing} the {noun} \"{title}\". \
 They speak, you reply, and your reply is spoken by a voice, so write the way people talk: \
 one or two short sentences, contractions, plain words, no lists, no markdown, no math \
 symbols, no emoji, no stage directions or bracketed tags. You ask, you never tell: never \
@@ -75,7 +84,7 @@ think further: what problem it solves, what the trick is, why it works, what wou
 it, how it compares to something they know. If they are wrong, ask a question that leads \
 them to see it, and point to the {part} to look at. If they ask you to just explain, say \
 warmly that you'd rather hear their take first, and ask what they think so far. \
-Start a new conversation by asking what they're reading right now and what stood out."
+Start a new conversation by asking what they're {doing} right now and what stood out."
     )
 }
 
@@ -85,8 +94,11 @@ pub struct Turn {
     pub text: String,
 }
 
-/// The text, capped, each page or section labelled.
+/// The text, capped, each page or section labelled (a video's notes as they are).
 pub fn paper_document(parts: &[String], source: Source) -> String {
+    if source == Source::Video {
+        return parts.concat().chars().take(PAPER_MAX_CHARS).collect();
+    }
     let mut doc = String::new();
     for (i, p) in parts.iter().enumerate() {
         doc.push_str(&format!("[{} {}]\n{}\n", source.part(), i + 1, p));
@@ -104,6 +116,7 @@ pub fn turn_prompt(history: &[Turn], page: u32, source: Source) -> String {
     let mut out = match source {
         Source::Paper => format!("They are on page {page}. "),
         Source::Webpage => String::new(),
+        Source::Video => format!("They are at {} in the video. ", crate::youtube::stamp(page)),
     };
     out.push_str("The conversation so far:\n");
     if history.is_empty() {
