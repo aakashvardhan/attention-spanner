@@ -49,12 +49,12 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
     });
   }
 
-  it('new tab: the index along the foot holds exactly Papers and Settings', async () => {
+  it('new tab: the index along the foot holds exactly Papers, Notes and Settings', async () => {
     const page = await ext.page(PAGES.newtab);
     await expect
       .poll(() => page.locator('.edition-index .edition-link').allInnerTexts())
-      .toEqual(['Papers', 'Settings']);
-    expect(await page.locator('.edition-index a, .edition-index button').count()).toBe(2);
+      .toEqual(['Papers', 'Notes', 'Settings']);
+    expect(await page.locator('.edition-index a, .edition-index button').count()).toBe(3);
     await page.close();
   });
 

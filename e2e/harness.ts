@@ -18,6 +18,7 @@ export const PAGES = {
   lexicon: 'src/pages/lexicon/index.html',
   reader: 'src/pages/reader/index.html',
   sidebar: 'src/pages/sidebar/index.html',
+  notes: 'src/pages/notes/index.html',
   blocked: 'src/pages/blocked/index.html#https://example.com/',
 } as const;
 

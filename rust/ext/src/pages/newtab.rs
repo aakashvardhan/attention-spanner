@@ -12,7 +12,7 @@ use reader_core::brain_dump::{
     dump_prompt, parse_dump, ASK_TIMEOUT_MS, DUMP_SYSTEM, FAILED_MESSAGE, MAX_DUMP_CHARS,
     NO_KEY_MESSAGE,
 };
-use reader_core::constants::{CLAUDE_MODEL_QUICK, PAPERS_PAGE_PATH};
+use reader_core::constants::{CLAUDE_MODEL_QUICK, NOTES_PAGE_PATH, PAPERS_PAGE_PATH};
 use reader_core::explain::ExplainBacks;
 use reader_core::feed::{rss_items, FeedItem, HN_RSS};
 use reader_core::pdf::paper_open_url;
@@ -158,6 +158,7 @@ pub fn NewTab() -> impl IntoView {
 
                 <footer class="edition-index">
                     <a class="edition-link" href=chrome::get_url(PAPERS_PAGE_PATH)>"Papers"</a>
+                    <a class="edition-link" href=chrome::get_url(NOTES_PAGE_PATH)>"Notes"</a>
                     <button type="button" class="edition-link" on:click=|_| { let _ = chrome::open_options_page(); }>
                         "Settings"
                     </button>

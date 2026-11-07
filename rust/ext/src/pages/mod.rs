@@ -7,6 +7,7 @@ pub mod blocked;
 pub mod dumps;
 pub mod lexicon;
 pub mod newtab;
+pub mod notes;
 pub mod notes_view;
 pub mod options;
 pub mod papers;
