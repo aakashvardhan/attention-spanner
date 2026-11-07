@@ -51,8 +51,13 @@ describe('side panel: YouTube', () => {
         contentType: 'text/html',
         body:
           '<!doctype html><html lang="en"><head><title>Ox64 setup - YouTube</title></head><body>' +
-          '<div id="player"><video width="320" height="180"></video></div>' +
-          "<script>window.go = (id) => history.pushState({}, '', '/watch?v=' + id);</script></body></html>",
+          '<div id="movie_player"><video width="320" height="180"></video></div>' +
+          '<script>' +
+          // YouTube's player API: an ad can own the <video>, the player knows the real time.
+          "const mp = document.getElementById('movie_player'); window.seeks = [];" +
+          "mp.seekTo = (t) => { window.seeks.push(t); window.playerTime = t; }; mp.getCurrentTime = () => window.playerTime ?? 0;" +
+          "window.go = (id, title) => { history.pushState({}, '', '/watch?v=' + id); if (title) setTimeout(() => { document.title = title + ' - YouTube'; }, 1500); };" +
+          '</script></body></html>',
       }),
     );
     await ext.ctx.route('https://generativelanguage.googleapis.com/**', async (route) => {
@@ -94,9 +99,9 @@ describe('side panel: YouTube', () => {
     await expect.poll(() => again.getByText('Install the flasher').count()).toBe(1);
     expect(gemini.length).toBe(1);
 
-    // A timestamp seeks the video.
-    await again.getByRole('button', { name: '1:15' }).click();
-    await expect.poll(() => videoPage(A).evaluate(() => document.querySelector('video')!.currentTime)).toBe(75);
+    // A timestamp seeks the video, through YouTube's player (not an ad's <video>).
+    await again.getByRole('button', { name: 'Play from 1:15' }).click();
+    await expect.poll(() => videoPage(A).evaluate(() => (window as unknown as { seeks: number[] }).seeks)).toEqual([75]);
 
     // Another kind re-runs Gemini with that kind and replaces the notes.
     answer = () => notesReply(LECTURE);
@@ -117,8 +122,11 @@ describe('side panel: YouTube', () => {
 
     await seed(ext, { settings: { claudeKey: 'sk-e2e', geminiKey: '' } });
     const calls = gemini.length;
-    await side.getByRole('button', { name: 'Take notes' }).click();
+    // Said before anything is pressed, with the way to Settings.
     await expect.poll(() => side.getByText('Taking notes needs a Gemini key in Settings.').count()).toBe(1);
+    expect(await side.getByRole('button', { name: 'Open Settings' }).count()).toBe(1);
+    await side.getByRole('button', { name: 'Take notes' }).click();
+    await side.waitForTimeout(300);
     expect(gemini.length).toBe(calls);
     await seed(ext, { settings: { claudeKey: 'sk-e2e', geminiKey: 'AIza-e2e' } });
     await side.close();
@@ -127,7 +135,7 @@ describe('side panel: YouTube', () => {
   it('talks it through with Gemini, from the notes and where the video is', async () => {
     answer = () => ({ status: 200, body: { candidates: [{ content: { parts: [{ text: 'What do you think the MMU buys you?' }] } }] } });
     const tabId = await openVideo(A);
-    await videoPage(A).evaluate(() => { document.querySelector('video')!.currentTime = 42; });
+    await videoPage(A).evaluate(() => { (window as unknown as { playerTime: number }).playerTime = 42; });
     const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
     await side.getByRole('button', { name: 'Talk it through' }).click();
     await side.waitForTimeout(2_500);
@@ -141,6 +149,67 @@ describe('side panel: YouTube', () => {
     expect(text).toContain('They are at 0:42 in the video.');
     expect(text).toContain('The MMU maps virtual to physical addresses.');
     expect(claudeCalls.length).toBe(0);
+    await side.close();
+  });
+
+  it('canonical URL to Gemini; notes in progress survive leaving the video; Cancel is quiet', async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    answer = () => notesReply({ ...TUTORIAL, title: 'Third video' });
+    const slow = async (route: import('playwright').Route) => {
+      await held;
+      await route.fallback();
+    };
+    await ext.ctx.route('https://generativelanguage.googleapis.com/**', slow);
+    const C = 'ccccccccccc';
+    const page = await ext.ctx.newPage();
+    await page.goto(`${watch(C)}&list=PL123&index=3&pp=x&t=10s`);
+    const tabId = await ext.sw.evaluate(async (id) => (await chrome.tabs.query({}))
+      .find((t) => t.url?.includes(id))!.id!, C);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await side.getByRole('button', { name: 'Take notes' }).click();
+    await expect.poll(() => side.getByText('Gemini is watching the video', { exact: false }).count()).toBe(1);
+    // Off to another video while Gemini works; then back.
+    await page.evaluate((id) => (window as unknown as { go(id: string): void }).go(id), B);
+    await expect.poll(() => side.getByRole('button', { name: 'Take notes' }).count(), { timeout: 5_000 }).toBe(1);
+    release();
+    await expect.poll(async () => (await storage<Record<string, { url: string }>>(ext, 'videoNotes'))[C]?.url, { timeout: 10_000 }).toBe(watch(C));
+    expect(gemini.at(-1)!.body.contents[0].parts[0].file_data.file_uri).toBe(watch(C));
+    await ext.ctx.unroute('https://generativelanguage.googleapis.com/**', slow);
+
+    // Cancel stops quietly: no error.
+    let hold2: () => void = () => {};
+    const held2 = new Promise<void>((r) => (hold2 = r));
+    const slow2 = async (route: import('playwright').Route) => {
+      await held2;
+      await route.fallback();
+    };
+    await ext.ctx.route('https://generativelanguage.googleapis.com/**', slow2);
+    await expect.poll(() => side.getByRole('button', { name: 'Take notes' }).count()).toBe(1);
+    await side.getByRole('button', { name: 'Take notes' }).click();
+    await side.getByRole('button', { name: 'Cancel' }).click();
+    await side.waitForTimeout(500);
+    expect(await side.getByRole('alert').count()).toBe(0);
+    expect(await side.getByRole('button', { name: 'Take notes' }).count()).toBe(1);
+    hold2();
+    await ext.ctx.unroute('https://generativelanguage.googleapis.com/**', slow2);
+    await side.close();
+  });
+
+  it('video Talk offers the microphone way out, and the notes shape is fixed while talking', async () => {
+    const tabId = await openVideo(A);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await side.getByRole('button', { name: 'Talk it through' }).click();
+    expect(await side.getByRole('button', { name: 'Allow the microphone' }).count()).toBe(1);
+    expect(await side.getByRole('group', { name: 'Notes shape' }).count()).toBe(0);
+    await side.close();
+  });
+
+  it('names the new video once YouTube updates its title', async () => {
+    const tabId = await openVideo(A);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await videoPage(A).evaluate((id) => (window as unknown as { go(id: string, t: string): void }).go(id, 'Brand new talk'), 'ddddddddddd');
+    await expect.poll(() => side.getByRole('heading', { name: 'Brand new talk' }).count(), { timeout: 8_000 }).toBe(1);
     await side.close();
   });
 

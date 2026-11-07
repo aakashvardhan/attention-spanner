@@ -9,7 +9,7 @@ use reader_core::youtube::{seconds, stamp, Kind, VideoNotes};
 fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView {
     match (seconds(&t), on_seek) {
         (Some(s), Some(seek)) => view! {
-            <button type="button" class="stamp" on:click=move |_| seek.run(s)>{stamp(s)}</button>
+            <button type="button" class="stamp" aria-label=format!("Play from {}", stamp(s)) on:click=move |_| seek.run(s)>{stamp(s)}</button>
         }
         .into_any(),
         (Some(s), None) => view! {

@@ -40,6 +40,12 @@ pub fn video_id(raw: &str) -> Option<String> {
     ok.then_some(id)
 }
 
+/// The video's plain watch URL: what Gemini is given and what is stored,
+/// whatever shape (shorts, youtu.be, a playlist, a start time) it was opened in.
+pub fn watch_url(id: &str) -> String {
+    format!("https://www.youtube.com/watch?v={id}")
+}
+
 /// `MM:SS`, `M:SS` or `H:MM:SS` to seconds.
 pub fn seconds(t: &str) -> Option<u32> {
     let parts: Vec<&str> = t.trim().split(':').collect();
@@ -352,6 +358,11 @@ mod tests {
         ] {
             assert_eq!(video_id(url), None, "{url}");
         }
+    }
+
+    #[test]
+    fn canonical_watch_url() {
+        assert_eq!(watch_url(ID), "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     }
 
     #[test]

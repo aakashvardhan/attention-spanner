@@ -22,7 +22,7 @@ enum Content {
     /// Any page: its text, or why it can't be read.
     Page(Result<PageText, String>),
     /// A YouTube video: notes instead of the page's text.
-    Video { id: String, title: String },
+    Video { id: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,9 +39,13 @@ fn query_param(name: &str) -> Option<String> {
         .map(|(_, v)| v.into_owned())
 }
 
-/// A URL without its `#fragment`: jumping to an anchor is the same page.
-fn page_of(url: &str) -> &str {
-    url.split('#').next().unwrap_or(url)
+/// What makes two URLs the same page: a video is its id (a start time or
+/// playlist position is the same video); any other page is its URL without
+/// the `#fragment` (jumping to an anchor is the same page).
+fn page_of(url: &str) -> String {
+    youtube::video_id(url)
+        .map(|id| format!("youtube:{id}"))
+        .unwrap_or_else(|| url.split('#').next().unwrap_or(url).to_string())
 }
 
 /// After a single-page app changes its URL it draws the new page; read after this.
@@ -79,6 +83,9 @@ pub fn Sidebar() -> impl IntoView {
     // ?window=<id> follows that window's active tab (e2e: the real following path).
     let window = query_param("window").and_then(|t| t.parse::<i32>().ok());
     let target = RwSignal::new(None::<Target>);
+    // A video's title as the tab shows it: YouTube changes the URL before the
+    // title, so it follows the tab's title changes without rebuilding the panel.
+    let video_title = RwSignal::new(String::new());
     let generation = StoredValue::new(0u64);
     // The tab being followed; outlives `target`, which is cleared mid-navigation.
     let following = StoredValue::new(pinned);
@@ -114,7 +121,8 @@ pub fn Sidebar() -> impl IntoView {
                     .strip_suffix(" - YouTube")
                     .unwrap_or(title)
                     .to_string();
-                Content::Video { id, title }
+                video_title.set(title);
+                Content::Video { id }
             } else if url.starts_with("http://") || url.starts_with("https://") {
                 Content::Page(page_text::read(tab_id).await)
             } else {
@@ -152,6 +160,18 @@ pub fn Sidebar() -> impl IntoView {
                 return;
             }
             let info: Value = from_js(info).unwrap_or_default();
+            let on_video = target.with_untracked(|t| {
+                t.as_ref()
+                    .is_some_and(|t| matches!(t.content, Content::Video { .. }))
+            });
+            if let (true, Some(title)) = (on_video, info["title"].as_str()) {
+                video_title.set(
+                    title
+                        .strip_suffix(" - YouTube")
+                        .unwrap_or(title)
+                        .to_string(),
+                );
+            }
             let moved = info["url"].as_str().is_some_and(|u| {
                 target.with_untracked(|t| t.as_ref().is_some_and(|t| page_of(&t.url) != page_of(u)))
             });
@@ -184,7 +204,7 @@ pub fn Sidebar() -> impl IntoView {
                 None => view! { <p class="sidebar-quiet" role="status">"Reading the page…"</p> }.into_any(),
                 Some(Target { content: Content::Page(Err(m)), .. }) => view! { <p class="sidebar-quiet" role="status">{m}</p> }.into_any(),
                 Some(Target { content: Content::Page(Ok(page)), .. }) => view! { <PagePanels page=page /> }.into_any(),
-                Some(Target { tab_id, url, content: Content::Video { id, title } }) => view! { <VideoPanel tab_id=tab_id id=id url=url title=title /> }.into_any(),
+                Some(Target { tab_id, content: Content::Video { id }, .. }) => view! { <VideoPanel tab_id=tab_id id=id title=video_title.into() /> }.into_any(),
             }}
         </main>
     }
@@ -197,13 +217,6 @@ fn PagePanels(page: PageText) -> impl IntoView {
     let title = Signal::stored(page.title.clone());
     let texts = Signal::stored(Some(page.sections));
     let none = Callback::new(|_: ()| {});
-    let open_mic = move |_| {
-        if let Ok(props) =
-            to_js(&json!({ "url": chrome::get_url("src/pages/sidebar/index.html?mic=1") }))
-        {
-            let _ = chrome::tabs_create(&props);
-        }
-    };
     view! {
         <h1 class="sidebar-title">{page.title}</h1>
         <div class="sidebar-switch" role="group" aria-label="Mode">
@@ -217,12 +230,27 @@ fn PagePanels(page: PageText) -> impl IntoView {
         } else {
             view! {
                 <TalkPanel title=title source=Source::Webpage page_texts=texts page=Signal::stored(1) on_close=none />
-                <p class="sidebar-quiet">
-                    "Mic blocked in the side panel? "
-                    <button type="button" class="ghost-btn" on:click=open_mic>"Allow the microphone"</button>
-                </p>
+                <MicHelp />
             }.into_any()
         }}
+    }
+}
+
+/// The side panel may not be allowed to ask for the mic: a tab can.
+#[component]
+pub fn MicHelp() -> impl IntoView {
+    let open_mic = move |_| {
+        if let Ok(props) =
+            to_js(&json!({ "url": chrome::get_url("src/pages/sidebar/index.html?mic=1") }))
+        {
+            let _ = chrome::tabs_create(&props);
+        }
+    };
+    view! {
+        <p class="sidebar-quiet">
+            "Mic blocked in the side panel? "
+            <button type="button" class="ghost-btn" on:click=open_mic>"Allow the microphone"</button>
+        </p>
     }
 }
 

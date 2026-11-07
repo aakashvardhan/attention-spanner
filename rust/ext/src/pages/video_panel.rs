@@ -1,9 +1,15 @@
 //! The side panel on a YouTube video: Gemini's takeaways (made when asked,
 //! kept per video under `videoNotes`), timestamps that seek the video, and
 //! Talk it through with Gemini, from the notes and where the video is.
+//!
+//! A notes request outlives the panel: leaving the video (another tab, the
+//! next video) does not throw away a minute of Gemini's work; it is saved
+//! when it lands, and a panel opened on that video meanwhile shows it
+//! working. Only Cancel stops it.
 
 use super::notes_view::NotesView;
 use super::reader::talk::TalkPanel;
+use super::sidebar::MicHelp;
 use super::{use_settings, use_storage};
 use crate::js::{from_js, now, wait};
 use crate::voice::sleep_ms;
@@ -11,15 +17,27 @@ use crate::{chrome, gemini, store};
 use js_sys::{Array, Object, Reflect};
 use leptos::prelude::*;
 use reader_core::voice_agent::Source;
-use reader_core::youtube::{notes_document, notes_request, parse_notes, Kind, VideoNotes};
+use reader_core::youtube::{
+    notes_document, notes_request, parse_notes, watch_url, Kind, VideoNotes,
+};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
 use wasm_bindgen::JsValue;
 
 /// A long lecture can take a minute or two.
 const NOTES_TIMEOUT_MS: i32 = 300_000;
 /// How often Talk learns where the video is.
 const POSITION_EVERY_MS: i32 = 2_000;
+
+thread_local! {
+    /// Notes being made, by video id: when they started, and how to stop them.
+    static IN_FLIGHT: RefCell<HashMap<String, (i64, web_sys::AbortController)>> = RefCell::default();
+}
+
+fn started(id: &str) -> Option<i64> {
+    IN_FLIGHT.with(|m| m.borrow().get(id).map(|(t, _)| *t))
+}
 
 #[wasm_bindgen::prelude::wasm_bindgen(module = "/js/tab-video.mjs")]
 extern "C" {
@@ -45,76 +63,102 @@ async fn in_tab(tab_id: i32, func: &JsValue, arg: JsValue) -> Option<JsValue> {
 }
 
 #[component]
-pub fn VideoPanel(tab_id: i32, id: String, url: String, title: String) -> impl IntoView {
+pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoView {
     let (settings, _) = use_settings();
     let (all, loaded) = use_storage::<BTreeMap<String, VideoNotes>>("videoNotes");
     let id_ = id.clone();
     let notes = Memo::new(move |_| all.with(|m| m.get(&id_).cloned()));
+    let no_key = Memo::new(move |_| settings.with(|s| s.gemini_key.is_empty()));
+    // Seconds since these notes were asked for; None when nothing is being made.
     let working = RwSignal::new(None::<u32>);
     let error = RwSignal::new(String::new());
-    let no_key = RwSignal::new(false);
     let mode = RwSignal::new("notes");
     let position = RwSignal::new(0u32);
-    let ctl = StoredValue::new_local(None::<web_sys::AbortController>);
     let alive = StoredValue::new(true);
-    on_cleanup(move || {
-        alive.set_value(false);
-        if let Some(c) = ctl.try_update_value(Option::take).flatten() {
-            c.abort();
-        }
-    });
+    // Each loop runs only while its generation is current: restarting one
+    // (Cancel then Take notes; Talk, Notes, Talk) never leaves two running.
+    let ticker_gen = StoredValue::new(0u64);
+    let position_gen = StoredValue::new(0u64);
+    on_cleanup(move || alive.set_value(false));
 
-    let (id2, url2, title2) = (id.clone(), url.clone(), title.clone());
+    // Counts up while this video's notes are being made, here or by a panel
+    // that has since closed.
+    let tick = {
+        let id = id.clone();
+        move || {
+            ticker_gen.update_value(|g| *g += 1);
+            let mine = ticker_gen.get_value();
+            let id = id.clone();
+            leptos::task::spawn_local(async move {
+                while alive.try_get_value() == Some(true)
+                    && ticker_gen.try_get_value() == Some(mine)
+                {
+                    match started(&id) {
+                        Some(t) => working.set(Some(((now() - t) / 1000).max(0) as u32)),
+                        None => {
+                            working.set(None);
+                            return;
+                        }
+                    }
+                    sleep_ms(1_000).await;
+                }
+            });
+        }
+    };
+    let tick = StoredValue::new(tick);
+    if started(&id).is_some() {
+        tick.with_value(|f| f());
+    }
+
+    let (id2, title2) = (id.clone(), title);
     let take = move |kind: Option<Kind>| {
         let key = settings.get_untracked().gemini_key;
-        no_key.set(key.is_empty());
-        if key.is_empty() {
-            error.set("Taking notes needs a Gemini key in Settings.".into());
+        if key.is_empty() || started(&id2).is_some() {
             return;
         }
         let Ok(c) = web_sys::AbortController::new() else {
             return;
         };
-        ctl.set_value(Some(c.clone()));
+        let id = id2.clone();
+        IN_FLIGHT.with(|m| m.borrow_mut().insert(id.clone(), (now(), c.clone())));
         error.set(String::new());
-        working.set(Some(0));
-        leptos::task::spawn_local(async move {
-            while alive.try_get_value() == Some(true) && working.get_untracked().is_some() {
-                sleep_ms(1_000).await;
-                working.update(|w| {
-                    if let Some(n) = w {
-                        *n += 1
-                    }
-                });
-            }
-        });
-        let (id, url, title) = (id2.clone(), url2.clone(), title2.clone());
+        tick.with_value(|f| f());
+        let url = watch_url(&id);
+        let title = title2.get_untracked();
         leptos::task::spawn_local(async move {
             let made =
                 gemini::generate(&key, &notes_request(&url, kind), NOTES_TIMEOUT_MS, Some(c))
                     .await
                     .and_then(|body| parse_notes(&body, &id, &url, &title, now()));
-            if alive.try_get_value() != Some(true) {
+            // Cancelled meanwhile: drop the result, say nothing.
+            let ours = IN_FLIGHT.with(|m| m.borrow_mut().remove(&id)).is_some();
+            if !ours {
                 return;
             }
-            working.set(None);
             match made {
                 Ok(n) => {
-                    // Read fresh: another tab may have saved notes meanwhile.
+                    // Read fresh: another panel may have saved notes meanwhile.
                     let mut saved: BTreeMap<String, VideoNotes> =
                         store::get("videoNotes").await.unwrap_or_default();
                     saved.insert(id, n);
-                    if store::set("videoNotes", &saved).await.is_err() {
+                    if store::set("videoNotes", &saved).await.is_err()
+                        && alive.try_get_value() == Some(true)
+                    {
                         error.set("Couldn't save the notes.".into());
                     }
                 }
-                Err(m) => error.set(m),
+                Err(m) if alive.try_get_value() == Some(true) => error.set(m),
+                Err(_) => {}
+            }
+            if alive.try_get_value() == Some(true) {
+                working.set(None);
             }
         });
     };
     let take = StoredValue::new(take);
+    let id3 = id.clone();
     let cancel = move |_| {
-        if let Some(c) = ctl.try_update_value(Option::take).flatten() {
+        if let Some((_, c)) = IN_FLIGHT.with(|m| m.borrow_mut().remove(&id3)) {
             c.abort();
         }
         working.set(None);
@@ -125,13 +169,16 @@ pub fn VideoPanel(tab_id: i32, id: String, url: String, title: String) -> impl I
         });
     });
 
-    // While talking, keep the position fresh; it stops with the panel or the mode.
+    // While talking, keep the position fresh; one loop at a time.
     Effect::new(move |_| {
+        position_gen.update_value(|g| *g += 1);
         if mode.get() != "talk" {
             return;
         }
+        let mine = position_gen.get_value();
         leptos::task::spawn_local(async move {
-            while alive.try_get_value() == Some(true) && mode.get_untracked() == "talk" {
+            while alive.try_get_value() == Some(true) && position_gen.try_get_value() == Some(mine)
+            {
                 let t = in_tab(tab_id, &position_fn(), JsValue::NULL).await;
                 if let Some(secs) = t
                     .and_then(|v| from_js::<Value>(v).ok())
@@ -147,28 +194,27 @@ pub fn VideoPanel(tab_id: i32, id: String, url: String, title: String) -> impl I
     let open_settings = move |_| {
         let _ = chrome::open_options_page();
     };
-    let heading = {
-        let title = title.clone();
-        move || {
-            notes.with(|n| {
-                n.as_ref()
-                    .map(|n| n.title.clone())
-                    .unwrap_or_else(|| title.clone())
-            })
-        }
+    let heading = move || {
+        notes
+            .with(|n| n.as_ref().map(|n| n.title.clone()))
+            .unwrap_or_else(|| title.get())
     };
 
     view! {
         <h1 class="sidebar-title">{heading}</h1>
+        <Show when=move || no_key.get()>
+            <p class="ai-note-error" role="alert">"Taking notes needs a Gemini key in Settings."</p>
+            <button type="button" class="ghost-btn" on:click=open_settings>"Open Settings"</button>
+        </Show>
         <Show when=move || error.with(|e| !e.is_empty())>
             <p class="ai-note-error" role="alert">{move || error.get()}</p>
-            <Show when=move || no_key.get()>
-                <button type="button" class="ghost-btn" on:click=open_settings>"Open Settings"</button>
-            </Show>
         </Show>
         {move || working.get().map(|n| view! {
-            <p class="sidebar-quiet" role="status">{format!("Gemini is watching the video… {n} s")}</p>
-            <button type="button" class="ghost-btn" on:click=cancel>"Cancel"</button>
+            <p class="sidebar-quiet">
+                <span role="status">"Gemini is watching the video…"</span>
+                <span aria-hidden="true">{format!(" {n} s")}</span>
+            </p>
+            <button type="button" class="ghost-btn" on:click=cancel.clone()>"Cancel"</button>
         })}
         {move || match (loaded.get(), notes.get()) {
             (false, _) => ().into_any(),
@@ -180,12 +226,15 @@ pub fn VideoPanel(tab_id: i32, id: String, url: String, title: String) -> impl I
                 let kind = n.kind;
                 let texts = Signal::stored(Some(vec![notes_document(&n)]));
                 view! {
-                    <div class="sidebar-switch" role="group" aria-label="Notes shape">
-                        {Kind::ALL.into_iter().map(|k| view! {
-                            <button type="button" aria-pressed=(k == kind).to_string() disabled=move || working.get().is_some()
-                                on:click=move |_| if k != kind { take.with_value(|f| f(Some(k))) }>{k.label()}</button>
-                        }).collect_view()}
-                    </div>
+                    // The shape is fixed while talking: a new one would end the conversation.
+                    <Show when=move || mode.get() == "notes">
+                        <div class="sidebar-switch" role="group" aria-label="Notes shape">
+                            {Kind::ALL.into_iter().map(|k| view! {
+                                <button type="button" aria-pressed=(k == kind).to_string() disabled=move || working.get().is_some()
+                                    on:click=move |_| if k != kind { take.with_value(|f| f(Some(k))) }>{k.label()}</button>
+                            }).collect_view()}
+                        </div>
+                    </Show>
                     <div class="sidebar-switch" role="group" aria-label="Mode">
                         <button type="button" aria-pressed=move || (mode.get() == "notes").to_string() on:click=move |_| mode.set("notes")>"Notes"</button>
                         <button type="button" aria-pressed=move || (mode.get() == "talk").to_string() on:click=move |_| mode.set("talk")>"Talk it through"</button>
@@ -195,6 +244,7 @@ pub fn VideoPanel(tab_id: i32, id: String, url: String, title: String) -> impl I
                     } else {
                         view! {
                             <TalkPanel title=Signal::stored(n.title.clone()) source=Source::Video page_texts=texts page=position.into() on_close=Callback::new(|_| {}) />
+                            <MicHelp />
                         }.into_any()
                     }}
                 }.into_any()

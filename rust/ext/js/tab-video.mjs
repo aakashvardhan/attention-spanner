@@ -1,19 +1,30 @@
 // Functions the side panel runs in a YouTube tab (chrome.scripting
-// executeScript `func`). They are static here because extension pages may
-// not build functions at run time (CSP: no eval).
+// executeScript `func`, MAIN world). They are static here because extension
+// pages may not build functions at run time (CSP: no eval). executeScript
+// sends only each function's own source, so each is self-contained: no
+// helpers from this module. YouTube's own player API comes first: during an
+// ad the page's <video> is the ad.
 
-/** Jumps the page's video to `t` seconds and plays it. */
+/** Jumps the video to `t` seconds and plays it. */
 export function seekVideo(t) {
+  const p = document.getElementById('movie_player');
+  if (p && typeof p.seekTo === 'function') {
+    p.seekTo(t, true);
+    if (typeof p.playVideo === 'function') p.playVideo();
+    return true;
+  }
   const v = document.querySelector('video');
   if (!v) return false;
   v.currentTime = t;
-  const p = v.play();
-  if (p) p.catch(() => {});
+  const playing = v.play();
+  if (playing) playing.catch(() => {});
   return true;
 }
 
-/** Where the page's video is, in seconds (0 without one). */
+/** Where the video is, in seconds (0 without one). */
 export function videoPosition() {
+  const p = document.getElementById('movie_player');
+  if (p && typeof p.getCurrentTime === 'function') return p.getCurrentTime();
   const v = document.querySelector('video');
   return v ? v.currentTime : 0;
 }
