@@ -4,15 +4,16 @@
 //! voice starts before the reply is done. Cut in stops it. A turn can be
 //! typed instead of spoken; a conversation begun by typing never opens the mic.
 
-use crate::claude;
 use crate::pages::use_settings;
 use crate::voice::{self, sleep_ms, Heard, Player, Recorder, Speaker, SpeakerEvent, SpeechKeys};
+use crate::{claude, gemini};
 use leptos::prelude::*;
 use reader_core::constants::CLAUDE_MODEL_QUICK;
 use reader_core::voice::{clean_transcript, encode_wav, trim_to_speech};
 use reader_core::voice_agent::{
     agent_system, paper_document, turn_prompt, Chunker, Source, Turn, TURN_SILENCE_MS,
 };
+use reader_core::youtube;
 use std::rc::Rc;
 
 const REPLY_TIMEOUT_MS: i32 = 30_000;
@@ -36,6 +37,21 @@ pub fn TalkPanel(
     on_close: Callback<()>,
 ) -> impl IntoView {
     let (settings, _) = use_settings();
+    // Who thinks: Gemini on a video, Haiku otherwise.
+    let brain_key = move |s: &reader_core::types::Settings| {
+        if source == Source::Video {
+            s.gemini_key.clone()
+        } else {
+            s.claude_key.clone()
+        }
+    };
+    let brain_name = move || {
+        if source == Source::Video {
+            "Gemini"
+        } else {
+            "Claude"
+        }
+    };
     let phase = RwSignal::new(Phase::Off);
     let hearing = RwSignal::new(false);
     let error = RwSignal::new(String::new());
@@ -93,7 +109,7 @@ pub fn TalkPanel(
     // your turn starts when the last sentence has played.
     let reply = move || {
         let s = settings.get_untracked();
-        let (claude_key, voice_id) = (s.claude_key, s.talk_voice);
+        let (claude_key, gemini_key, voice_id) = (s.claude_key, s.gemini_key, s.talk_voice);
         let keys = SpeechKeys {
             groq: s.groq_key,
             openai: s.openai_key,
@@ -149,23 +165,31 @@ pub fn TalkPanel(
                     speaker.say(chunks, 0)
                 }
             };
-            let ask = claude::Ask {
-                api_key: &claude_key,
-                model: CLAUDE_MODEL_QUICK,
-                system: &system,
-                document: &doc,
-                prompt: &prompt,
-                cache: true,
-                timeout_ms: REPLY_TIMEOUT_MS,
-                controller: Some(ctl),
-                image_jpeg: None,
-                remember: false,
+            // On a video Gemini thinks (whole reply, then spoken); else Haiku, streamed.
+            let said = if source == Source::Video {
+                let body = youtube::talk_request(&system, &doc, &prompt);
+                gemini::generate(&gemini_key, &body, REPLY_TIMEOUT_MS, Some(ctl))
+                    .await
+                    .and_then(|b| youtube::parse_reply(&b))
+            } else {
+                let ask = claude::Ask {
+                    api_key: &claude_key,
+                    model: CLAUDE_MODEL_QUICK,
+                    system: &system,
+                    document: &doc,
+                    prompt: &prompt,
+                    cache: true,
+                    timeout_ms: REPLY_TIMEOUT_MS,
+                    controller: Some(ctl),
+                    image_jpeg: None,
+                    remember: false,
+                };
+                claude::stream(ask, |so_far| {
+                    show(so_far);
+                    push(chunker.take(so_far, false));
+                })
+                .await
             };
-            let said = claude::stream(ask, |so_far| {
-                show(so_far);
-                push(chunker.take(so_far, false));
-            })
-            .await;
             if !live() {
                 return;
             }
@@ -250,8 +274,11 @@ pub fn TalkPanel(
             return;
         }
         let s = settings.get_untracked();
-        if s.claude_key.is_empty() || s.groq_key.is_empty() {
-            error.set("Talking needs a Claude key and a Groq key in Settings.".into());
+        if brain_key(&s).is_empty() || s.groq_key.is_empty() {
+            error.set(format!(
+                "Talking needs a {} key and a Groq key in Settings.",
+                brain_name()
+            ));
             return;
         }
         error.set(String::new());
@@ -278,8 +305,8 @@ pub fn TalkPanel(
             return;
         }
         let s = settings.get_untracked();
-        if s.claude_key.is_empty() {
-            error.set("Typing needs a Claude key in Settings.".into());
+        if brain_key(&s).is_empty() {
+            error.set(format!("Typing needs a {} key in Settings.", brain_name()));
             return;
         }
         error.set(String::new());

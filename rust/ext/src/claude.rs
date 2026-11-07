@@ -123,7 +123,7 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
     result
 }
 
-fn gloo_timeout(ms: i32, f: impl FnOnce() + 'static) -> i32 {
+pub(crate) fn gloo_timeout(ms: i32, f: impl FnOnce() + 'static) -> i32 {
     let cb = wasm_bindgen::closure::Closure::once_into_js(f);
     web_sys::window()
         .and_then(|w| {
@@ -133,7 +133,7 @@ fn gloo_timeout(ms: i32, f: impl FnOnce() + 'static) -> i32 {
         .unwrap_or(0)
 }
 
-fn clear_timeout(id: i32) {
+pub(crate) fn clear_timeout(id: i32) {
     if let Some(w) = web_sys::window() {
         w.clear_timeout_with_handle(id);
     }

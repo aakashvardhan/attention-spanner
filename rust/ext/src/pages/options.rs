@@ -127,6 +127,15 @@ pub fn Options() -> impl IntoView {
                                 value=Signal::derive(move || settings.get().openai_key)
                                 on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("openaiKey", json!(key)).await }))
                             />
+                            <p class="hint">"Gemini watches YouTube videos for their notes and talks them through with you. Get a key at aistudio.google.com."</p>
+                            <TextRow
+                                id="gemini-key"
+                                label="Gemini API key (YouTube notes)"
+                                placeholder="AIza…"
+                                password=true
+                                value=Signal::derive(move || settings.get().gemini_key)
+                                on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("geminiKey", json!(key)).await }))
+                            />
                             <div class="setting-row">
                                 <label for="talk-voice">
                                     "Voice "

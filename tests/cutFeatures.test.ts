@@ -15,7 +15,8 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'drift', pattern: /checkDrift|useDriftNudge|driftChecked|LAYA_DRIFT_MIN|focusDrift/ },
   { name: 'hyperfocus', pattern: /hyperfocus|HYPERFOCUS/i },
   { name: 'flowtunes', pattern: /focusMusic|flowtunes/i },
-  { name: 'gemini', pattern: /geminiKey\b|geminiVideoStream|Gemini watched/ },
+  // The old Gemini video stream stays cut; geminiKey is back for YouTube notes (2026-11-07 spec, part 2).
+  { name: 'gemini', pattern: /geminiVideoStream|Gemini watched/ },
   { name: 'suggested-feeds', pattern: /SuggestedFeeds|rankDomains|suggestFeeds|isFollowed|isPublicHost|DiscoveryDeps|DiscoveryResult|SiteScore|HistoryVisit|MIN_VISITS/ },
   { name: 'ai-stats', pattern: /recordStat|updateStats|settleProbes|probePercent|aiStats|AiStats|ImpactRows/ },
   { name: 'nudges', pattern: /scheduleNudge|cancelNudge|fireNudge|nudgesEnabled|NUDGE_|nudgePrefix|lastGlobalNudgeAt/ },

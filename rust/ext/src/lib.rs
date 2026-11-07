@@ -5,6 +5,7 @@
 mod cache;
 mod chrome;
 mod claude;
+mod gemini;
 mod js;
 mod page_text;
 mod pages;

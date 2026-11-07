@@ -7,11 +7,13 @@ pub mod blocked;
 pub mod dumps;
 pub mod lexicon;
 pub mod newtab;
+pub mod notes_view;
 pub mod options;
 pub mod papers;
 pub mod reader;
 pub mod sidebar;
 mod todo_drag;
+pub mod video_panel;
 
 use crate::chrome;
 use crate::js::{from_js, to_js, wait};

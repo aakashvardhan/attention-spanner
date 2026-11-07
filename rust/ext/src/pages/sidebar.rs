@@ -5,21 +5,31 @@
 
 use super::reader::listen::ListenPanel;
 use super::reader::talk::TalkPanel;
+use super::video_panel::VideoPanel;
 use crate::chrome;
 use crate::js::{from_js, to_js, wait};
 use crate::page_text::{self, PageText, UNREADABLE};
 use crate::voice::sleep_ms;
 use leptos::prelude::*;
 use reader_core::voice_agent::Source;
+use reader_core::youtube;
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 #[derive(Debug, Clone, PartialEq)]
+enum Content {
+    /// Any page: its text, or why it can't be read.
+    Page(Result<PageText, String>),
+    /// A YouTube video: notes instead of the page's text.
+    Video { id: String, title: String },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct Target {
     tab_id: i32,
     url: String,
-    text: Result<PageText, String>,
+    content: Content,
 }
 
 fn query_param(name: &str) -> Option<String> {
@@ -91,18 +101,31 @@ pub fn Sidebar() -> impl IntoView {
             // Already showing this page, read: keep it (and its audio). A
             // failed read is tried again.
             let same = |c: &Target| {
-                c.tab_id == tab_id && page_of(&c.url) == page_of(&url) && c.text.is_ok()
+                c.tab_id == tab_id
+                    && page_of(&c.url) == page_of(&url)
+                    && !matches!(c.content, Content::Page(Err(_)))
             };
             if target.with_untracked(|c| c.as_ref().is_some_and(same)) {
                 return;
             }
-            let text = if url.starts_with("http://") || url.starts_with("https://") {
-                page_text::read(tab_id).await
+            let content = if let Some(id) = youtube::video_id(&url) {
+                let title = t["title"].as_str().unwrap_or_default();
+                let title = title
+                    .strip_suffix(" - YouTube")
+                    .unwrap_or(title)
+                    .to_string();
+                Content::Video { id, title }
+            } else if url.starts_with("http://") || url.starts_with("https://") {
+                Content::Page(page_text::read(tab_id).await)
             } else {
-                Err(UNREADABLE.to_string())
+                Content::Page(Err(UNREADABLE.to_string()))
             };
             if generation.get_value() == mine {
-                target.set(Some(Target { tab_id, url, text }));
+                target.set(Some(Target {
+                    tab_id,
+                    url,
+                    content,
+                }));
             }
         });
     };
@@ -159,8 +182,9 @@ pub fn Sidebar() -> impl IntoView {
         <main class="sidebar">
             {move || match target.get() {
                 None => view! { <p class="sidebar-quiet" role="status">"Reading the page…"</p> }.into_any(),
-                Some(Target { text: Err(m), .. }) => view! { <p class="sidebar-quiet" role="status">{m}</p> }.into_any(),
-                Some(Target { text: Ok(page), .. }) => view! { <PagePanels page=page /> }.into_any(),
+                Some(Target { content: Content::Page(Err(m)), .. }) => view! { <p class="sidebar-quiet" role="status">{m}</p> }.into_any(),
+                Some(Target { content: Content::Page(Ok(page)), .. }) => view! { <PagePanels page=page /> }.into_any(),
+                Some(Target { tab_id, url, content: Content::Video { id, title } }) => view! { <VideoPanel tab_id=tab_id id=id url=url title=title /> }.into_any(),
             }}
         </main>
     }
