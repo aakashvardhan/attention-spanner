@@ -97,6 +97,25 @@ describe('side panel: webpage', () => {
     ext.sites.setRoute('notes', '/slow', (req, res) => {
       setTimeout(() => html('<main><h1>Slow tab</h1><p>Late.</p></main>')(req, res), 2_000);
     });
+    ext.sites.setRoute(
+      'notes',
+      '/edges',
+      html(
+        '<article><p>MathJax 3: <mjx-container class="MathJax" jax="CHTML"><mjx-math aria-hidden="true">E=mc2</mjx-math><mjx-assistive-mml><math alttext="E=mc^2"><mi>E</mi></math></mjx-assistive-mml></mjx-container> done.</p>' +
+          '<p>MathML: <math display="block"><semantics><mfrac><mi>a</mi><mi>b</mi></mfrac><annotation encoding="application/x-tex">\\frac{a}{b}</annotation></semantics></math></p>' +
+          '<p>Cited claim<sup><a href="#fn1">1</a></sup> stands.</p>' +
+          '<p dir="rtl">שלום עולם and 日本語 text</p>' +
+          '<p hidden>Hidden paragraph</p><div aria-hidden="true">Decorative</div>' +
+          '<p>' + 'x'.repeat(30_000) + '</p></article>',
+      ),
+    );
+    // A long page: 1,000 sections of five 400-character paragraphs, 300 formulas.
+    const para = 'Agents act, observe, and adapt. '.repeat(13);
+    const katex = (t: string) => `<span class="katex"><span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">${t}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">g</span></span>`;
+    const big = Array.from({ length: 1_000 }, (_, i) =>
+      `<h2>Part ${i + 1}</h2>` + Array.from({ length: 5 }, (_, j) => `<p>${para}${i % 3 === 0 && j === 0 ? katex(`x_${i}^2`) : ''}</p>`).join(''),
+    ).join('');
+    ext.sites.setRoute('notes', '/long', html(`<main><h1>Long notes</h1>${big}</main>`));
     url = `${ext.sites.origin('notes')}/agent-evaluation`;
   });
   afterAll(async () => ext?.close());
@@ -276,4 +295,47 @@ describe('side panel: webpage', () => {
     await expect.poll(() => side.getByRole('heading', { name: 'Slow tab' }).count(), { timeout: 10_000 }).toBe(1);
     await side.close();
   }, 30_000);
+
+  it('edge cases: MathJax 3 and MathML math, footnote links, other scripts, hidden text, one huge paragraph', async () => {
+    const r = await extract(await openTab('/edges'));
+    const all = r.blocks.map((b) => b.text).join('\n');
+    expect(all).toContain('MathJax 3: $E=mc^2$ done.');
+    expect(all).toContain('$$\\frac{a}{b}$$');
+    expect(all).toContain('Cited claim stands.');
+    expect(all).toContain('שלום עולם and 日本語 text');
+    expect(all).not.toMatch(/Hidden paragraph|Decorative|E=mc2 done/);
+    expect(r.title).toBe('t');
+    expect(r.blocks.some((b) => b.text.length === 30_000)).toBe(true);
+  });
+
+  it('load: a 2 MB page reads in under 3 s, opens in the panel, and Listen asks for one section at a time', async () => {
+    const tabId = await openTab('/long');
+    const t0 = Date.now();
+    const r = await extract(tabId);
+    const ms = Date.now() - t0;
+    expect(r.blocks.length).toBe(1 + 1_000 * 6);
+    expect(ms).toBeLessThan(3_000);
+    expect(r.blocks.map((b) => b.text).join('')).toContain('$x_{0}^2$'.replace('{0}', '0'));
+
+    const before = calls.length;
+    const opened = Date.now();
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByRole('heading', { name: 'Long notes' }).count(), { timeout: 10_000 }).toBe(1);
+    const openMs = Date.now() - opened;
+    await side.getByRole('button', { name: 'Read the page' }).click();
+    await side.waitForTimeout(3_000);
+    const narrate = calls.slice(before).filter((c) => c.system.includes('one section of the web page'));
+    // Only a little ahead of the voice (about 8 s of audio; each mocked
+    // narration is 1.5 s), never the 1,000 sections at once.
+    expect(narrate.length).toBeGreaterThan(0);
+    expect(narrate.length).toBeLessThanOrEqual(12);
+    expect(narrate[0].prompt).toMatch(/section 1 of \d{3,}/);
+    const count = Number(/section 1 of (\d+)/.exec(narrate[0].prompt)![1]);
+    expect(count).toBeGreaterThanOrEqual(1_000);
+    // Each section is bounded: the request bodies for this page stay small.
+    const longBodies = bodies.slice(-narrate.length);
+    expect(longBodies.every((b) => b.length < 6_000 * 2 + 20_000)).toBe(true);
+    console.log(`[load] extract ${ms} ms for ${r.blocks.length} blocks; panel ready ${openMs} ms; ${count} sections`);
+    await side.close();
+  }, 60_000);
 });

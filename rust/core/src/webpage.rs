@@ -91,4 +91,45 @@ mod tests {
     fn drops_empty_blocks_and_sections() {
         assert!(sections(&[b(2, "  "), b(0, "")]).is_empty());
     }
+
+    /// Invariants over many generated pages: nothing lost or reordered,
+    /// every section bounded, every top-level heading opens a section.
+    #[test]
+    fn invariants_hold_for_generated_pages() {
+        let mut seed = 0x2545_f491_u64;
+        let mut next = move |n: u64| {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            (seed >> 33) % n
+        };
+        for _ in 0..500 {
+            let blocks: Vec<Block> = (0..next(40))
+                .map(|_| {
+                    let level = [0, 0, 0, 0, 1, 2, 3, 4][next(8) as usize];
+                    let len = [0, 3, 40, 900, 5_999, 6_000, 6_001, 14_000][next(8) as usize];
+                    let text: String = (0..len)
+                        .map(|i| ['a', 'é', ' ', '\n', '∑'][(i + next(5) as usize) % 5])
+                        .collect();
+                    b(level, &text)
+                })
+                .collect();
+            let s = sections(&blocks);
+            assert!(s
+                .iter()
+                .all(|t| !t.is_empty() && t.chars().count() <= SECTION_MAX_CHARS));
+            let squash = |t: &str| t.chars().filter(|c| *c != '\n').collect::<String>();
+            let want: String = blocks.iter().map(|b| squash(b.text.trim())).collect();
+            let got: String = s.iter().map(|t| squash(t)).collect();
+            assert_eq!(got, want);
+            for h in blocks
+                .iter()
+                .filter(|b| (1..=3).contains(&b.level) && !b.text.trim().is_empty())
+            {
+                let head: String = h.text.trim().chars().take(20).collect();
+                assert!(
+                    s.iter().any(|t| t.starts_with(&head)),
+                    "heading not at a section start"
+                );
+            }
+        }
+    }
 }

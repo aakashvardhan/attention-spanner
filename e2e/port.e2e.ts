@@ -26,8 +26,8 @@ describe('rust port: phase 0 skeleton', () => {
     await expect.poll(() => page.locator('main.edition .label').first().innerText()).toBeTruthy();
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
     expect(await page.title()).toBe('Focus workspace');
-    // theme.css loaded: the paper ground, not the browser's white
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(221, 213, 198)');
+    // theme.css loaded: the grid ground (the default palette), not the browser's white
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(5, 8, 13)');
     await expectA11y(page, 'newtab');
     expectClean(ext, NETWORK_NOISE);
     await page.close();

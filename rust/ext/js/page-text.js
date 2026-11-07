@@ -17,13 +17,18 @@
     if (t) swap(el, t, false);
   }
   // MathJax 2 keeps the source in a script; drop its rendered copies.
-  root.querySelectorAll('.MathJax_Preview, .MathJax, .MathJax_Display, .MathJax_SVG, .MathJax_SVG_Display, .MathJax_CHTML').forEach((el) => el.remove());
+  // (MathJax 3's mjx-container carries class MathJax too: it is handled below.)
+  root
+    .querySelectorAll('.MathJax_Preview, .MathJax_Display, .MathJax_SVG, .MathJax_SVG_Display, .MathJax_CHTML, span.MathJax, div.MathJax')
+    .forEach((el) => el.remove());
   for (const el of root.querySelectorAll('script[type^="math/tex"]')) {
     swap(el, el.textContent.trim(), el.type.includes('mode=display'));
   }
   // MathJax 3 and bare MathML: TeX if it was kept, else the alt text, else the MathML's text.
   for (const el of root.querySelectorAll('mjx-container, math')) {
-    if (!el.isConnected) continue;
+    // Inside one already swapped (a math in an mjx-container). The copy is
+    // detached, so isConnected is always false: ask the root instead.
+    if (!root.contains(el)) continue;
     const m = el.matches('math') ? el : el.querySelector('math');
     const t = tex(el) || m?.getAttribute('alttext') || m?.textContent?.trim() || '';
     const display = el.getAttribute('display') === 'true' || m?.getAttribute('display') === 'block';

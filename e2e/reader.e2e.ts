@@ -107,7 +107,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
     // One paper room: the page behind the paper is --bg-page.
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(221, 213, 198)');
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(5, 8, 13)');
 
     // Click the middle of "transformer" in the first line.
     const at = await page.$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (span) => {
@@ -470,6 +470,13 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
   });
 
   it('recolours text pages to dark ink on light paper', async () => {
+    // The paper palette (grid, the default, is dark): set for this test, put back after.
+    const setTheme = (theme: string | undefined) =>
+      ext.sw.evaluate(async (t) => {
+        const { settings = {} } = await chrome.storage.local.get('settings');
+        await chrome.storage.local.set({ settings: { ...settings, theme: t } });
+      }, theme);
+    await setTheme('paper');
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] canvas[data-ready]:not(.reader-thumb)');
     const pixels = await page.$eval('[aria-label^="Page 1 of"] canvas:not(.reader-thumb)', (c) => {
@@ -491,6 +498,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     expect(pixels.ink).toEqual([0x1d, 0x18, 0x13]);
     expectClean(ext);
     await page.close();
+    await setTheme('grid');
   });
 
   it('leaves a local PDF and a non-arXiv web PDF in Chrome\'s own viewer', async () => {
