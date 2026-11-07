@@ -99,6 +99,15 @@ describe('side panel: YouTube', () => {
     await expect.poll(() => again.getByText('Install the flasher').count()).toBe(1);
     expect(gemini.length).toBe(1);
 
+    // Long notes in a short panel: the page scrolls to the end (reader.css locks the body for the PDF reader).
+    await again.setViewportSize({ width: 400, height: 300 });
+    // A wheel, as a person scrolls (overflow: hidden still allows scrollTo).
+    await again.mouse.move(200, 150);
+    await again.mouse.wheel(0, 2_000);
+    await expect.poll(() => again.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await again.setViewportSize({ width: 1280, height: 900 });
+    await again.evaluate(() => window.scrollTo(0, 0));
+
     // A timestamp seeks the video, through YouTube's player (not an ad's <video>).
     await again.getByRole('button', { name: 'Play from 1:15' }).click();
     await expect.poll(() => videoPage(A).evaluate(() => (window as unknown as { seeks: number[] }).seeks)).toEqual([75]);

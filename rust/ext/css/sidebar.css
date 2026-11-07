@@ -3,6 +3,8 @@
    they are the page. */
 body {
   margin: 0;
+  /* reader.css locks the body (the PDF reader scrolls its own viewport); the panel scrolls as a page. */
+  overflow-y: auto;
   background: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-sans);
