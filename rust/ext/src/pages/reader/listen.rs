@@ -9,7 +9,7 @@ use crate::voice::{sleep_ms, Player, Speaker, SpeakerEvent, SpeechKeys};
 use leptos::prelude::*;
 use reader_core::audiobook::{is_skip, narrate_prompt, narrate_system, page_document};
 use reader_core::constants::CLAUDE_MODEL_QUICK;
-use reader_core::voice_agent::{sentence_at, Chunker};
+use reader_core::voice_agent::{sentence_at, Chunker, Source};
 
 /// The next page's narration starts once less than this is left to play.
 const LOOKAHEAD_MS: i32 = 8_000;
@@ -160,7 +160,7 @@ pub fn ListenPanel(
                 SpeakerEvent::Error(m) => error.set(m),
             },
         );
-        let system = narrate_system(&title.get_untracked());
+        let system = narrate_system(&title.get_untracked(), Source::Paper);
         let count = pages.len() as u32;
 
         leptos::task::spawn_local(async move {
@@ -183,7 +183,7 @@ pub fn ListenPanel(
                     continue;
                 }
                 let previous = (p > from).then(|| pages[p as usize - 2].as_str());
-                let prompt = narrate_prompt(p, count, previous);
+                let prompt = narrate_prompt(p, count, previous, Source::Paper);
                 let doc_text = page_document(text);
                 // ponytail: one render per page; a missing picture falls back to text alone.
                 let image = crate::pdfjs::page_image(&doc.get_value(), p).await;

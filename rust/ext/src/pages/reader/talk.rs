@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use reader_core::constants::CLAUDE_MODEL_QUICK;
 use reader_core::voice::{clean_transcript, encode_wav, trim_to_speech};
 use reader_core::voice_agent::{
-    agent_system, paper_document, turn_prompt, Chunker, Turn, TURN_SILENCE_MS,
+    agent_system, paper_document, turn_prompt, Chunker, Source, Turn, TURN_SILENCE_MS,
 };
 use std::rc::Rc;
 
@@ -106,9 +106,10 @@ pub fn TalkPanel(
         };
         reply_ctl.set_value(Some(ctl.clone()));
         phase.set(Phase::Thinking);
-        let doc = page_texts.with_untracked(|p| paper_document(p.as_deref().unwrap_or_default()));
-        let prompt = turn_prompt(&turns.get_untracked(), page.get_untracked());
-        let system = agent_system(&title.get_untracked());
+        let doc = page_texts
+            .with_untracked(|p| paper_document(p.as_deref().unwrap_or_default(), Source::Paper));
+        let prompt = turn_prompt(&turns.get_untracked(), page.get_untracked(), Source::Paper);
+        let system = agent_system(&title.get_untracked(), Source::Paper);
         let live = move || generation.try_get_value() == Some(mine);
         turns.update(|t| {
             t.push(Turn {

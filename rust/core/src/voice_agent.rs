@@ -37,17 +37,43 @@ const PAPER_MAX_CHARS: usize = 40_000;
 /// Turns of history sent each time.
 const HISTORY_TURNS: usize = 12;
 
-pub fn agent_system(title: &str) -> String {
+/// What is being read: a paper (in pages, with pictures) or a webpage (in sections).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    Paper,
+    Webpage,
+}
+
+impl Source {
+    /// What the whole thing is called: "the paper", "the page".
+    pub fn noun(self) -> &'static str {
+        match self {
+            Source::Paper => "paper",
+            Source::Webpage => "page",
+        }
+    }
+
+    /// What it comes in: pages of a paper, sections of a webpage.
+    pub fn part(self) -> &'static str {
+        match self {
+            Source::Paper => "page",
+            Source::Webpage => "section",
+        }
+    }
+}
+
+pub fn agent_system(title: &str, source: Source) -> String {
+    let (noun, part) = (source.noun(), source.part());
     format!(
-        "You are a thinking partner, talking out loud with someone reading the paper \"{title}\". \
+        "You are a thinking partner, talking out loud with someone reading the {noun} \"{title}\". \
 They speak, you reply, and your reply is spoken by a voice, so write the way people talk: \
 one or two short sentences, contractions, plain words, no lists, no markdown, no math \
 symbols, no emoji, no stage directions or bracketed tags. You ask, you never tell: never \
-explain the paper, never summarise it, never give the answer, even when asked. Instead, \
+explain the {noun}, never summarise it, never give the answer, even when asked. Instead, \
 reflect what they said in a few words if useful, then ask one question that makes them \
 think further: what problem it solves, what the trick is, why it works, what would break \
 it, how it compares to something they know. If they are wrong, ask a question that leads \
-them to see it, and point to the page to look at. If they ask you to just explain, say \
+them to see it, and point to the {part} to look at. If they ask you to just explain, say \
 warmly that you'd rather hear their take first, and ask what they think so far. \
 Start a new conversation by asking what they're reading right now and what stood out."
     )
@@ -59,11 +85,11 @@ pub struct Turn {
     pub text: String,
 }
 
-/// The paper's text, capped.
-pub fn paper_document(pages: &[String]) -> String {
+/// The text, capped, each page or section labelled.
+pub fn paper_document(parts: &[String], source: Source) -> String {
     let mut doc = String::new();
-    for (i, p) in pages.iter().enumerate() {
-        doc.push_str(&format!("[page {}]\n{}\n", i + 1, p));
+    for (i, p) in parts.iter().enumerate() {
+        doc.push_str(&format!("[{} {}]\n{}\n", source.part(), i + 1, p));
         if doc.len() > PAPER_MAX_CHARS {
             break;
         }
@@ -71,10 +97,15 @@ pub fn paper_document(pages: &[String]) -> String {
     doc.chars().take(PAPER_MAX_CHARS).collect()
 }
 
-/// The conversation so far, then the line to answer. `page` is where they are now.
-pub fn turn_prompt(history: &[Turn], page: u32) -> String {
+/// The conversation so far, then the line to answer. `page` is where they
+/// are in a paper; a webpage in the side panel has no reading position.
+pub fn turn_prompt(history: &[Turn], page: u32, source: Source) -> String {
     let start = history.len().saturating_sub(HISTORY_TURNS);
-    let mut out = format!("They are on page {page}. The conversation so far:\n");
+    let mut out = match source {
+        Source::Paper => format!("They are on page {page}. "),
+        Source::Webpage => String::new(),
+    };
+    out.push_str("The conversation so far:\n");
     if history.is_empty() {
         out.push_str("(nothing yet: open the conversation)\n");
     }
@@ -384,6 +415,16 @@ pub fn tts_failure(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn webpage_talk_is_about_the_page_and_still_never_tells() {
+        let sys = agent_system("Notes", Source::Webpage);
+        assert!(sys.contains("you never tell") && sys.contains("the page \"Notes\""));
+        assert!(paper_document(&["a".into(), "b".into()], Source::Webpage).contains("[section 2]"));
+        let p = turn_prompt(&[], 3, Source::Webpage);
+        assert!(!p.contains("page 3") && !p.contains("section 3"));
+        assert!(turn_prompt(&[], 3, Source::Paper).contains("They are on page 3."));
+    }
+
     use super::*;
 
     #[test]
@@ -515,9 +556,9 @@ mod tests {
                 text: format!("line {i}"),
             })
             .collect();
-        let p = turn_prompt(&history, 4);
+        let p = turn_prompt(&history, 4, Source::Paper);
         assert!(p.contains("page 4") && p.contains("line 19") && !p.contains("line 7\n"));
-        assert!(turn_prompt(&[], 1).contains("open the conversation"));
+        assert!(turn_prompt(&[], 1, Source::Paper).contains("open the conversation"));
         assert_eq!(tts_body(TtsProvider::Groq, "hi", "troy")["voice"], "troy");
         assert_eq!(
             tts_body(TtsProvider::Groq, "hi", "nobody")["voice"],
