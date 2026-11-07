@@ -109,6 +109,18 @@ describe('side panel: webpage', () => {
           '<p>' + 'x'.repeat(30_000) + '</p></article>',
       ),
     );
+    // A Blogger post: blog title in a header, a date header over the post title, comments under it.
+    ext.sites.setRoute(
+      'notes',
+      '/blog',
+      html(
+        "<div class='header-outer'><header><h1 class='title'>Tiny Boards Blog</h1></header></div>" +
+          "<div class='main-outer'><h2 class='date-header'><span>Thursday, December 15, 2022</span></h2>" +
+          "<div class='post hentry'><h3 class='post-title entry-title'>Linux on an eight dollar board</h3>" +
+          "<div class='post-body entry-content'>Yes, a whole Linux system runs on this board.<br><br>Networking is not working yet.</div></div>" +
+          "<div class='comments' id='comments'><h4>3 comments:</h4><dl id='comments-block'><dt>Reader said...</dt><dd><p>Great post!</p></dd></dl></div></div>",
+      ),
+    );
     // A long page: 1,000 sections of five 400-character paragraphs, 300 formulas.
     const para = 'Agents act, observe, and adapt. '.repeat(13);
     const katex = (t: string) => `<span class="katex"><span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">${t}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">g</span></span>`;
@@ -338,4 +350,19 @@ describe('side panel: webpage', () => {
     console.log(`[load] extract ${ms} ms for ${r.blocks.length} blocks; panel ready ${openMs} ms; ${count} sections`);
     await side.close();
   }, 60_000);
+
+  it('a blog post is one section: the date stays with the post, comments are left out', async () => {
+    const tabId = await openTab('/blog');
+    const r = await extract(tabId);
+    const all = r.blocks.map((b) => b.text).join('\n');
+    expect(all).toContain('Yes, a whole Linux system runs on this board. Networking is not working yet.');
+    expect(all).not.toMatch(/comments:|Great post|Reader said/);
+    const before = calls.length;
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await side.getByRole('button', { name: 'Read the page' }).click();
+    await expect.poll(() => side.getByText("That's the end of the page.").count(), { timeout: 15_000 }).toBe(1);
+    const narrate = calls.slice(before).filter((c) => c.system.includes('one section of the web page'));
+    expect(narrate.map((c) => /section \d+ of \d+/.exec(c.prompt)?.[0])).toEqual(['section 1 of 1']);
+    await side.close();
+  });
 });

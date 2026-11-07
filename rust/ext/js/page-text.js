@@ -51,7 +51,9 @@
   root
     .querySelectorAll(
       'nav, header, footer, aside, script, style, noscript, button, svg, template, [hidden], [aria-hidden="true"], ' +
-        '[role=navigation], [role=banner], [role=contentinfo], [role=complementary], [role=search]',
+        '[role=navigation], [role=banner], [role=contentinfo], [role=complementary], [role=search], ' +
+        // Comment threads (Blogger, WordPress, Disqus) are not the article.
+        '#comments, .comments, .comment-list, .commentlist, #disqus_thread',
     )
     .forEach((el) => el.remove());
 

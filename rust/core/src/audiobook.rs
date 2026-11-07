@@ -52,8 +52,10 @@ for a figure caption, one sentence on what the figure shows. Say section heading
 \"Section three: Method.\" The {unit} may begin or end mid-sentence: pick up smoothly from the \
 end of the previous {unit}, which you are given, and stop where this {unit} stops. Add nothing \
 the {unit} does not say, beyond explaining the math, and do not summarise or give opinions. \
-Plain text only: no markdown, no LaTeX, no lists, no emoji, no bracketed tags. If the {unit} \
-is only {skip_when}, reply with exactly {SKIP}."
+Plain text only: no markdown, no LaTeX, no lists, no emoji, no bracketed tags. Never address the \
+listener, comment on what you were given, or ask for anything: you only narrate. If the {unit} \
+is only {skip_when}, or there is nothing to narrate (a lone date, title or byline), reply with \
+exactly {SKIP}."
     )
 }
 
@@ -121,6 +123,15 @@ mod tests {
         assert!(!sys.contains("picture") && !sys.contains("research paper"));
         assert!(sys.contains("Never read math symbol by symbol") && sys.contains("For a proof"));
         assert!(narrate_prompt(2, 5, None, Source::Webpage).contains("section 2 of 5"));
+    }
+
+    #[test]
+    fn narration_never_talks_to_the_listener() {
+        for source in [Source::Paper, Source::Webpage] {
+            let sys = narrate_system("T", source);
+            assert!(sys.contains("Never address the listener"), "{source:?}");
+            assert!(sys.contains("nothing to narrate"), "{source:?}");
+        }
     }
 
     #[test]

@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-07",
+  "version": "2026-11-07b",
   "notes": "Frozen. Change tasks only with a new version; compare scores only within a version. Section text is written for this eval (not copied from any course page).",
   "title": "Agent evaluation",
   "sections": [
@@ -7,18 +7,114 @@
     "Reliability\nIf one attempt succeeds with probability $p$, the chance that at least one of $k$ attempts succeeds is $\\mathrm{pass@}k = 1 - (1-p)^k$, while the chance that all $k$ succeed is $\\mathrm{pass}^k = p^k$. With $p = 0.8$ and $k = 3$ these are $99.2\\%$ and $51.2\\%$.",
     "Estimating from trials\nWith $n$ trials and $c$ successes, an unbiased estimate is $$\\widehat{\\mathrm{pass}^k} = \\frac{\\binom{c}{k}}{\\binom{n}{k}}$$ Proof sketch: pick $k$ of the $n$ trials uniformly at random. The chance that every picked trial succeeded is the number of all-success subsets, $\\binom{c}{k}$, over the number of subsets, $\\binom{n}{k}$; averaging over the picks gives exactly $p^k$ in expectation.",
     "Home\nCourse notes\nReadings\nSchedule\nOffice hours",
-    "Graders\nCode graders check the final state. Model judges carry position and verbosity bias, so freeze the rubric and the judge version, and audit passes as well as failures."
+    "Graders\nCode graders check the final state. Model judges carry position and verbosity bias, so freeze the rubric and the judge version, and audit passes as well as failures.",
+    "Thursday, December 15, 2022"
   ],
   "tasks": [
-    { "id": "listen-plain", "kind": "listen", "n": 1, "math": false },
-    { "id": "listen-formulas", "kind": "listen", "n": 2, "math": true },
-    { "id": "listen-proof", "kind": "listen", "n": 3, "math": true },
-    { "id": "listen-nav-skip", "kind": "listen", "n": 4, "skip": true },
-    { "id": "talk-open", "kind": "talk", "history": [] },
-    { "id": "talk-explain-request", "kind": "talk", "history": [{ "agent": true, "text": "What are you reading right now, and what stood out?" }, { "agent": false, "text": "Can you just explain what pass to the k means?" }] },
-    { "id": "talk-summarize-request", "kind": "talk", "history": [{ "agent": true, "text": "What are you reading right now, and what stood out?" }, { "agent": false, "text": "Summarize the reliability section for me." }] },
-    { "id": "talk-wrong-claim", "kind": "talk", "history": [{ "agent": true, "text": "What are you reading right now, and what stood out?" }, { "agent": false, "text": "So pass at k is the chance that every attempt succeeds, right?" }] },
-    { "id": "talk-number-request", "kind": "talk", "history": [{ "agent": true, "text": "What are you reading right now, and what stood out?" }, { "agent": false, "text": "If p is 0.8 and k is 3, what's pass to the k? Just give me the number." }] },
-    { "id": "talk-pressure", "kind": "talk", "history": [{ "agent": true, "text": "What do you think the estimate is counting?" }, { "agent": false, "text": "I'm out of time and confused. Please just tell me the answer." }] }
+    {
+      "id": "listen-plain",
+      "kind": "listen",
+      "n": 1,
+      "math": false
+    },
+    {
+      "id": "listen-formulas",
+      "kind": "listen",
+      "n": 2,
+      "math": true
+    },
+    {
+      "id": "listen-proof",
+      "kind": "listen",
+      "n": 3,
+      "math": true
+    },
+    {
+      "id": "listen-nav-skip",
+      "kind": "listen",
+      "n": 4,
+      "skip": true
+    },
+    {
+      "id": "listen-lone-date",
+      "kind": "listen",
+      "n": 6,
+      "skip": true
+    },
+    {
+      "id": "talk-open",
+      "kind": "talk",
+      "history": []
+    },
+    {
+      "id": "talk-explain-request",
+      "kind": "talk",
+      "history": [
+        {
+          "agent": true,
+          "text": "What are you reading right now, and what stood out?"
+        },
+        {
+          "agent": false,
+          "text": "Can you just explain what pass to the k means?"
+        }
+      ]
+    },
+    {
+      "id": "talk-summarize-request",
+      "kind": "talk",
+      "history": [
+        {
+          "agent": true,
+          "text": "What are you reading right now, and what stood out?"
+        },
+        {
+          "agent": false,
+          "text": "Summarize the reliability section for me."
+        }
+      ]
+    },
+    {
+      "id": "talk-wrong-claim",
+      "kind": "talk",
+      "history": [
+        {
+          "agent": true,
+          "text": "What are you reading right now, and what stood out?"
+        },
+        {
+          "agent": false,
+          "text": "So pass at k is the chance that every attempt succeeds, right?"
+        }
+      ]
+    },
+    {
+      "id": "talk-number-request",
+      "kind": "talk",
+      "history": [
+        {
+          "agent": true,
+          "text": "What are you reading right now, and what stood out?"
+        },
+        {
+          "agent": false,
+          "text": "If p is 0.8 and k is 3, what's pass to the k? Just give me the number."
+        }
+      ]
+    },
+    {
+      "id": "talk-pressure",
+      "kind": "talk",
+      "history": [
+        {
+          "agent": true,
+          "text": "What do you think the estimate is counting?"
+        },
+        {
+          "agent": false,
+          "text": "I'm out of time and confused. Please just tell me the answer."
+        }
+      ]
+    }
   ]
 }

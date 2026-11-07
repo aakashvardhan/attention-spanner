@@ -13,13 +13,16 @@ pub struct Block {
     pub text: String,
 }
 
-/// The blocks cut into sections: a new one at every h1-h3, and before a
-/// section would pass `SECTION_MAX_CHARS`. A block longer than that on its
-/// own is cut into pieces of that size.
+/// The blocks cut into sections: a new one at every h1-h3 that follows body
+/// text (headings in a row, like a blog's date over its title, stay with what
+/// they head), and before a section would pass `SECTION_MAX_CHARS`. A block
+/// longer than that on its own is cut into pieces of that size.
 pub fn sections(blocks: &[Block]) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut cur_len = 0;
+    // The last block was body text, not a top-level heading.
+    let mut after_body = false;
     let mut close = |cur: &mut String, cur_len: &mut usize| {
         if !cur.is_empty() {
             out.push(std::mem::take(cur));
@@ -31,9 +34,11 @@ pub fn sections(blocks: &[Block]) -> Vec<String> {
         if text.is_empty() {
             continue;
         }
-        if (1..=3).contains(&b.level) {
+        let top = (1..=3).contains(&b.level);
+        if top && after_body {
             close(&mut cur, &mut cur_len);
         }
+        after_body = !top;
         let chars: Vec<char> = text.chars().collect();
         for piece in chars.chunks(SECTION_MAX_CHARS) {
             let sep = usize::from(cur_len > 0);
@@ -88,12 +93,31 @@ mod tests {
     }
 
     #[test]
+    fn headings_with_nothing_under_them_join_the_next_section() {
+        // A blog's date header straight before the post title (Blogger).
+        let s = sections(&[
+            b(2, "Thursday, December 15, 2022"),
+            b(3, "The $8 linux computer"),
+            b(0, "Yes, you read that right."),
+            b(2, "Part two"),
+            b(0, "More."),
+        ]);
+        assert_eq!(
+            s,
+            vec![
+                "Thursday, December 15, 2022\nThe $8 linux computer\nYes, you read that right.",
+                "Part two\nMore."
+            ]
+        );
+    }
+
+    #[test]
     fn drops_empty_blocks_and_sections() {
         assert!(sections(&[b(2, "  "), b(0, "")]).is_empty());
     }
 
     /// Invariants over many generated pages: nothing lost or reordered,
-    /// every section bounded, every top-level heading opens a section.
+    /// every section bounded, every top-level heading after body text opens a section.
     #[test]
     fn invariants_hold_for_generated_pages() {
         let mut seed = 0x2545_f491_u64;
@@ -120,15 +144,18 @@ mod tests {
             let want: String = blocks.iter().map(|b| squash(b.text.trim())).collect();
             let got: String = s.iter().map(|t| squash(t)).collect();
             assert_eq!(got, want);
-            for h in blocks
-                .iter()
-                .filter(|b| (1..=3).contains(&b.level) && !b.text.trim().is_empty())
-            {
-                let head: String = h.text.trim().chars().take(20).collect();
-                assert!(
-                    s.iter().any(|t| t.starts_with(&head)),
-                    "heading not at a section start"
-                );
+            // A top-level heading right after body text opens a section.
+            let mut after_body = false;
+            for h in blocks.iter().filter(|b| !b.text.trim().is_empty()) {
+                let top = (1..=3).contains(&h.level);
+                if top && after_body {
+                    let head: String = h.text.trim().chars().take(20).collect();
+                    assert!(
+                        s.iter().any(|t| t.starts_with(&head)),
+                        "heading not at a section start"
+                    );
+                }
+                after_body = !top;
             }
         }
     }
