@@ -50,3 +50,6 @@ rust/ext/dist/
 rust/ext/.build/
 rust/ext/static/
 test-results/
+
+# Agentic eval runs (npm run eval:sidebar)
+eval/out/
