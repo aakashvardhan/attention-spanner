@@ -151,6 +151,9 @@ pub struct VideoNotes {
     pub created_at: i64,
 }
 
+/// Longer than this, a "title" is notes in the wrong field.
+const TITLE_MAX: usize = 150;
+
 fn schema() -> Value {
     let s = json!({ "type": "string" });
     let t = json!({ "type": "string", "description": "MM:SS, or H:MM:SS past an hour" });
@@ -159,7 +162,8 @@ fn schema() -> Value {
         "type": "object",
         "properties": {
             "kind": { "type": "string", "enum": ["lecture", "tutorial", "educational"] },
-            "title": s, "summary": s,
+            "title": { "type": "string", "maxLength": TITLE_MAX },
+            "summary": s,
             "cues": list(json!({ "t": t, "text": s }), &["t", "text"]),
             "notes": list(json!({ "t": t, "text": s }), &["t", "text"]),
             "prerequisites": { "type": "array", "items": s },
@@ -167,7 +171,10 @@ fn schema() -> Value {
             "question": s,
             "ideas": list(json!({ "t": t, "idea": s, "intuition": s }), &["t", "idea", "intuition"])
         },
-        "required": ["kind", "title", "summary"]
+        // Every field, in the order to write them: shape first, title last.
+        // (With only kind/title/summary required Gemini once wrote a whole
+        // lecture into the title and left the lists empty.)
+        "required": ["kind", "question", "prerequisites", "cues", "notes", "steps", "ideas", "summary", "title"]
     })
 }
 
@@ -226,9 +233,17 @@ pub fn parse_notes(
     let text = reply_text(&v)?;
     let mut n: VideoNotes = serde_json::from_str(&text)
         .map_err(|_| "Gemini's notes came back unreadable.".to_string())?;
+    let empty = match n.kind {
+        Kind::Lecture => n.notes.is_empty() && n.cues.is_empty(),
+        Kind::Tutorial => n.steps.is_empty(),
+        Kind::Educational => n.ideas.is_empty(),
+    };
+    if empty {
+        return Err("Gemini's notes came back empty. Try again.".into());
+    }
     n.id = id.into();
     n.url = url.into();
-    if n.title.trim().is_empty() {
+    if n.title.trim().is_empty() || n.title.chars().count() > TITLE_MAX {
         n.title = title.into();
     }
     n.created_at = now;
@@ -375,6 +390,61 @@ mod tests {
         let text = forced["contents"][0]["parts"][1]["text"].as_str().unwrap();
         assert!(text.contains("tutorial") && !text.contains("Decide"));
         assert!(gemini_url().ends_with("models/gemini-3.6-flash:generateContent"));
+    }
+
+    #[test]
+    fn schema_makes_gemini_fill_the_shape() {
+        // Live 2026-11-07: with only kind/title/summary required, Gemini put a
+        // whole lecture's notes into a 9k-character title and left the lists empty.
+        let r = notes_request("u", None);
+        let sch = &r["generationConfig"]["responseJsonSchema"];
+        let req: Vec<&str> = sch["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        for f in [
+            "kind",
+            "question",
+            "prerequisites",
+            "cues",
+            "notes",
+            "steps",
+            "ideas",
+            "summary",
+            "title",
+        ] {
+            assert!(req.contains(&f), "{f} not required");
+        }
+        assert_eq!(sch["properties"]["title"]["maxLength"], 150);
+        assert_eq!(req.first(), Some(&"kind"));
+        assert_eq!(req.last(), Some(&"title"));
+    }
+
+    #[test]
+    fn empty_or_overlong_notes_are_refused() {
+        let body = |notes: &str| {
+            format!(
+                r#"{{"candidates":[{{"content":{{"parts":[{{"text":{}}}]}}}}]}}"#,
+                serde_json::to_string(notes).unwrap()
+            )
+        };
+        let lecture_empty = r#"{"kind":"lecture","title":"x","summary":"s","cues":[],"notes":[]}"#;
+        assert_eq!(
+            parse_notes(&body(lecture_empty), ID, "u", "T", 0).unwrap_err(),
+            "Gemini's notes came back empty. Try again."
+        );
+        let tutorial_empty = r#"{"kind":"tutorial","title":"x","summary":"s","steps":[]}"#;
+        assert!(parse_notes(&body(tutorial_empty), ID, "u", "T", 0).is_err());
+        let explainer_empty = r#"{"kind":"educational","title":"x","summary":"s","ideas":[]}"#;
+        assert!(parse_notes(&body(explainer_empty), ID, "u", "T", 0).is_err());
+        let stuffed = format!(
+            r#"{{"kind":"lecture","title":"{}","summary":"s","notes":[{{"t":"0:10","text":"n"}}]}}"#,
+            "t".repeat(500)
+        );
+        let n = parse_notes(&body(&stuffed), ID, "u", "Tab title", 0).unwrap();
+        assert_eq!(n.title, "Tab title");
     }
 
     const OK: &str = r#"{"candidates":[{"content":{"parts":[{"text":"{\"kind\":\"tutorial\",\"title\":\"Demo\",\"summary\":\"Set it up.\",\"prerequisites\":[\"An account\"],\"steps\":[{\"t\":\"00:28\",\"text\":\"Install it\",\"code\":\"npm i x\"}]}"}]}}],"usageMetadata":{"totalTokenCount":10}}"#;

@@ -2,7 +2,7 @@
 //! the agentic eval (eval/sidebar/run.mjs). Reads tasks as JSON on stdin,
 //! writes `[{ id, body }]` on stdout.
 //!
-//! A task: `{ "id", "kind": "listen" | "talk", "title", "sections": [..],
+//! A task: `{ "id", "kind": "listen" | "talk" | "notes" | "video-talk", "title", "sections": [..], "url"?, "force"?, "at"?,
 //! "n"?: section to narrate (1-based), "history"?: [{ "agent", "text" }] }`.
 
 use reader_core::audiobook::{narrate_prompt, narrate_system, page_document};
@@ -62,6 +62,34 @@ fn build(t: &Value) -> Value {
                 &turn_prompt(&history, 1, Source::Webpage),
                 true,
                 None,
+            )
+        }
+        Some("notes") => {
+            let kind = t["force"]
+                .as_str()
+                .and_then(|k| serde_json::from_value(json!(k)).ok());
+            reader_core::youtube::notes_request(t["url"].as_str().unwrap_or_default(), kind)
+        }
+        Some("video-talk") => {
+            let history: Vec<Turn> = t["history"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|h| Turn {
+                            agent: h["agent"].as_bool().unwrap_or(false),
+                            text: h["text"].as_str().unwrap_or_default().to_string(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            reader_core::youtube::talk_request(
+                &agent_system(title, Source::Video),
+                &paper_document(&sections, Source::Video),
+                &turn_prompt(
+                    &history,
+                    t["at"].as_u64().unwrap_or(0) as u32,
+                    Source::Video,
+                ),
             )
         }
         other => panic!("unknown kind {other:?}"),
