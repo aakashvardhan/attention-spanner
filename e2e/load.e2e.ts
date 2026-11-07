@@ -39,7 +39,7 @@ describe('load: a heavy shelf stays fast', () => {
   beforeEach(() => void ext.errors.splice(0));
 
   for (const [name, path, ready] of [
-    ['new tab', PAGES.newtab, '.continue-paper'],
+    ['new tab', PAGES.newtab, '.paper-card'],
     ['papers', PAGES.papers, '.book'],
   ] as const) {
     it(`${name} paints within budget, with no long task over budget`, async () => {

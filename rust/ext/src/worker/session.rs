@@ -188,19 +188,33 @@ pub async fn focus_reader() -> Res<bool> {
     Ok(true)
 }
 
-/// Startup: tab ids do not survive a restart, so drop every id that is no
-/// longer an open reader tab. Rules never outlive state.
-pub async fn reconcile_on_startup() -> Res<()> {
+#[derive(Deserialize)]
+struct Context {
+    #[serde(rename = "tabId")]
+    tab_id: i32,
+    #[serde(rename = "documentUrl")]
+    document_url: Option<String>,
+}
+
+/// Drop every id that is no longer an open reader tab. Runs on startup (tab
+/// ids do not survive a restart), on every worker start, and whenever the
+/// blocked page shows: a reader close the worker never heard (extension
+/// reload, worker killed) must not block sites until the browser restarts.
+/// Asks getContexts, not tabs.get: without the "tabs" permission Chromium
+/// hides every tab's url, our own pages included. Rules never outlive state.
+pub async fn reconcile_session() -> Res<()> {
     let session: Option<FocusSession> = store::get("focusSession").await?;
+    let open: Vec<Context> = from_js(
+        wait(chrome::runtime_get_contexts(&to_js(
+            &json!({ "contextTypes": ["TAB"] }),
+        )?))
+        .await?,
+    )?;
     let mut next = session.clone();
     for id in session.iter().flat_map(|s| s.tab_ids.clone()) {
-        let alive = match wait(chrome::tabs_get(id)).await {
-            Ok(tab) => from_js::<Tab>(tab)
-                .ok()
-                .and_then(|t| t.url)
-                .is_some_and(|u| is_reader_url(&u)),
-            Err(_) => false,
-        };
+        let alive = open
+            .iter()
+            .any(|c| c.tab_id == id && c.document_url.as_deref().is_some_and(is_reader_url));
         if !alive {
             next = without_reader_tab(next, id);
         }

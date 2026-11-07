@@ -23,7 +23,7 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
       await page.clock.setFixedTime(new Date('2026-11-01T12:00:00'));
       await page.reload();
       await page.waitForTimeout(800);
-      // One walnut theme: the OS colour scheme must not change a pixel.
+      // One paper theme: the OS colour scheme must not change a pixel.
       await expectScreenshot(page, `${name}`);
       await page.emulateMedia({ colorScheme: 'light' });
       await expectScreenshot(page, `${name}`);
@@ -117,12 +117,15 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
   });
 
   it('blocked page: while a paper is open it names the site and the paper, and offers the way back', async () => {
-    await seed(ext, { focusSession: { startedAt: Date.now(), tabIds: [999999], title: 'Attention Is All You Need' } });
+    // A real reader tab holds the session: the blocked page drops sessions whose reader is gone.
+    const reader = await ext.page(PAGES.reader);
+    const tabId = await reader.evaluate(async () => (await chrome.tabs.getCurrent())!.id);
+    await seed(ext, { focusSession: { startedAt: Date.now(), tabIds: [tabId], title: 'Attention Is All You Need', titles: {} } });
     const page = await ext.page(PAGES.blocked);
     await expect.poll(() => page.locator('h1').innerText()).toBe('example.com is blocked while you read');
     expect(await page.locator('.blocked-intention').innerText()).toBe("You're reading: Attention Is All You Need");
     expect(await page.getByRole('button', { name: 'Back to your paper' }).count()).toBe(1);
-    await seed(ext, { focusSession: null });
+    await reader.close();
     await expect.poll(() => page.locator('h1').innerText()).toBe('Reading session over');
     expect(await page.locator('a.blocked-continue').getAttribute('href')).toBe('https://example.com/');
     expectClean(ext, NETWORK_NOISE);

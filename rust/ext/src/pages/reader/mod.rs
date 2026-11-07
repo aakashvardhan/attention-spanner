@@ -2,6 +2,8 @@
 
 mod annotate;
 mod define;
+mod listen;
+mod talk;
 mod think;
 mod ui;
 mod viewport;
@@ -11,6 +13,7 @@ use crate::pdfjs::{self, PageSize};
 use annotate::{post, AnnotationLayer, NotesSidebar, SelectionMenu};
 use define::{define_target, pending_selection, DefinePopover, DefineTarget, PendingSelection};
 use leptos::prelude::*;
+use listen::ListenPanel;
 use reader_core::annotations::{sort_annotations, DEFAULT_ANNOTATION_COLOR};
 use reader_core::figures::captions_from_lines;
 use reader_core::messages::{AnnotationDraft, Message};
@@ -24,6 +27,7 @@ use reader_core::types::{
 };
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use talk::TalkPanel;
 use think::{ExplainPanel, QuestionCard};
 use ui::{FindPanel, OutlineRail, OutlineSidebar, ReaderCapsule, ReaderToolbar};
 use viewport::{Jump, PdfViewport};
@@ -48,8 +52,17 @@ pub fn Reader() -> impl IntoView {
         .flatten()
         .is_some_and(|top| !JsValue::from(top).eq(&JsValue::from(window())));
     let src = reader_pdf_src(&window().location().search().unwrap_or_default());
+    let already_open = RwSignal::new(false);
+    if !framed && !src.is_empty() {
+        one_tab_per_paper(&src, already_open);
+    }
     view! {
         <div id="root">
+            <Show when=move || already_open.get()>
+                <div class="reader-toast reader-dup-toast" role="status">
+                    <span>"This paper is already open. Here it is."</span>
+                </div>
+            </Show>
             {if framed {
                 ().into_any()
             } else if src.is_empty() {
@@ -59,6 +72,81 @@ pub fn Reader() -> impl IntoView {
             }}
         </div>
     }
+}
+
+/// One reader tab per paper. A new tab asks the others "open <key>"; a tab
+/// already showing that paper answers "here", brings itself forward and says
+/// so, and the new tab closes. Only a tab under 2s old closes, so an old
+/// reader holding your notes is never the one that goes.
+fn one_tab_per_paper(src: &str, already_open: RwSignal<bool>) {
+    use wasm_bindgen::{closure::Closure, JsCast};
+    let key = paper_match_key(src).unwrap_or_else(|| src.to_string());
+    let Ok(channel) = web_sys::BroadcastChannel::new("reader-tabs") else {
+        return;
+    };
+    let born = crate::js::now();
+    let ask = format!(
+        "open\n{key}\n{}",
+        window().location().hash().unwrap_or_default()
+    );
+    let reply = channel.clone();
+    let on_message =
+        Closure::<dyn Fn(web_sys::MessageEvent)>::new(move |e: web_sys::MessageEvent| {
+            let msg = e.data().as_string().unwrap_or_default();
+            if let Some(hash) = msg.strip_prefix(&format!("open\n{key}\n")) {
+                // Their #page=N becomes ours; clear first so the same hash still fires.
+                if !hash.is_empty() {
+                    let loc = window().location();
+                    let _ = loc.set_hash("");
+                    let _ = loc.set_hash(hash);
+                }
+                let _ = reply.post_message(&format!("here\n{key}").into());
+                already_open.set(true);
+                set_timeout(
+                    move || already_open.set(false),
+                    std::time::Duration::from_secs(4),
+                );
+                leptos::task::spawn_local(async {
+                    let Ok(tab) = crate::js::wait(crate::chrome::tabs_get_current()).await else {
+                        return;
+                    };
+                    let id = |k: &str| {
+                        js_sys::Reflect::get(&tab, &k.into())
+                            .ok()
+                            .and_then(|v| v.as_f64())
+                            .map(|v| v as i32)
+                    };
+                    if let Some(t) = id("id") {
+                        let _ = crate::js::wait(crate::chrome::tabs_update(
+                            t,
+                            &crate::js::to_js(&json!({ "active": true })).unwrap_or_default(),
+                        ))
+                        .await;
+                    }
+                    if let Some(w) = id("windowId") {
+                        let _ = crate::js::wait(crate::chrome::windows_update(
+                            w,
+                            &crate::js::to_js(&json!({ "focused": true })).unwrap_or_default(),
+                        ))
+                        .await;
+                    }
+                });
+            } else if msg == format!("here\n{key}") && crate::js::now() - born < 2000 {
+                leptos::task::spawn_local(async {
+                    if let Ok(tab) = crate::js::wait(crate::chrome::tabs_get_current()).await {
+                        if let Some(t) = js_sys::Reflect::get(&tab, &"id".into())
+                            .ok()
+                            .and_then(|v| v.as_f64())
+                        {
+                            let _ = crate::js::wait(crate::chrome::tabs_remove(t as i32)).await;
+                        }
+                    }
+                });
+            }
+        });
+    channel.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+    on_message.forget(); // lives as long as the page
+    let _ = channel.post_message(&ask.into());
 }
 
 /// The shelved paper this PDF belongs to (abs/pdf/version variants collapse).
@@ -165,6 +253,18 @@ fn PdfReader(src: String) -> impl IntoView {
     let go = Callback::new(move |page: u32| {
         jump_seq.update_value(|s| *s += 1);
         set_jump.set(Some((page, 0.0, jump_seq.get_value())));
+    });
+    // A #page=N link to this paper from another tab lands here as a hash change.
+    let _ = window_event_listener(leptos::ev::hashchange, move |_| {
+        if let Some(n) = window()
+            .location()
+            .hash()
+            .ok()
+            .and_then(|h| h.split("page=").nth(1).and_then(|n| n.parse::<u32>().ok()))
+            .filter(|n| *n > 0)
+        {
+            go.run(n);
+        }
     });
 
     let page_count = Signal::derive(move || sizes.with(Vec::len) as u32);
@@ -406,6 +506,10 @@ fn PdfReader(src: String) -> impl IntoView {
         {
             return;
         }
+        // Listening turns the pages and nobody scrolls: neither is a finished section or a stall.
+        if panel.get_untracked() == "listen" {
+            return;
+        }
         let Some(texts) = page_texts.get_untracked() else {
             return;
         };
@@ -548,6 +652,10 @@ fn PdfReader(src: String) -> impl IntoView {
                 on_toggle_explain=Callback::new(move |_| toggle("explain"))
                 find_open=Signal::derive(move || panel.get() == "find")
                 on_toggle_find=Callback::new(move |_| toggle("find"))
+                talk_open=Signal::derive(move || panel.get() == "talk")
+                on_toggle_talk=Callback::new(move |_| toggle("talk"))
+                listen_open=Signal::derive(move || panel.get() == "listen")
+                on_toggle_listen=Callback::new(move |_| toggle("listen"))
             />
             <div class="reader-body">
                 <Show when=move || matches!(load.get(), Load::Ready) && outline_open.get()>
@@ -692,6 +800,24 @@ fn PdfReader(src: String) -> impl IntoView {
                         doc_key=explain_key.clone()
                         page_texts=page_texts.into()
                         page_count=page_count
+                        on_jump=go
+                        on_close=Callback::new(move |_| panel.set("none"))
+                    />
+                </Show>
+                <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "talk">
+                    <TalkPanel
+                        title=title
+                        page_texts=page_texts.into()
+                        page=Signal::derive(move || position.get().page)
+                        on_close=Callback::new(move |_| panel.set("none"))
+                    />
+                </Show>
+                <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "listen">
+                    <ListenPanel
+                        title=title
+                        doc=doc
+                        page_texts=page_texts.into()
+                        page=Signal::derive(move || position.get().page)
                         on_jump=go
                         on_close=Callback::new(move |_| panel.set("none"))
                     />

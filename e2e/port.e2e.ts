@@ -18,7 +18,7 @@ describe('rust port: phase 0 skeleton', () => {
   it('the worker boots from wasm', async () => {
     expect(await ext.sw.evaluate(() => chrome.runtime.getManifest().name)).toBe('Reader');
     const permissions = await ext.sw.evaluate(() => chrome.runtime.getManifest().permissions);
-    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity']);
+    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen']);
   });
 
   it('the new tab override mounts a Leptos page with the shared stylesheets, accessibly', async () => {
@@ -26,8 +26,8 @@ describe('rust port: phase 0 skeleton', () => {
     await expect.poll(() => page.locator('main.edition .label').first().innerText()).toBeTruthy();
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
     expect(await page.title()).toBe('Focus workspace');
-    // theme.css loaded: the walnut ground, not the browser's white
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(28, 20, 16)');
+    // theme.css loaded: the paper ground, not the browser's white
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(221, 213, 198)');
     await expectA11y(page, 'newtab');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
@@ -114,6 +114,20 @@ describe('rust port: phase 2 worker', () => {
     expect(await matched(`${ext.sites.origin('blockme')}/`)).toEqual([]);
     const activity = await storage<Record<string, { focus: number }>>(ext, 'activity');
     expect(Object.values(activity)[0].focus).toBe(1);
+  });
+
+  it('ends a session whose reader tab closed unseen the moment a blocked site is visited', async () => {
+    // The close was missed (extension reload, worker killed): storage still names a dead tab.
+    await seed(ext, { focusSession: { startedAt: Date.now(), tabIds: [999999], title: 'Gone', titles: { 999999: 'Gone' } } });
+    await seed(ext, { settings: { focusBlocklist: ['blockme.e2e.test', 'other.e2e.test'] } });
+    await expect.poll(async () => (await sessionRules()).includes(1000)).toBe(true);
+
+    const page = await ext.ctx.newPage();
+    await page.goto(`${ext.sites.origin('blockme')}/`).catch(() => {});
+    await expect.poll(() => storage(ext, 'focusSession')).toBeNull();
+    await expect.poll(async () => (await sessionRules()).includes(1000)).toBe(false);
+    await expect.poll(() => page.locator('h1').innerText()).toBe('Reading session over');
+    await page.close();
   });
 
   it('the toolbar button opens our new tab', async () => {

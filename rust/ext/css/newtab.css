@@ -1033,6 +1033,9 @@ body {
   text-decoration: underline;
 }
 .feed-comments {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-5); /* WCAG 2.5.8: a 24px target */
   margin-left: var(--space-2);
 }
 

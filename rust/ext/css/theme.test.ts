@@ -93,8 +93,10 @@ describe.each(PALETTES)('%s: WCAG AAA', (palette) => {
   });
 
   it('the heatmap steps from paper to deep brass, each step visible', () => {
+    // Light palettes darken toward brass; grid (dark) brightens toward cyan.
     const lum = [0, 1, 2, 3, 4].map((i) => luminance(get(`--heat-${i}`)));
-    for (let i = 1; i < 5; i++) expect(lum[i], `heat-${i}`).toBeLessThan(lum[i - 1]);
+    const dir = Math.sign(lum[4] - lum[0]);
+    for (let i = 1; i < 5; i++) expect(Math.sign(lum[i] - lum[i - 1]), `heat-${i}`).toBe(dir);
     for (let i = 1; i < 5; i++)
       expect(contrast(get(`--heat-${i - 1}`), get(`--heat-${i}`)), `heat-${i - 1} → ${i}`).toBeGreaterThanOrEqual(1.2);
   });
@@ -119,8 +121,9 @@ describe('the break room: WCAG AAA', () => {
 });
 
 describe('theme structure', () => {
-  it('light palettes plus the Pomodoro break room: no dark, focus room or skin blocks', () => {
-    expect(css).not.toMatch(/data-skin|round-progress|data-phase='focus'|color-scheme: dark/);
+  it('paper is light; grid is the only dark palette; no focus room or skin blocks', () => {
+    expect(css).not.toMatch(/data-skin|round-progress|data-phase='focus'/);
+    expect([...css.matchAll(/color-scheme: dark/g)].length).toBe(1);
     expect(PALETTES.length).toBeGreaterThan(1);
     expect(tokens.get('color-scheme') ?? css.match(/:root \{\n {2}color-scheme: (\w+)/)?.[1]).toBe('light');
   });

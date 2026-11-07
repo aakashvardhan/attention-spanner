@@ -13,6 +13,7 @@ use reader_core::voice::{
     groq_error, parse_groq_reply, Vad, VadEvent, FRAME, GROQ_MODEL, GROQ_TIMEOUT_MS,
     GROQ_TRANSCRIBE_URL, MAX_RECORD_MS, SAMPLE_RATE,
 };
+use reader_core::voice_agent::{fallback, TtsFailure, TtsProvider, MAX_RETRY_WAIT_SECS};
 use serde_json::json;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -20,8 +21,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    AudioContext, AudioContextOptions, AudioWorkletNode, BiquadFilterType, MediaStream,
-    MessageEvent,
+    AudioBuffer, AudioContext, AudioContextOptions, AudioWorkletNode, BiquadFilterType,
+    MediaStream, MessageEvent,
 };
 
 const MAX_SAMPLES: usize = (MAX_RECORD_MS as usize / 1000) * SAMPLE_RATE as usize;
@@ -78,7 +79,11 @@ fn mic_error(e: &JsValue) -> String {
 }
 
 /// Ask for the mic and start listening. `on_heard` runs on the main thread for every frame.
-pub async fn start(mut on_heard: impl FnMut(Heard) + 'static) -> Result<Recorder, String> {
+/// `silence_ms` of quiet after speech ends the recording.
+pub async fn start(
+    silence_ms: u32,
+    mut on_heard: impl FnMut(Heard) + 'static,
+) -> Result<Recorder, String> {
     let devices = web_sys::window()
         .and_then(|w| w.navigator().media_devices().ok())
         .ok_or("This browser has no mic access.")?;
@@ -140,7 +145,7 @@ pub async fn start(mut on_heard: impl FnMut(Heard) + 'static) -> Result<Recorder
         SAMPLE_RATE as usize * 30,
     )));
     let sink = samples.clone();
-    let mut vad = Vad::new();
+    let mut vad = Vad::with_silence(silence_ms);
     let mut done = false;
     let on_frame = Closure::<dyn FnMut(MessageEvent)>::new(move |e: MessageEvent| {
         if done {
@@ -254,4 +259,393 @@ async fn transcribe_once(key: &str, wav: &[u8]) -> Result<String, (String, bool)
     .await;
     window.clear_timeout_with_handle(timer);
     result
+}
+
+/// One chunk of speech from Groq Orpheus, as WAV bytes. A network error is
+/// worth a short wait and another try, like a 5xx. With `cached`, words
+/// already spoken in this voice come from crate::cache; the Settings voice
+/// test passes false, since it is there to try the key.
+pub async fn synthesize(
+    provider: TtsProvider,
+    key: &str,
+    voice: &str,
+    text: &str,
+    signal: &web_sys::AbortSignal,
+    cached: bool,
+) -> Result<js_sys::ArrayBuffer, TtsFailure> {
+    use reader_core::voice_agent::{tts_body, tts_failure};
+    let unreachable = |_| TtsFailure::Wait { secs: 2 };
+    let body = tts_body(provider, text, voice).to_string();
+    // The same words in the same voice are the same audio: say them from the cache.
+    let cache_key = crate::cache::key(provider.url(), &body);
+    if cached {
+        if let Some(wav) = crate::cache::SPEECH.get_bytes(&cache_key).await {
+            return Ok(wav);
+        }
+    }
+    let init = to_js(&json!({
+        "method": "POST",
+        "headers": { "Authorization": format!("Bearer {key}"), "content-type": "application/json" },
+        "body": body,
+    }))
+    .map_err(|_| TtsFailure::Stop("Couldn't build the speech request."))?;
+    Reflect::set(&init, &"signal".into(), signal)
+        .map_err(|_| TtsFailure::Stop("Couldn't build the speech request."))?;
+    let res: web_sys::Response =
+        JsFuture::from(chrome::fetch(provider.url(), &init).map_err(unreachable)?)
+            .await
+            .map_err(unreachable)?
+            .unchecked_into();
+    if !res.ok() {
+        let retry_after = res.headers().get("retry-after").ok().flatten();
+        let body = match res.text() {
+            Ok(p) => JsFuture::from(p).await.ok().and_then(|b| b.as_string()),
+            Err(_) => None,
+        };
+        return Err(tts_failure(
+            provider,
+            res.status(),
+            &body.unwrap_or_default(),
+            retry_after.as_deref(),
+        ));
+    }
+    let wav: js_sys::ArrayBuffer = JsFuture::from(res.array_buffer().map_err(unreachable)?)
+        .await
+        .map_err(unreachable)?
+        .unchecked_into();
+    // Before the player decodes (and detaches) it.
+    if cached {
+        crate::cache::SPEECH.put_bytes(&cache_key, &wav).await;
+    }
+    Ok(wav)
+}
+
+/// A failed speech request, in words for the page.
+pub fn failure_text(f: &TtsFailure) -> String {
+    match f {
+        TtsFailure::Stop(m) => m.to_string(),
+        TtsFailure::Wait { secs } => format!("Groq is busy. Try again in {secs} s."),
+    }
+}
+
+/// Speech chunks played back to back, gapless, in the order queued.
+/// `stop` cuts it off at once and keeps the output open: a context made
+/// later, away from a click, may start suspended and play nothing.
+#[derive(Clone, Default)]
+pub struct Player(Rc<RefCell<PlayerState>>);
+
+#[derive(Default)]
+struct PlayerState {
+    ctx: Option<AudioContext>,
+    sources: Vec<web_sys::AudioBufferSourceNode>,
+    /// When the last queued chunk ends, in the context's clock.
+    ends_at: f64,
+    /// Bumped by `stop`, so a chunk still decoding then is dropped.
+    epoch: u64,
+    /// Held by `pause`: queueing more must not start it again.
+    paused: bool,
+}
+
+impl Player {
+    /// Create the output now, from a click, so autoplay rules allow it.
+    pub fn open(&self) -> Result<AudioContext, JsValue> {
+        let mut s = self.0.borrow_mut();
+        let c = match &s.ctx {
+            Some(c) => c.clone(),
+            None => {
+                let c = AudioContext::new()?;
+                s.ctx = Some(c.clone());
+                c
+            }
+        };
+        if !s.paused {
+            let _ = c.resume();
+        }
+        Ok(c)
+    }
+
+    /// Plays `wav` after everything already queued. `Some(ms)`: it starts in
+    /// that many ms of playback; `None`: dropped (stopped meanwhile, or silent).
+    /// `Some((ms until it starts, ms it lasts))`, or `None` if stopped meanwhile.
+    pub async fn queue(&self, wav: js_sys::ArrayBuffer) -> Result<Option<(i32, i32)>, JsValue> {
+        let ctx = self.open()?;
+        let epoch = self.0.borrow().epoch;
+        let buf: AudioBuffer = JsFuture::from(ctx.decode_audio_data(&wav)?)
+            .await?
+            .unchecked_into();
+        if self.0.borrow().epoch != epoch {
+            return Ok(None);
+        }
+        // Orpheus clips are mono; cut their dead air before they play.
+        let rate = buf.sample_rate();
+        let speech = reader_core::voice_agent::tighten(&buf.get_channel_data(0)?, rate as u32);
+        if speech.is_empty() {
+            return Ok(None);
+        }
+        let buf = ctx.create_buffer(1, speech.len() as u32, rate)?;
+        buf.copy_to_channel(&speech, 0)?;
+        let src = ctx.create_buffer_source()?;
+        src.set_buffer(Some(&buf));
+        src.connect_with_audio_node(&ctx.destination())?;
+        let mut s = self.0.borrow_mut();
+        let now = ctx.current_time();
+        if s.ends_at <= now {
+            // Everything queued before has played.
+            s.sources.clear();
+        }
+        let at = s.ends_at.max(now);
+        src.start_with_when(at)?;
+        s.ends_at = at + buf.duration();
+        s.sources.push(src);
+        Ok(Some((
+            ((at - now) * 1000.0) as i32,
+            (buf.duration() * 1000.0) as i32,
+        )))
+    }
+
+    /// Holds playback where it is; `resume` carries on from there.
+    pub fn pause(&self) {
+        let mut s = self.0.borrow_mut();
+        s.paused = true;
+        if let Some(c) = &s.ctx {
+            let _ = c.suspend();
+        }
+    }
+
+    pub fn resume(&self) {
+        let mut s = self.0.borrow_mut();
+        s.paused = false;
+        if let Some(c) = &s.ctx {
+            let _ = c.resume();
+        }
+    }
+
+    /// Milliseconds of queued speech still to play.
+    /// The output's clock in ms; it stands still while paused.
+    pub fn now_ms(&self) -> f64 {
+        self.0
+            .borrow()
+            .ctx
+            .as_ref()
+            .map_or(0.0, |c| c.current_time() * 1000.0)
+    }
+
+    pub fn remaining_ms(&self) -> i32 {
+        let s = self.0.borrow();
+        s.ctx.as_ref().map_or(0, |c| {
+            ((s.ends_at - c.current_time()).max(0.0) * 1000.0) as i32
+        })
+    }
+
+    /// Silence now; the output stays open for the next reply.
+    pub fn stop(&self) {
+        let mut s = self.0.borrow_mut();
+        for src in s.sources.drain(..) {
+            #[allow(deprecated)]
+            let _ = src.stop();
+        }
+        s.ends_at = 0.0;
+        s.epoch += 1;
+        drop(s);
+        self.resume();
+    }
+
+    /// Stop and let the output go (the page is leaving).
+    pub fn close(&self) {
+        self.stop();
+        if let Some(c) = self.0.borrow_mut().ctx.take() {
+            let _ = c.close();
+        }
+    }
+}
+
+/// What a `Speaker` tells its panel.
+pub enum SpeakerEvent {
+    /// A chunk was queued: its tag, its text, the ms of playback before it
+    /// starts, and how long it lasts.
+    Queued {
+        tag: u32,
+        line: String,
+        delay_ms: i32,
+        dur_ms: i32,
+    },
+    /// The provider asked for a pause: `Some(secs)`, then `None` when sending again.
+    Waiting(Option<u32>),
+    /// Groq gave up for good and OpenAI takes over from here; the reason, in words.
+    Switched(String),
+    /// Something went wrong, in words. With `failed()`, nothing more will be spoken.
+    Error(String),
+}
+
+/// The speech keys a `Speaker` may use.
+#[derive(Clone, Default)]
+pub struct SpeechKeys {
+    pub groq: String,
+    pub openai: String,
+}
+
+impl SpeechKeys {
+    pub fn any(&self) -> bool {
+        !self.groq.is_empty() || !self.openai.is_empty()
+    }
+}
+
+/// Text in, speech out, in order: each chunk goes to the speech provider and
+/// then onto the player, one at a time, while more text keeps arriving. Each
+/// chunk carries a tag (the audiobook's page) that comes back when queued.
+/// Groq speaks first; when it stops for good (its daily limit, a bad key) and
+/// there is an OpenAI key, OpenAI takes over for the rest of the session and
+/// the chunk Groq refused is sent again, so nothing is skipped.
+#[derive(Clone)]
+pub struct Speaker(Rc<SpeakerInner>);
+
+struct SpeakerInner {
+    keys: SpeechKeys,
+    voice: String,
+    provider: std::cell::Cell<TtsProvider>,
+    signal: web_sys::AbortSignal,
+    player: Player,
+    lines: RefCell<std::collections::VecDeque<(String, u32)>>,
+    draining: std::cell::Cell<bool>,
+    /// False once whoever started this has moved on: stop speaking.
+    live: Box<dyn Fn() -> bool>,
+    on_event: Box<dyn Fn(SpeakerEvent)>,
+    /// Gave up (no provider left): nothing more will be spoken.
+    failed: std::cell::Cell<bool>,
+}
+
+impl Speaker {
+    pub fn new(
+        keys: SpeechKeys,
+        voice: String,
+        signal: web_sys::AbortSignal,
+        player: Player,
+        live: impl Fn() -> bool + 'static,
+        on_event: impl Fn(SpeakerEvent) + 'static,
+    ) -> Self {
+        let first = if keys.groq.is_empty() {
+            TtsProvider::OpenAi
+        } else {
+            TtsProvider::Groq
+        };
+        Self(Rc::new(SpeakerInner {
+            keys,
+            voice,
+            provider: std::cell::Cell::new(first),
+            signal,
+            player,
+            lines: RefCell::default(),
+            draining: Default::default(),
+            live: Box::new(live),
+            on_event: Box::new(on_event),
+            failed: Default::default(),
+        }))
+    }
+
+    /// The longest chunk the current provider takes.
+    pub fn max_chars(&self) -> usize {
+        self.0.provider.get().max_chars()
+    }
+
+    pub fn say(&self, chunks: Vec<String>, tag: u32) {
+        if chunks.is_empty() || self.failed() {
+            return;
+        }
+        self.0
+            .lines
+            .borrow_mut()
+            .extend(chunks.into_iter().map(|c| (c, tag)));
+        if self.0.draining.replace(true) {
+            return;
+        }
+        let me = self.0.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let emit = |e| {
+                if (me.live)() {
+                    (me.on_event)(e)
+                }
+            };
+            'lines: loop {
+                let next = me.lines.borrow_mut().pop_front();
+                let Some((line, tag)) = next else { break };
+                // Waits are taken on the provider's word, a few times per chunk,
+                // and the same chunk goes again: a rate limit never drops words.
+                let mut waits = 0;
+                let wav = loop {
+                    let provider = me.provider.get();
+                    let key = match provider {
+                        TtsProvider::Groq => &me.keys.groq,
+                        TtsProvider::OpenAi => &me.keys.openai,
+                    };
+                    match synthesize(provider, key, &me.voice, &line, &me.signal, true).await {
+                        Ok(wav) => break wav,
+                        Err(TtsFailure::Wait { secs })
+                            if waits < 4 && secs <= MAX_RETRY_WAIT_SECS =>
+                        {
+                            waits += 1;
+                            emit(SpeakerEvent::Waiting(Some(secs)));
+                            for _ in 0..secs * 4 {
+                                if !(me.live)() {
+                                    break 'lines;
+                                }
+                                sleep_ms(250).await;
+                            }
+                            emit(SpeakerEvent::Waiting(None));
+                        }
+                        Err(f) => match fallback(provider, !me.keys.openai.is_empty()) {
+                            Some(next) => {
+                                me.provider.set(next);
+                                waits = 0;
+                                emit(SpeakerEvent::Switched(format!(
+                                    "Switched to {}'s voice: {}",
+                                    next.name(),
+                                    failure_text(&f)
+                                )));
+                            }
+                            None => {
+                                emit(SpeakerEvent::Error(failure_text(&f)));
+                                me.failed.set(true);
+                                break 'lines;
+                            }
+                        },
+                    }
+                };
+                if !(me.live)() {
+                    break;
+                }
+                match me.player.queue(wav).await {
+                    Ok(Some((delay_ms, dur_ms))) => emit(SpeakerEvent::Queued {
+                        tag,
+                        line,
+                        delay_ms,
+                        dur_ms,
+                    }),
+                    Ok(None) => {}
+                    Err(_) => emit(SpeakerEvent::Error("Couldn't play the voice.".into())),
+                }
+            }
+            me.lines.borrow_mut().clear();
+            me.draining.set(false);
+        });
+    }
+
+    /// Text still waiting for, or being turned into, speech.
+    pub fn busy(&self) -> bool {
+        self.0.draining.get()
+    }
+
+    /// It gave up; nothing more will be spoken.
+    pub fn failed(&self) -> bool {
+        self.0.failed.get()
+    }
+}
+
+/// Wait without blocking the page.
+pub async fn sleep_ms(ms: i32) {
+    let p = js_sys::Promise::new(&mut |resolve, _| {
+        if let Some(w) = web_sys::window() {
+            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
+        }
+    });
+    let _ = JsFuture::from(p).await;
 }

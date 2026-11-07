@@ -367,6 +367,64 @@
   --focus-accent-wash: rgba(146, 124, 87, 0.1);
 }
 
+/* grid: the one dark palette, the user asked for it (2026-11-06). Tron
+   Legacy: black glass, cyan light-lines, orange for danger. Text is pale cyan,
+   never pure white, and still clears 7:1 everywhere; the decoration rules for
+   it sit at the end of this file. */
+:root[data-theme='grid'] {
+  color-scheme: dark;
+  --font-display: 'Avenir Next', Futura, 'Century Gothic', var(--font-sans);
+  --bg-page: #05080d;
+  --bg-surface: #0a121b;
+  --bg-subtle: #0f1a26;
+  --bg-hover: #142333;
+  --text-primary: #d8fbff;
+  --text-secondary: #b4eef6;
+  --text-muted: #8fdbe6;
+  --text-faint: #2f6b78;
+  --rule: #d8fbff;
+  --border: #2aa9bd;
+  --border-subtle: #12404b;
+  --disabled: #1f4650;
+  --accent: #6ff3ff;
+  --accent-hover: #a8f8ff;
+  --accent-soft: #0c2430;
+  --accent-wash: #0f2c3a;
+  --accent-border: #1fb6cc;
+  --accent-track: #123844;
+  --accent-text: #7ff5ff;
+  --on-accent: #001318;
+  --success: #7dffb0;
+  --success-bg: #06241a;
+  --success-border: #2a8a5a;
+  --danger: #ff9a5c;
+  --live: #ff6a1a;
+  --danger-bg: #2a1006;
+  --danger-wash: rgba(255, 106, 26, 0.16);
+  --warning: #ffd479;
+  --warning-bg: #261c05;
+  --pdf-page: #0a121b;
+  --pdf-ink: #d8fbff;
+  --pdf-paper: #0a121b;
+  /* Dark to bright: activity lights up the grid. */
+  --heat-0: #0d1720;
+  --heat-1: #0e4a5a;
+  --heat-2: #128aa0;
+  --heat-3: #3fd0e6;
+  --heat-4: #b0faff;
+  --reading-dim: rgba(5, 8, 13, 0.72);
+  --selection: rgba(111, 243, 255, 0.25);
+  --cite-hover: rgba(111, 243, 255, 0.14);
+  --shadow-lg: 0 0 0 1px rgba(111, 243, 255, 0.35), 0 8px 32px rgba(0, 200, 255, 0.22);
+  --glass-surface: rgba(10, 18, 27, 0.92);
+  --glass-bar: rgba(111, 243, 255, 0.06);
+  --material-thin: rgba(5, 8, 13, 0.72);
+  --material-regular: rgba(10, 18, 27, 0.92);
+  --material-thick: rgba(5, 8, 13, 0.96);
+  --focus-accent-wash: rgba(111, 243, 255, 0.1);
+  --glow: 0 0 6px rgba(111, 243, 255, 0.55), 0 0 18px rgba(0, 200, 255, 0.25);
+}
+
 /* The break room: five minutes of sage and mist instead of paper and brass,
    so a break looks like a different place. Same AAA rules (theme.test.ts). */
 :root[data-phase='break'] {
@@ -471,4 +529,46 @@ a {
     --material-regular: var(--bg-surface);
     --material-thick: var(--bg-surface);
   }
+}
+
+/* grid decoration: the light-lines. Only colour tokens elsewhere; everything
+   neon lives here so page sheets stay on the design system. */
+:root[data-theme='grid'] body {
+  background-image:
+    linear-gradient(rgba(111, 243, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(111, 243, 255, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-attachment: fixed;
+}
+:root[data-theme='grid'] :is(h1, h2, h3) {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 10px rgba(111, 243, 255, 0.35);
+}
+:root[data-theme='grid'] .label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+:root[data-theme='grid'] :is(.paper-card, .book-card, .panel, .shelf, .board-col, dialog, [role='dialog'], [class*='popover'], [class*='-menu']) {
+  box-shadow: inset 0 0 0 1px rgba(111, 243, 255, 0.18), 0 0 14px rgba(0, 200, 255, 0.08);
+}
+:root[data-theme='grid'] :is(.paper-card, .book-card):hover {
+  box-shadow: inset 0 0 0 1px var(--accent), var(--glow);
+}
+:root[data-theme='grid'] .fc-primary-btn {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--glow);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+:root[data-theme='grid'] .fc-primary-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme='grid'] :focus-visible {
+  box-shadow: var(--glow);
+}
+:root[data-theme='grid'] :is(.live-dot, .paper-card-bar) {
+  box-shadow: 0 0 8px currentColor;
 }

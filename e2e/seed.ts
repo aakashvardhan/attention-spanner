@@ -42,3 +42,40 @@ export function paper(n: string, title: string, overrides: Partial<Paper> = {}):
     ...overrides,
   };
 }
+
+const LINE = 'The transformer reads a sentence and BLEU scores the translation it writes back out.';
+
+/** A minimal valid PDF: each page holds a few lines of plain Helvetica text; with `outline`, each page is a section. */
+export function makePdf(pages: number, outline = false): Buffer {
+  const root = 3 + pages * 2;
+  const objs: string[] = [`<< /Type /Catalog /Pages 2 0 R${outline ? ` /Outlines ${root} 0 R` : ''} >>`];
+  const kids = Array.from({ length: pages }, (_, i) => `${3 + i * 2} 0 R`).join(' ');
+  objs.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`);
+  for (let i = 0; i < pages; i++) {
+    objs.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${4 + i * 2} 0 R ` +
+        '/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>',
+    );
+    const lines = Array.from({ length: 6 }, (_, l) => `1 0 0 1 72 ${700 - l * 40} Tm (${LINE}) Tj`).join(' ');
+    const stream = `BT /F1 11 Tf ${lines} ET`;
+    objs.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  }
+  if (outline) {
+    objs.push(`<< /Type /Outlines /First ${root + 1} 0 R /Last ${root + pages} 0 R /Count ${pages} >>`);
+    for (let i = 0; i < pages; i++) {
+      const sib = `${i > 0 ? ` /Prev ${root + i} 0 R` : ''}${i < pages - 1 ? ` /Next ${root + i + 2} 0 R` : ''}`;
+      objs.push(`<< /Title (Section ${i + 1}) /Parent ${root} 0 R /Dest [${3 + i * 2} 0 R /XYZ 0 792 0]${sib} >>`);
+    }
+  }
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1');
+}

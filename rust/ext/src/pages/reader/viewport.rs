@@ -31,7 +31,7 @@ pub const ZOOM_MIN: f64 = 0.5;
 pub const ZOOM_MAX: f64 = 3.0;
 
 /// Navigation glides; restore and zoom re-anchoring never do.
-fn nav_smooth() -> bool {
+pub(super) fn nav_smooth() -> bool {
     !window()
         .match_media("(prefers-reduced-motion: reduce)")
         .ok()

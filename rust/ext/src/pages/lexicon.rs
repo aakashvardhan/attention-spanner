@@ -650,6 +650,8 @@ async fn link_once() -> String {
             cache: false,
             timeout_ms: LINK_TIMEOUT_MS,
             controller: None,
+            image_jpeg: None,
+            remember: false,
         },
         |_| {},
     )

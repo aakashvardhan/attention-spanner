@@ -59,6 +59,8 @@ pub enum Message {
     },
     /// The blocked page's "Back to your paper"
     FocusReader,
+    /// The blocked page showed: is a reader tab really still open?
+    SessionCheck,
     #[serde(rename = "ALPHAXIV_SIGN_IN")]
     AlphaxivSignIn,
     #[serde(rename = "ALPHAXIV_SIGN_OUT")]
@@ -132,6 +134,7 @@ mod tests {
                 Message::ReaderOpened { title: "T".into() },
             ),
             (json!({ "type": "FOCUS_READER" }), Message::FocusReader),
+            (json!({ "type": "SESSION_CHECK" }), Message::SessionCheck),
             (
                 json!({ "type": "ALPHAXIV_SIGN_IN" }),
                 Message::AlphaxivSignIn,

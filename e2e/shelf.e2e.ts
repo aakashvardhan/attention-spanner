@@ -75,20 +75,19 @@ describe('papers: the bookcase', () => {
     const page = await ext.page(PAGES.papers);
     const books = page.locator('.book');
     await expect.poll(() => books.count()).toBe(3);
-    // Spines carry the short code; the name carries the whole title and progress.
-    await expect.poll(() => page.locator('#book-0-0 .book-spine').textContent()).toBe("Mamba '23");
-    expect(await page.locator('#book-0-0').getAttribute('aria-label')).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces. 60% read.');
-    expect(await page.locator('#book-0-0').getAttribute('data-wear')).toBe('2');
-    // Thicker for more pages: 36 pages beside the 12-page default.
-    const w = (id: string) => page.locator(`#${id} .book-spine`).evaluate((e) => e.getBoundingClientRect().width);
-    expect(await w('book-0-0')).toBeGreaterThan(await w('book-0-1'));
+    // Each book shows its title, byline and progress; the name carries the title and progress.
+    const book = page.locator('#book-0-0');
+    await expect.poll(() => book.locator('.book-title').textContent()).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces');
+    expect(await book.locator('.book-meta').textContent()).toBe('A. Author · 2023');
+    expect(await book.locator('.book-foot').textContent()).toBe('60% read');
+    expect(await book.getAttribute('aria-label')).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces. 60% read.');
+    expect(await page.locator('#book-0-1 .book-foot').textContent()).toBe('not started');
 
     // One tab stop for the case; arrows walk it.
     expect(await page.locator('.book[tabindex="0"]').count()).toBe(1);
     await page.locator('#book-0-0').focus();
     await page.keyboard.press('ArrowRight');
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('book-0-1');
-    expect(await page.locator('.shelf').first().locator('.shelf-plate').textContent()).toBe('Attention Is All You Need · not started');
     await page.keyboard.press('ArrowDown');
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('book-1-0');
     await page.keyboard.press('ArrowUp');

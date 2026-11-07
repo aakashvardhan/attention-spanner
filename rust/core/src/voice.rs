@@ -55,6 +55,8 @@ pub struct Vad {
     speaking: bool,
     heard: bool,
     quiet_frames: u32,
+    /// Quiet that ends a recording; 0 means `SILENCE_STOP_MS`.
+    silence_ms: u32,
     /// Whether the last frame pushed was above the threshold.
     pub loud: bool,
 }
@@ -70,6 +72,14 @@ fn rms_db(frame: &[f32]) -> f32 {
 impl Vad {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A VAD that ends a turn after `ms` of quiet (a conversation wants it short).
+    pub fn with_silence(ms: u32) -> Self {
+        Self {
+            silence_ms: ms,
+            ..Self::default()
+        }
     }
 
     /// Currently inside speech.
@@ -116,7 +126,12 @@ impl Vad {
             VadEvent::Speech
         } else if self.heard {
             self.quiet_frames += 1;
-            if self.quiet_frames * FRAME_MS >= SILENCE_STOP_MS {
+            let stop = if self.silence_ms == 0 {
+                SILENCE_STOP_MS
+            } else {
+                self.silence_ms
+            };
+            if self.quiet_frames * FRAME_MS >= stop {
                 VadEvent::SilenceTimeout
             } else {
                 VadEvent::Quiet
@@ -461,6 +476,17 @@ mod tests {
             ms >= SILENCE_STOP_MS && ms <= SILENCE_STOP_MS + hang + FRAME_MS,
             "{ms}"
         );
+
+        // A conversation turn ends sooner.
+        let mut turn = Vad::with_silence(700);
+        for f in tone(S / 2, 0.3).chunks(FRAME) {
+            turn.push(f);
+        }
+        let stop = quiet
+            .chunks(FRAME)
+            .position(|f| turn.push(f) == VadEvent::SilenceTimeout)
+            .unwrap() as u32;
+        assert!((stop + 1) * FRAME_MS <= 700 + hang + FRAME_MS, "{stop}");
     }
 
     #[test]

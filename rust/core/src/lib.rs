@@ -7,6 +7,7 @@ pub mod activity;
 pub mod ai;
 pub mod alphaxiv;
 pub mod annotations;
+pub mod audiobook;
 pub mod brain_dump;
 pub mod civil_date;
 pub mod claude;
@@ -37,6 +38,7 @@ pub mod todos;
 pub mod types;
 pub mod vault;
 pub mod voice;
+pub mod voice_agent;
 
 /// The extension's name, shared by the manifest and the pages.
 pub const APP_NAME: &str = "Reader";

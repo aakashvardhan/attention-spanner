@@ -2,6 +2,7 @@
 //! protocol is reader_core::claude; this reads the response body chunk by
 //! chunk so text appears as it is written.
 
+use crate::cache;
 use crate::chrome;
 use crate::js::to_js;
 use js_sys::{Reflect, Uint8Array};
@@ -23,6 +24,11 @@ pub struct Ask<'a> {
     pub timeout_ms: i32,
     /// The caller's, to stop the answer early; one is made otherwise
     pub controller: Option<web_sys::AbortController>,
+    /// A picture sent with the document (a PDF page as printed), base64 JPEG
+    pub image_jpeg: Option<&'a str>,
+    /// Keep the finished reply, and answer the same request from it next
+    /// time (crate::cache). Only for replies that should not change.
+    pub remember: bool,
 }
 
 /// The whole reply; `on_text` gets the text so far after every chunk.
@@ -31,10 +37,26 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
         Some(c) => c,
         None => web_sys::AbortController::new().map_err(|_| "no AbortController")?,
     };
+    let body = request_body(
+        ask.model,
+        ask.system,
+        ask.document,
+        ask.prompt,
+        ask.cache,
+        ask.image_jpeg,
+    )
+    .to_string();
+    let key = ask.remember.then(|| cache::key(MESSAGES_URL, &body));
+    if let Some(k) = &key {
+        if let Some(text) = cache::CLAUDE.get_text(k).await {
+            on_text(&text);
+            return Ok(text);
+        }
+    }
     let init = to_js(&json!({
         "method": "POST",
         "headers": headers(ask.api_key),
-        "body": request_body(ask.model, ask.system, ask.document, ask.prompt, ask.cache).to_string(),
+        "body": body,
     }))
     .map_err(|_| "request")?;
     Reflect::set(&init, &"signal".into(), &controller.signal()).map_err(|_| "signal")?;
@@ -94,6 +116,10 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
     }
     .await;
     clear_timeout(timer);
+    // Only a whole reply: a stopped or failed one is asked again next time.
+    if let (Some(k), Ok(text)) = (&key, &result) {
+        cache::CLAUDE.put_text(k, text).await;
+    }
     result
 }
 

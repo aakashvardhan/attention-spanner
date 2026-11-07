@@ -29,6 +29,11 @@ pub fn Blocked() -> impl IntoView {
     let focusing = move || pomodoro.with(|p| is_focus(p.as_ref()));
     let reading = move || session.get().is_some_and(|s| !s.tab_ids.is_empty());
     let title = move || session.get().map(|s| s.title).unwrap_or_default();
+    // A reader closed while the worker was not listening leaves a stale
+    // session; the worker drops it and storage re-renders this page.
+    leptos::task::spawn_local(async {
+        send(json!({ "type": "SESSION_CHECK" })).await;
+    });
 
     view! {
         <div id="root">

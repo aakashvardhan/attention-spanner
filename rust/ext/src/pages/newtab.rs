@@ -27,6 +27,7 @@ use reader_core::types::{FocusSession, Paper};
 use reader_core::vault::{Dump, DumpEntry, LockedDump, Vault};
 use reader_core::voice::{
     char_to_utf16, clean_transcript, encode_wav, insert_transcript, trim_to_speech, utf16_to_char,
+    SILENCE_STOP_MS,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -480,6 +481,8 @@ fn BrainDump() -> impl IntoView {
                 cache: false,
                 timeout_ms: ASK_TIMEOUT_MS as i32,
                 controller: None,
+                image_jpeg: None,
+                remember: false,
             };
             let reply = claude::stream(ask, |t| live.set(t.to_string())).await;
             let (parsed, tasks) = reply.map(|r| parse_dump(&r)).unwrap_or_default();
@@ -598,7 +601,7 @@ fn BrainDump() -> impl IntoView {
             can_retry.set(false);
             elapsed.set(0);
             leptos::task::spawn_local(async move {
-                let started = voice::start(move |h| match h {
+                let started = voice::start(SILENCE_STOP_MS, move |h| match h {
                     Heard::Frame { ms, speaking } => {
                         if hearing.get_untracked() != speaking {
                             hearing.set(speaking);

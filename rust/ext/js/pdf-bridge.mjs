@@ -15,6 +15,7 @@
 //   textLayer(doc, n, container, scale)      → { promise, cancel() }
 //   pageLinks(doc, n, scale) → [{ left, top, width, height, url?, dest? }]
 //   resolveDest(doc, dest)   → { page, offset } | null
+//   pageImage(doc, n)        → base64 JPEG of the page, long edge 1568 px (for a model to read)
 //
 // pdf.js loads with the first document, not with this module: every page and
 // the service worker share one wasm module and so import this file, and only
@@ -108,29 +109,47 @@ const mul = (m, n) => [
 
 // Where each embedded image lands: an image paints the unit square under the
 // current transform, so follow save/restore/transform through the operator list.
+// Images are often larger than what shows (a figure tile clips a big photo), so
+// each box is cut to the active clip; unclipped, the box would spill over text
+// and leave white paper glaring on a dark palette.
+const corners = (m, x0, y0, x1, y1) => {
+  const pts = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]);
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+};
+const meet = (a, b) => [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
+
 async function imageBoxes(page, viewport) {
   const { OPS } = pdfjs;
   const images = new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageXObjectRepeat, OPS.paintInlineImageXObjectGroup]);
   const ops = await page.getOperatorList();
   const boxes = [];
   let ctm = viewport.transform;
+  let clip = [0, 0, viewport.width, viewport.height];
+  let clipNext = false;
   const stack = [];
   for (let i = 0; i < ops.fnArray.length; i++) {
     const fn = ops.fnArray[i];
     const args = ops.argsArray[i];
-    if (fn === OPS.save) stack.push(ctm);
-    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
+    if (fn === OPS.save) stack.push([ctm, clip]);
+    else if (fn === OPS.restore) [ctm, clip] = stack.pop() ?? [ctm, clip];
     else if (fn === OPS.transform) ctm = mul(ctm, args);
-    else if (fn === OPS.paintFormXObjectBegin) {
-      stack.push(ctm);
+    else if (fn === OPS.clip || fn === OPS.eoClip) clipNext = true;
+    else if (fn === OPS.constructPath) {
+      // pdf.js 6: [op, data, minMax]; minMax is the path's bbox in user space.
+      const mm = args?.[2];
+      if (clipNext && mm && Number.isFinite(mm[0])) clip = meet(clip, corners(ctm, mm[0], mm[1], mm[2], mm[3]));
+      clipNext = false;
+    } else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push([ctm, clip]);
       if (args?.[0]) ctm = mul(ctm, args[0]);
-    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
+      const bbox = args?.[1];
+      if (bbox) clip = meet(clip, corners(ctm, bbox[0], bbox[1], bbox[2], bbox[3]));
+    } else if (fn === OPS.paintFormXObjectEnd) [ctm, clip] = stack.pop() ?? [ctm, clip];
     else if (images.has(fn)) {
-      const xs = [ctm[4], ctm[0] + ctm[4], ctm[2] + ctm[4], ctm[0] + ctm[2] + ctm[4]];
-      const ys = [ctm[5], ctm[1] + ctm[5], ctm[3] + ctm[5], ctm[1] + ctm[3] + ctm[5]];
-      const x = Math.min(...xs);
-      const y = Math.min(...ys);
-      boxes.push(x, y, Math.max(...xs) - x, Math.max(...ys) - y);
+      const [x0, y0, x1, y1] = meet(corners(ctm, 0, 0, 1, 1), clip);
+      if (x1 > x0 && y1 > y0) boxes.push(x0, y0, x1 - x0, y1 - y0);
     }
   }
   return boxes;
@@ -167,6 +186,22 @@ export function renderPage(doc, n, canvas, scale, thumb, recolor) {
     canvas.dataset.ready = 'true';
   })();
   return { promise, cancel: () => { cancelled = true; task?.cancel(); } };
+}
+
+// The page as printed, for a model to read the math as typeset (PDF text
+// scrambles sub- and superscripts). Original colours: no recolour here.
+export async function pageImage(doc, n) {
+  const page = await doc.getPage(n);
+  const base = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: 1568 / Math.max(base.width, base.height) });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+  return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
 }
 
 export function textLayer(doc, n, container, scale) {

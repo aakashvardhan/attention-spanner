@@ -150,6 +150,8 @@ impl Ai {
                     cache: true,
                     timeout_ms: ASK_TIMEOUT_MS,
                     controller: controller.clone(),
+                    image_jpeg: None,
+                    remember: false,
                 },
                 |text| {
                     if current() {

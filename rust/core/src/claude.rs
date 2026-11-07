@@ -9,18 +9,31 @@ pub const API_VERSION: &str = "2023-06-01";
 
 /// The streamed request. With `cache`, the document sits in its own block
 /// cached for an hour, so a second question about the same paper reads it
-/// from the prompt cache.
-pub fn request_body(model: &str, system: &str, document: &str, prompt: &str, cache: bool) -> Value {
+/// from the prompt cache. `image` (base64 JPEG) goes first, before the text.
+pub fn request_body(
+    model: &str,
+    system: &str,
+    document: &str,
+    prompt: &str,
+    cache: bool,
+    image: Option<&str>,
+) -> Value {
     let mut doc = json!({ "type": "text", "text": document });
     if cache {
         doc["cache_control"] = json!({ "type": "ephemeral", "ttl": "1h" });
     }
+    let mut content = Vec::new();
+    if let Some(data) = image {
+        content.push(json!({ "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": data } }));
+    }
+    content.push(doc);
+    content.push(json!({ "type": "text", "text": prompt }));
     json!({
         "model": model,
         "max_tokens": 8000,
         "stream": true,
         "system": system,
-        "messages": [{ "role": "user", "content": [doc, { "type": "text", "text": prompt }] }]
+        "messages": [{ "role": "user", "content": content }]
     })
 }
 
@@ -103,7 +116,7 @@ mod tests {
 
     #[test]
     fn builds_a_streamed_request_caching_the_document_when_asked() {
-        let b = request_body("claude-haiku-5-5", "sys", "doc", "q", false);
+        let b = request_body("claude-haiku-5-5", "sys", "doc", "q", false, None);
         assert_eq!(
             (b["stream"].as_bool(), b["system"].as_str()),
             (Some(true), Some("sys"))
@@ -112,7 +125,13 @@ mod tests {
         assert!(b["messages"][0]["content"][0]
             .get("cache_control")
             .is_none());
-        let cached = request_body("m", "s", "d", "q", true);
+        let cached = request_body("m", "s", "d", "q", true, None);
+        let seen = request_body("m", "s", "d", "q", false, Some("AAAA"));
+        assert_eq!(
+            seen["messages"][0]["content"][0]["source"]["media_type"],
+            "image/jpeg"
+        );
+        assert_eq!(seen["messages"][0]["content"][2]["text"], "q");
         assert_eq!(
             cached["messages"][0]["content"][0]["cache_control"]["ttl"],
             "1h"

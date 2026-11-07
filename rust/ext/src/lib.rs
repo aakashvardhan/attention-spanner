@@ -2,6 +2,7 @@
 //! module: the background worker and every page load it and call the export
 //! they need (oxichrome generates the loaders from the attributes below).
 
+mod cache;
 mod chrome;
 mod claude;
 mod js;

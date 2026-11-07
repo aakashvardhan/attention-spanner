@@ -69,6 +69,10 @@ pub fn ReaderToolbar(
     on_toggle_explain: Callback<()>,
     find_open: Signal<bool>,
     on_toggle_find: Callback<()>,
+    talk_open: Signal<bool>,
+    on_toggle_talk: Callback<()>,
+    listen_open: Signal<bool>,
+    on_toggle_listen: Callback<()>,
 ) -> impl IntoView {
     let more_open = RwSignal::new(false);
     let more: NodeRef<html::Div> = NodeRef::new();
@@ -150,6 +154,22 @@ pub fn ReaderToolbar(
                     on:click=move |_| on_toggle_explain.run(())
                 >
                     "Explain it back"
+                </button>
+                <button
+                    class=move || active(talk_open.get(), "ghost-btn reader-explain-btn")
+                    aria-pressed=move || talk_open.get().to_string()
+                    title="Talk the paper through out loud; it asks, never explains"
+                    on:click=move |_| on_toggle_talk.run(())
+                >
+                    "Talk it through"
+                </button>
+                <button
+                    class=move || active(listen_open.get(), "ghost-btn reader-explain-btn")
+                    aria-pressed=move || listen_open.get().to_string()
+                    title="Read the paper aloud from this page, explaining the math"
+                    on:click=move |_| on_toggle_listen.run(())
+                >
+                    "Listen"
                 </button>
                 <button
                     class=move || active(find_open.get(), "reader-icon-btn")

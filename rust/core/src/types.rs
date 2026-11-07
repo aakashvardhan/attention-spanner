@@ -154,13 +154,23 @@ pub struct Settings {
     /// For the brain dump's voice input (Groq Whisper).
     #[serde(default)]
     pub groq_key: String,
-    /// Palette name for html[data-theme] (theme.css); "paper" is the default.
+    /// For speech when Groq stops (its daily limit): OpenAI gpt-4o-mini-tts.
+    #[serde(default)]
+    pub openai_key: String,
+    /// Groq Orpheus voice for "Talk it through" (voice_agent::TTS_VOICES).
+    #[serde(default = "default_talk_voice")]
+    pub talk_voice: String,
+    /// Palette name for html[data-theme] (theme.css); "grid" is the default.
     #[serde(default = "default_theme")]
     pub theme: String,
 }
 
+fn default_talk_voice() -> String {
+    crate::voice_agent::DEFAULT_VOICE.to_string()
+}
+
 fn default_theme() -> String {
-    "paper".into()
+    "grid".into()
 }
 
 impl Default for Settings {
@@ -173,6 +183,8 @@ impl Default for Settings {
                 .collect(),
             claude_key: String::new(),
             groq_key: String::new(),
+            openai_key: String::new(),
+            talk_voice: default_talk_voice(),
             theme: default_theme(),
         }
     }

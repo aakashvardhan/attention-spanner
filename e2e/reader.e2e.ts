@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES, axe, expectClean, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
-import { paper } from './seed';
+import { makePdf, paper } from './seed';
 
 /**
  * The PDF reader end to end against a scripted Claude: a clicked term guessed
@@ -12,43 +12,6 @@ import { paper } from './seed';
  * while the reader is open, and the PDF plumbing (zoom, scans, arXiv). Model
  * output is fixed, so this checks the wiring, not the model.
  */
-
-const LINE = 'The transformer reads a sentence and BLEU scores the translation it writes back out.';
-
-/** A minimal valid PDF: each page holds a few lines of plain Helvetica text; with `outline`, each page is a section. */
-function makePdf(pages: number, outline = false): Buffer {
-  const root = 3 + pages * 2;
-  const objs: string[] = [`<< /Type /Catalog /Pages 2 0 R${outline ? ` /Outlines ${root} 0 R` : ''} >>`];
-  const kids = Array.from({ length: pages }, (_, i) => `${3 + i * 2} 0 R`).join(' ');
-  objs.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`);
-  for (let i = 0; i < pages; i++) {
-    objs.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${4 + i * 2} 0 R ` +
-        '/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>',
-    );
-    const lines = Array.from({ length: 6 }, (_, l) => `1 0 0 1 72 ${700 - l * 40} Tm (${LINE}) Tj`).join(' ');
-    const stream = `BT /F1 11 Tf ${lines} ET`;
-    objs.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-  }
-  if (outline) {
-    objs.push(`<< /Type /Outlines /First ${root + 1} 0 R /Last ${root + pages} 0 R /Count ${pages} >>`);
-    for (let i = 0; i < pages; i++) {
-      const sib = `${i > 0 ? ` /Prev ${root + i} 0 R` : ''}${i < pages - 1 ? ` /Next ${root + i + 2} 0 R` : ''}`;
-      objs.push(`<< /Title (Section ${i + 1}) /Parent ${root} 0 R /Dest [${3 + i * 2} 0 R /XYZ 0 792 0]${sib} >>`);
-    }
-  }
-  let out = '%PDF-1.4\n';
-  const offsets: number[] = [];
-  objs.forEach((o, i) => {
-    offsets.push(out.length);
-    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
-  });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
-  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return Buffer.from(out, 'latin1');
-}
 
 /**
  * One page covered by an 8x8 all-black CCITT G3 image, the encoding of most
@@ -143,8 +106,8 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
-    // One walnut room: the page behind the paper is --bg-page.
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(28, 20, 16)');
+    // One paper room: the page behind the paper is --bg-page.
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(221, 213, 198)');
 
     // Click the middle of "transformer" in the first line.
     const at = await page.$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (span) => {
@@ -167,7 +130,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await expect.poll(() => popover.textContent(), { timeout: 10_000 }).toContain('attention-based sequence model');
     const asked = claude.find((c) => c.system.includes('clicked'));
     expect(asked?.model).toBe('claude-haiku-5-5');
-    await shot(page, 'reader-walnut-define');
+    await shot(page, 'reader-paper-define');
 
     // A click elsewhere closes it.
     await page.mouse.click(5, 300);
@@ -422,7 +385,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
         const ctx = canvas.getContext('2d')!;
         return Array.from(ctx.getImageData(canvas.width >> 1, canvas.height >> 1, 1, 1).data.slice(0, 3));
       });
-    // Black, not cream: an embedded image keeps its true colour on the walnut page.
+    // Black, not recoloured: an embedded image keeps its true colour on the paper page.
     await expect.poll(centre, { timeout: 10_000 }).toEqual([0, 0, 0]);
   });
 
@@ -506,7 +469,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await seed(ext, { papers: [] });
   });
 
-  it('recolours text pages to cream ink on walnut paper', async () => {
+  it('recolours text pages to dark ink on light paper', async () => {
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] canvas[data-ready]:not(.reader-thumb)');
     const pixels = await page.$eval('[aria-label^="Page 1 of"] canvas:not(.reader-thumb)', (c) => {
@@ -515,17 +478,17 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
       let darkest = 255 * 3;
       let ink: number[] = [];
       for (let i = 0; i < data.length; i += 4) {
-        // The brightest pixel is the glyph core: cream, the --pdf-ink token.
+        // The darkest pixel is the glyph core: the --pdf-ink token.
         const sum = data[i] + data[i + 1] + data[i + 2];
-        if (765 - sum < darkest) {
-          darkest = 765 - sum;
+        if (sum < darkest) {
+          darkest = sum;
           ink = [data[i], data[i + 1], data[i + 2]];
         }
       }
       return { paper: Array.from(data.slice(0, 3)), ink };
     });
-    expect(pixels.paper).toEqual([0x26, 0x1c, 0x16]);
-    expect(pixels.ink).toEqual([0xf3, 0xe8, 0xd6]);
+    expect(pixels.paper).toEqual([0xe9, 0xe2, 0xd5]);
+    expect(pixels.ink).toEqual([0x1d, 0x18, 0x13]);
     expectClean(ext);
     await page.close();
   });

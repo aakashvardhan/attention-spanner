@@ -1,9 +1,11 @@
 //! Settings (src/pages/options/Options.tsx, AlphaxivSection.tsx, SectionIndex.tsx).
 
 use super::{patch_settings, send, use_settings, use_storage};
+use crate::voice::{synthesize, Player};
 use leptos::prelude::*;
 use reader_core::alphaxiv::{AlphaxivAuth, AlphaxivStatus};
 use reader_core::focus_rules::normalize_block_domain;
+use reader_core::voice_agent::{TtsProvider, TTS_VOICES, VOICE_SAMPLE};
 use serde_json::json;
 use wasm_bindgen::JsCast;
 
@@ -12,6 +14,9 @@ pub fn Options() -> impl IntoView {
     super::use_theme();
     let (settings, loaded) = use_settings();
     let block_input = RwSignal::new(String::new());
+    let preview = StoredValue::new_local(Player::default());
+    let preview_error = RwSignal::new(String::new());
+    on_cleanup(move || preview.with_value(Player::close));
     let block_feedback = RwSignal::new(None::<String>);
 
     let add_block_domain = move || {
@@ -61,7 +66,7 @@ pub fn Options() -> impl IntoView {
                             <div class="setting-row">
                                 <label for="theme">
                                     "Colours "
-                                    <span class="hint-inline">"(every palette is dark ink on a light, non-white page, AAA contrast)"</span>
+                                    <span class="hint-inline">"(every palette clears AAA contrast; Grid is the one dark one)"</span>
                                 </label>
                                 <select
                                     id="theme"
@@ -104,7 +109,7 @@ pub fn Options() -> impl IntoView {
                                 value=Signal::derive(move || settings.get().claude_key)
                                 on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("claudeKey", json!(key)).await }))
                             />
-                            <p class="hint">"Groq Whisper turns what you say into brain dump text. Only the parts with speech are sent."</p>
+                            <p class="hint">"Groq Whisper turns what you say into text (brain dump, Talk it through), and Groq Orpheus speaks the replies. Only the parts with speech are sent."</p>
                             <TextRow
                                 id="groq-key"
                                 label="Groq API key"
@@ -113,6 +118,50 @@ pub fn Options() -> impl IntoView {
                                 value=Signal::derive(move || settings.get().groq_key)
                                 on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("groqKey", json!(key)).await }))
                             />
+                            <p class="hint">"When Groq's daily speech limit runs out, OpenAI's voice (gpt-4o-mini-tts) takes over until you stop. Leave it empty and reading stops there instead."</p>
+                            <TextRow
+                                id="openai-key"
+                                label="OpenAI API key (fallback voice)"
+                                placeholder="sk-…"
+                                password=true
+                                value=Signal::derive(move || settings.get().openai_key)
+                                on_commit=Callback::new(|key: String| leptos::task::spawn_local(async move { patch_settings("openaiKey", json!(key)).await }))
+                            />
+                            <div class="setting-row">
+                                <label for="talk-voice">
+                                    "Voice "
+                                    <span class="hint-inline">"(Groq Orpheus speaks for Talk it through in the reader)"</span>
+                                </label>
+                                <select
+                                    id="talk-voice"
+                                    prop:value=move || settings.get().talk_voice
+                                    on:change=move |e| {
+                                        let v = event_target_value(&e);
+                                        leptos::task::spawn_local(async move { patch_settings("talkVoice", json!(v)).await });
+                                    }
+                                >
+                                    {TTS_VOICES.iter().map(|(v, l)| view! { <option value=*v>{*l}</option> }).collect_view()}
+                                </select>
+                                <button type="button" disabled=move || settings.with(|s| s.groq_key.is_empty()) on:click=move |_| {
+                                    let s = settings.get_untracked();
+                                    preview_error.set(String::new());
+                                    preview.with_value(Player::stop);
+                                    let player = preview.get_value();
+                                    if player.open().is_err() {
+                                        return;
+                                    }
+                                    leptos::task::spawn_local(async move {
+                                        let Ok(ctl) = web_sys::AbortController::new() else { return };
+                                        match synthesize(TtsProvider::Groq, &s.groq_key, &s.talk_voice, VOICE_SAMPLE, &ctl.signal(), false).await {
+                                            Ok(wav) => { let _ = player.queue(wav).await; }
+                                            Err(f) => preview_error.set(crate::voice::failure_text(&f)),
+                                        }
+                                    });
+                                }>"Hear it"</button>
+                            </div>
+                            <Show when=move || preview_error.with(|e| !e.is_empty())>
+                                <p class="hint" role="alert">{move || preview_error.get()}</p>
+                            </Show>
                         </section>
 
                         <section class="section" id="reading-session">

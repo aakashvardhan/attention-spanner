@@ -47,7 +47,7 @@ pub async fn on_installed() {
         }
         clear_retired_alarms().await?;
         session::remove_legacy_daily_gate_rule().await?;
-        session::reconcile_on_startup().await
+        session::reconcile_session().await
     })
     .await;
 }
@@ -56,7 +56,7 @@ pub async fn on_installed() {
 pub async fn on_startup() {
     guarded("[worker] startup", async {
         session::remove_legacy_daily_gate_rule().await?;
-        session::reconcile_on_startup().await
+        session::reconcile_session().await
     })
     .await;
 }
@@ -67,6 +67,7 @@ pub async fn on_startup() {
 pub async fn on_worker_start() {
     guarded("[worker] start", async {
         session::remove_legacy_daily_gate_rule().await?;
+        session::reconcile_session().await?;
         pdf_rules::sync_pdf_rules().await
     })
     .await;
@@ -228,6 +229,10 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
             None => json!({ "ok": false }),
         },
         Message::FocusReader => json!({ "ok": session::focus_reader().await? }),
+        Message::SessionCheck => {
+            session::reconcile_session().await?;
+            json!({ "ok": true })
+        }
         Message::AlphaxivSignIn => alphaxiv::sign_in().await,
         Message::AlphaxivSignOut => alphaxiv::sign_out().await?,
         Message::AlphaxivSync { force } => alphaxiv::sync(force).await,

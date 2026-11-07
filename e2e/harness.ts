@@ -38,8 +38,13 @@ export async function launch(opts: { fakeAudio?: string } = {}): Promise<Ext> {
   const profile = mkdtempSync(join(tmpdir(), 'reader-e2e-'));
   const ctx = await chromium.launchPersistentContext(profile, {
     headless: !process.env.HEADED,
-    channel: 'chromium',
+    // BROWSER=/path/to/binary runs the suite in another Chromium (e.g. Brave).
+    ...(process.env.BROWSER ? { executablePath: process.env.BROWSER } : { channel: 'chromium' }),
     viewport: { width: 1280, height: 900 },
+    // One place and language for every browser: Brave hands the extension the Mac's real location, headless Chromium none.
+    locale: 'en-US',
+    geolocation: { latitude: 37.34, longitude: -121.89 },
+    permissions: ['geolocation'],
     args: [
       `--disable-extensions-except=${DIST}`,
       `--load-extension=${DIST}`,
@@ -53,6 +58,19 @@ export async function launch(opts: { fakeAudio?: string } = {}): Promise<Ext> {
         : []),
     ],
   });
+  // The new tab's weather, pinned like the feed below.
+  await ctx.route('https://api.open-meteo.com/**', (route) =>
+    route.fulfill({ json: { current: { temperature_2m: 64, weather_code: 0 } } }),
+  );
+  // The new tab's Hacker News card, pinned: live headlines would change its screenshot and its layout daily.
+  await ctx.route('https://news.ycombinator.com/rss', (route) =>
+    route.fulfill({
+      contentType: 'application/rss+xml',
+      body: `<rss><channel>${[1, 2, 3]
+        .map((n) => `<item><title>Story ${n} for the suite</title><link>https://example.com/${n}</link><comments>https://news.ycombinator.com/item?id=${n}</comments></item>`)
+        .join('')}</channel></rss>`,
+    }),
+  );
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent('serviceworker');
   const id = new URL(sw.url()).host;
@@ -166,15 +184,16 @@ export async function horizontalOverflow(page: Page): Promise<number> {
  * permissions, so no CORS headers are needed.
  */
 export async function mockClaude(ext: Ext, reply: (system: string, prompt: string) => string) {
-  const calls: { system: string; prompt: string; model: string }[] = [];
+  const calls: { system: string; prompt: string; model: string; images: number }[] = [];
   await ext.ctx.route('https://api.anthropic.com/**', async (route) => {
     const body = route.request().postDataJSON() as {
       model: string;
       system: string;
-      messages: { content: { text: string }[] }[];
+      messages: { content: { type: string; text?: string }[] }[];
     };
     const prompt = body.messages[0].content.at(-1)?.text ?? '';
-    calls.push({ system: body.system, prompt, model: body.model });
+    const images = body.messages[0].content.filter((c) => c.type === 'image').length;
+    calls.push({ system: body.system, prompt, model: body.model, images });
     const text = reply(body.system, prompt);
     const mid = Math.floor(text.length / 2);
     const event = (type: string, data: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
@@ -269,4 +288,11 @@ export async function expectScreenshot(page: Page, name: string): Promise<void> 
   }
   expect(result.size, `${name}: page size changed (actual in e2e/out)`).toBe('');
   expect(result.changed, `${name}: share of pixels changed (actual in e2e/out)`).toBeLessThanOrEqual(0.005);
+}
+
+/** Empties the Cache API (remembered speech and Haiku replies), so a test's mocked providers are asked afresh. */
+export async function clearCaches(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    for (const name of await caches.keys()) await caches.delete(name);
+  });
 }

@@ -43,6 +43,16 @@ extern "C" {
     fn page_links_js(doc: &JsValue, n: u32, scale: f64) -> Promise;
     #[wasm_bindgen(js_name = resolveDest)]
     fn resolve_dest_js(doc: &JsValue, dest: &JsValue) -> Promise;
+    #[wasm_bindgen(js_name = pageImage)]
+    fn page_image_js(doc: &JsValue, n: u32) -> Promise;
+}
+
+/// Page `n` as printed, base64 JPEG, for a model to read its equations.
+pub async fn page_image(doc: &JsValue, n: u32) -> Option<String> {
+    JsFuture::from(page_image_js(doc, n))
+        .await
+        .ok()?
+        .as_string()
 }
 
 thread_local! {

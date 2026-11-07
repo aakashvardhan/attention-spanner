@@ -1367,3 +1367,80 @@ body {
   margin: var(--space-1) 0;
   color: var(--text-secondary);
 }
+
+/* Talk and Listen stay open while you read along, so unlike the other
+   sheets they take their room from the page column: the page re-fits beside
+   the panel instead of sliding under it. */
+.reader-body:has(> .reader-talk) .reader-main {
+  margin-right: calc(360px + 2 * var(--space-3));
+}
+
+.reader-talk {
+  width: 360px;
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+  overflow-y: auto;
+}
+
+.reader-talk-type {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.reader-talk-turns {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reader-talk-turns li {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--accent-border);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.reader-talk-turns li[data-who='you'] {
+  border-left-color: var(--success-border);
+}
+
+.reader-talk-turns p {
+  margin: var(--space-1) 0;
+  color: var(--text-secondary);
+}
+
+/* Shown on the tab you were sent back to; it sits outside the reader layout. */
+.reader-toast.reader-dup-toast {
+  position: fixed;
+  z-index: 30;
+}
+
+/* Listen: the sentence being spoken, a pale brass wash with the ink kept
+   dark (--accent-soft is too close to the panel's surface to see). */
+.reader-talk-turns mark.listen-now {
+  background: var(--accent-track);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Listen's heading and buttons stay put while the narration scrolls under
+   them. The negative margin takes the panel's top padding, so nothing shows
+   above the bar; the solid surface matches the near-opaque glass. */
+.listen-controls {
+  position: sticky;
+  top: calc(-1 * var(--space-3));
+  z-index: 1;
+  margin-top: calc(-1 * var(--space-3));
+  padding: var(--space-3) 0 var(--space-2);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}

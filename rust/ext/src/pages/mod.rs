@@ -70,7 +70,8 @@ pub fn use_settings() -> (Signal<reader_core::types::Settings>, ReadSignal<bool>
 
 /// The palettes in theme.css, as (data-theme value, label). "paper" is the
 /// unattributed default.
-pub const THEMES: [(&str, &str); 5] = [
+pub const THEMES: [(&str, &str); 6] = [
+    ("grid", "Grid (dark, neon)"),
     ("paper", "Paper"),
     ("daylight", "Daylight (highest contrast)"),
     ("mist", "Mist"),

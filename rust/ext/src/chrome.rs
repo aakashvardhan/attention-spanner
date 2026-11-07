@@ -31,8 +31,14 @@ extern "C" {
     pub fn tabs_update(tab_id: i32, props: &JsValue) -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "tabs"], js_name = get)]
     pub fn tabs_get(tab_id: i32) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = getContexts)]
+    pub fn runtime_get_contexts(filter: &JsValue) -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "tabs"], js_name = create)]
     pub fn tabs_create(props: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "tabs"], js_name = getCurrent)]
+    pub fn tabs_get_current() -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "tabs"], js_name = remove)]
+    pub fn tabs_remove(tab_id: i32) -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "windows"], js_name = update)]
     pub fn windows_update(window_id: i32, props: &JsValue) -> Result<Promise, JsValue>;
 
