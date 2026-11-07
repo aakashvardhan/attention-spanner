@@ -11,6 +11,7 @@ import { html } from './sites';
  */
 
 const FIXTURE = readFileSync(resolve(__dirname, 'fixtures/webpage.html'), 'utf8');
+const SHAPES = readFileSync(resolve(__dirname, 'fixtures/webpage-shapes.html'), 'utf8');
 
 /** A 1.5 s, 220 Hz tone at 24 kHz (as in listen.e2e.ts). */
 function toneWav(seconds = 1.5): Buffer {
@@ -76,6 +77,26 @@ describe('side panel: webpage', () => {
     });
     ext.sites.setRoute('notes', '/second', html('<main><h1>Second page</h1><p>Other.</p></main>'));
     ext.sites.setRoute('notes', '/nav-only', html('<nav><a href="/">Home</a></nav>'));
+    ext.sites.setRoute('notes', '/shapes', (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(SHAPES);
+    });
+    // A single-page app: pushState first, the new article drawn 300 ms later.
+    ext.sites.setRoute(
+      'notes',
+      '/spa',
+      html(
+        '<main><h1>First article</h1><p>One.</p></main>' +
+          "<script>window.go = () => { history.pushState({}, '', '/spa/two'); setTimeout(() => { document.querySelector('main').innerHTML = '<h1>Second article</h1><p>Two.</p>'; }, 300); };</script>",
+      ),
+    );
+    // Never finishes loading: an image that never answers.
+    ext.sites.setRoute('notes', '/hang', html('<main><h1>Slow page</h1><p>Still loading.</p></main><img src="/never.png" alt="">'));
+    ext.sites.setRoute('notes', '/never.png', () => {});
+    // Slow to answer, so a tab switch lands before it can be read.
+    ext.sites.setRoute('notes', '/slow', (req, res) => {
+      setTimeout(() => html('<main><h1>Slow tab</h1><p>Late.</p></main>')(req, res), 2_000);
+    });
     url = `${ext.sites.origin('notes')}/agent-evaluation`;
   });
   afterAll(async () => ext?.close());
@@ -164,4 +185,95 @@ describe('side panel: webpage', () => {
     expect(r.path).toBe('src/pages/sidebar/index.html');
     expect(r.behavior.openPanelOnActionClick).toBe(true);
   });
+
+  /** Runs page-text.js in the tab; its result. */
+  async function extract(tabId: number): Promise<Extracted> {
+    return ext.sw.evaluate(
+      async (id) => (await chrome.scripting.executeScript({ target: { tabId: id }, files: ['page-text.js'] }))[0].result as Extracted,
+      tabId,
+    );
+  }
+
+  it('keeps loose and parent text, reads inside a page-wide form, drops role-marked menus, and keeps exponents', async () => {
+    const r = await extract(await openTab('/shapes'));
+    const text = r.blocks.map((b) => b.text);
+    expect(text).toContain('Loose intro text in a div with a line break.');
+    expect(text).toContain('Parent point');
+    expect(text).toContain('Child point');
+    expect(text).toContain('Cell lead text');
+    expect(text).toContain('Cell paragraph');
+    const all = text.join('\n');
+    expect(all).toContain('1 − (1 − p)^k');
+    expect(all).toContain('pass^k = p^k');
+    expect(all).toContain('x_i');
+    expect(all).toContain('^(n − c)');
+    expect(all).not.toMatch(/Menu home|Banner text|Footer info/);
+  });
+
+  it('keeps playing when the page jumps to an anchor on itself', async () => {
+    const tabId = await openTab('/agent-evaluation');
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await side.getByRole('button', { name: 'Read the page' }).click();
+    await expect.poll(() => side.getByRole('button', { name: 'Pause' }).count(), { timeout: 10_000 }).toBe(1);
+    const tab = ext.ctx.pages().find((p) => p.url() === url)!;
+    await tab.evaluate(() => { location.hash = 'metrics'; });
+    await side.waitForTimeout(1_500);
+    expect(await side.getByRole('button', { name: 'Pause' }).count()).toBe(1);
+    await side.close();
+  });
+
+  it('re-reads a page that failed to load once it loads', async () => {
+    let fail = true;
+    ext.sites.setRoute('notes', '/flaky', (req, res) => {
+      if (fail) {
+        req.socket.destroy();
+        return;
+      }
+      html('<main><h1>Flaky page</h1><p>Back.</p></main>')(req, res);
+    });
+    const page = await ext.ctx.newPage();
+    await page.goto(`${ext.sites.origin('notes')}/flaky`).catch(() => {});
+    const tabId = await ext.sw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0]?.id ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id!, `${ext.sites.origin('notes')}/flaky`);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByText("This page can't be read here.").count()).toBe(1);
+    fail = false;
+    await page.reload();
+    await expect.poll(() => side.getByRole('heading', { name: 'Flaky page' }).count(), { timeout: 5_000 }).toBe(1);
+    await side.close();
+  });
+
+  it('reads the new article after a single-page-app navigation, not the old one', async () => {
+    const tabId = await openTab('/spa');
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByRole('heading', { name: 'First article' }).count()).toBe(1);
+    const tab = ext.ctx.pages().find((p) => p.url().endsWith('/spa'))!;
+    await tab.evaluate(() => (window as unknown as { go(): void }).go());
+    await expect.poll(() => side.getByRole('heading', { name: 'Second article' }).count(), { timeout: 5_000 }).toBe(1);
+    await side.close();
+  });
+
+  it('reads a page that never finishes loading', async () => {
+    const tabId = await openTab('/agent-evaluation');
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByRole('heading', { name: 'Agent evaluation' }).count()).toBe(1);
+    await ext.sw.evaluate((a) => chrome.tabs.update(a.id, { url: a.url }), { id: tabId, url: `${ext.sites.origin('notes')}/hang` });
+    await expect.poll(() => side.getByRole('heading', { name: 'Slow page' }).count(), { timeout: 15_000 }).toBe(1);
+    await side.close();
+  }, 30_000);
+
+  it('following the active tab, stops the old page the moment you switch tabs', async () => {
+    const windowId = await ext.sw.evaluate(async (u) => (await chrome.windows.create({ url: u })).id!, url);
+    const side = await ext.page(`${PAGES.sidebar}?window=${windowId}`);
+    // Playwright opens the panel page in that window; move it out, leaving the notes active there.
+    const sideTab = await side.evaluate(async () => (await chrome.tabs.getCurrent())!.id!);
+    await ext.sw.evaluate((id) => chrome.windows.create({ tabId: id }), sideTab);
+    await expect.poll(() => side.getByRole('heading', { name: 'Agent evaluation' }).count(), { timeout: 5_000 }).toBe(1);
+    await side.getByRole('button', { name: 'Read the page' }).click();
+    await expect.poll(() => side.getByRole('button', { name: 'Pause' }).count(), { timeout: 10_000 }).toBe(1);
+    await ext.sw.evaluate((a) => chrome.tabs.create({ windowId: a.windowId, url: a.url, active: true }), { windowId, url: `${ext.sites.origin('notes')}/slow` });
+    // Within half a second: the old page is gone, long before the slow one can be read.
+    await expect.poll(() => side.getByRole('button', { name: 'Pause' }).count(), { timeout: 500 }).toBe(0);
+    await expect.poll(() => side.getByRole('heading', { name: 'Slow tab' }).count(), { timeout: 10_000 }).toBe(1);
+    await side.close();
+  }, 30_000);
 });

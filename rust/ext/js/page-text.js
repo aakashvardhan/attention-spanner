@@ -31,23 +31,71 @@
     else el.remove();
   }
 
+  // Exponents and indices written as HTML (pass^k = p<sup>k</sup>) would
+  // otherwise read as "pk". A footnote mark that is a link is dropped.
+  for (const el of root.querySelectorAll('sup, sub')) {
+    if (el.querySelector('a')) {
+      el.remove();
+      continue;
+    }
+    const t = el.textContent.replace(/\s+/g, ' ').trim();
+    const mark = el.tagName === 'SUP' ? '^' : '_';
+    el.replaceWith(document.createTextNode(/^\w+$/.test(t) ? `${mark}${t}` : `${mark}(${t})`));
+  }
+
   root
-    .querySelectorAll('nav, header, footer, aside, script, style, noscript, form, button, svg, template, [hidden], [aria-hidden="true"]')
+    .querySelectorAll(
+      'nav, header, footer, aside, script, style, noscript, button, svg, template, [hidden], [aria-hidden="true"], ' +
+        '[role=navigation], [role=banner], [role=contentinfo], [role=complementary], [role=search]',
+    )
     .forEach((el) => el.remove());
 
+  // One walk in document order. Headings, pre and leaf blocks (p, li, ... with
+  // no block inside) are blocks of their own; any other text, loose in a div,
+  // or a list item's own words before its sublist, gathers until the next
+  // block boundary.
   const HEAD = 'h1, h2, h3, h4, h5, h6';
-  const BODY = 'p, li, pre, blockquote, figcaption, dt, dd, td';
-  const ALL = `${HEAD}, ${BODY}`;
+  const ALL = `${HEAD}, p, li, pre, blockquote, figcaption, dt, dd, td, th`;
+  const INLINE = new Set('A ABBR B BDI BDO CITE CODE DATA DFN EM FONT I KBD LABEL MARK Q S SAMP SMALL SPAN STRONG TIME U VAR WBR'.split(' '));
+  const squash = (t) => t.replace(/\s+/g, ' ').trim();
   const blocks = [];
-  for (const el of root.querySelectorAll(ALL)) {
-    // A block that holds another block lets the inner one speak.
-    if (!el.matches(HEAD) && el.querySelector(ALL)) continue;
-    const pre = el.matches('pre');
-    const raw = el.textContent || '';
-    const text = pre ? raw.replace(/\s+$/, '') : raw.replace(/\s+/g, ' ').trim();
-    if (!text) continue;
-    blocks.push({ level: el.matches(HEAD) ? Number(el.tagName[1]) : 0, text });
-  }
+  let loose = '';
+  const flush = () => {
+    const t = squash(loose);
+    if (t) blocks.push({ level: 0, text: t });
+    loose = '';
+  };
+  const walk = (node) => {
+    for (const c of node.childNodes) {
+      if (c.nodeType === Node.TEXT_NODE) {
+        loose += c.data;
+      } else if (c.nodeType !== Node.ELEMENT_NODE) {
+        continue;
+      } else if (c.tagName === 'BR') {
+        loose += ' ';
+      } else if (c.matches(HEAD)) {
+        flush();
+        const t = squash(c.textContent);
+        if (t) blocks.push({ level: Number(c.tagName[1]), text: t });
+      } else if (c.tagName === 'PRE') {
+        flush();
+        const t = c.textContent.replace(/\s+$/, '');
+        if (t.trim()) blocks.push({ level: 0, text: t });
+      } else if (INLINE.has(c.tagName)) {
+        walk(c);
+      } else if (c.matches(ALL) && !c.querySelector(ALL)) {
+        flush();
+        const t = squash(c.textContent);
+        if (t) blocks.push({ level: 0, text: t });
+      } else {
+        flush();
+        walk(c);
+        flush();
+      }
+    }
+  };
+  walk(root);
+  flush();
   const h1 = blocks.find((b) => b.level === 1);
   return { title: h1 ? h1.text : document.title, blocks };
 })();

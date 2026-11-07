@@ -8,6 +8,7 @@ use super::reader::talk::TalkPanel;
 use crate::chrome;
 use crate::js::{from_js, to_js, wait};
 use crate::page_text::{self, PageText, UNREADABLE};
+use crate::voice::sleep_ms;
 use leptos::prelude::*;
 use reader_core::voice_agent::Source;
 use serde_json::{json, Value};
@@ -28,13 +29,28 @@ fn query_param(name: &str) -> Option<String> {
         .map(|(_, v)| v.into_owned())
 }
 
-/// The tab as `{ id, url, status }`; `url` is missing where the extension
-/// may not see it (other extensions' pages).
-async fn tab(pinned: Option<i32>) -> Option<Value> {
+/// A URL without its `#fragment`: jumping to an anchor is the same page.
+fn page_of(url: &str) -> &str {
+    url.split('#').next().unwrap_or(url)
+}
+
+/// After a single-page app changes its URL it draws the new page; read after this.
+const SPA_SETTLE_MS: i32 = 1_000;
+/// A page that never finishes loading (a hung image) is read anyway after this.
+const LOAD_FALLBACK_MS: i32 = 10_000;
+
+/// The tab as `{ id, windowId, url, status }`; `url` is missing where the
+/// extension may not see it (other extensions' pages). `pinned` is a tab;
+/// else the active tab of `window` (the panel's own window when `None`).
+async fn tab(pinned: Option<i32>, window: Option<i32>) -> Option<Value> {
     let found = match pinned {
         Some(id) => wait(chrome::tabs_get(id)).await.ok()?,
         None => {
-            let query = to_js(&json!({ "active": true, "currentWindow": true })).ok()?;
+            let query = match window {
+                Some(w) => json!({ "active": true, "windowId": w }),
+                None => json!({ "active": true, "currentWindow": true }),
+            };
+            let query = to_js(&query).ok()?;
             let tabs: Vec<Value> = from_js(wait(chrome::tabs_query(&query)).await.ok()?).ok()?;
             return tabs.into_iter().next();
         }
@@ -50,23 +66,34 @@ pub fn Sidebar() -> impl IntoView {
     }
     // ?tab=<id> pins the panel to one tab (the e2e suite opens it as a tab).
     let pinned = query_param("tab").and_then(|t| t.parse::<i32>().ok());
+    // ?window=<id> follows that window's active tab (e2e: the real following path).
+    let window = query_param("window").and_then(|t| t.parse::<i32>().ok());
     let target = RwSignal::new(None::<Target>);
     let generation = StoredValue::new(0u64);
     // The tab being followed; outlives `target`, which is cleared mid-navigation.
     let following = StoredValue::new(pinned);
+    // Its window: tab switches in other windows are not ours.
+    let following_window = StoredValue::new(window);
+    // Until when a "complete" is too early to read (just after a URL change).
+    let settle_until = StoredValue::new(0i64);
 
     let load = move || {
         generation.update_value(|g| *g += 1);
         let mine = generation.get_value();
         leptos::task::spawn_local(async move {
-            let Some(t) = tab(pinned).await else { return };
+            let Some(t) = tab(pinned, window).await else {
+                return;
+            };
             let tab_id = t["id"].as_i64().unwrap_or_default() as i32;
             following.set_value(Some(tab_id));
+            following_window.set_value(t["windowId"].as_i64().map(|w| w as i32));
             let url = t["url"].as_str().unwrap_or_default().to_string();
-            if target.with_untracked(|c| {
-                c.as_ref()
-                    .is_some_and(|c| c.tab_id == tab_id && c.url == url)
-            }) {
+            // Already showing this page, read: keep it (and its audio). A
+            // failed read is tried again.
+            let same = |c: &Target| {
+                c.tab_id == tab_id && page_of(&c.url) == page_of(&url) && c.text.is_ok()
+            };
+            if target.with_untracked(|c| c.as_ref().is_some_and(same)) {
                 return;
             }
             let text = if url.starts_with("http://") || url.starts_with("https://") {
@@ -82,26 +109,45 @@ pub fn Sidebar() -> impl IntoView {
     load();
 
     if pinned.is_none() {
-        let activated = Closure::<dyn FnMut(JsValue)>::new(move |_| load());
+        // Another tab: the old page goes at once (its audio stops), not
+        // once the new one has been read.
+        let activated = Closure::<dyn FnMut(JsValue)>::new(move |info: JsValue| {
+            let info: Value = from_js(info).unwrap_or_default();
+            let theirs = info["windowId"].as_i64().map(|w| w as i32);
+            if following_window.get_value().is_some() && theirs != following_window.get_value() {
+                return;
+            }
+            target.set(None);
+            load();
+        });
         chrome::tabs_on_activated(&activated);
         activated.forget();
     }
     let updated = Closure::<dyn FnMut(i32, JsValue, JsValue)>::new(
-        move |tab_id: i32, info: JsValue, tab: JsValue| {
+        move |tab_id: i32, info: JsValue, _tab: JsValue| {
             if following.get_value() != Some(tab_id) {
                 return;
             }
             let info: Value = from_js(info).unwrap_or_default();
-            let tab: Value = from_js(tab).unwrap_or_default();
-            let moved = info["url"]
-                .as_str()
-                .is_some_and(|u| target.with_untracked(|t| t.as_ref().is_some_and(|t| t.url != u)));
-            // Going somewhere else: drop the old page now (its audio stops),
-            // and read the new one once it has loaded.
+            let moved = info["url"].as_str().is_some_and(|u| {
+                target.with_untracked(|t| t.as_ref().is_some_and(|t| page_of(&t.url) != page_of(u)))
+            });
+            // Going somewhere else: drop the old page now (its audio stops).
+            // Read the new one a moment later: a single-page app changes its
+            // URL (and Chrome may already say "complete") before it draws
+            // the new page. A page that never finishes loading is read anyway.
             if moved {
                 target.set(None);
-            }
-            if tab["status"] == "complete" || info["status"] == "complete" {
+                settle_until.set_value(crate::js::now() + i64::from(SPA_SETTLE_MS));
+                leptos::task::spawn_local(async move {
+                    sleep_ms(SPA_SETTLE_MS).await;
+                    load();
+                    sleep_ms(LOAD_FALLBACK_MS).await;
+                    if target.with_untracked(Option::is_none) {
+                        load();
+                    }
+                });
+            } else if info["status"] == "complete" && crate::js::now() >= settle_until.get_value() {
                 load();
             }
         },
