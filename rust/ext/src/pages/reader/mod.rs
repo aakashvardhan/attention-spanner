@@ -2,8 +2,8 @@
 
 mod annotate;
 mod define;
-mod listen;
-mod talk;
+pub mod listen;
+pub mod talk;
 mod think;
 mod ui;
 mod viewport;
@@ -25,6 +25,7 @@ use reader_core::reading_aids::{minutes_left, time_left_label, word_counts};
 use reader_core::types::{
     Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind, AnnotationRect, Paper,
 };
+use reader_core::voice_agent::Source;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use talk::TalkPanel;
@@ -807,6 +808,7 @@ fn PdfReader(src: String) -> impl IntoView {
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "talk">
                     <TalkPanel
                         title=title
+                        source=Source::Paper
                         page_texts=page_texts.into()
                         page=Signal::derive(move || position.get().page)
                         on_close=Callback::new(move |_| panel.set("none"))
@@ -815,10 +817,11 @@ fn PdfReader(src: String) -> impl IntoView {
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "listen">
                     <ListenPanel
                         title=title
-                        doc=doc
+                        source=Source::Paper
+                        doc=Some(doc)
                         page_texts=page_texts.into()
                         page=Signal::derive(move || position.get().page)
-                        on_jump=go
+                        on_jump=Some(go)
                         on_close=Callback::new(move |_| panel.set("none"))
                     />
                 </Show>

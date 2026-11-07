@@ -63,7 +63,7 @@ impl Drop for Recorder {
 }
 
 /// The getUserMedia failure, in words.
-fn mic_error(e: &JsValue) -> String {
+pub(crate) fn mic_error(e: &JsValue) -> String {
     let name = e
         .dyn_ref::<web_sys::DomException>()
         .map(|d| d.name())

@@ -30,6 +30,7 @@ enum Phase {
 #[component]
 pub fn TalkPanel(
     title: Signal<String>,
+    source: Source,
     page_texts: Signal<Option<Vec<String>>>,
     page: Signal<u32>,
     on_close: Callback<()>,
@@ -106,10 +107,10 @@ pub fn TalkPanel(
         };
         reply_ctl.set_value(Some(ctl.clone()));
         phase.set(Phase::Thinking);
-        let doc = page_texts
-            .with_untracked(|p| paper_document(p.as_deref().unwrap_or_default(), Source::Paper));
-        let prompt = turn_prompt(&turns.get_untracked(), page.get_untracked(), Source::Paper);
-        let system = agent_system(&title.get_untracked(), Source::Paper);
+        let doc =
+            page_texts.with_untracked(|p| paper_document(p.as_deref().unwrap_or_default(), source));
+        let prompt = turn_prompt(&turns.get_untracked(), page.get_untracked(), source);
+        let system = agent_system(&title.get_untracked(), source);
         let live = move || generation.try_get_value() == Some(mine);
         turns.update(|t| {
             t.push(Turn {
@@ -306,7 +307,10 @@ pub fn TalkPanel(
             if e.key() == "Escape" { on_close.run(()); }
         }>
             <h2 id="talk-heading">"Talk it through"</h2>
-            <p class="reader-explain-lede">"Say what you think the paper is doing. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead."</p>
+            <p class="reader-explain-lede">{match source {
+                Source::Paper => "Say what you think the paper is doing. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
+                Source::Webpage => "Say what you think the page is saying. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
+            }}</p>
             <button type="button" class="fc-primary-btn" aria-pressed=move || (phase.get() != Phase::Off).to_string() on:click=move |_| toggle()>
                 {move || if phase.get() == Phase::Off { "Start talking" } else { "Stop" }}
             </button>

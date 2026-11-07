@@ -26,12 +26,15 @@ enum Phase {
 #[component]
 pub fn ListenPanel(
     title: Signal<String>,
+    source: Source,
     /// The open PDF: each page goes to Haiku as a picture too, for its math.
-    doc: StoredValue<wasm_bindgen::JsValue, LocalStorage>,
+    /// A webpage has none (its math comes as LaTeX).
+    doc: Option<StoredValue<wasm_bindgen::JsValue, LocalStorage>>,
     page_texts: Signal<Option<Vec<String>>>,
     /// Where the reader is now: listening starts here.
     page: Signal<u32>,
-    on_jump: Callback<u32>,
+    /// Turns the reader's pages as it reads; none in the side panel.
+    on_jump: Option<Callback<u32>>,
     on_close: Callback<()>,
 ) -> impl IntoView {
     let (settings, _) = use_settings();
@@ -79,7 +82,7 @@ pub fn ListenPanel(
             return;
         }
         let Some(pages) = page_texts.get_untracked() else {
-            error.set("The paper's text isn't ready yet.".into());
+            error.set(format!("The {}'s text isn't ready yet.", source.noun()));
             return;
         };
         // From the click, so the browser lets it play.
@@ -128,8 +131,8 @@ pub fn ListenPanel(
                 };
                 if hearing.get_untracked() != Some(page) {
                     hearing.set(Some(page));
-                    if follow.get_untracked() {
-                        on_jump.run(page);
+                    if let Some(jump) = on_jump.filter(|_| follow.get_untracked()) {
+                        jump.run(page);
                     }
                 }
                 let now_saying = sentence_at(&line, frac);
@@ -160,7 +163,7 @@ pub fn ListenPanel(
                 SpeakerEvent::Error(m) => error.set(m),
             },
         );
-        let system = narrate_system(&title.get_untracked(), Source::Paper);
+        let system = narrate_system(&title.get_untracked(), source);
         let count = pages.len() as u32;
 
         leptos::task::spawn_local(async move {
@@ -183,10 +186,13 @@ pub fn ListenPanel(
                     continue;
                 }
                 let previous = (p > from).then(|| pages[p as usize - 2].as_str());
-                let prompt = narrate_prompt(p, count, previous, Source::Paper);
+                let prompt = narrate_prompt(p, count, previous, source);
                 let doc_text = page_document(text);
                 // ponytail: one render per page; a missing picture falls back to text alone.
-                let image = crate::pdfjs::page_image(&doc.get_value(), p).await;
+                let image = match doc {
+                    Some(d) => crate::pdfjs::page_image(&d.get_value(), p).await,
+                    None => None,
+                };
                 if !live() {
                     return;
                 }
@@ -260,15 +266,19 @@ pub fn ListenPanel(
         _ => {}
     };
 
-    let status = move || match (phase.get(), hearing.get()) {
-        (Phase::Off, _) => {
+    let part = source.part();
+    let status = move || match (phase.get(), hearing.get(), source) {
+        (Phase::Off, _, Source::Paper) => {
             "Reads the paper aloud from this page, explaining the math as it goes.".to_string()
         }
-        (Phase::Done, _) => "That's the end of the paper.".to_string(),
-        (Phase::Paused, Some(p)) => format!("Paused on page {p}"),
-        (Phase::Paused, None) => "Paused".to_string(),
-        (Phase::Playing, Some(p)) => format!("Reading page {p}"),
-        (Phase::Playing, None) => "Getting the first page ready…".to_string(),
+        (Phase::Off, _, Source::Webpage) => {
+            "Reads the page aloud, explaining the math as it goes.".to_string()
+        }
+        (Phase::Done, _, _) => format!("That's the end of the {}.", source.noun()),
+        (Phase::Paused, Some(p), _) => format!("Paused on {part} {p}"),
+        (Phase::Paused, None, _) => "Paused".to_string(),
+        (Phase::Playing, Some(p), _) => format!("Reading {part} {p}"),
+        (Phase::Playing, None, _) => format!("Getting the first {part} ready…"),
     };
     let current = move || {
         let p = hearing.get()?;
@@ -287,7 +297,10 @@ pub fn ListenPanel(
                     {move || match phase.get() {
                         Phase::Off | Phase::Done => view! {
                             <button type="button" class="fc-primary-btn" on:click=move |_| play_from(page.get_untracked())>
-                                {move || format!("Read from page {}", page.get())}
+                                {move || match source {
+                                    Source::Paper => format!("Read from page {}", page.get()),
+                                    Source::Webpage => "Read the page".to_string(),
+                                }}
                             </button>
                         }.into_any(),
                         _ => view! {
@@ -298,10 +311,12 @@ pub fn ListenPanel(
                         }.into_any(),
                     }}
                 </div>
-                <label class="define-label">
-                    <input type="checkbox" prop:checked=move || follow.get() on:change=move |e| follow.set(event_target_checked(&e)) />
-                    " Turn pages as it reads"
-                </label>
+                {on_jump.is_some().then(|| view! {
+                    <label class="define-label">
+                        <input type="checkbox" prop:checked=move || follow.get() on:change=move |e| follow.set(event_target_checked(&e)) />
+                        " Turn pages as it reads"
+                    </label>
+                })}
                 <Show when=move || notice.with(|n| !n.is_empty())>
                     <p class="define-label" role="status">{move || notice.get()}</p>
                 </Show>
@@ -317,7 +332,10 @@ pub fn ListenPanel(
                     None => (t, String::new(), String::new()),
                 };
                 view! {
-                    <ol class="reader-talk-turns"><li data-who="agent"><strong>{move || hearing.get().map(|p| format!("Page {p}"))}</strong><p>
+                    <ol class="reader-talk-turns"><li data-who="agent"><strong>{move || hearing.get().map(|p| match source {
+                        Source::Paper => format!("Page {p}"),
+                        Source::Webpage => format!("Section {p}"),
+                    })}</strong><p>
                         {before}
                         {(!now.is_empty()).then(|| view! { <mark class="listen-now">{now}</mark> })}
                         {after}
