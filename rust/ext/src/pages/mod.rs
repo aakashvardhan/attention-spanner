@@ -10,6 +10,7 @@ pub mod newtab;
 pub mod options;
 pub mod papers;
 pub mod reader;
+pub mod sidebar;
 mod todo_drag;
 
 use crate::chrome;

@@ -19,7 +19,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true; // the reply is asynchronous
 });
 chrome.alarms.onAlarm.addListener((alarm) => run(wasm.on_alarm, alarm.name));
-chrome.action.onClicked.addListener(() => run(wasm.on_action_clicked));
+// The toolbar icon opens the side panel (src/pages/sidebar).
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((e) => console.error('[worker] side panel', e));
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.settings) {
     run(wasm.on_settings_changed, changes.settings.oldValue ?? null, changes.settings.newValue ?? null);

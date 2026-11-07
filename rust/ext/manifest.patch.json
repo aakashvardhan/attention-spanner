@@ -33,5 +33,8 @@
     "service_worker": "worker.js",
     "type": "module"
   },
+  "side_panel": {
+    "default_path": "src/pages/sidebar/index.html"
+  },
   "options_page": "src/pages/options/index.html"
 }

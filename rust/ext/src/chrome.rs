@@ -42,6 +42,9 @@ extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["chrome", "windows"], js_name = update)]
     pub fn windows_update(window_id: i32, props: &JsValue) -> Result<Promise, JsValue>;
 
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "scripting"], js_name = executeScript)]
+    pub fn scripting_execute_script(details: &JsValue) -> Result<Promise, JsValue>;
+
     #[wasm_bindgen(catch, js_namespace = ["chrome", "alarms"], js_name = create)]
     pub fn alarms_create(name: &str, info: &JsValue) -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "alarms"], js_name = clear)]
@@ -77,6 +80,10 @@ extern "C" {
     pub fn open_options_page() -> Result<Promise, JsValue>;
     #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = addListener)]
     pub fn on_storage_changed(listener: &Closure<dyn FnMut(JsValue, JsValue)>);
+    #[wasm_bindgen(js_namespace = ["chrome", "tabs", "onActivated"], js_name = addListener)]
+    pub fn tabs_on_activated(listener: &Closure<dyn FnMut(JsValue)>);
+    #[wasm_bindgen(js_namespace = ["chrome", "tabs", "onUpdated"], js_name = addListener)]
+    pub fn tabs_on_updated(listener: &Closure<dyn FnMut(i32, JsValue, JsValue)>);
 
     /// The global `fetch`, the same in a page and in the service worker.
     #[wasm_bindgen(catch, js_name = fetch)]

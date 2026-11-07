@@ -18,7 +18,7 @@ describe('rust port: phase 0 skeleton', () => {
   it('the worker boots from wasm', async () => {
     expect(await ext.sw.evaluate(() => chrome.runtime.getManifest().name)).toBe('Reader');
     const permissions = await ext.sw.evaluate(() => chrome.runtime.getManifest().permissions);
-    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen']);
+    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen', 'scripting', 'sidePanel']);
   });
 
   it('the new tab override mounts a Leptos page with the shared stylesheets, accessibly', async () => {
@@ -128,15 +128,6 @@ describe('rust port: phase 2 worker', () => {
     await expect.poll(async () => (await sessionRules()).includes(1000)).toBe(false);
     await expect.poll(() => page.locator('h1').innerText()).toBe('Reading session over');
     await page.close();
-  });
-
-  it('the toolbar button opens our new tab', async () => {
-    const opened = ext.ctx.waitForEvent('page');
-    await ext.sw.evaluate(() => (chrome.action.onClicked as unknown as { dispatch(t: object): void }).dispatch({ id: 1 }));
-    const tab = await opened;
-    await tab.waitForLoadState();
-    expect(tab.url()).toContain('src/pages/newtab/index.html');
-    await tab.close();
   });
 
   it('syncs the alphaXiv library through its MCP server, refreshing an expired token once', async () => {

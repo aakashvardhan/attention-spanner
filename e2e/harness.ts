@@ -17,6 +17,7 @@ export const PAGES = {
   papers: 'src/pages/papers/index.html',
   lexicon: 'src/pages/lexicon/index.html',
   reader: 'src/pages/reader/index.html',
+  sidebar: 'src/pages/sidebar/index.html',
   blocked: 'src/pages/blocked/index.html#https://example.com/',
 } as const;
 

@@ -13,9 +13,7 @@ use reader_core::activity::ActivityEvent;
 use reader_core::annotations::{
     add_annotation, delete_annotation, move_annotation, update_annotation,
 };
-use reader_core::constants::{
-    NEWTAB_PAGE_PATH, RETIRED_ALARMS, RETIRED_ALARM_PREFIXES, SYNC_ALARM,
-};
+use reader_core::constants::{RETIRED_ALARMS, RETIRED_ALARM_PREFIXES, SYNC_ALARM};
 use reader_core::messages::Message;
 use reader_core::migrations::migrate;
 use reader_core::pomodoro::POMODORO_ALARM;
@@ -148,19 +146,6 @@ pub async fn on_todos_changed() {
 #[wasm_bindgen]
 pub async fn on_pomodoro_changed() {
     guarded("[worker] pomodoro", session::pomodoro_changed()).await;
-}
-
-#[wasm_bindgen]
-pub async fn on_action_clicked() {
-    guarded("[worker] action", async {
-        // Our own new tab, not a bare tabs.create (another extension may own the override).
-        wait(chrome::tabs_create(&to_js(
-            &json!({ "url": chrome::get_url(NEWTAB_PAGE_PATH) }),
-        )?))
-        .await
-        .map(drop)
-    })
-    .await;
 }
 
 #[wasm_bindgen]

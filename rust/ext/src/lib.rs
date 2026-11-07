@@ -6,6 +6,7 @@ mod cache;
 mod chrome;
 mod claude;
 mod js;
+mod page_text;
 mod pages;
 mod pdfjs;
 mod store;
@@ -17,7 +18,7 @@ mod worker;
     name = "Reader",
     version = "1.0.0",
     description = "A quiet companion to alphaXiv: a paper shelf, and a reader that asks instead of tells and blocks what pulls you away.",
-    permissions = ["storage", "alarms", "declarativeNetRequest", "identity", "notifications", "geolocation", "offscreen"],
+    permissions = ["storage", "alarms", "declarativeNetRequest", "identity", "notifications", "geolocation", "offscreen", "scripting", "sidePanel"],
     host_permissions = ["<all_urls>"]
 )]
 struct Reader;
