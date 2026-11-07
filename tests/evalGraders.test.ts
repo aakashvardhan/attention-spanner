@@ -38,3 +38,32 @@ describe('side panel eval graders', () => {
     expect(passAtK(5, 1, 3)).toBeCloseTo(0.6);
   });
 });
+
+describe('YouTube notes grader', () => {
+  // @ts-expect-error plain ESM without types
+  const load = () => import('../eval/sidebar/graders.mjs');
+  const lecture = {
+    kind: 'lecture', title: 'Lecture 1', summary: 's',
+    cues: [{ t: '01:13', text: 'Q?' }],
+    notes: [{ t: '01:13', text: 'a' }, { t: '03:36', text: 'b' }, { t: '45:00', text: 'c' }],
+  };
+  it('passes a filled, ordered lecture; fails the wrong kind, empties, disorder, overruns, overlong titles and markdown', async () => {
+    const { gradeNotes } = await load();
+    const task = { expect: 'lecture', maxSeconds: 3_100 };
+    expect(gradeNotes(lecture, task).pass).toBe(true);
+    expect(gradeNotes({ ...lecture, kind: 'tutorial' }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, cues: [], notes: [] }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, notes: [{ t: '03:00', text: 'a' }, { t: '01:00', text: 'b' }, { t: '04:00', text: 'c' }] }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, notes: [...lecture.notes, { t: '1:30:00', text: 'd' }] }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, title: 'x'.repeat(200) }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, summary: '**bold**' }, task).pass).toBe(false);
+    expect(gradeNotes({ ...lecture, notes: [{ t: 'soon', text: 'a' }, ...lecture.notes] }, task).pass).toBe(false);
+  });
+  it('a tutorial must copy code when the task says so', async () => {
+    const { gradeNotes } = await load();
+    const steps = [{ t: '0:10', text: 'a', code: '' }, { t: '0:20', text: 'b', code: '' }, { t: '0:30', text: 'c', code: '' }];
+    const t = { kind: 'tutorial', title: 'T', summary: 's', steps };
+    expect(gradeNotes(t, { expect: 'tutorial', expectCode: true }).pass).toBe(false);
+    expect(gradeNotes({ ...t, steps: [...steps, { t: '0:40', text: 'd', code: 'git init' }] }, { expect: 'tutorial', expectCode: true }).pass).toBe(true);
+  });
+});

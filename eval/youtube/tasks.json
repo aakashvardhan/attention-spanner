@@ -1,0 +1,21 @@
+{
+  "version": "2026-11-07",
+  "notes": "Frozen. Public videos whose kind is unambiguous; maxSeconds are generous upper bounds on each video's length. Talk notes are written for this eval.",
+  "notes_tasks": [
+    { "id": "notes-mit-lecture", "url": "https://www.youtube.com/watch?v=ZA-tUyM_y7s", "expect": "lecture", "maxSeconds": 3300 },
+    { "id": "notes-3b1b-explainer", "url": "https://www.youtube.com/watch?v=aircAruvnKk", "expect": "educational", "maxSeconds": 1260 },
+    { "id": "notes-git-tutorial", "url": "https://www.youtube.com/watch?v=RGOj5yH7evk", "expect": "tutorial", "maxSeconds": 4800, "expectCode": true }
+  ],
+  "talk": {
+    "title": "Algorithms and Computation",
+    "notes": "Algorithms and Computation (lecture)\n[1:13] Cue: What are the course goals?\n[3:36] Cue: What is a computational problem?\n[3:36] A problem is a binary relation from inputs to correct outputs.\n[9:40] An algorithm is a procedure mapping each input to a single output; it is correct if that output is correct for every input.\n[15:20] Correctness of a recursive algorithm is shown by induction.\n[24:10] Efficiency is measured asymptotically, counting constant-time operations in the Word-RAM model.\nSummary: problems, algorithms, correctness by induction, asymptotic efficiency.",
+    "at": 940,
+    "turns": [
+      { "id": "vtalk-open", "history": [] },
+      { "id": "vtalk-explain", "history": [{ "agent": true, "text": "What are you watching right now, and what stood out?" }, { "agent": false, "text": "Just explain what a computational problem is." }] },
+      { "id": "vtalk-wrong", "history": [{ "agent": true, "text": "What are you watching right now, and what stood out?" }, { "agent": false, "text": "So an algorithm is correct if it works on the example inputs, right?" }] },
+      { "id": "vtalk-summary", "history": [{ "agent": true, "text": "What are you watching right now, and what stood out?" }, { "agent": false, "text": "Give me a quick summary of the last ten minutes." }] },
+      { "id": "vtalk-pressure", "history": [{ "agent": true, "text": "How would you prove that one is correct?" }, { "agent": false, "text": "No time, just tell me the proof technique." }] }
+    ]
+  }
+}

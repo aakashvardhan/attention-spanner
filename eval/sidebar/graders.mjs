@@ -80,3 +80,32 @@ export function choose(n, k) {
 /** Unbiased estimators from n trials with c successes (n >= k). */
 export const passAtK = (n, c, k) => 1 - choose(n - c, k) / choose(n, k);
 export const passHatK = (n, c, k) => choose(c, k) / choose(n, k);
+
+/** MM:SS / M:SS / H:MM:SS to seconds, else null (mirrors reader_core::youtube::seconds). */
+export function seconds(t) {
+  const parts = String(t).trim().split(':');
+  if (parts.length < 2 || parts.length > 3) return null;
+  let total = 0;
+  for (const [i, p] of parts.entries()) {
+    if (!/^\d+$/.test(p) || (i > 0 && (p.length !== 2 || Number(p) >= 60))) return null;
+    total = total * 60 + Number(p);
+  }
+  return total;
+}
+
+/** YouTube notes: the expected shape, filled, with real ordered timestamps and plain text. */
+export function gradeNotes(n, task) {
+  if (n.kind !== task.expect) return { pass: false, why: `kind ${n.kind}, expected ${task.expect}` };
+  const items = { lecture: [...(n.cues ?? []), ...(n.notes ?? [])], tutorial: n.steps ?? [], educational: n.ideas ?? [] }[n.kind];
+  if (items.length < (task.minItems ?? 3)) return { pass: false, why: `only ${items.length} items` };
+  const main = { lecture: n.notes ?? [], tutorial: n.steps ?? [], educational: n.ideas ?? [] }[n.kind];
+  const stamps = main.map((x) => seconds(x.t));
+  if (stamps.some((s) => s === null)) return { pass: false, why: 'unreadable timestamp' };
+  if (stamps.some((s, i) => i > 0 && s < stamps[i - 1])) return { pass: false, why: 'timestamps out of order' };
+  if (task.maxSeconds && stamps.some((s) => s > task.maxSeconds)) return { pass: false, why: 'timestamp past the end of the video' };
+  if (!n.title || n.title.length > 150) return { pass: false, why: 'title missing or overlong' };
+  if (n.kind === 'tutorial' && task.expectCode && !(n.steps ?? []).some((s) => s.code?.trim())) return { pass: false, why: 'no code copied from screen' };
+  const text = JSON.stringify(n);
+  if (/\*\*|(^|\\n)#+ |\\n- /.test(text)) return { pass: false, why: 'markdown in fields' };
+  return { pass: true, why: '' };
+}

@@ -18,7 +18,8 @@
     "check": "npm run typecheck && npm test && npm run test:rust && npm run build:ext && npm run test:e2e",
     "check:fast": "npm run typecheck && npm test && npm run test:rust",
     "prepare": "git config core.hooksPath .githooks",
-    "eval:sidebar": "node eval/sidebar/run.mjs"
+    "eval:sidebar": "node eval/sidebar/run.mjs",
+    "eval:youtube": "node eval/youtube/run.mjs"
   },
   "dependencies": {
     "@lezer/markdown": "1.7.2",

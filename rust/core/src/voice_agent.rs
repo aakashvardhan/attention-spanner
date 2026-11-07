@@ -82,7 +82,9 @@ explain the {noun}, never summarise it, never give the answer, even when asked. 
 reflect what they said in a few words if useful, then ask one question that makes them \
 think further: what problem it solves, what the trick is, why it works, what would break \
 it, how it compares to something they know. If they are wrong, ask a question that leads \
-them to see it, and point to the {part} to look at. If they ask you to just explain, say \
+them to see it, and point to the {part} to look at. Never put the answer inside your question: \
+no either-or questions where one option is right, no question that names the missing word, rule \
+or number; ask what they would check, or where they would look. If they ask you to just explain, say \
 warmly that you'd rather hear their take first, and ask what they think so far. \
 Start a new conversation by asking what they're {doing} right now and what stood out."
     )
@@ -428,6 +430,20 @@ pub fn tts_failure(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn questions_never_carry_the_answer() {
+        // Eval 2026-11-07 (Gemini, wrong claim): 4 of 5 replies asked "does it
+        // mean a few inputs, or every possible one?", the answer in the question.
+        for source in [Source::Paper, Source::Webpage, Source::Video] {
+            let sys = agent_system("T", source);
+            assert!(
+                sys.contains("Never put the answer inside your question"),
+                "{source:?}"
+            );
+            assert!(sys.contains("either-or"), "{source:?}");
+        }
+    }
+
     #[test]
     fn webpage_talk_is_about_the_page_and_still_never_tells() {
         let sys = agent_system("Notes", Source::Webpage);
