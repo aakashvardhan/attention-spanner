@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Build the extension and drive it end-to-end in Chromium via Playwright — load rust/ext/dist/chromium unpacked, open the newtab/options/papers/reader pages, interact, screenshot.
+description: Build the extension and drive it end-to-end in Chromium via Playwright — load rust/ext/dist/chromium unpacked, open the newtab/options/papers/notes/reader/sidebar pages, interact, screenshot.
 ---
 
 # Verifying this Chrome extension
@@ -40,15 +40,28 @@ Pages to open directly (no need to trigger chrome UI):
 - `chrome-extension://${extId}/src/pages/papers/index.html` — papers
 - `chrome-extension://${extId}/src/pages/reader/index.html?src=<encoded pdf url>`
   — the reader (no param renders the fallback copy)
+- `chrome-extension://${extId}/src/pages/notes/index.html` — saved video notes
+  (`#<videoId>` opens one)
+- `chrome-extension://${extId}/src/pages/sidebar/index.html?tab=<tabId>` — the
+  side panel's page, opened as a tab and pinned to that tab (Listen/Talk on a
+  webpage, Gemini notes on a YouTube video)
 
-There is no popup and, since the side panel was removed, no docked surface
-either. The toolbar icon runs `chrome.action.onClicked` in the worker and opens
-the dashboard. Playwright cannot click the icon, but it can fire the listener
-from the worker target:
+There is no popup. The toolbar icon toggles the side panel on the clicked tab
+only (`rust/ext/js/worker.js`): the panel is off globally
+(`sidePanel.setOptions({ enabled: false })`, `openPanelOnActionClick: false`),
+and `chrome.action.onClicked` enables it for that tab with path
+`src/pages/sidebar/index.html?tab=<id>` and calls `sidePanel.open`; a second
+click disables it. Playwright cannot click the icon or show a real panel, but it
+can fire the listener from the worker target and read the per-tab state:
 
 ```js
-await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
+await sw.evaluate((id) => chrome.action.onClicked.dispatch({ id }), tabId);
+await sw.evaluate((id) => chrome.sidePanel.getOptions({ tabId: id }), tabId); // { enabled, path }
 ```
+
+`sidePanel.open()` then logs "may only be called in response to a user gesture"
+in the worker: expected, since a dispatched event is not a real click. To check
+the panel's UI, open the sidebar page as a tab with `?tab=` (as e2e does).
 
 ## Flows worth driving
 
@@ -82,10 +95,19 @@ await sw.evaluate(() => chrome.action.onClicked.dispatch({ id: 1 }));
 
 ## Gotchas
 
-- **AI is Claude Haiku only** (`src/shared/llm/`, alphaXiv grounds, Haiku
-  writes). Mock it with `mockClaude(ext, reply)` from `e2e/harness.ts`: a
-  `ctx.route` on `https://api.anthropic.com/**` answering with an SSE stream.
-  Seed `settings.claudeKey` or every AI call reports "unavailable".
+- **AI is Claude Haiku, except YouTube** (`rust/ext/src/claude.rs`). Mock Haiku
+  with `mockClaude(ext, reply)` from `e2e/harness.ts`: a `ctx.route` on
+  `https://api.anthropic.com/**` answering with an SSE stream. Seed
+  `settings.claudeKey` or every AI call reports "unavailable".
+- **YouTube notes and video Talk use Gemini** (`rust/ext/src/gemini.rs`, request
+  shapes in `rust/core/src/youtube.rs`). Route
+  `https://generativelanguage.googleapis.com/**` and answer
+  `{ candidates: [{ content: { parts: [{ text: JSON.stringify(notes) }] } }] }`;
+  seed `settings.geminiKey`. Route `https://www.youtube.com/**` with a page
+  holding `#movie_player` and stub its `seekTo`/`getCurrentTime`/
+  `getPlayerResponse` (description + `lengthSeconds`) — see
+  `e2e/youtube.e2e.ts`. Videos over 2 h are taken in parts (From/To), stored as
+  `sections` on `videoNotes[id]`.
 - Settings checkboxes are controlled via an async chrome.storage round-trip:
   Playwright's `check()/uncheck()` post-click assertion races it. Use
   `click({ force: true })` + `waitForFunction` on the storage value.
