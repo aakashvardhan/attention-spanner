@@ -65,6 +65,22 @@ pub struct Lexicon {
     pub edges: Vec<Edge>,
 }
 
+/// Resolve a saved source through the library; document keys are not URLs.
+pub fn source_reader_path(source: &Source, papers: &[crate::types::Paper]) -> Option<String> {
+    use crate::annotations::annotation_doc_key;
+    use crate::pdf::{paper_pdf_source, reader_page_path};
+
+    let paper = papers.iter().find(|p| {
+        p.deleted_at.is_none()
+            && (annotation_doc_key(&p.url) == source.doc_key
+                || p.pdf
+                    .as_ref()
+                    .is_some_and(|pdf| annotation_doc_key(&pdf.url) == source.doc_key))
+    })?;
+    paper_pdf_source(&paper.url, paper.pdf.as_ref().map(|pdf| pdf.url.as_str()))
+        .map(|url| reader_page_path(&url))
+}
+
 fn cut(s: &str, max: usize) -> String {
     let s = s.split_whitespace().collect::<Vec<_>>().join(" ");
     if s.chars().count() <= max {
@@ -310,6 +326,31 @@ mod tests {
         assert_eq!(term_key(&"x".repeat(500)).chars().count(), TERM_MAX_CHARS);
         // Plurals stay apart: guessing stems would merge "attention" and "attentions" wrongly elsewhere.
         assert_ne!(term_key("Transformers"), term_key("transformer"));
+    }
+
+    #[test]
+    fn saved_sources_open_the_library_pdf_and_hide_missing_or_deleted_papers() {
+        let mut paper = crate::types::Paper {
+            url: "https://arxiv.org/abs/2006.11239v2".into(),
+            pdf: Some(crate::types::PdfState {
+                url: "https://example.com/paper.pdf?a=1&b=2".into(),
+                page: 1,
+                page_count: 10,
+                offset: 0.0,
+            }),
+            ..Default::default()
+        };
+        let expected = crate::pdf::reader_page_path(&paper.pdf.as_ref().unwrap().url);
+        for key in ["arxiv:2006.11239", "url:example.com/paper.pdf"] {
+            assert_eq!(
+                source_reader_path(&src(key, "meaning"), &[paper.clone()]),
+                Some(expected.clone())
+            );
+        }
+        let source = src("arxiv:2006.11239", "meaning");
+        assert_eq!(source_reader_path(&source, &[]), None);
+        paper.deleted_at = Some(1);
+        assert_eq!(source_reader_path(&source, &[paper]), None);
     }
 
     #[test]

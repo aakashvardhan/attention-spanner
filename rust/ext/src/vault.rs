@@ -322,26 +322,5 @@ pub async fn open_all(
 /// Dump writes read a list, seal, and write it back; two tabs at once would
 /// drop one, so they take turns through a Web Lock every page shares.
 pub async fn with_dump_lock<T: 'static>(f: impl std::future::Future<Output = T> + 'static) -> T {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    #[wasm_bindgen]
-    extern "C" {
-        #[wasm_bindgen(js_namespace = ["navigator", "locks"], js_name = request)]
-        fn locks_request(name: &str, callback: &JsValue) -> Promise;
-    }
-    let out: Rc<RefCell<Option<T>>> = Rc::new(RefCell::new(None));
-    let slot = out.clone();
-    let mut f = Some(f);
-    // The lock is held until the promise the callback returns settles.
-    let callback = Closure::once_into_js(move |_lock: JsValue| -> Promise {
-        let f = f.take().expect("called once");
-        wasm_bindgen_futures::future_to_promise(async move {
-            *slot.borrow_mut() = Some(f.await);
-            Ok(JsValue::UNDEFINED)
-        })
-    });
-    let _ = JsFuture::from(locks_request("dumps", &callback)).await;
-    // Bound first: a borrow in the tail expression would outlive `out`.
-    let value = out.borrow_mut().take();
-    value.expect("the lock callback ran")
+    crate::store::with_lock("dumps", f).await
 }

@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PAGES, expectA11y, expectClean, expectScreenshot, launch, mockClaude, seed, settle, shot, storage, type Ext } from './harness';
+import { paper } from './seed';
 
 /**
  * The lexicon graph against a scripted Claude: terms drawn as nodes, a click
@@ -97,6 +98,7 @@ describe('lexicon: the term graph', () => {
     expect(await pop.locator('.lex-source').count()).toBe(2);
     expect(await pop.textContent()).toContain('An attention-based sequence model.');
     expect(await pop.textContent()).toContain('Your guess: a model');
+    expect(await pop.getByRole('link', { name: 'Open paper ↗' }).count()).toBe(0);
     expect(await pop.getByRole('button', { name: /is built from/ }).textContent()).toContain('Attention');
     await settle(page);
     await shot(page, 'lexicon-open');
@@ -126,6 +128,28 @@ describe('lexicon: the term graph', () => {
     await expect.poll(() => pop.count()).toBe(0);
     expect(await page.evaluate(() => document.activeElement?.classList.contains('lex-node'))).toBe(true);
     expect(await nodes(page).first().getAttribute('aria-label')).toMatch(/, 1 link$/);
+    await page.close();
+    expectClean(ext);
+  });
+
+  it('shows the original passage and resolves the source through the paper library', async () => {
+    const source = {
+      ...src('arxiv:2601.00001', 'An attention-based sequence model.'),
+      context: 'We use a transformer to translate the input sentence.',
+    };
+    await seed(ext, {
+      papers: [paper('1', 'The source paper')],
+      lexicon: { terms: [term('Transformer', [source])], edges: [] },
+    });
+    const page = await ext.page(PAGES.lexicon);
+    await node(page, 'Transformer').click();
+    const pop = page.getByRole('dialog', { name: 'Transformer: meaning and links' });
+    expect(await pop.locator('.lex-context').textContent()).toBe(source.context);
+    await expect.poll(() => pop.getByRole('link', { name: 'Open paper ↗' }).getAttribute('href')).toBe(
+      `chrome-extension://${ext.id}/${PAGES.reader}?src=${encodeURIComponent('https://arxiv.org/pdf/2601.00001')}`,
+    );
+    await expectA11y(page, 'lexicon');
+    await shot(page, 'lexicon-source');
     await page.close();
     expectClean(ext);
   });

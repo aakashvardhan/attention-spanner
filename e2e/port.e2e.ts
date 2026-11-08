@@ -209,7 +209,8 @@ describe('rust port: phase 3 brain dump and vault', () => {
     await seed(ext, { settings: { claudeKey: '' }, vault: null, lockedDumps: [], dumps: [] });
     const page = await ext.page(PAGES.newtab);
     await page.getByLabel('Empty your head here').fill('just this');
-    await page.getByLabel('Empty your head here').press('Meta+Enter');
+    expect(await page.locator('.notebook-kicker').innerText()).toContain('Vault setup needed');
+    await page.getByRole('button', { name: 'Make it lighter' }).click();
     await expect.poll(() => page.getByRole('alert').innerText()).toContain('Add a Claude key in Settings');
     expect((await storage<{ text: string }[]>(ext, 'dumps'))[0].text).toBe('just this');
     await page.close();
@@ -284,6 +285,32 @@ describe('rust port: phase 3 brain dump and vault', () => {
     expect((await storage<{ dueAt: number | null }[]>(ext, 'todos'))[0].dueAt).toBe(new Date(2099, 0, 2, 9, 0).getTime());
     expect(calls).toHaveLength(1);
     expect(await page.getByRole('button', { name: 'Make to-dos' }).count()).toBe(0);
+    const task = page.getByRole('textbox', { name: 'Edit task: Pay the rent', exact: true });
+    await task.fill('Pay rent after checking the balance');
+    await task.blur();
+    await expect.poll(async () => (await storage<{ text: string }[]>(ext, 'todos'))[0].text).toBe('Pay rent after checking the balance');
+    await page.getByRole('button', { name: 'Undo added tasks' }).click();
+    // Undo leaves the task the user edited; only untouched ones go.
+    await expect.poll(async () => (await storage<{ text: string }[]>(ext, 'todos')).map((t) => t.text)).toEqual(['Pay rent after checking the balance']);
+    await page.close();
+  });
+
+  it('keeps the draft and reports failure when encrypted storage cannot be written', async () => {
+    await mockClaude(ext, () => '- A quieter thought.');
+    await seed(ext, { settings: { claudeKey: 'sk-e2e' }, vault: TS_VAULT.vault, lockedDumps: [], dumps: [], todos: [] });
+    const page = await ext.page(PAGES.newtab);
+    const box = page.getByLabel('Empty your head here');
+    await box.fill('Keep these words if saving fails.');
+    await page.evaluate(() => {
+      chrome.storage.local.set = async () => { throw new Error('Storage unavailable'); };
+    });
+    await page.getByRole('button', { name: 'Make it lighter' }).click();
+    await expect.poll(() => page.getByRole('alert').innerText()).toContain("Couldn't save your words");
+    expect(await box.inputValue()).toBe('Keep these words if saving fails.');
+    expect(await storage(ext, 'lockedDumps')).toEqual([]);
+    expect(await storage(ext, 'dumps')).toEqual([]);
+    expect(await storage(ext, 'todos')).toEqual([]);
+    expectClean(ext, NETWORK_NOISE);
     await page.close();
   });
 

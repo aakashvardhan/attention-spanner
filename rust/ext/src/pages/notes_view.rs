@@ -3,7 +3,7 @@
 //! timestamp seeks the video; on the Notes page it links to that moment.
 
 use leptos::prelude::*;
-use reader_core::youtube::{seconds, stamp, Kind, VideoNotes};
+use reader_core::youtube::{group, seconds, stamp, Kind, VideoNotes};
 
 #[component]
 fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView {
@@ -20,11 +20,35 @@ fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView
     }
 }
 
+/// Notes taken a part at a time show part by part, each under its range.
 #[component]
 pub fn NotesView(notes: VideoNotes, on_seek: Option<Callback<u32>>) -> impl IntoView {
+    let parts = group(&notes);
+    let inner = if parts.is_empty() {
+        body(&notes, on_seek)
+    } else {
+        parts
+            .into_iter()
+            .map(|(sec, sub)| {
+                let range = sec.range();
+                let label = format!("Part {range}");
+                view! {
+                    <section class="notes-part" aria-label=label>
+                        <h3 class="notes-part-range">{range}</h3>
+                        {body(&sub, on_seek)}
+                    </section>
+                }
+            })
+            .collect_view()
+            .into_any()
+    };
+    view! { <div class="video-notes" data-kind=notes.kind.label().to_lowercase()>{inner}</div> }
+}
+
+fn body(notes: &VideoNotes, on_seek: Option<Callback<u32>>) -> AnyView {
     let id = notes.id.clone();
     let s = move |t: &String| view! { <Stamp t=t.clone() id=id.clone() on_seek=on_seek /> };
-    let body = match notes.kind {
+    match notes.kind {
         Kind::Lecture => view! {
             <div class="cornell">
                 <section aria-label="Cues">
@@ -72,6 +96,5 @@ pub fn NotesView(notes: VideoNotes, on_seek: Option<Callback<u32>>) -> impl Into
             <p>{notes.summary.clone()}</p>
         }
         .into_any(),
-    };
-    view! { <div class="video-notes" data-kind=notes.kind.label().to_lowercase()>{body}</div> }
+    }
 }

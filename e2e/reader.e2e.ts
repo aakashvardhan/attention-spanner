@@ -103,6 +103,13 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
   });
 
   it('asks for a guess before defining, and Haiku defines the term', async () => {
+    await seed(ext, { lexicon: {
+      terms: [{ id: 'transformer', label: 'Transformer', linkedAt: null, sources: [{
+        docKey: 'arxiv:2006.11239', paperTitle: 'An earlier paper',
+        definition: 'A saved meaning from another paper.', guess: 'my earlier guess',
+        context: 'The transformer combines attention layers.', addedAt: 1,
+      }] }], edges: [],
+    } });
     const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
     await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
 
@@ -124,12 +131,19 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     // A guess comes first: nothing to compare until one is written.
     const compare = popover.getByRole('button', { name: 'Compare' });
     expect(await compare.isDisabled()).toBe(true);
+    expect(await popover.locator('.define-saved').count()).toBe(0);
     await popover.getByRole('textbox').fill('a model');
     await compare.click();
     await expect.poll(() => popover.textContent()).toContain('Your guess');
     await expect.poll(() => popover.textContent(), { timeout: 10_000 }).toContain('attention-based sequence model');
+    expect(await popover.locator('.define-saved').textContent()).toContain('Previously saved: Transformer');
+    expect(await popover.locator('.define-saved').textContent()).toContain('A saved meaning from another paper.');
+    expect(await popover.locator('.define-saved').textContent()).toContain('An earlier paper');
+    expect(await popover.locator('.lex-context').textContent()).toBe('The transformer combines attention layers.');
+    expect(await popover.getByRole('link', { name: 'Open paper ↗' }).count()).toBe(0);
     const asked = claude.find((c) => c.system.includes('clicked'));
     expect(asked?.model).toBe('claude-haiku-5-5');
+    expect(await axe(page)).toEqual([]);
     await shot(page, 'reader-paper-define');
 
     // A click elsewhere closes it.
@@ -137,6 +151,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await expect.poll(() => popover.count()).toBe(0);
 
     await page.close();
+    await seed(ext, { lexicon: { terms: [], edges: [] } });
   });
 
   it('offers to keep a definition as a note on the clicked term', async () => {
@@ -219,6 +234,9 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
       // Kept in place: the popover stays, the note prompt is still offered.
       await expect.poll(() => popover.getByRole('link', { name: /In your lexicon/ }).count()).toBe(1);
       expect(await popover.getByText('Save as a note here?').count()).toBe(1);
+      if (guess === 'a network') {
+        expect(await popover.locator('.define-saved').textContent()).toContain('Your guess: a model');
+      }
       await page.keyboard.press('Escape');
       await page.mouse.click(5, 300);
     };
@@ -423,6 +441,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.waitForSelector('.reader-page[aria-label^="Page 1 "] .textLayer span');
     await page.keyboard.press('e');
     const panel = page.getByRole('region', { name: 'Explain it back' });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('explain-problem');
     await panel.getByLabel('The problem').fill('Scoring translations automatically.');
     await panel.getByLabel('The key trick').fill('Attention.');
     await panel.getByRole('button', { name: 'Check my explanation' }).click();
@@ -438,11 +457,38 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     const history = Object.values(saved)[0];
     expect(history.at(-1)!.grades).toHaveLength(3);
     expect(JSON.stringify(saved)).not.toContain('SECRET-ANSWER');
+    // Graded: the draft is cleared, so reopening starts fresh.
+    await expect.poll(() => ext.sw.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('explainDraft:')))).toEqual([]);
     await panel.getByRole('button', { name: 'Look at page 3' }).click();
     await expect.poll(() => page.locator('.reader-capsule').textContent()).toContain('p. 3 of');
     expect(await axe(page)).toEqual([]);
     await shot(page, 'reader-explain');
     expectClean(ext);
+    await page.close();
+  });
+
+  it('keeps explanation drafts across closing, reloads and different papers', async () => {
+    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
+    await page.waitForSelector('.textLayer span');
+    await page.keyboard.press('e');
+    const panel = page.getByRole('region', { name: 'Explain it back' });
+    await panel.getByLabel('The problem').fill('My unfinished explanation.');
+    await panel.getByLabel('The key trick').fill('One useful idea.');
+    await panel.getByLabel('Why it works').fill('Still thinking about this.');
+    await expect.poll(() => panel.getByRole('status').textContent()).toContain('Draft saved');
+    await panel.getByLabel('Why it works').press('Escape');
+    await page.keyboard.press('e');
+    await expect.poll(() => panel.getByLabel('The problem').inputValue()).toBe('My unfinished explanation.');
+    await page.reload();
+    await page.waitForSelector('.textLayer span');
+    await page.keyboard.press('e');
+    await expect.poll(() => panel.getByLabel('The key trick').inputValue()).toBe('One useful idea.');
+    expect(await panel.getByLabel('Why it works').inputValue()).toBe('Still thinking about this.');
+    await page.goto(`chrome-extension://${ext.id}/${PAGES.reader}?src=${encodeURIComponent(`${ext.sites.origin('papers')}/sections.pdf`)}`);
+    await page.waitForSelector('.textLayer span');
+    await page.keyboard.press('e');
+    await expect.poll(() => panel.getByRole('status').textContent()).toContain('Draft saved');
+    expect(await panel.getByLabel('The problem').inputValue()).toBe('');
     await page.close();
   });
 

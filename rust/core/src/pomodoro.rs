@@ -1,6 +1,7 @@
 //! A Pomodoro round: name up to three tasks, focus (distractions blocked),
 //! break (the new tab turns to a breathing room), done. One round per start.
 
+use crate::todos::Todo;
 use serde::{Deserialize, Serialize};
 
 pub const FOCUS_MS: i64 = 25 * 60 * 1000;
@@ -33,6 +34,8 @@ pub enum Phase {
 pub struct PomTask {
     pub text: String,
     pub done: bool,
+    #[serde(default, rename = "todoId", skip_serializing_if = "Option::is_none")]
+    pub todo_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -42,26 +45,54 @@ pub struct Pomodoro {
     pub started_at: i64,
     pub ends_at: i64,
     pub tasks: Vec<PomTask>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study_video: Option<String>,
 }
 
-/// Blank tasks are dropped; None when nothing is left to work on.
-pub fn start(tasks: &[String], now: i64) -> Option<Pomodoro> {
-    let tasks: Vec<PomTask> = tasks
-        .iter()
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .take(MAX_TASKS)
-        .map(|t| PomTask {
-            text: t.into(),
-            done: false,
-        })
-        .collect();
+/// Start from existing, unfinished board tasks; repeated or stale ids are ignored.
+pub fn start_todos(todos: &mut [Todo], ids: &[String], now: i64) -> Option<Pomodoro> {
+    let mut tasks: Vec<PomTask> = Vec::new();
+    for id in ids {
+        if tasks.len() == MAX_TASKS {
+            break;
+        }
+        if tasks.iter().any(|t| t.todo_id.as_ref() == Some(id)) {
+            continue;
+        }
+        if let Some(t) = todos
+            .iter_mut()
+            .find(|t| &t.id == id && t.done_at.is_none() && !t.text.trim().is_empty())
+        {
+            t.started_at.get_or_insert(now);
+            tasks.push(PomTask {
+                text: t.text.clone(),
+                done: false,
+                todo_id: Some(id.clone()),
+            });
+        }
+    }
     (!tasks.is_empty()).then_some(Pomodoro {
         phase: Phase::Focus,
         started_at: now,
         ends_at: now + FOCUS_MS,
         tasks,
+        study_video: None,
     })
+}
+
+/// The board owns linked task text and completion, including edits and deletion.
+pub fn sync_tasks(round: &mut Pomodoro, todos: &[Todo]) {
+    round.tasks.retain_mut(|task| {
+        let Some(id) = &task.todo_id else {
+            return true;
+        };
+        let Some(todo) = todos.iter().find(|t| &t.id == id) else {
+            return false;
+        };
+        task.text = todo.text.clone();
+        task.done = todo.done_at.is_some();
+        true
+    });
 }
 
 /// The alarm fired: focus turns to break, break ends the round.
@@ -108,12 +139,17 @@ mod tests {
 
     #[test]
     fn a_round_is_focus_then_break_then_over() {
-        assert_eq!(start(&["  ".into()], 0), None);
-        let p = start(
-            &["a".into(), "".into(), "b".into(), "c".into(), "d".into()],
-            10,
-        )
-        .unwrap();
+        let mut todos: Vec<Todo> = ["a", "  ", "b", "c", "d"]
+            .iter()
+            .map(|t| Todo {
+                id: t.to_string(),
+                text: t.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        let ids: Vec<String> = todos.iter().map(|t| t.id.clone()).collect();
+        assert_eq!(start_todos(&mut todos, &ids[1..2], 0), None);
+        let p = start_todos(&mut todos, &ids, 10).unwrap();
         assert_eq!(
             p.tasks.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(),
             ["a", "b", "c"]
@@ -131,6 +167,54 @@ mod tests {
         let l = focus_blocklist(&["netflix.com".into(), "hulu.com".into()]);
         assert_eq!(l.iter().filter(|d| *d == "netflix.com").count(), 1);
         assert!(l.contains(&"youtube.com".into()) && l.contains(&"hulu.com".into()));
+    }
+
+    #[test]
+    fn linked_tasks_start_once_and_follow_the_board() {
+        let mut todos = vec![
+            Todo {
+                id: "a".into(),
+                text: "Read".into(),
+                ..Default::default()
+            },
+            Todo {
+                id: "b".into(),
+                text: "Done".into(),
+                done_at: Some(1),
+                ..Default::default()
+            },
+        ];
+        let mut p = start_todos(
+            &mut todos,
+            &["missing".into(), "b".into(), "a".into(), "a".into()],
+            10,
+        )
+        .unwrap();
+        assert_eq!(p.tasks.len(), 1);
+        assert_eq!(p.tasks[0].todo_id.as_deref(), Some("a"));
+        assert_eq!(todos[0].started_at, Some(10));
+        todos[0].text = "Read section 2".into();
+        todos[0].done_at = Some(11);
+        sync_tasks(&mut p, &todos);
+        assert!(p.tasks[0].done);
+        assert_eq!(p.tasks[0].text, "Read section 2");
+        todos[0].done_at = None;
+        sync_tasks(&mut p, &todos);
+        assert!(!p.tasks[0].done);
+        sync_tasks(&mut p, &[]);
+        assert!(p.tasks.is_empty());
+        assert!(start_todos(&mut todos, &["b".into()], 12).is_none());
+    }
+
+    #[test]
+    fn old_rounds_still_load_and_keep_their_tasks() {
+        let mut p: Pomodoro = serde_json::from_str(
+            r#"{"phase":"focus","startedAt":1,"endsAt":2,"tasks":[{"text":"Read","done":false}]}"#,
+        )
+        .unwrap();
+        sync_tasks(&mut p, &[]);
+        assert_eq!(p.tasks.len(), 1);
+        assert_eq!(p.study_video, None);
     }
 
     #[test]

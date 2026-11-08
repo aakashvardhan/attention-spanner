@@ -284,29 +284,11 @@ body {
   font-weight: 400;
 }
 
-.lex-source {
-  display: grid;
-  gap: var(--space-1);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-}
-
-.lex-paper,
 .lex-links-label {
   margin: 0;
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   color: var(--text-muted);
-}
-
-.lex-guess {
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 .lex-links {

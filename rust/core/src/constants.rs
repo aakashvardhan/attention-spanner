@@ -17,6 +17,7 @@ pub const FOCUS_DNR_ID_LIMIT: i64 = 2000;
 /// The retired daily gate's rules, still swept from old profiles.
 pub const DAILY_GATE_DNR_ID: i64 = 900;
 pub const DAILY_GATE_ALLOW_DNR_ID: i64 = 901;
+pub const STUDY_VIDEO_DNR_ID: i64 = 902;
 pub const FOCUS_DNR_PRIORITY: i64 = 300;
 /// The PDF redirect, then one allow rule per bypassed URL.
 pub const PDF_DNR_ID: i64 = 3000;

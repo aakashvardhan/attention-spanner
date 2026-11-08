@@ -107,3 +107,38 @@
   outline-offset: 2px;
 }
 
+/* Saved meanings appear in both the reader and the lexicon. */
+.lex-source {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.lex-paper,
+.lex-guess {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.lex-guess {
+  font-style: italic;
+}
+
+.lex-context {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.lex-source .ai-note-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+}
+

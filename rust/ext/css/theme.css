@@ -415,7 +415,7 @@
   --reading-dim: rgba(5, 8, 13, 0.72);
   --selection: rgba(111, 243, 255, 0.25);
   --cite-hover: rgba(111, 243, 255, 0.14);
-  --shadow-lg: 0 0 0 1px rgba(111, 243, 255, 0.35), 0 8px 32px rgba(0, 200, 255, 0.22);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.35);
   --glass-surface: rgba(10, 18, 27, 0.92);
   --glass-bar: rgba(111, 243, 255, 0.06);
   --material-thin: rgba(5, 8, 13, 0.72);
@@ -542,25 +542,21 @@ a {
 }
 :root[data-theme='grid'] :is(h1, h2, h3) {
   font-family: var(--font-display);
-  letter-spacing: 0.06em;
-  text-shadow: 0 0 10px rgba(111, 243, 255, 0.35);
+  letter-spacing: 0.02em;
 }
 :root[data-theme='grid'] .label {
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
 :root[data-theme='grid'] :is(.paper-card, .book-card, .panel, .shelf, .board-col, dialog, [role='dialog'], [class*='popover'], [class*='-menu']) {
-  box-shadow: inset 0 0 0 1px rgba(111, 243, 255, 0.18), 0 0 14px rgba(0, 200, 255, 0.08);
+  box-shadow: none;
 }
 :root[data-theme='grid'] :is(.paper-card, .book-card):hover {
-  box-shadow: inset 0 0 0 1px var(--accent), var(--glow);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
-:root[data-theme='grid'] .fc-primary-btn {
-  background: transparent;
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent), var(--glow);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+:root[data-theme='grid'] .fc-primary-btn:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 :root[data-theme='grid'] .fc-primary-btn:hover:not(:disabled) {
   background: var(--accent);
@@ -570,5 +566,5 @@ a {
   box-shadow: var(--glow);
 }
 :root[data-theme='grid'] :is(.live-dot, .paper-card-bar) {
-  box-shadow: 0 0 8px currentColor;
+  box-shadow: none;
 }

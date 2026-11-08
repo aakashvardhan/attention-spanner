@@ -29,6 +29,18 @@ export function videoPosition() {
   return v ? v.currentTime : 0;
 }
 
+/** The video's description and length in seconds, from the player (current after YouTube's in-page navigation; the page's initial data is not). */
+export function videoInfo() {
+  const p = document.getElementById('movie_player');
+  const d = p && typeof p.getPlayerResponse === 'function' ? p.getPlayerResponse()?.videoDetails : null;
+  const v = document.querySelector('video');
+  return {
+    description: d?.shortDescription || '',
+    length: Number(d?.lengthSeconds) || (v && isFinite(v.duration) ? Math.round(v.duration) : 0),
+  };
+}
+
 // Handed to Rust as values, to pass on as executeScript's `func`.
 export const seekFn = () => seekVideo;
 export const positionFn = () => videoPosition;
+export const infoFn = () => videoInfo;

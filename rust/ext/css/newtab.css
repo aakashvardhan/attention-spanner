@@ -1,8 +1,6 @@
 /*
- * The new tab, layout C: Now on the left (about 38%), Read on the right, one
- * vertical hairline between them. Plain text rows separated by space, no
- * boxes. Clay marks state and the primary action only. Colours, sizes and
- * spacing are tokens; designSystem.test.ts fails the build on anything else.
+ * The new tab: focus first, reading and task boards, then supporting widgets.
+ * Colours, sizes and spacing use the shared design tokens.
  */
 
 * {
@@ -29,65 +27,91 @@ ul {
 
 /* ---------- Layout ---------- */
 
-/* Four tracks, all one height (--stage-h): the paper board and the to-do
-   board, each three equal cards stacked, a hairline between them, then the
-   side column. Every card stretches to its track, so there is no blank space. */
+/* The next action comes first; supporting widgets follow the two boards. */
 .edition {
-  --stage-h: max(calc(100dvh - 128px), 520px); /* ds-exempt: a floor so quarter windows scroll instead of crushing cards */
-  --page-margin: clamp(16px, 3vw, 48px);
-  --page-gutter: clamp(16px, 2vw, 32px);
+  /* One height for every card on both boards (the to-do card's), so the
+     rows line up across the columns. */
+  --card-h: calc(var(--space-8) + var(--space-6));
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) minmax(0, 1.6fr); /* ds-exempt: the hairline track */
-  grid-template-rows: var(--stage-h) auto;
-  column-gap: var(--page-gutter);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
   min-height: 100dvh;
-  max-width: 1760px; /* ds-exempt: a measure, not spacing */
+  max-width: var(--grid-max);
   margin-inline: auto;
-  padding: var(--space-6) var(--page-margin) var(--space-5);
+  padding: var(--space-6) var(--space-5);
+  align-content: start;
+  align-items: start;
+}
+.focus-home {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+.focus-home h1 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+}
+.focus-home .pomo {
+  flex: 0 1 480px;
+  margin: 0;
+}
+.pomo-plan {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
 }
 .board {
   display: grid;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   min-width: 0;
-  min-height: 0;
 }
-.board-divider {
-  background: var(--border);
-}
-/* Same height as a full board column, so both end on one line; the feed
-   takes whatever the cards above it leave. */
 .side-col {
+  grid-column: 1 / -1;
   container: side / inline-size;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-5);
   min-width: 0;
-  height: var(--stage-h);
-  overflow-y: auto;
-  scrollbar-width: thin;
 }
 .side-col > * {
-  flex: none;
-}
-/* The brain dump and the feed share whatever height the fixed cards leave,
-   so the column always ends level with the boards. */
-.side-col > .notebook,
-.side-col > .feed {
-  flex: 1 1 0;
-}
-.side-col > * {
+  min-width: 0;
   padding: var(--space-4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
+}
+.side-col > .notebook,
+.news-disclosure {
+  grid-column: 1 / -1;
+}
+.news-disclosure summary {
+  cursor: pointer;
+}
+.news-disclosure .feed {
+  min-height: 0;
+  margin-top: var(--space-3);
+}
+.clock .today-stats {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border-left: 0;
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* ---------- Board ---------- */
 
 .board-col {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
   min-height: 0;
@@ -96,7 +120,8 @@ ul {
   background: var(--bg-subtle);
 }
 .label.board-head {
-  display: flex;
+  display: inline-flex;
+  width: calc(100% - var(--space-5));
   justify-content: space-between;
   margin: 0;
   padding-inline: var(--space-1);
@@ -104,8 +129,18 @@ ul {
 .board-count {
   font-weight: 400;
 }
+.board-col summary {
+  cursor: pointer;
+}
+.board-col details[open] > summary {
+  margin-bottom: var(--space-3);
+}
 .board-list {
   display: grid;
+  /* Cards take the column's width; an auto track grew to a card's widest
+     one-line content and pushed its buttons out of view. */
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 50dvh;
   align-content: start;
   gap: var(--space-2);
   overflow-y: auto;
@@ -128,17 +163,23 @@ ul {
 }
 .paper-card-link {
   display: grid;
+  align-content: center;
+  /* The card's border is outside the link: together they are --card-h. */
+  height: calc(var(--card-h) - 2px);
   gap: var(--space-1);
   padding: var(--space-3);
   color: var(--text-primary);
   text-decoration: none;
   border-radius: var(--radius-md);
 }
+/* One line; the full title is the link's tooltip and its accessible name. */
 .paper-card-title {
+  overflow: hidden;
   font-size: var(--text-md);
   line-height: var(--leading-md);
   font-weight: 700;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .paper-card-link .hint {
   font-size: var(--text-sm);
@@ -199,39 +240,17 @@ ul {
   animation: live-blink 1.2s steps(2, jump-none) infinite;
 }
 
-/* Half window: the two boards side by side, the side column full width
-   under them. */
-@media (max-width: 1100px) {
-  .edition {
-    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); /* ds-exempt: the hairline track */
-    grid-template-rows: var(--stage-h) auto;
-    row-gap: var(--space-5);
-  }
-  .side-col {
-    grid-column: 1 / -1;
-    height: auto;
-    overflow: visible;
-  }
-  .feed-list {
-    max-height: 50dvh;
-  }
-}
-
-/* Third of a screen: one column, each card as tall as it needs up to half
-   the screen. */
 @media (max-width: 640px) {
-  .edition {
+  .edition,
+  .side-col {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
   }
-  .board {
-    grid-template-rows: none;
+  .edition {
+    padding: var(--space-4);
+    gap: var(--space-4);
   }
-  .board-col {
-    max-height: 50dvh;
-  }
-  .board-divider {
-    height: 1px; /* ds-exempt: a hairline */
+  .focus-home .pomo {
+    flex-basis: 100%;
   }
 }
 
@@ -644,6 +663,10 @@ ul + .hint {
 
 .todo {
   display: grid;
+  /* Same as the list: the row fits the card and the date field shrinks. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  height: var(--card-h);
   min-width: 0;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
@@ -711,31 +734,37 @@ body.todo-dragging .board--todos .board-empty {
     scale: 1;
   }
 }
+.todo-text-input {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+}
+.todo-text-input:focus {
+  border-color: var(--accent);
+}
 .todo-text {
   overflow-wrap: anywhere;
   color: var(--text-primary);
   font-weight: 700;
 }
 /* Narrow columns wrap the time onto its own line rather than cutting off a button. */
+/* One line at every width, so every card is the same height: the date
+   field gives up width before anything wraps. */
 .todo-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
 }
 .todo-row .todo-when {
-  flex: 1 1 calc(var(--space-8) * 2.5);
+  flex: 1 1 0;
 }
 .todo-row .todo-delete {
   margin-left: auto;
-}
-.board--todos .board-col {
-  container-type: inline-size;
-}
-@container (max-width: 420px) {
-  .todo-row .todo-when {
-    flex-basis: 100%;
-  }
 }
 .todo--done .todo-text {
   color: var(--text-muted);
@@ -756,7 +785,7 @@ body.todo-dragging .board--todos .board-empty {
   font: inherit;
   font-size: var(--text-sm);
   color: var(--text-muted);
-  color-scheme: light;
+  color-scheme: inherit;
 }
 .todo-move {
   flex: none;
@@ -774,7 +803,11 @@ body.todo-dragging .board--todos .board-empty {
   border-color: var(--accent-border);
   color: var(--accent-text);
 }
-.todo-move:hover {
+.todo-move:disabled {
+  cursor: default;
+  color: var(--text-muted);
+}
+.todo-move:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--bg-hover);
 }
@@ -834,36 +867,10 @@ body.todo-dragging .board--todos .board-empty {
   margin: 0;
   color: var(--text-primary);
 }
-/* Naming three tasks needs the room. */
-.clock:has(.pomo-plan) .today-stats {
-  display: none;
-}
 .today-next {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Shorter windows (laptops): the tall pieces give back height so the side
-   column fits without scrolling. */
-@media (max-height: 960px) {
-  .edition {
-    --stage-h: max(calc(100dvh - 88px), 520px); /* ds-exempt: see .edition */
-    padding-top: var(--space-4);
-  }
-  .edition-index {
-    margin-top: var(--space-4);
-  }
-  .feed {
-    min-height: calc(var(--space-8) * 1.5);
-  }
-  .clock .clock-face {
-    width: 128px;
-    height: 128px;
-  }
-  .side-col {
-    gap: var(--space-3);
-  }
 }
 
 /* A narrow side column (smaller windows): the numbers move under the clock,
@@ -1043,6 +1050,7 @@ body {
 
 .clock {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -1221,5 +1229,105 @@ body {
   .edition-link:active,
   .heat-seg button:active {
     scale: 1;
+  }
+}
+
+/* ---------- The clock in the header ---------- */
+
+/* It sits in the band between the title and the focus button: a small face,
+   the weather, and the four numbers two by two beside it. */
+.focus-home .clock {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: var(--space-4);
+}
+.focus-home .clock-face {
+  width: calc(var(--space-8) * 1.25);
+  height: calc(var(--space-8) * 1.25);
+}
+.focus-home .clock-sky {
+  flex: 0 1 auto;
+}
+.focus-home .clock .today-stats {
+  flex: 0 1 auto;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border-top: 0;
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* ---------- One screen (desktop) ---------- */
+
+/* Wide and tall enough, the page is exactly the window: the header, then
+   three columns that start and end on the same lines (reading, to-dos, the
+   side cards), then the index. A long list scrolls inside its own column;
+   the page itself never scrolls. */
+@media (min-width: 1024px) and (min-height: 600px) {
+  body {
+    min-height: 0;
+  }
+  .edition {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-items: stretch;
+    height: 100dvh;
+    min-height: 0;
+    max-width: calc(var(--grid-max) * 1.5);
+    padding-block: var(--space-5);
+    gap: var(--space-4) var(--space-5);
+    overflow: hidden;
+  }
+  .focus-home {
+    align-items: center;
+    padding-bottom: var(--space-4);
+  }
+  .board,
+  .side-col {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  /* Each board fills its column: open sections share the spare height and
+     collapsed ones sit at the bottom, so all three columns end on one line.
+     Sections never shrink below their cards (they overlapped when they did);
+     past that, the column scrolls. */
+  .board {
+    display: flex;
+    flex-direction: column;
+  }
+  .board > .board-col {
+    flex: 0 0 auto;
+    align-content: start;
+  }
+  .board > .board-col:has(> details[open]) {
+    flex-grow: 1;
+  }
+  /* A fixed basis would push the focus button onto its own line. */
+  .focus-home .pomo {
+    flex: 0 1 auto;
+  }
+  /* The column scrolls, so a list inside it does not scroll on its own too. */
+  .board-list {
+    max-height: none;
+    overflow: visible;
+  }
+  .side-col {
+    grid-column: auto;
+    grid-template-columns: minmax(0, 1fr);
+    /* The brain dump takes what the activity and news leave, but never less
+       than its own content: squeezed, its box slid under its buttons. */
+    grid-template-rows: minmax(min-content, 1fr);
+    grid-auto-rows: auto;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+  .side-col > .notebook,
+  .news-disclosure {
+    grid-column: auto;
+  }
+  .edition-index {
+    margin-top: 0;
   }
 }

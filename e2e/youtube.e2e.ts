@@ -163,6 +163,49 @@ describe('side panel: YouTube', () => {
     await side.close();
   });
 
+  it('a video too long to watch at once: asks for a part, offers the chapters, adds parts', async () => {
+    const D = 'eeeeeeeeeee';
+    const tabId = await openVideo(D);
+    await videoPage(D).evaluate(() => {
+      (document.getElementById('movie_player') as unknown as { getPlayerResponse(): object }).getPlayerResponse = () => ({
+        videoDetails: { shortDescription: 'Slides: https://x.y\n0:00 Intro\n2:00:00 Paging\n24:00:00 Finale', lengthSeconds: '90000' },
+      });
+    });
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByText('This video is 25:00:00 long', { exact: false }).count()).toBe(1);
+    expect(await side.locator('#video-chapters option').evaluateAll((o) => o.map((e) => `${(e as HTMLOptionElement).value} ${(e as HTMLOptionElement).label}`)))
+      .toEqual(['0:00 Intro', '2:00:00 Paging', '24:00:00 Finale']);
+
+    // The whole video is refused before Gemini is asked.
+    const calls = gemini.length;
+    await side.getByRole('button', { name: 'Take notes' }).click();
+    await expect.poll(() => side.getByText('set From and To', { exact: false }).count()).toBe(1);
+    expect(gemini.length).toBe(calls);
+
+    answer = () => notesReply(LECTURE);
+    await side.getByRole('combobox', { name: 'From' }).fill('2:00:00');
+    await side.getByRole('combobox', { name: 'To' }).fill('3:00:00');
+    await side.getByRole('button', { name: 'Take notes' }).click();
+    await expect.poll(() => side.getByText('What is an MMU for?').count(), { timeout: 10_000 }).toBe(1);
+    expect(gemini.at(-1)!.body.contents[0].parts[0].video_metadata).toEqual({ start_offset: '7200s', end_offset: '10800s' });
+    expect(await side.getByRole('region', { name: 'Part 2:00:00–3:00:00' }).count()).toBe(1);
+    // The next part starts where that one ended.
+    expect(await side.getByRole('combobox', { name: 'From' }).inputValue()).toBe('3:00:00');
+
+    answer = () => notesReply({ ...LECTURE, notes: [{ t: '3:10:00', text: 'TLBs cache translations.' }] });
+    await side.getByRole('combobox', { name: 'To' }).fill('4:00:00');
+    await side.getByRole('button', { name: 'Add notes for this part' }).click();
+    await expect.poll(() => side.getByText('TLBs cache translations.').count(), { timeout: 10_000 }).toBe(1);
+    expect(await side.getByText('The MMU maps virtual to physical addresses.').count()).toBe(1);
+    expect(gemini.at(-1)!.body.contents[0].parts[1].text).toContain('as a lecture');
+    // Part by part, each with its own summary.
+    expect(await side.locator('.notes-part-range').allInnerTexts()).toEqual(['2:00:00–3:00:00', '3:00:00–4:00:00']);
+    expect(await side.getByRole('region', { name: 'Part 3:00:00–4:00:00' }).getByText('TLBs cache translations.').count()).toBe(1);
+    expect(await side.getByText('A lecture summary.').count()).toBe(2);
+    await expectA11y(side, 'sidebar-video-long');
+    await side.close();
+  });
+
   it('canonical URL to Gemini; notes in progress survive leaving the video; Cancel is quiet', async () => {
     let release: () => void = () => {};
     const held = new Promise<void>((r) => (release = r));

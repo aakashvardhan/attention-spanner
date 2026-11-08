@@ -10,14 +10,14 @@ use reader_core::activity::{build_heat_model, heat_tooltip, plural, ActivityLog,
 use reader_core::annotations::annotation_doc_key;
 use reader_core::brain_dump::{
     dump_prompt, parse_dump, ASK_TIMEOUT_MS, DUMP_SYSTEM, FAILED_MESSAGE, MAX_DUMP_CHARS,
-    NO_KEY_MESSAGE,
+    NO_KEY_MESSAGE, SAVE_FAILED_MESSAGE,
 };
 use reader_core::constants::{CLAUDE_MODEL_QUICK, NOTES_PAGE_PATH, PAPERS_PAGE_PATH};
 use reader_core::explain::ExplainBacks;
 use reader_core::feed::{rss_items, FeedItem, HN_RSS};
 use reader_core::pdf::paper_open_url;
 use reader_core::pomodoro::{
-    left_label, start as start_round, Phase as PomPhase, Pomodoro, MAX_TASKS,
+    left_label, start_todos, sync_tasks, Phase as PomPhase, Pomodoro, MAX_TASKS,
 };
 use reader_core::todos::{
     format_local, keep_today, move_todo, parse_local, sky_label, sort_todos, todo_column,
@@ -45,6 +45,9 @@ pub fn NewTab() -> impl IntoView {
     });
     let (session, _) = use_storage::<Option<FocusSession>>("focusSession");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
+    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+    let tick = RwSignal::new(now());
+    set_interval(move || tick.set(now()), std::time::Duration::from_secs(1));
     // To read, in progress, completed: by how far each paper is read.
     let columns = Memo::new(move |_| {
         let mut cols: [Vec<Paper>; 3] = Default::default();
@@ -93,7 +96,7 @@ pub fn NewTab() -> impl IntoView {
         };
         view! {
             <li class="paper-card" class:paper-card--reading=reading>
-                <a class="paper-card-link" href=href.clone()>
+                <a class="paper-card-link" href=href.clone() title=p.title.clone()>
                     <span class="paper-card-title">
                         {move || reading_dot().then(|| view! { <span class="live-dot" role="img" aria-label="Reading now"></span> })}
                         {p.title.clone()}
@@ -121,6 +124,11 @@ pub fn NewTab() -> impl IntoView {
     view! {
         <div id="root">
             <main class="edition">
+                <section class="focus-home" aria-label="Focus round">
+                    <div><h1>"Today"</h1><p class="hint">"Pick one thing. Give it 25 minutes."</p></div>
+                    <Clock pomodoro=pomodoro tick=tick />
+                    <PomodoroPanel pomodoro=pomodoro tick=tick />
+                </section>
                 <section class="board" aria-label="Reading board">
                     {[(1usize, "In progress"), (0, "To read"), (2, "Completed")].into_iter().map(|(i, name)| {
                         let heading = format!("board-{i}");
@@ -128,10 +136,11 @@ pub fn NewTab() -> impl IntoView {
                         let card = card.clone();
                         view! {
                             <section class="board-col" aria-labelledby=labelled_by>
-                                <h2 id=heading class="label board-head">
+                                <details open={i == 1}>
+                                <summary><h2 id=heading class="label board-head">
                                     {name}
                                     <span class="board-count">{move || columns.with(|c| c[i].len())}</span>
-                                </h2>
+                                </h2></summary>
                                 <ul class="board-list">
                                     {move || {
                                         let list = columns.with(|c| c[i].clone());
@@ -141,19 +150,20 @@ pub fn NewTab() -> impl IntoView {
                                         list.into_iter().enumerate().map(|(k, p)| card(p, i == 1 && k == 0)).collect_view().into_any()
                                     }}
                                 </ul>
+                                </details>
                             </section>
                         }
                     }).collect_view()}
                 </section>
 
-                <div class="board-divider" role="separator"></div>
                 <TodoBoard />
 
                 <aside class="side-col">
                     <BrainDump />
                     <ActivityHeatmap papers=papers />
-                    <Clock />
-                    <HnFeed />
+                    <Show when=move || pomodoro.with(Option::is_none) && session.with(Option::is_none)>
+                        <details class="news-disclosure"><summary>"News"</summary><HnFeed /></details>
+                    </Show>
                 </aside>
 
                 <footer class="edition-index">
@@ -376,27 +386,26 @@ fn saved_id() -> String {
 
 /// Lock (or, before setup, park in the clear) under one id; a second save
 /// replaces the first. Returns the vault it sealed with, read fresh.
-async fn save(entry: DumpEntry, id: String) -> Option<Vault> {
+async fn save(entry: DumpEntry, id: String) -> crate::js::Res<Option<Vault>> {
     vault::with_dump_lock(async move {
-        let stored: Option<Vault> = store::get("vault").await.ok().flatten();
+        let stored: Option<Vault> = store::get("vault").await?;
         if let Some(v) = stored {
-            let locked: Vec<LockedDump> = store::get("lockedDumps").await.unwrap_or_default();
-            if let Ok(sealed) = vault::seal_entry(&v.public_key, &entry, id.clone()).await {
-                let mut next = vec![sealed];
-                next.extend(locked.into_iter().filter(|d| d.id != id));
-                let _ = store::set("lockedDumps", &next).await;
-            }
-            return Some(v);
+            let locked: Vec<LockedDump> = store::get("lockedDumps").await?;
+            let sealed = vault::seal_entry(&v.public_key, &entry, id.clone()).await?;
+            let mut next = vec![sealed];
+            next.extend(locked.into_iter().filter(|d| d.id != id));
+            store::set("lockedDumps", &next).await?;
+            return Ok(Some(v));
         }
-        let dumps: Vec<Dump> = store::get("dumps").await.unwrap_or_default();
+        let dumps: Vec<Dump> = store::get("dumps").await?;
         let mut next = vec![Dump {
             id: id.clone(),
             text: entry.text.clone(),
             created_at: entry.created_at,
         }];
         next.extend(dumps.into_iter().filter(|d| d.id != id));
-        let _ = store::set("dumps", &next).await;
-        None
+        store::set("dumps", &next).await?;
+        Ok(None)
     })
     .await
 }
@@ -406,7 +415,7 @@ async fn save(entry: DumpEntry, id: String) -> Option<Vault> {
 #[component]
 fn BrainDump() -> impl IntoView {
     let (settings, _) = use_settings();
-    let (stored_vault, _) = use_storage::<Option<Vault>>("vault");
+    let (stored_vault, vault_loaded) = use_storage::<Option<Vault>>("vault");
     let (locked, _) = use_storage::<Vec<LockedDump>>("lockedDumps");
     let text = RwSignal::new(DRAFT.with(|d| d.borrow().clone()));
     let set_text = move |t: String| {
@@ -423,6 +432,8 @@ fn BrainDump() -> impl IntoView {
     let hearing = RwSignal::new(false);
     let elapsed = RwSignal::new(0u32);
     let can_retry = RwSignal::new(false);
+    // (id, text as added): Undo only removes tasks still exactly as they were added.
+    let added_ids = RwSignal::new(Vec::<(String, String)>::new());
     let recorder = StoredValue::new_local(None::<voice::Recorder>);
     // The last clip Groq failed on, so Retry never asks you to say it again.
     let clip = StoredValue::new_local(None::<Vec<u8>>);
@@ -447,7 +458,7 @@ fn BrainDump() -> impl IntoView {
             },
             saved_id(),
         )
-        .await;
+        .await
     };
 
     let submit = move || {
@@ -464,14 +475,19 @@ fn BrainDump() -> impl IntoView {
         let key = settings.get_untracked().claude_key;
         leptos::task::spawn_local(async move {
             if key.is_empty() {
-                save_failed(words, created_at).await;
-                error.set(NO_KEY_MESSAGE.into());
+                let saved = save_failed(words, created_at).await.is_ok();
+                error.set(if saved {
+                    NO_KEY_MESSAGE.into()
+                } else {
+                    SAVE_FAILED_MESSAGE.into()
+                });
                 phase.set(Phase::Failed);
                 return;
             }
             phase.set(Phase::Streaming);
             error.set(String::new());
             live.set(String::new());
+            added_ids.set(Vec::new());
             let prompt = dump_prompt(&now_label());
             let ask = claude::Ask {
                 api_key: &key,
@@ -491,8 +507,12 @@ fn BrainDump() -> impl IntoView {
             // changes on success, so a retry never adds the same tasks twice.
             if parsed.is_empty() {
                 // The words are never lost: saved raw now, replaced if a retry works.
-                save_failed(words, created_at).await;
-                error.set(FAILED_MESSAGE.into());
+                let saved = save_failed(words, created_at).await.is_ok();
+                error.set(if saved {
+                    FAILED_MESSAGE.into()
+                } else {
+                    SAVE_FAILED_MESSAGE.into()
+                });
                 phase.set(Phase::Failed);
                 return;
             }
@@ -501,12 +521,21 @@ fn BrainDump() -> impl IntoView {
                 bullets: parsed.clone(),
                 created_at,
             };
-            let sealed_with = save(entry.clone(), id.clone()).await;
+            let sealed_with = match save(entry.clone(), id.clone()).await {
+                Ok(v) => v,
+                Err(_) => {
+                    error.set(SAVE_FAILED_MESSAGE.into());
+                    phase.set(Phase::Failed);
+                    return;
+                }
+            };
             SAVED_ID.with(|s| s.borrow_mut().take());
             if !tasks.is_empty() {
-                let n = tasks.len();
-                add_tasks(tasks).await;
-                error.set(format!("Added {} to today.", plural(n as u32, "task")));
+                let texts: Vec<String> = tasks.iter().map(|(t, _)| t.clone()).collect();
+                match add_tasks(tasks).await {
+                    Ok(ids) => added_ids.set(ids.into_iter().zip(texts).collect()),
+                    Err(_) => error.set("Your words were saved, but the tasks couldn't be added. Add them to the board yourself.".into()),
+                }
             }
             set_text(String::new());
             bullets.set(parsed);
@@ -682,10 +711,12 @@ fn BrainDump() -> impl IntoView {
         <section class="notebook" aria-label="Brain dump">
             <p class="notebook-kicker">
                 <LockIcon class="notebook-lock" />
-                {move || if matches!(phase.get(), Phase::Bullets | Phase::Setup | Phase::Streaming) {
-                    "A little lighter. Locking away when you leave."
+                {move || if !vault_loaded.get() {
+                    "Checking vault…"
+                } else if stored_vault.with(Option::is_none) {
+                    "Vault setup needed. Submitted words stay unencrypted until you set a passphrase."
                 } else {
-                    "Only Haiku reads this. Then it locks."
+                    "Sent to Claude when you submit. Saved encrypted on this device."
                 }}
             </p>
 
@@ -732,6 +763,18 @@ fn BrainDump() -> impl IntoView {
             })}
 
             <div class="notebook-foot">
+                <Show when=move || added_ids.with(|ids| !ids.is_empty())>
+                    <span class="notebook-note" role="status">{move || format!("Added {} to your board. Undo leaves any you have edited or started.", plural(added_ids.with(Vec::len) as u32, "task"))}</span>
+                    <button type="button" class="edition-pill" on:click=move |_| {
+                        let ids = added_ids.get_untracked();
+                        leptos::task::spawn_local(async move {
+                            let untouched = move |t: &Todo| ids.iter().any(|(id, text)| *id == t.id && *text == t.text) && t.started_at.is_none() && t.done_at.is_none();
+                            if update_todos(move |list| list.retain(|t| !untouched(t))).await.is_ok() {
+                                added_ids.try_set(Vec::new());
+                            } else { error.try_set("Couldn't undo the added tasks. Try again.".into()); }
+                        });
+                    }>"Undo added tasks"</button>
+                </Show>
                 {move || {
                     let e = error.get();
                     if !e.is_empty() {
@@ -747,6 +790,9 @@ fn BrainDump() -> impl IntoView {
                     }
                 }}
                 {move || writing().then(|| view! {
+                    <button type="button" class="fc-primary-btn" disabled=move || text.with(|t| t.trim().is_empty()) || mic.get() != Mic::Idle on:click=move |_| submit()>
+                        {move || if phase.get() == Phase::Failed { "Try again" } else { "Make it lighter" }}
+                    </button>
                     <span class="notebook-mic-status" aria-live="polite">
                         {move || (mic.get() == Mic::Listening).then(|| view! {
                             <span class="notebook-mic-dot" class:notebook-mic-dot--on=move || hearing.get() aria-hidden="true"></span>
@@ -815,6 +861,7 @@ fn VaultSetup(
     let made = RwSignal::new(None::<(Vault, String)>);
     let busy = RwSignal::new(false);
     let committed = RwSignal::new(false);
+    let setup_error = RwSignal::new(String::new());
     let current = StoredValue::new(current);
 
     let commit = move |fresh: Vault| {
@@ -822,24 +869,30 @@ fn VaultSetup(
             return;
         }
         committed.set(true);
+        setup_error.set(String::new());
+        let entry = current.get_value();
         leptos::task::spawn_local(async move {
-            let used_existing = vault::with_dump_lock(async move {
-                let stored: Option<Vault> = store::get("vault").await.ok().flatten();
-                let dumps: Vec<Dump> = store::get("dumps").await.unwrap_or_default();
-                let locked: Vec<LockedDump> = store::get("lockedDumps").await.unwrap_or_default();
+            let result: crate::js::Res<bool> = vault::with_dump_lock(async move {
+                let stored: Option<Vault> = store::get("vault").await?;
+                let dumps: Vec<Dump> = store::get("dumps").await?;
+                let locked: Vec<LockedDump> = store::get("lockedDumps").await?;
                 let had = stored.is_some();
-                if let Ok((v, sealed)) =
-                    vault::plan_setup(stored, &dumps, &locked, fresh, current.get_value()).await
-                {
-                    // Locked copies are written before the clear ones go.
-                    let _ = store::set("vault", &v).await;
-                    let _ = store::set("lockedDumps", &sealed).await;
-                    let _ = store::set("dumps", &Vec::<Dump>::new()).await;
-                }
-                had
+                let (v, sealed) = vault::plan_setup(stored, &dumps, &locked, fresh, entry).await?;
+                let items = json!({ "vault": v, "lockedDumps": sealed, "dumps": [] });
+                store::set_many(items.as_object().expect("object")).await?;
+                Ok(had)
             })
             .await;
-            on_done.run(used_existing);
+            match result {
+                Ok(used_existing) => on_done.run(used_existing),
+                Err(_) => {
+                    committed.try_set(false);
+                    busy.try_set(false);
+                    setup_error.try_set(
+                        "Couldn't lock your words. They are still unencrypted. Try again.".into(),
+                    );
+                }
+            }
         });
     };
 
@@ -857,6 +910,7 @@ fn VaultSetup(
         match made.get() {
         Some((v, code)) => view! {
             <div class="notebook-setup">
+                <Show when=move || setup_error.with(|e| !e.is_empty())><p role="alert">{move || setup_error.get()}</p></Show>
                 <p>"Write this down. It's the only way back in if you forget your passphrase."</p>
                 <p class="notebook-code">{code}</p>
                 <button type="button" class="edition-pill" disabled=move || busy.get() on:click=move |_| {
@@ -877,12 +931,14 @@ fn VaultSetup(
                 busy.set(true);
                 let p = pass.get_untracked();
                 leptos::task::spawn_local(async move {
-                    if let Ok(result) = vault::create_vault(&p).await {
-                        made.set(Some(result));
+                    match vault::create_vault(&p).await {
+                        Ok(result) => made.set(Some(result)),
+                        Err(_) => setup_error.set("Couldn't create the vault. Try again.".into()),
                     }
                     busy.set(false);
                 });
             }>
+                <Show when=move || setup_error.with(|e| !e.is_empty())><p role="alert">{move || setup_error.get()}</p></Show>
                 <p>"Set a passphrase so this can lock."</p>
                 <input type="password" aria-label="Passphrase" placeholder="Passphrase" autocomplete="new-password" autofocus
                     prop:value=move || pass.get() on:input=move |e| pass.set(event_target_value(&e)) />
@@ -945,7 +1001,9 @@ fn now_label() -> String {
 }
 
 /// The dump's top tasks, after today's open ones, in Haiku's priority order.
-async fn add_tasks(tasks: Vec<(String, Option<LocalTime>)>) {
+async fn add_tasks(tasks: Vec<(String, Option<LocalTime>)>) -> crate::js::Res<Vec<String>> {
+    let ids: Vec<String> = tasks.iter().map(|_| chrome::random_uuid()).collect();
+    let kept_ids = ids.clone();
     update_todos(move |list| {
         let base = list
             .iter()
@@ -953,23 +1011,71 @@ async fn add_tasks(tasks: Vec<(String, Option<LocalTime>)>) {
             .map(|t| t.rank + 1)
             .max()
             .unwrap_or(0);
-        list.extend(tasks.into_iter().enumerate().map(|(i, (text, when))| Todo {
-            id: chrome::random_uuid(),
-            text,
-            due_at: when.map(to_ms),
-            rank: base + i as i32,
-            ..Default::default()
-        }));
+        list.extend(
+            tasks
+                .into_iter()
+                .zip(ids)
+                .enumerate()
+                .map(|(i, ((text, when), id))| Todo {
+                    id,
+                    text,
+                    due_at: when.map(to_ms),
+                    rank: base + i as i32,
+                    ..Default::default()
+                }),
+        );
     })
-    .await;
+    .await?;
+    Ok(kept_ids)
 }
 
-/// Read, change, write back; finished tasks from earlier days drop off here.
-// ponytail: last write wins across tabs; add a Web Lock like the dumps' if two tabs ever edit at once.
-async fn update_todos(f: impl FnOnce(&mut Vec<Todo>)) {
-    let mut list: Vec<Todo> = store::get("todos").await.unwrap_or_default();
-    f(&mut list);
-    let _ = store::set("todos", &keep_today(list, today_start())).await;
+async fn change_tasks(
+    f: impl FnOnce(&mut Vec<Todo>, &mut Option<Pomodoro>) -> crate::js::Res<()> + 'static,
+) -> crate::js::Res<()> {
+    store::with_lock("tasks", async move {
+        let mut list: Vec<Todo> = store::get("todos").await?;
+        let mut round: Option<Pomodoro> = store::get("pomodoro").await?;
+        f(&mut list, &mut round)?;
+        if let Some(p) = round.as_mut() {
+            sync_tasks(p, &list);
+        }
+        let items = json!({"todos": keep_today(list, today_start()), "pomodoro": round});
+        store::set_many(items.as_object().expect("object")).await
+    })
+    .await
+}
+
+/// Board and focus checkboxes share one transaction, including edits and deletion.
+async fn update_todos(f: impl FnOnce(&mut Vec<Todo>) + 'static) -> crate::js::Res<()> {
+    change_tasks(move |list, _| {
+        f(list);
+        Ok(())
+    })
+    .await
+}
+
+async fn begin_round(ids: Vec<String>, video: String) -> crate::js::Res<()> {
+    let study_video = if video.trim().is_empty() {
+        None
+    } else {
+        Some(
+            reader_core::youtube::video_id(video.trim())
+                .ok_or_else(|| crate::js::error("Enter a valid YouTube video link."))?,
+        )
+    };
+    change_tasks(move |list, round| {
+        if round.is_some() {
+            return Err(crate::js::error(
+                "A round is already running. Stop it before starting another.",
+            ));
+        }
+        let mut p = start_todos(list, &ids, now())
+            .ok_or_else(|| crate::js::error("Choose an unfinished task."))?;
+        p.study_video = study_video;
+        *round = Some(p);
+        Ok(())
+    })
+    .await
 }
 
 /// Today's to-dos (from brain dumps, or typed here) as a board: To do, In
@@ -977,6 +1083,8 @@ async fn update_todos(f: impl FnOnce(&mut Vec<Todo>)) {
 #[component]
 fn TodoBoard() -> impl IntoView {
     let (todos, _) = use_storage::<Vec<Todo>>("todos");
+    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+    let feedback = RwSignal::new(String::new());
     // A drop shows at once; storage catches up a moment later and takes over.
     let dropped = RwSignal::new(None::<Vec<Todo>>);
     Effect::new(move |_| {
@@ -992,14 +1100,18 @@ fn TodoBoard() -> impl IntoView {
         }
         cols
     });
-    let edit = |id: String, f: Box<dyn FnOnce(&mut Todo)>| {
+    let edit = move |id: String, f: Box<dyn FnOnce(&mut Todo)>| {
         leptos::task::spawn_local(async move {
-            update_todos(move |list| {
+            if update_todos(move |list| {
                 if let Some(t) = list.iter_mut().find(|t| t.id == id) {
                     f(t);
                 }
             })
-            .await;
+            .await
+            .is_err()
+            {
+                feedback.try_set("Couldn't save the task. Try again.".into());
+            }
         });
     };
     let draft = RwSignal::new(String::new());
@@ -1010,14 +1122,18 @@ fn TodoBoard() -> impl IntoView {
         }
         draft.set(String::new());
         leptos::task::spawn_local(async move {
-            update_todos(move |list| {
+            if update_todos(move |list| {
                 list.push(Todo {
                     id: chrome::random_uuid(),
                     text,
                     ..Default::default()
                 })
             })
-            .await;
+            .await
+            .is_err()
+            {
+                feedback.try_set("Couldn't add the task. Try again.".into());
+            }
         });
     };
     let on_drop = move |id: String, col: usize, idx: usize| {
@@ -1031,11 +1147,17 @@ fn TodoBoard() -> impl IntoView {
         move_todo(&mut list, &id, col, idx, t);
         dropped.set(Some(list));
         leptos::task::spawn_local(async move {
-            update_todos(move |l| move_todo(l, &id, col, idx, t)).await
+            if update_todos(move |l| move_todo(l, &id, col, idx, t))
+                .await
+                .is_err()
+            {
+                feedback.try_set("Couldn't move the task. Try again.".into());
+            }
         });
     };
     let card = move |t: Todo, col: usize| {
-        let (id1, id2, id3, id4, id5) = (
+        let (id1, id2, id3, id4, id5, id6) = (
+            t.id.clone(),
             t.id.clone(),
             t.id.clone(),
             t.id.clone(),
@@ -1043,6 +1165,7 @@ fn TodoBoard() -> impl IntoView {
             t.id.clone(),
         );
         let done = col == 2;
+        let original_text = t.text.clone();
         let late = !done && t.due_at.is_some_and(|d| d < now());
         let when = t
             .due_at
@@ -1057,7 +1180,12 @@ fn TodoBoard() -> impl IntoView {
         view! {
             <li class="todo" class:todo--done=done class:todo--late=late data-todo-id=t.id.clone()
                 on:pointerdown=move |e| todo_drag::down(&e, id5.clone(), col, std::rc::Rc::new(on_drop))>
-                <span class="todo-text">{t.text.clone()}</span>
+                <input class="todo-text todo-text-input" type="text" maxlength="120" aria-label=format!("Edit task: {}", t.text) prop:value=t.text.clone() on:change=move |e| {
+                    let text = event_target_value(&e).trim().to_string();
+                    if text.is_empty() {
+                        if let Some(input) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) { input.set_value(&original_text); }
+                    } else { edit(id6.clone(), Box::new(move |t| t.text = text)); }
+                } />
                 <div class="todo-row">
                     <input type="datetime-local" class="todo-when" aria-label=format!("Remind me: {}", t.text) prop:value=when on:change=move |e| {
                         let due = parse_local(&event_target_value(&e)).map(to_ms);
@@ -1069,13 +1197,22 @@ fn TodoBoard() -> impl IntoView {
                         }))>{label}</button>
                     })}
                     {fwd.map(|label| view! {
-                        <button type="button" class="todo-move todo-move--fwd" on:click=move |_| edit(id3.clone(), Box::new(move |t| {
-                            if t.started_at.is_none() { t.started_at = Some(now()) } else { t.done_at = Some(now()) }
-                        }))>{label}</button>
+                        <button type="button" class="todo-move todo-move--fwd" disabled=move || col == 0 && pomodoro.with(Option::is_some) on:click=move |_| {
+                            if col == 0 {
+                                let id = id3.clone();
+                                leptos::task::spawn_local(async move {
+                                    if let Err(e) = begin_round(vec![id], String::new()).await {
+                                        feedback.try_set(js_sys::Error::from(e).message().into());
+                                    }
+                                });
+                            } else { edit(id3.clone(), Box::new(move |t| t.done_at = Some(now()))); }
+                        }>{label}</button>
                     })}
                     <button type="button" class="todo-delete" aria-label=format!("Delete {}", t.text) on:click=move |_| {
                         let id = id4.clone();
-                        leptos::task::spawn_local(async move { update_todos(move |l| l.retain(|t| t.id != id)).await; });
+                        leptos::task::spawn_local(async move {
+                            if update_todos(move |l| l.retain(|t| t.id != id)).await.is_err() { feedback.try_set("Couldn't delete the task. Try again.".into()); }
+                        });
                     }>"×"</button>
                 </div>
             </li>
@@ -1084,16 +1221,25 @@ fn TodoBoard() -> impl IntoView {
 
     view! {
         <section class="board board--todos" aria-label="Today's to-dos">
+            <Show when=move || feedback.with(|s| !s.is_empty())><p role="alert">{move || feedback.get()}</p></Show>
             {[(0usize, "To do"), (1, "In progress"), (2, "Done")].into_iter().map(|(i, name)| {
                 let heading = format!("todo-col-{i}");
                 let labelled_by = heading.clone();
                 view! {
                     <section class="board-col" aria-labelledby=labelled_by>
-                        <h2 id=heading class="label board-head">
+                        <details open={i != 2}>
+                        <summary><h2 id=heading class="label board-head">
                             {name}
                             <span class="board-count">{move || columns.with(|c| c[i].len())}</span>
-                        </h2>
+                        </h2></summary>
                         <ul class="board-list">
+                            {move || {
+                                let list = columns.with(|c| c[i].clone());
+                                if list.is_empty() && i != 0 {
+                                    return view! { <li class="hint board-empty">"Nothing here yet."</li> }.into_any();
+                                }
+                                list.into_iter().map(|t| card(t, i)).collect_view().into_any()
+                            }}
                             {(i == 0).then(|| view! {
                                 <li>
                                     <form class="todo-add" on:submit=move |e| { e.prevent_default(); add(); }>
@@ -1102,14 +1248,8 @@ fn TodoBoard() -> impl IntoView {
                                     </form>
                                 </li>
                             })}
-                            {move || {
-                                let list = columns.with(|c| c[i].clone());
-                                if list.is_empty() && i != 0 {
-                                    return view! { <li class="hint board-empty">"Nothing here yet."</li> }.into_any();
-                                }
-                                list.into_iter().map(|t| card(t, i)).collect_view().into_any()
-                            }}
                         </ul>
+                        </details>
                     </section>
                 }
             }).collect_view()}
@@ -1188,15 +1328,12 @@ async fn sky_now() -> Option<SkyNow> {
 /// CSS animations started at the current time, so no timer ticks.
 // ponytail: the date window is set at load; a new tab left open past midnight shows yesterday.
 #[component]
-fn Clock() -> impl IntoView {
+fn Clock(pomodoro: ReadSignal<Option<Pomodoro>>, tick: RwSignal<i64>) -> impl IntoView {
     let d = js_sys::Date::new_0();
     let secs = d.get_seconds() as f64 + d.get_milliseconds() as f64 / 1000.0;
     let mins = d.get_minutes() as f64 * 60.0 + secs;
     let hours = (d.get_hours() % 12) as f64 * 3600.0 + mins;
     let day = d.get_date();
-    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
-    let tick = RwSignal::new(now());
-    set_interval(move || tick.set(now()), std::time::Duration::from_secs(1));
     // The break room: theme.css swaps the palette on html[data-phase="break"].
     Effect::new(move |_| {
         let on_break = pomodoro.with(|p| p.as_ref().is_some_and(|p| p.phase == PomPhase::Break));
@@ -1305,7 +1442,6 @@ fn Clock() -> impl IntoView {
                     }.into_any(),
                     Some(None) => view! { <p class="hint">"No weather: location is off or offline."</p> }.into_any(),
                 }}
-                <PomodoroPanel pomodoro=pomodoro tick=tick />
             </div>
             <TodayStats />
         </section>
@@ -1435,92 +1571,147 @@ fn TodayStats() -> impl IntoView {
 
 /* ---------- Pomodoro ---------- */
 
-async fn set_pomodoro(p: Option<Pomodoro>) {
-    let _ = store::set("pomodoro", &p).await;
-}
-
-/// Three tasks, then 25 minutes with distractions blocked, then a 5-minute
-/// breathing break. The worker owns the alarm, the blocking and the bell.
+/// Choose up to three board tasks; the worker owns the alarm, blocking and bell.
 #[component]
 fn PomodoroPanel(pomodoro: ReadSignal<Option<Pomodoro>>, tick: RwSignal<i64>) -> impl IntoView {
+    let (todos, _) = use_storage::<Vec<Todo>>("todos");
     let planning = RwSignal::new(false);
-    let drafts: [RwSignal<String>; MAX_TASKS] =
-        std::array::from_fn(|_| RwSignal::new(String::new()));
+    let selected = RwSignal::new(Vec::<String>::new());
+    let video = RwSignal::new(String::new());
+    let error = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let open_tasks = Memo::new(move |_| {
+        let mut list: Vec<Todo> = todos
+            .get()
+            .into_iter()
+            .filter(|t| t.done_at.is_none())
+            .collect();
+        list.sort_by_key(|t| (t.started_at.is_none(), t.rank, t.due_at.is_none(), t.due_at));
+        list
+    });
     let begin = move || {
-        let tasks: Vec<String> = drafts.iter().map(|d| d.get_untracked()).collect();
-        if let Some(p) = start_round(&tasks, now()) {
-            planning.set(false);
-            drafts.iter().for_each(|d| d.set(String::new()));
-            leptos::task::spawn_local(set_pomodoro(Some(p)));
+        if busy.get_untracked() {
+            return;
         }
+        busy.set(true);
+        error.set(String::new());
+        let ids = selected.get_untracked();
+        let video = video.get_untracked();
+        leptos::task::spawn_local(async move {
+            match begin_round(ids, video).await {
+                Ok(()) => {
+                    planning.try_set(false);
+                }
+                Err(e) => {
+                    error.try_set(js_sys::Error::from(e).message().into());
+                }
+            }
+            busy.try_set(false);
+        });
     };
-    let stop = move |_| leptos::task::spawn_local(set_pomodoro(None));
-
-    move || {
-        match pomodoro.get() {
-        None if planning.get() => view! {
-            <form class="pomo pomo-plan" on:submit=move |e| { e.prevent_default(); begin(); }>
-                <p class="label">"Three small tasks for the next 25 minutes"</p>
-                {drafts.iter().enumerate().map(|(i, d)| {
-                    let d = *d;
-                    view! {
-                        <input class="pomo-task-input" type="text" maxlength="80" autofocus={i == 0}
-                            placeholder=format!("Task {}", i + 1) aria-label=format!("Task {}", i + 1)
-                            prop:value=move || d.get() on:input=move |e| d.set(event_target_value(&e)) />
-                    }
-                }).collect_view()}
-                <div class="pomo-actions">
-                    <button type="submit" class="edition-pill"
-                        disabled=move || drafts.iter().all(|d| d.with(|t| t.trim().is_empty()))>"Start focus"</button>
-                    <button type="button" class="edition-pill" on:click=move |_| planning.set(false)>"Cancel"</button>
-                </div>
-            </form>
-        }.into_any(),
-        None => view! {
-            <div class="pomo">
-                <button type="button" class="edition-pill" on:click=move |_| planning.set(true)>"Start a focus round"</button>
-            </div>
-        }.into_any(),
-        Some(p) => {
-            let on_break = p.phase == PomPhase::Break;
-            let ends = p.ends_at;
-            let tasks = p.tasks.clone();
-            view! {
-                <div class="pomo" class:pomo--break=on_break>
-                    <p class="pomo-phase">
-                        <span class="label">{if on_break { "Break" } else { "Focus" }}</span>
-                        <span class="pomo-left" aria-live="off">{move || format!("{} left", left_label(ends - tick.get()))}</span>
-                    </p>
-                    {on_break.then(|| view! {
-                        <div class="pomo-breath" aria-hidden="true"><span></span></div>
-                        <p class="hint">"Breathe in for 4, out for 6. Look at something far away."</p>
-                    })}
-                    <ul class="pomo-tasks">
-                        {tasks.into_iter().enumerate().map(|(i, t)| {
-                            let toggle = move |e| {
-                                let checked = event_target_checked(&e);
-                                leptos::task::spawn_local(async move {
-                                    let mut p: Option<Pomodoro> = store::get("pomodoro").await.unwrap_or(None);
-                                    if let Some(t) = p.as_mut().and_then(|p| p.tasks.get_mut(i)) {
-                                        t.done = checked;
-                                    }
-                                    set_pomodoro(p).await;
-                                });
-                            };
-                            view! {
-                                <li class:todo--done=t.done>
-                                    <label class="todo-check">
-                                        <input type="checkbox" prop:checked=t.done on:change=toggle />
+    let stop = move |_| {
+        leptos::task::spawn_local(async move {
+            if change_tasks(|_, round| {
+                *round = None;
+                Ok(())
+            })
+            .await
+            .is_err()
+            {
+                error.try_set("Couldn't stop the round. Try again.".into());
+            }
+        });
+    };
+    view! {
+        <div class="pomo">
+            <Show when=move || error.with(|e| !e.is_empty())><p role="alert">{move || error.get()}</p></Show>
+            {move || match pomodoro.get() {
+                None if planning.get() => view! {
+                    <form class="pomo-plan" on:submit=move |e| { e.prevent_default(); begin(); }>
+                        <p class="label">"Choose up to three tasks for 25 minutes"</p>
+                        <Show when=move || open_tasks.with(Vec::is_empty)>
+                            <p class="hint">"Add a to-do below, then choose it here."</p>
+                        </Show>
+                        <ul class="pomo-tasks">
+                            {move || open_tasks.get().into_iter().map(|t| {
+                                let check_id = t.id.clone();
+                                let disable_id = t.id.clone();
+                                view! {
+                                    <li><label class="todo-check">
+                                        <input type="checkbox" prop:checked=move || selected.with(|s| s.contains(&check_id))
+                                            disabled=move || busy.get() || selected.with(|s| s.len() >= MAX_TASKS && !s.contains(&disable_id))
+                                            on:change=move |e| {
+                                                let checked = event_target_checked(&e);
+                                                selected.update(|ids| {
+                                                    ids.retain(|id| id != &t.id);
+                                                    if checked && ids.len() < MAX_TASKS { ids.push(t.id.clone()); }
+                                                });
+                                            } />
                                         <span>{t.text}</span>
-                                    </label>
-                                </li>
-                            }
-                        }).collect_view()}
-                    </ul>
-                    <button type="button" class="edition-pill" on:click=stop>{if on_break { "End break" } else { "Stop" }}</button>
-                </div>
-            }.into_any()
-        }
-    }
+                                    </label></li>
+                                }
+                            }).collect_view()}
+                        </ul>
+                        <label class="hint" for="study-video">"Study video (optional): allow only this YouTube video during focus"</label>
+                        <input id="study-video" class="pomo-task-input" type="url" placeholder="https://www.youtube.com/watch?v=…"
+                            prop:value=move || video.get() on:input=move |e| video.set(event_target_value(&e)) />
+                        <div class="pomo-actions">
+                            <button type="submit" class="fc-primary-btn" disabled=move || busy.get() || selected.with(Vec::is_empty)>"Start focus"</button>
+                            <button type="button" class="edition-pill" disabled=move || busy.get() on:click=move |_| planning.set(false)>"Cancel"</button>
+                        </div>
+                    </form>
+                }.into_any(),
+                None => view! {
+                    <button type="button" class="fc-primary-btn" on:click=move |_| {
+                        selected.set(open_tasks.get_untracked().into_iter().take(MAX_TASKS).map(|t| t.id).collect());
+                        error.set(String::new());
+                        planning.set(true);
+                    }>"Start a focus round"</button>
+                }.into_any(),
+                Some(p) => {
+                    let on_break = p.phase == PomPhase::Break;
+                    let ends = p.ends_at;
+                    view! {
+                        <p class="pomo-phase">
+                            <span class="label">{if on_break { "Break" } else { "Focus" }}</span>
+                            <span class="pomo-left" aria-live="off">{move || format!("{} left", left_label(ends - tick.get()))}</span>
+                        </p>
+                        {on_break.then(|| view! {
+                            <div class="pomo-breath" aria-hidden="true"><span></span></div>
+                            <p class="hint">"Breathe in for 4, out for 6. Look at something far away."</p>
+                        })}
+                        <ul class="pomo-tasks">
+                            {p.tasks.into_iter().enumerate().map(|(i, t)| {
+                                let label = t.text.clone();
+                                let toggle = move |e| {
+                                    let checked = event_target_checked(&e);
+                                    let (id, text) = (t.todo_id.clone(), t.text.clone());
+                                    leptos::task::spawn_local(async move {
+                                        if change_tasks(move |list, round| {
+                                            if let Some(id) = id {
+                                                if round.as_ref().is_some_and(|p| p.tasks.iter().any(|t| t.todo_id.as_ref() == Some(&id))) {
+                                                    if let Some(todo) = list.iter_mut().find(|t| t.id == id) { todo.done_at = checked.then(now); }
+                                                }
+                                            } else if let Some(task) = round.as_mut().and_then(|p| p.tasks.get_mut(i)).filter(|t| t.todo_id.is_none() && t.text == text) {
+                                                task.done = checked;
+                                            }
+                                            Ok(())
+                                        }).await.is_err() { error.try_set("Couldn't save the task. Try again.".into()); }
+                                    });
+                                };
+                                view! { <li class:todo--done=t.done><label class="todo-check">
+                                    <input type="checkbox" prop:checked=t.done on:change=toggle />
+                                    <span>{label}</span>
+                                </label></li> }
+                            }).collect_view()}
+                        </ul>
+                        {p.study_video.filter(|_| !on_break).map(|id| view! {
+                            <a class="hint" href=reader_core::youtube::watch_url(&id) target="_blank" rel="noopener">"Open your allowed study video"</a>
+                        })}
+                        <button type="button" class="edition-pill" on:click=stop>{if on_break { "End break" } else { "Stop" }}</button>
+                    }.into_any()
+                }
+            }}
+        </div>
     }
 }

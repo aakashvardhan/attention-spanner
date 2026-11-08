@@ -4,7 +4,18 @@
 // the module is ready. All logic is in rust/ext/src/worker.
 import init, * as wasm from './wasm/reader_ext.js';
 
-const ready = init();
+// The wasm is named by its hash (scripts/publish-ext.mjs). A worker Chrome kept
+// from an older build asks for a file the rebuild replaced, and fetching it
+// fails: reload once so Chrome starts the build on disk. At most once a minute,
+// so a file that is really missing logs its error instead of looping.
+const ready = init().catch(async (e) => {
+  const { wasmReloadAt = 0 } = await chrome.storage.local.get('wasmReloadAt');
+  if (Date.now() - wasmReloadAt > 60_000) {
+    await chrome.storage.local.set({ wasmReloadAt: Date.now() });
+    chrome.runtime.reload();
+  }
+  throw e;
+});
 const run = (fn, ...args) => ready.then(() => fn(...args)).catch((e) => console.error('[worker]', e));
 
 chrome.runtime.onInstalled.addListener(() => run(wasm.on_installed));
@@ -19,8 +30,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true; // the reply is asynchronous
 });
 chrome.alarms.onAlarm.addListener((alarm) => run(wasm.on_alarm, alarm.name));
-// The toolbar icon opens the side panel (src/pages/sidebar).
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((e) => console.error('[worker] side panel', e));
+// The toolbar icon opens the side panel (src/pages/sidebar) on its tab only:
+// switching tabs hides it, coming back shows it again. Off everywhere else.
+const panelError = (e) => console.error('[worker] side panel', e);
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(panelError);
+chrome.sidePanel.setOptions({ enabled: false }).catch(panelError);
+// Tabs whose panel is open, so a click knows at once whether to close it
+// (open() must run inside the click: no await to ask first). Rebuilt when the
+// worker starts, since it may have slept with panels open; Chrome's onClosed
+// drops a panel closed with its own X.
+// ponytail: a click in the instant after the worker wakes, before getContexts
+// answers, sees an open panel as closed; that click is a no-op, the next closes.
+const panelTabs = new Set();
+chrome.runtime
+  .getContexts({ contextTypes: ['SIDE_PANEL'] })
+  .then((cs) => cs.forEach((c) => panelTabs.add(Number(new URL(c.documentUrl).searchParams.get('tab')))))
+  .catch(panelError);
+chrome.sidePanel.onClosed?.addListener((info) => panelTabs.delete(info.tabId));
+// The icon toggles this tab's panel. Global so the e2e suite can click it.
+globalThis.togglePanel = (tab) => {
+  if (panelTabs.delete(tab.id)) {
+    chrome.sidePanel.setOptions({ tabId: tab.id, enabled: false }).catch(panelError);
+    return;
+  }
+  panelTabs.add(tab.id);
+  chrome.sidePanel.setOptions({ tabId: tab.id, path: `src/pages/sidebar/index.html?tab=${tab.id}`, enabled: true }).catch(panelError);
+  chrome.sidePanel.open({ tabId: tab.id }).catch(panelError);
+};
+chrome.action.onClicked.addListener((tab) => globalThis.togglePanel(tab));
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.settings) {
     run(wasm.on_settings_changed, changes.settings.oldValue ?? null, changes.settings.newValue ?? null);

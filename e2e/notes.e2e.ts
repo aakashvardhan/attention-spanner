@@ -45,6 +45,28 @@ describe('notes page', () => {
     await expect.poll(() => direct.getByText('Why is the sky blue?').count()).toBe(1);
   });
 
+  it('shows notes taken a part at a time part by part, in time order', async () => {
+    const st = (t: string, text: string) => ({ t, text });
+    await seed(ext, {
+      videoNotes: {
+        ccccccccccc: {
+          id: 'ccccccccccc', url: 'https://www.youtube.com/watch?v=ccccccccccc', title: 'Day-long course', kind: 'lecture', summary: '', createdAt: 3_000,
+          // Parts added out of order, so the lists are too.
+          cues: [st('2:30:00', 'Why TLBs?'), st('0:30:00', 'Why paging?')],
+          notes: [st('2:45:00', 'TLBs cache.'), st('2:10:00', 'Misses walk tables.'), st('0:30:00', 'Paging splits memory.')],
+          sections: [{ from: 0, to: 3600, summary: 'Part one, summed.' }, { from: 7200, to: 10800, summary: 'Part two, summed.' }],
+        },
+      },
+    });
+    const page = await ext.page(`${PAGES.notes}#ccccccccccc`);
+    await expect.poll(() => page.locator('.notes-part-range').allInnerTexts()).toEqual(['0:00–1:00:00', '2:00:00–3:00:00']);
+    const two = page.getByRole('region', { name: 'Part 2:00:00–3:00:00' });
+    expect(await two.getByRole('region', { name: 'Notes' }).locator('li span').allInnerTexts()).toEqual(['Misses walk tables.', 'TLBs cache.']);
+    expect(await two.getByText('Part two, summed.').count()).toBe(1);
+    expect(await page.getByRole('region', { name: 'Part 0:00–1:00:00' }).getByText('Why paging?').count()).toBe(1);
+    await expectA11y(page, 'notes-parts');
+  });
+
   it('is linked from the new tab, next to Papers', async () => {
     const page = await ext.page(PAGES.newtab);
     const links = await page.locator('.edition-index .edition-link').allInnerTexts();

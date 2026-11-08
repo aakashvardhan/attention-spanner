@@ -340,7 +340,7 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
     await pause(page, 600);
     await dump.press('Meta+Enter');
     await page.locator('.notebook-bullets li').first().waitFor({ timeout: 15_000 });
-    await page.getByText('Added 3 tasks to today.').waitFor({ timeout: 15_000 });
+    await page.getByText('Added 3 tasks to your board. Undo leaves any you have edited or started.').waitFor({ timeout: 15_000 });
     await pause(page, 4000);
     // The three tasks landed at the bottom of To do.
     await glideTo(page, 560, 200);

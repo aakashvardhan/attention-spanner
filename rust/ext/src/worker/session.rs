@@ -11,7 +11,7 @@ use reader_core::constants::{
 };
 use reader_core::focus_rules::{
     build_focus_rules, build_session_access_rules, is_blocked_host, is_owned_session_rule,
-    with_reader_tab, without_reader_tab,
+    study_video_rule, with_reader_tab, without_reader_tab,
 };
 use reader_core::pomodoro::{advance, focus_blocklist, is_focus, Phase, Pomodoro, POMODORO_ALARM};
 use reader_core::types::FocusSession;
@@ -62,7 +62,7 @@ pub async fn sync_session_access_rules() -> Res<()> {
             .filter(|id| is_owned_session_rule(*id))
             .collect();
         let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
-        let add = if is_focus(pomodoro.as_ref()) {
+        let mut add = if is_focus(pomodoro.as_ref()) {
             build_focus_rules(
                 &focus_blocklist(&settings.focus_blocklist),
                 &blocked_page_url(),
@@ -74,6 +74,14 @@ pub async fn sync_session_access_rules() -> Res<()> {
                 &blocked_page_url(),
             )
         };
+        if let Some(rule) = pomodoro
+            .as_ref()
+            .filter(|p| is_focus(Some(p)))
+            .and_then(|p| p.study_video.as_deref())
+            .and_then(study_video_rule)
+        {
+            add.push(rule);
+        }
         last = wait(chrome::dnr_update_session_rules(&to_js(
             &json!({ "removeRuleIds": remove, "addRules": add }),
         )?))
@@ -107,6 +115,7 @@ pub async fn remove_legacy_daily_gate_rule() -> Res<()> {
 
 /// An already-open blocked tab would defeat the point.
 pub async fn redirect_open_blocked_tabs(domains: &[String]) -> Res<()> {
+    let round: Option<Pomodoro> = store::get("pomodoro").await?;
     let tabs: Vec<Tab> = from_js(
         wait(chrome::tabs_query(&to_js(
             &json!({ "url": ["http://*/*", "https://*/*"] }),
@@ -114,18 +123,54 @@ pub async fn redirect_open_blocked_tabs(domains: &[String]) -> Res<()> {
         .await?,
     )?;
     for tab in tabs {
-        let (Some(id), Some(url)) = (tab.id, tab.url) else {
-            continue;
-        };
-        let Ok(parsed) = url::Url::parse(&url) else {
-            continue;
-        };
-        if is_blocked_host(parsed.host_str().unwrap_or(""), domains) {
-            let target = format!("{}#{url}", blocked_page_url());
-            wait(chrome::tabs_update(id, &to_js(&json!({ "url": target }))?)).await?;
+        if let (Some(id), Some(url)) = (tab.id, tab.url) {
+            redirect_if_blocked(id, &url, round.as_ref(), domains).await?;
         }
     }
     Ok(())
+}
+
+/// The one block decision: a blocked http(s) host, unless it is the round's study video.
+async fn redirect_if_blocked(
+    tab_id: i32,
+    url: &str,
+    round: Option<&Pomodoro>,
+    domains: &[String],
+) -> Res<()> {
+    if allows_study_video(round, url) {
+        return Ok(());
+    }
+    let Ok(parsed) = url::Url::parse(url) else {
+        return Ok(());
+    };
+    if matches!(parsed.scheme(), "http" | "https")
+        && is_blocked_host(parsed.host_str().unwrap_or(""), domains)
+    {
+        let target = format!("{}#{url}", blocked_page_url());
+        wait(chrome::tabs_update(
+            tab_id,
+            &to_js(&json!({ "url": target }))?,
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
+fn allows_study_video(round: Option<&Pomodoro>, url: &str) -> bool {
+    round
+        .filter(|p| is_focus(Some(p)))
+        .and_then(|p| p.study_video.as_ref())
+        .is_some_and(|id| reader_core::youtube::video_id(url).as_ref() == Some(id))
+}
+
+/// YouTube also navigates without a document request, so check its URL changes.
+pub async fn check_focus_navigation(tab_id: i32, url: &str) -> Res<()> {
+    let round: Option<Pomodoro> = store::get("pomodoro").await?;
+    if !is_focus(round.as_ref()) {
+        return Ok(());
+    }
+    let domains = focus_blocklist(&store::settings().await?.focus_blocklist);
+    redirect_if_blocked(tab_id, url, round.as_ref(), &domains).await
 }
 
 /// A reader page announced itself; the first one starts the session.
@@ -261,51 +306,61 @@ pub async fn pomodoro_changed() -> Res<()> {
 
 /// The phase is up: move on, ring, and say what comes next.
 pub async fn pomodoro_alarm() -> Res<()> {
-    let Some(p) = store::get::<Option<Pomodoro>>("pomodoro").await? else {
+    // Only the state change holds the tasks lock; the bell and the notice run after.
+    let into_break = store::with_lock("tasks", async {
+        let Some(p) = store::get::<Option<Pomodoro>>("pomodoro").await? else {
+            return Ok(None);
+        };
+        // A stale alarm (the phase was restarted meanwhile) waits for its own.
+        if now() + 1000 < p.ends_at {
+            return Ok(None);
+        }
+        let into_break = p.phase == Phase::Focus;
+        if into_break {
+            log_activity(ActivityEvent::Focus).await?;
+            log_activity(ActivityEvent::Clocked(
+                ((p.ends_at - p.started_at) / 60_000) as u32,
+            ))
+            .await?;
+        }
+        store::set("pomodoro", &advance(p, now())).await?;
+        Res::Ok(Some(into_break))
+    })
+    .await?;
+    let Some(into_break) = into_break else {
         return Ok(());
     };
-    // A stale alarm (the phase was restarted meanwhile) waits for its own.
-    if now() + 1000 < p.ends_at {
-        return Ok(());
-    }
-    let into_break = p.phase == Phase::Focus;
-    if into_break {
-        log_activity(ActivityEvent::Focus).await?;
-        log_activity(ActivityEvent::Clocked(
-            ((p.ends_at - p.started_at) / 60_000) as u32,
+    {
+        let kind = if into_break { "break" } else { "focus" };
+        let _ = wait(chrome::offscreen_close()).await; // the last chime may still be open
+        let _ = wait(chrome::offscreen_create(&to_js(&json!({
+            "url": format!("chime.html#{kind}"),
+            "reasons": ["AUDIO_PLAYBACK"],
+            "justification": "The Pomodoro bell at the end of a focus round or a break.",
+        }))?))
+        .await;
+        let (title, message) = if into_break {
+            (
+                "Break",
+                "Five minutes. Step away and breathe; the sites are open again.",
+            )
+        } else {
+            (
+                "Break over",
+                "Pick up to three tasks from your board on the new tab when you are ready for the next round.",
+            )
+        };
+        wait(chrome::notifications_create(
+            POMODORO_ALARM,
+            &to_js(&json!({
+                "type": "basic",
+                "iconUrl": chrome::get_url("icons/icon-128.png"),
+                "title": title,
+                "message": message,
+                "silent": true,
+            }))?,
         ))
-        .await?;
+        .await
+        .map(drop)
     }
-    store::set("pomodoro", &advance(p, now())).await?;
-    let kind = if into_break { "break" } else { "focus" };
-    let _ = wait(chrome::offscreen_close()).await; // the last chime may still be open
-    let _ = wait(chrome::offscreen_create(&to_js(&json!({
-        "url": format!("chime.html#{kind}"),
-        "reasons": ["AUDIO_PLAYBACK"],
-        "justification": "The Pomodoro bell at the end of a focus round or a break.",
-    }))?))
-    .await;
-    let (title, message) = if into_break {
-        (
-            "Break",
-            "Five minutes. Step away and breathe; the sites are open again.",
-        )
-    } else {
-        (
-            "Break over",
-            "Name three tasks on the new tab when you are ready for the next round.",
-        )
-    };
-    wait(chrome::notifications_create(
-        POMODORO_ALARM,
-        &to_js(&json!({
-            "type": "basic",
-            "iconUrl": chrome::get_url("icons/icon-128.png"),
-            "title": title,
-            "message": message,
-            "silent": true,
-        }))?,
-    ))
-    .await
-    .map(drop)
 }

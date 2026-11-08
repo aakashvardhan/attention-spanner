@@ -68,7 +68,7 @@ fn build(t: &Value) -> Value {
             let kind = t["force"]
                 .as_str()
                 .and_then(|k| serde_json::from_value(json!(k)).ok());
-            reader_core::youtube::notes_request(t["url"].as_str().unwrap_or_default(), kind)
+            reader_core::youtube::notes_request(t["url"].as_str().unwrap_or_default(), kind, None)
         }
         Some("video-talk") => {
             let history: Vec<Turn> = t["history"]

@@ -99,6 +99,33 @@ pub fn build_focus_rules(domains: &[String], redirect_base: &str) -> Vec<DnrRule
         .collect()
 }
 
+/// Only the chosen watch URL bypasses focus blocking; other videos stay blocked.
+pub fn study_video_rule(id: &str) -> Option<DnrRule> {
+    if crate::youtube::video_id(&crate::youtube::watch_url(id)).as_deref() != Some(id) {
+        return None;
+    }
+    Some(DnrRule {
+        id: crate::constants::STUDY_VIDEO_DNR_ID,
+        priority: FOCUS_DNR_PRIORITY + 1,
+        action: DnrAction {
+            kind: "allow".into(),
+            redirect: None,
+        },
+        condition: DnrCondition {
+            // Every link shape video_id accepts. The host goes in requestDomains
+            // (subdomains included): a host alternation in the regex exceeds
+            // Chrome's 2KB RE2 limit and the whole rule update is rejected.
+            request_domains: Some(vec!["youtube.com".into(), "youtu.be".into()]),
+            // On /watch it must be the FIRST v=, the one YouTube plays.
+            regex_filter: Some(format!(
+                r"^https?://[^/]+/(watch\?(([^v&#][^&#]*|v[^=&#][^&#]*|v)?&)*v={id}(&|$)|((shorts|embed|live)/)?{id}([/?]|$))"
+            )),
+            resource_types: vec!["main_frame".into()],
+            ..Default::default()
+        },
+    })
+}
+
 /// The session's whole rule set: the blocklist redirects while a reader tab is
 /// open, nothing otherwise. Rebuilt atomically on every change.
 pub fn build_session_access_rules(
@@ -116,6 +143,7 @@ pub fn build_session_access_rules(
 /// Session rule ids this module owns: the retired gate's allow rule and the focus range.
 pub fn is_owned_session_rule(id: i64) -> bool {
     id == crate::constants::DAILY_GATE_ALLOW_DNR_ID
+        || id == crate::constants::STUDY_VIDEO_DNR_ID
         || (FOCUS_DNR_ID_BASE..crate::constants::FOCUS_DNR_ID_LIMIT).contains(&id)
 }
 
@@ -169,6 +197,42 @@ pub fn is_blocking(session: Option<&FocusSession>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn study_allowance_matches_one_video_and_is_removed_with_session_rules() {
+        let rule = study_video_rule("abcdefghijk").unwrap();
+        let re = Regex::new(rule.condition.regex_filter.as_ref().unwrap()).unwrap();
+        assert!(re.is_match("https://www.youtube.com/watch?v=abcdefghijk&t=30"));
+        assert!(re.is_match("https://youtube.com/watch?list=PL123&v=abcdefghijk"));
+        assert!(re.is_match("https://youtube.com/watch?vq=hd&v=abcdefghijk"));
+        for ok in [
+            "https://www.youtube.com/shorts/abcdefghijk",
+            "https://music.youtube.com/watch?v=abcdefghijk",
+            "https://www.youtube.com/live/abcdefghijk?si=x",
+            "https://www.youtube.com/embed/abcdefghijk",
+            "https://youtu.be/abcdefghijk?t=3",
+        ] {
+            assert!(re.is_match(ok), "{ok}");
+        }
+        for other in [
+            "https://www.youtube.com/watch?v=otherviddd1&v=abcdefghijk",
+            "https://www.youtube.com/shorts/abcdefghijkx",
+            "https://youtu.be/abcdefghijkx",
+            "https://youtube.com/",
+            "https://youtube.com/watch?v=abcdefghijkx",
+            "https://youtube.com/watch?v=other_video",
+        ] {
+            assert!(!re.is_match(other), "{other}");
+        }
+        // Hosts are Chrome's requestDomains match, which covers subdomains only.
+        assert_eq!(
+            rule.condition.request_domains.as_deref(),
+            Some(&["youtube.com".to_string(), "youtu.be".to_string()][..])
+        );
+        assert!(is_owned_session_rule(rule.id));
+        assert!(study_video_rule(".*").is_none());
+        assert!(study_video_rule("abcdefghij!").is_none());
+    }
 
     #[test]
     fn normalize_passes_clean_domains_and_strips_the_rest() {

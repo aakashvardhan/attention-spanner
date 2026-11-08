@@ -4,6 +4,7 @@
 
 use crate::chrome;
 use crate::pages::ai::{use_ai, AiNote, AiStatus, SaveNotePrompt};
+use crate::pages::lexicon::TermSources;
 use leptos::html;
 use leptos::prelude::*;
 use reader_core::ai::define_request;
@@ -11,6 +12,7 @@ use reader_core::annotations::{merge_line_rects, normalize_rects, Box};
 use reader_core::clicked_word::{chars_to_utf16, clicked_word, utf16_to_chars};
 use reader_core::constants::ANNOTATION_TEXT_MAX_CHARS;
 use reader_core::constants::LEXICON_PAGE_PATH;
+use reader_core::lexicon::{split_definition, term_key, Lexicon};
 use reader_core::types::AnnotationRect;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, Node};
@@ -230,6 +232,13 @@ pub fn DefinePopover(
     };
     let draft = RwSignal::new(String::new());
     let guess = RwSignal::new(None::<String>);
+    // A snapshot on purpose: what was saved before this popover, not what it just kept.
+    let previous = RwSignal::new(Lexicon::default());
+    leptos::task::spawn_local(async move {
+        if let Ok(lex) = crate::store::get::<Lexicon>("lexicon").await {
+            previous.try_set(lex);
+        }
+    });
     let root: NodeRef<html::Div> = NodeRef::new();
     let input: NodeRef<html::Input> = NodeRef::new();
 
@@ -269,6 +278,20 @@ pub fn DefinePopover(
         }
     );
     let request = StoredValue::new(define_request(&doc_key, &word, &context, &near));
+    let clicked = term_key(&word);
+    let saved = Memo::new(move |_| {
+        let key = ai
+            .view
+            .with(|v| {
+                if v.status == AiStatus::Done {
+                    split_definition(&v.text).0.map(|label| term_key(&label))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| clicked.clone());
+        previous.with(|lex| lex.terms.iter().find(|t| t.id == key).cloned())
+    });
     let submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
         let text = draft.get_untracked().trim().to_string();
@@ -294,6 +317,12 @@ pub fn DefinePopover(
                 <p class="define-guess-text">{move || guess.get().unwrap_or_default()}</p>
                 <p class="define-label">"In the paper"</p>
                 <AiNote ai=ai />
+                {move || saved.get().map(|term| view! {
+                    <details class="define-saved" open>
+                        <summary>{format!("Previously saved: {}", term.label)}</summary>
+                        <TermSources sources=term.sources />
+                    </details>
+                })}
                 <SaveNotePrompt ai=ai on_save=Callback::new(move |note: String| {
                     on_save.run(format!("Your guess: {} / Paper: {note}", guess.get_untracked().unwrap_or_default()));
                     on_close.run(());

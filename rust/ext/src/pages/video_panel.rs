@@ -18,7 +18,8 @@ use js_sys::{Array, Object, Reflect};
 use leptos::prelude::*;
 use reader_core::voice_agent::Source;
 use reader_core::youtube::{
-    notes_document, notes_request, parse_notes, watch_url, Kind, VideoNotes,
+    chapters, clip, merge, notes_document, notes_request, parse_notes, stamp, watch_url, Kind,
+    Section, VideoNotes, CLIP_MAX,
 };
 use serde_json::Value;
 use std::cell::RefCell;
@@ -45,6 +46,8 @@ extern "C" {
     fn seek_fn() -> JsValue;
     #[wasm_bindgen(js_name = positionFn)]
     fn position_fn() -> JsValue;
+    #[wasm_bindgen(js_name = infoFn)]
+    fn info_fn() -> JsValue;
 }
 
 /// Runs `func` (one of js/tab-video.mjs) with `arg` in the tab's page, where the player is.
@@ -75,11 +78,30 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
     let mode = RwSignal::new("notes");
     let position = RwSignal::new(0u32);
     let alive = StoredValue::new(true);
+    // The part to take notes on, and what the page says about the video.
+    let from = RwSignal::new(String::new());
+    let to = RwSignal::new(String::new());
+    let length = RwSignal::new(0u32);
+    let chaps = RwSignal::new(Vec::<(u32, String)>::new());
+    let load_info = move || {
+        leptos::task::spawn_local(async move {
+            let info = in_tab(tab_id, &info_fn(), JsValue::NULL)
+                .await
+                .and_then(|v| from_js::<Value>(v).ok())
+                .unwrap_or_default();
+            if alive.try_get_value() != Some(true) {
+                return;
+            }
+            length.set(info["length"].as_u64().unwrap_or(0) as u32);
+            chaps.set(chapters(info["description"].as_str().unwrap_or_default()));
+        })
+    };
     // Each loop runs only while its generation is current: restarting one
     // (Cancel then Take notes; Talk, Notes, Talk) never leaves two running.
     let ticker_gen = StoredValue::new(0u64);
     let position_gen = StoredValue::new(0u64);
     on_cleanup(move || alive.set_value(false));
+    load_info();
 
     // Counts up while this video's notes are being made, here or by a panel
     // that has since closed.
@@ -111,11 +133,27 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
     }
 
     let (id2, title2) = (id.clone(), title);
-    let take = move |kind: Option<Kind>| {
+    // `add`: the part joins the notes already kept instead of replacing them.
+    let take = move |kind: Option<Kind>, add: bool| {
         let key = settings.get_untracked().gemini_key;
         if key.is_empty() || started(&id2).is_some() {
             return;
         }
+        let part = match clip(
+            &from.get_untracked(),
+            &to.get_untracked(),
+            length.get_untracked(),
+        ) {
+            Ok(None) if add => {
+                error.set("Set From and To for the part to add.".into());
+                return;
+            }
+            Ok(p) => p,
+            Err(m) => {
+                error.set(m);
+                return;
+            }
+        };
         let Ok(c) = web_sys::AbortController::new() else {
             return;
         };
@@ -126,10 +164,26 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
         let url = watch_url(&id);
         let title = title2.get_untracked();
         leptos::task::spawn_local(async move {
-            let made =
-                gemini::generate(&key, &notes_request(&url, kind), NOTES_TIMEOUT_MS, Some(c))
-                    .await
-                    .and_then(|body| parse_notes(&body, &id, &url, &title, now()));
+            let made = gemini::generate(
+                &key,
+                &notes_request(&url, kind, part),
+                NOTES_TIMEOUT_MS,
+                Some(c),
+            )
+            .await
+            .and_then(|body| parse_notes(&body, &id, &url, &title, now()))
+            .map(|mut n| {
+                // A part's summary is the part's, kept with its range.
+                n.sections = part
+                    .map(|(from, to)| Section {
+                        from,
+                        to,
+                        summary: std::mem::take(&mut n.summary),
+                    })
+                    .into_iter()
+                    .collect();
+                n
+            });
             // Cancelled meanwhile: drop the result, say nothing.
             let ours = IN_FLIGHT.with(|m| m.borrow_mut().remove(&id)).is_some();
             if !ours {
@@ -140,7 +194,16 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
                     // Read fresh: another panel may have saved notes meanwhile.
                     let mut saved: BTreeMap<String, VideoNotes> =
                         store::get("videoNotes").await.unwrap_or_default();
+                    let n = match saved.remove(&id) {
+                        Some(old) if add => merge(old, n),
+                        _ => n,
+                    };
                     saved.insert(id, n);
+                    // The next part most likely starts where this one ended.
+                    if let (true, Some((_, end))) = (alive.try_get_value() == Some(true), part) {
+                        from.set(stamp(end));
+                        to.set(String::new());
+                    }
                     if store::set("videoNotes", &saved).await.is_err()
                         && alive.try_get_value() == Some(true)
                     {
@@ -200,6 +263,21 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
             .unwrap_or_else(|| title.get())
     };
 
+    let range = move || {
+        view! {
+            <Show when=move || { length.get() > CLIP_MAX }>
+                <p class="sidebar-quiet">{move || format!("This video is {} long. Gemini watches up to {} at a time: pick the part to take notes on.", stamp(length.get()), stamp(CLIP_MAX))}</p>
+            </Show>
+            <div class="sidebar-range">
+                <label>"From" <input type="text" inputmode="numeric" list="video-chapters" placeholder="0:00" prop:value=move || from.get() on:input=move |e| from.set(event_target_value(&e)) /></label>
+                <label>"To" <input type="text" inputmode="numeric" list="video-chapters" placeholder={move || if length.get() > 0 { stamp(length.get()) } else { "end".into() }} prop:value=move || to.get() on:input=move |e| to.set(event_target_value(&e)) /></label>
+            </div>
+            <datalist id="video-chapters">
+                {move || chaps.get().into_iter().map(|(t, label)| view! { <option value=stamp(t) label=label></option> }).collect_view()}
+            </datalist>
+        }
+    };
+
     view! {
         <h1 class="sidebar-title">{heading}</h1>
         <Show when=move || no_key.get()>
@@ -220,7 +298,8 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
             (false, _) => ().into_any(),
             (true, None) => view! {
                 <p class="sidebar-quiet">"Gemini watches the video and writes takeaways shaped to it: lecture, tutorial or explainer."</p>
-                <button type="button" class="fc-primary-btn" disabled=move || working.get().is_some() on:click=move |_| take.with_value(|f| f(None))>"Take notes"</button>
+                {range}
+                <button type="button" class="fc-primary-btn" disabled=move || working.get().is_some() on:click=move |_| take.with_value(|f| f(None, false))>"Take notes"</button>
             }.into_any(),
             (true, Some(n)) => {
                 let kind = n.kind;
@@ -231,7 +310,7 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
                         <div class="sidebar-switch" role="group" aria-label="Notes shape">
                             {Kind::ALL.into_iter().map(|k| view! {
                                 <button type="button" aria-pressed=(k == kind).to_string() disabled=move || working.get().is_some()
-                                    on:click=move |_| if k != kind { take.with_value(|f| f(Some(k))) }>{k.label()}</button>
+                                    on:click=move |_| if k != kind { take.with_value(|f| f(Some(k), false)) }>{k.label()}</button>
                             }).collect_view()}
                         </div>
                     </Show>
@@ -239,6 +318,11 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
                         <button type="button" aria-pressed=move || (mode.get() == "notes").to_string() on:click=move |_| mode.set("notes")>"Notes"</button>
                         <button type="button" aria-pressed=move || (mode.get() == "talk").to_string() on:click=move |_| mode.set("talk")>"Talk it through"</button>
                     </div>
+                    <Show when=move || mode.get() == "notes">
+                        {range}
+                        <button type="button" class="ghost-btn" disabled=move || working.get().is_some()
+                            on:click=move |_| take.with_value(|f| f(Some(kind), true))>"Add notes for this part"</button>
+                    </Show>
                     {move || if mode.get() == "notes" {
                         view! { <NotesView notes=n.clone() on_seek=Some(seek) /> }.into_any()
                     } else {

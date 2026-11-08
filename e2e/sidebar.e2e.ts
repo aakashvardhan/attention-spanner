@@ -214,13 +214,32 @@ describe('side panel: webpage', () => {
     await expect.poll(() => side2.getByText("Couldn't find any text on this page.").count()).toBe(1);
   });
 
-  it('the toolbar icon opens the side panel', async () => {
+  it('the toolbar icon opens the side panel on its tab only', async () => {
     const r = await ext.sw.evaluate(async () => ({
       path: (chrome.runtime.getManifest() as { side_panel?: { default_path: string } }).side_panel?.default_path,
       behavior: await chrome.sidePanel.getPanelBehavior(),
+      // Off for every tab the icon was not clicked on: another tab doesn't show it.
+      global: await chrome.sidePanel.getOptions({}),
     }));
     expect(r.path).toBe('src/pages/sidebar/index.html');
-    expect(r.behavior.openPanelOnActionClick).toBe(true);
+    // The worker's action.onClicked opens it instead (tab-specific path, ?tab=<id>).
+    expect(r.behavior.openPanelOnActionClick).toBe(false);
+    expect(r.global.enabled).toBe(false);
+
+    // A click turns it on for that tab, the next one off. (open() itself needs a
+    // real click, so here it fails quietly: the toggle is what is checked.)
+    const tabId = await openTab('/');
+    const after = (n: number) => ext.sw.evaluate(async ({ id, n }) => {
+      const g = globalThis as unknown as { togglePanel(t: { id: number }): void };
+      for (let i = 0; i < n; i++) g.togglePanel({ id });
+      await new Promise((r) => setTimeout(r, 200));
+      return chrome.sidePanel.getOptions({ tabId: id });
+    }, { id: tabId, n });
+    const on = await after(1);
+    expect(on.enabled).toBe(true);
+    expect(on.path).toBe(`src/pages/sidebar/index.html?tab=${tabId}`);
+    expect((await after(1)).enabled).toBe(false);
+    expect((await after(1)).enabled).toBe(true);
   });
 
   /** Runs page-text.js in the tab; its result. */

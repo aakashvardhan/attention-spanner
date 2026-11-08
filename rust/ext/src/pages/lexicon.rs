@@ -14,9 +14,10 @@ use reader_core::ai::{route, Route};
 use reader_core::constants::PAPERS_PAGE_PATH;
 use reader_core::graph_layout::{Cam, Sim};
 use reader_core::lexicon::{
-    add_term, link_request, merge_links, parse_links, remove_edge, remove_term, unlinked, Lexicon,
-    Source,
+    add_term, link_request, merge_links, parse_links, remove_edge, remove_term, source_reader_path,
+    unlinked, Lexicon, Source,
 };
+use reader_core::types::Paper;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
@@ -877,16 +878,7 @@ fn TermPop(
                 <h2 class="lex-pop-title">{label}</h2>
                 <button type="button" class="ai-note-link" aria-label="Close" on:click=move |_| on_close.run(())>"×"</button>
             </div>
-            {move || term.get().map(|t| t.sources.into_iter().map(|s| {
-                let guess = s.guess.clone();
-                view! {
-                    <section class="lex-source">
-                        <p class="lex-paper">{s.paper_title}</p>
-                        <Markdown text=Signal::derive(move || s.definition.clone()) />
-                        {(!guess.is_empty()).then(|| view! { <p class="lex-guess">"Your guess: "{guess}</p> })}
-                    </section>
-                }
-            }).collect_view())}
+            {move || term.get().map(|t| view! { <TermSources sources=t.sources /> })}
             <Show when=move || links.with(|l| !l.is_empty())>
                 <p class="lex-links-label">"Links"</p>
                 <ul class="lex-links">
@@ -915,6 +907,28 @@ fn TermPop(
             </div>
         </div>
     }
+}
+
+#[component]
+pub fn TermSources(sources: Vec<Source>) -> impl IntoView {
+    let (papers, _) = use_storage::<Vec<Paper>>("papers");
+    sources.into_iter().map(|s| {
+        let source = s.clone();
+        let href = Memo::new(move |_| papers.with(|p| source_reader_path(&source, p)));
+        let guess = s.guess;
+        let context = s.context;
+        view! {
+            <section class="lex-source">
+                <p class="lex-paper">{s.paper_title}</p>
+                <Markdown text=Signal::derive(move || s.definition.clone()) />
+                {(!context.is_empty()).then(|| view! { <blockquote class="lex-context">{context}</blockquote> })}
+                {(!guess.is_empty()).then(|| view! { <p class="lex-guess">"Your guess: "{guess}</p> })}
+                {move || href.get().map(|path| view! {
+                    <a class="ai-note-link" href=chrome::get_url(&path) target="_blank" rel="noopener">"Open paper ↗"</a>
+                })}
+            </section>
+        }
+    }).collect_view()
 }
 
 #[component]

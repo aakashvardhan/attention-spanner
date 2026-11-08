@@ -48,6 +48,8 @@ alphaXiv one menu item away.
   between them.
 - **Find in document**, and **resume where you left off**: the exact page and
   scroll position, saved the moment you switch or close the tab.
+- **Explain it back**: unfinished explanations save automatically on this
+  device, separately for each paper, even when you close the panel or reload.
 - **Click a word to define it.** You write your guess from the sentence around
   it first; then Claude Haiku says what it means in this paper. This is the
   one place the reader tells rather than asks. Keep the definition as a note on
@@ -63,16 +65,25 @@ restarts.
 ### The new tab
 
 - **Continue reading**: the paper you read last, opened where you stopped.
+  Queued and completed papers are tucked into expandable sections.
+- **Focus rounds**: start from a task on the board, or choose up to three
+  for 25 minutes. Task edits and completion stay in sync with the round.
+  An optional YouTube link allows that study video while other videos stay
+  blocked. News stays hidden during focus and reading sessions.
 - **Brain dump**: type what is looping; Claude Haiku hands it back a little
   lighter, and the words go into an encrypted vault (RSA-OAEP and AES-GCM,
   unlocked by your passphrase or a recovery code). The new tab never shows a
   dump; the dumps page does, once unlocked.
+  The box shows when vault setup is still needed; submissions remain
+  unencrypted until setup finishes. Extracted tasks can be edited on the
+  board or undone together.
 - **Activity**: a year of reading and focus sessions as a heatmap.
 
 ### Design
 
-One theme: walnut and brass, held to WCAG 2.2 AAA (7:1 text contrast) and the
-W3C's cognitive accessibility guidance. Body text is Atkinson Hyperlegible.
+Six palettes, including dark Grid, with tokens tested for AAA text contrast
+(7:1). Reader panels use opaque surfaces; notes and settings use larger body
+text. Body text is Atkinson Hyperlegible.
 Motion is stilled under Reduce Motion; translucency follows Reduce
 Transparency.
 

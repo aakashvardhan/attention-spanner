@@ -159,6 +159,157 @@ pub struct VideoNotes {
     pub question: String,
     pub ideas: Vec<Idea>,
     pub created_at: i64,
+    /// The parts of the video these notes cover, in time order; empty = all
+    /// of it. (Named `sections`: a `parts` field of pairs was stored briefly.)
+    pub sections: Vec<Section>,
+}
+
+/// One part of a video taken on its own: its range in seconds and its summary
+/// (the notes' own summary stays empty).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Section {
+    pub from: u32,
+    pub to: u32,
+    pub summary: String,
+}
+
+impl Section {
+    pub fn range(&self) -> String {
+        format!("{}–{}", stamp(self.from), stamp(self.to))
+    }
+}
+
+/// Sectioned notes split by part, each part's items in time order; an item
+/// goes to the last part starting at or before it (the first, without a time).
+/// Prerequisites and the question go with the first part. Empty when the
+/// notes cover the whole video.
+pub fn group(n: &VideoNotes) -> Vec<(Section, VideoNotes)> {
+    let at = |t: &str| {
+        let secs = seconds(t).unwrap_or(0);
+        n.sections.iter().rposition(|s| s.from <= secs).unwrap_or(0)
+    };
+    fn pick<T: Clone>(
+        items: &[T],
+        t: impl Fn(&T) -> &str,
+        i: usize,
+        at: &impl Fn(&str) -> usize,
+    ) -> Vec<T> {
+        let mut v: Vec<T> = items.iter().filter(|x| at(t(x)) == i).cloned().collect();
+        v.sort_by_key(|x| seconds(t(x)).unwrap_or(0));
+        v
+    }
+    n.sections
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let first = i == 0;
+            let sub = VideoNotes {
+                id: n.id.clone(),
+                kind: n.kind,
+                summary: s.summary.clone(),
+                cues: pick(&n.cues, |x| &x.t, i, &at),
+                notes: pick(&n.notes, |x| &x.t, i, &at),
+                steps: pick(&n.steps, |x| &x.t, i, &at),
+                ideas: pick(&n.ideas, |x| &x.t, i, &at),
+                prerequisites: if first {
+                    n.prerequisites.clone()
+                } else {
+                    vec![]
+                },
+                question: if first {
+                    n.question.clone()
+                } else {
+                    String::new()
+                },
+                ..Default::default()
+            };
+            (s.clone(), sub)
+        })
+        .collect()
+}
+
+/// The longest stretch Gemini is asked to watch at once. Measured 2026-11-08:
+/// a 2 h video took 65 s; a 25 h one failed with a bare 500.
+pub const CLIP_MAX: u32 = 2 * 3600;
+
+/// The part to watch from the From/To fields (empty From = the start, empty
+/// To = the end): None for the whole video, or why it can't be asked for.
+pub fn clip(from: &str, to: &str, length: u32) -> Result<Option<(u32, u32)>, String> {
+    let read = |t: &str, name: &str| match t.trim() {
+        "" => Ok(None),
+        t => seconds(t)
+            .map(Some)
+            .ok_or_else(|| format!("{name} isn't a time like 1:02:03.")),
+    };
+    let (f, t) = (read(from, "From")?, read(to, "To")?);
+    let start = f.unwrap_or(0);
+    let end = match (t, length) {
+        (Some(t), 0) => t,
+        (Some(t), l) => t.min(l),
+        (None, 0) if start == 0 => return Ok(None),
+        (None, 0) => return Err("Set To as well: the video's length isn't known.".into()),
+        (None, l) => l,
+    };
+    if f.is_none() && t.is_none() && length <= CLIP_MAX {
+        return Ok(None);
+    }
+    if end <= start {
+        return Err("To must come after From.".into());
+    }
+    if end - start > CLIP_MAX {
+        return Err(format!(
+            "That part is {} long. Gemini watches up to {} at a time: set From and To.",
+            stamp(end - start),
+            stamp(CLIP_MAX)
+        ));
+    }
+    Ok(Some((start, end)))
+}
+
+/// The chapters a description lists: `(seconds, label)` for each line with a
+/// timestamp ("1:02:03 Attention", "Intro - 0:00", "(12:30) Q&A"), in order.
+pub fn chapters(description: &str) -> Vec<(u32, String)> {
+    let mut out: Vec<(u32, String)> = description
+        .lines()
+        .filter_map(|line| {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            let trim = |w: &str| w.trim_matches(|c: char| !c.is_ascii_digit()).to_string();
+            let i = words.iter().position(|w| seconds(&trim(w)).is_some())?;
+            let secs = seconds(&trim(words[i]))?;
+            let mut rest = words.clone();
+            rest.remove(i);
+            let label = rest
+                .join(" ")
+                .trim_matches(|c: char| c.is_whitespace() || "-–—:|•()[]".contains(c))
+                .to_string();
+            Some((secs, label))
+        })
+        .collect();
+    out.sort_by_key(|c| c.0);
+    out.dedup_by_key(|c| c.0);
+    out
+}
+
+/// A newly made part added to the notes already kept for the video: lists
+/// and sections appended. The kept title and shape stay.
+pub fn merge(mut old: VideoNotes, new: VideoNotes) -> VideoNotes {
+    old.cues.extend(new.cues);
+    old.notes.extend(new.notes);
+    old.steps.extend(new.steps);
+    old.ideas.extend(new.ideas);
+    for p in new.prerequisites {
+        if !old.prerequisites.contains(&p) {
+            old.prerequisites.push(p);
+        }
+    }
+    if old.question.is_empty() {
+        old.question = new.question;
+    }
+    old.sections.extend(new.sections);
+    old.sections.sort_by_key(|s| s.from);
+    old.created_at = new.created_at;
+    old
 }
 
 /// Longer than this, a "title" is notes in the wrong field.
@@ -200,15 +351,27 @@ real moments in the video. Fill only the chosen shape's fields; leave the others
 text in every field: no markdown.";
 
 /// The request that watches the video and writes its notes. `kind` forces a
-/// shape (the reader switched it); None lets Gemini decide.
-pub fn notes_request(url: &str, kind: Option<Kind>) -> Value {
-    let ask = match kind {
+/// shape (the reader switched it); None lets Gemini decide. `clip` is the
+/// part to watch, in seconds; None is the whole video.
+pub fn notes_request(url: &str, kind: Option<Kind>, clip: Option<(u32, u32)>) -> Value {
+    let mut ask = match kind {
         None => format!("Decide whether this video is a lecture, a tutorial or an educational explainer, set kind, and write its takeaways in that kind's shape. {SHAPES}"),
         Some(k) => format!("Write this video's takeaways as a {w}: set kind to {w}. {SHAPES}", w = k.word()),
     };
+    let mut video = json!({ "file_data": { "file_uri": url } });
+    if let Some((from, to)) = clip {
+        // Live 2026-11-08: timestamps in a clip's notes count from the video's start.
+        video["video_metadata"] =
+            json!({ "start_offset": format!("{from}s"), "end_offset": format!("{to}s") });
+        ask.push_str(&format!(
+            " You are given only the part from {} to {}: take notes on that part alone.",
+            stamp(from),
+            stamp(to)
+        ));
+    }
     json!({
         "contents": [{ "parts": [
-            { "file_data": { "file_uri": url } },
+            video,
             { "text": ask }
         ] }],
         "generationConfig": { "responseMimeType": "application/json", "responseJsonSchema": schema() }
@@ -281,6 +444,10 @@ pub fn gemini_error(status: u16, body: &str) -> String {
         "This video is too long for Gemini in one go.".into()
     } else if msg.contains("video") || msg.contains("url") || msg.contains("fetch") {
         "Gemini can't open this video (it may be private or unavailable).".into()
+    } else if status == 500 {
+        // A video past Gemini's ~1M-token window (a few hours) comes back as
+        // a bare 500, not a token error.
+        "Gemini failed (500). Videos longer than a few hours are too long for it; otherwise try again.".into()
     } else {
         format!("Gemini didn't answer ({status}).")
     }
@@ -320,6 +487,9 @@ pub fn notes_document(n: &VideoNotes) -> String {
     }
     if !n.summary.is_empty() {
         out.push_str(&format!("Summary: {}\n", n.summary));
+    }
+    for s in &n.sections {
+        out.push_str(&format!("Summary of {}: {}\n", s.range(), s.summary));
     }
     out
 }
@@ -404,10 +574,109 @@ mod tests {
     }
 
     #[test]
+    fn clip_from_the_fields() {
+        let long = 25 * 3600;
+        assert_eq!(clip("", "", 1000), Ok(None));
+        assert_eq!(clip("", "", 0), Ok(None));
+        assert!(clip("", "", long).unwrap_err().contains("set From and To"));
+        assert_eq!(clip("1:00:00", "2:30:00", long), Ok(Some((3600, 9000))));
+        assert_eq!(clip("", "10:00", long), Ok(Some((0, 600))));
+        assert_eq!(clip("24:00:00", "", long), Ok(Some((86400, long))));
+        assert_eq!(clip("5:00", "99:00:00", 1000), Ok(Some((300, 1000))));
+        assert!(clip("10:00", "5:00", long).unwrap_err().contains("after"));
+        assert!(clip("1:00:00", "", 0).unwrap_err().contains("To"));
+        assert!(clip("abc", "", long).unwrap_err().contains("From"));
+    }
+
+    #[test]
+    fn chapters_from_a_description() {
+        let d = "Course notes: https://x.y\n0:00 Intro\nAttention - 1:02:03\n(12:30) Q&A\n12:30 dup\nno time here\n99:99 bad";
+        assert_eq!(
+            chapters(d),
+            vec![
+                (0, "Intro".to_string()),
+                (750, "Q&A".to_string()),
+                (3723, "Attention".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn parts_merge_then_group_in_time_order() {
+        let st = |t: &str, x: &str| Stamped {
+            t: t.into(),
+            text: x.into(),
+        };
+        let sec = |from, to, summary: &str| Section {
+            from,
+            to,
+            summary: summary.into(),
+        };
+        let later = VideoNotes {
+            title: "T".into(),
+            notes: vec![st("2:10:00", "c"), st("2:01:00", "b")],
+            sections: vec![sec(7200, 9000, "two")],
+            ..Default::default()
+        };
+        let first = VideoNotes {
+            title: "other".into(),
+            notes: vec![st("1:00", "a")],
+            prerequisites: vec!["C".into()],
+            sections: vec![sec(0, 7200, "one")],
+            ..Default::default()
+        };
+        // Taken out of order: the later part first.
+        let m = merge(later, first);
+        assert_eq!(m.title, "T");
+        assert_eq!(
+            m.sections.iter().map(|s| s.from).collect::<Vec<_>>(),
+            vec![0, 7200]
+        );
+        let g = group(&m);
+        assert_eq!(g.len(), 2);
+        assert_eq!(g[0].0.range(), "0:00–2:00:00");
+        assert_eq!(g[0].1.summary, "one");
+        assert_eq!(
+            g[0].1
+                .notes
+                .iter()
+                .map(|n| n.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a"]
+        );
+        assert_eq!(g[0].1.prerequisites, vec!["C"]);
+        assert_eq!(
+            g[1].1
+                .notes
+                .iter()
+                .map(|n| n.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["b", "c"]
+        );
+        assert!(g[1].1.prerequisites.is_empty());
+        assert!(notes_document(&m).contains("Summary of 2:00:00–2:30:00: two"));
+        assert!(group(&VideoNotes::default()).is_empty());
+    }
+
+    #[test]
     fn request_shape() {
         let url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-        let r = notes_request(url, None);
+        let r = notes_request(url, None, None);
         assert_eq!(r["contents"][0]["parts"][0]["file_data"]["file_uri"], url);
+        assert!(r["contents"][0]["parts"][0]["video_metadata"].is_null());
+        let c = notes_request(url, None, Some((3600, 4200)));
+        assert_eq!(
+            c["contents"][0]["parts"][0]["video_metadata"]["start_offset"],
+            "3600s"
+        );
+        assert_eq!(
+            c["contents"][0]["parts"][0]["video_metadata"]["end_offset"],
+            "4200s"
+        );
+        assert!(c["contents"][0]["parts"][1]["text"]
+            .as_str()
+            .unwrap()
+            .contains("1:00:00 to 1:10:00"));
         assert!(r["contents"][0]["parts"][1]["text"]
             .as_str()
             .unwrap()
@@ -421,7 +690,7 @@ mod tests {
             kinds,
             &serde_json::json!(["lecture", "tutorial", "educational"])
         );
-        let forced = notes_request(url, Some(Kind::Tutorial));
+        let forced = notes_request(url, Some(Kind::Tutorial), None);
         let text = forced["contents"][0]["parts"][1]["text"].as_str().unwrap();
         assert!(text.contains("tutorial") && !text.contains("Decide"));
         assert!(gemini_url().ends_with("models/gemini-3.6-flash:generateContent"));
@@ -431,7 +700,7 @@ mod tests {
     fn schema_makes_gemini_fill_the_shape() {
         // Live 2026-11-07: with only kind/title/summary required, Gemini put a
         // whole lecture's notes into a 9k-character title and left the lists empty.
-        let r = notes_request("u", None);
+        let r = notes_request("u", None, None);
         let sch = &r["generationConfig"]["responseJsonSchema"];
         let req: Vec<&str> = sch["required"]
             .as_array()
@@ -547,7 +816,8 @@ mod tests {
             ),
             "This video is too long for Gemini in one go."
         );
-        assert!(gemini_error(500, "").contains("500"));
+        assert!(gemini_error(500, "").contains("too long"));
+        assert!(gemini_error(503, "").contains("503"));
     }
 
     #[test]

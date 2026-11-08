@@ -7,6 +7,7 @@ use std::sync::LazyLock;
 pub const MAX_DUMP_CHARS: usize = 4000;
 pub const ASK_TIMEOUT_MS: u32 = 60_000;
 pub const FAILED_MESSAGE: &str = "Couldn't reach Haiku. Your words are still here.";
+pub const SAVE_FAILED_MESSAGE: &str = "Couldn't save your words. Keep this tab open and try again.";
 pub const NO_KEY_MESSAGE: &str =
     "Add a Claude key in Settings to get bullets. Your words are still here.";
 const MAX_BULLETS: usize = 6;

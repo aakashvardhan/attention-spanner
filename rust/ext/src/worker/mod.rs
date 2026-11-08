@@ -168,6 +168,11 @@ pub async fn on_settings_changed(old: JsValue, new: JsValue) {
 /// A tab navigated: a reader tab that went elsewhere has left the session.
 #[wasm_bindgen]
 pub async fn on_tab_url(tab_id: i32, url: String) {
+    guarded(
+        "[worker] focus navigation",
+        session::check_focus_navigation(tab_id, &url),
+    )
+    .await;
     if !session::is_reader_url(&url) {
         guarded("[worker] tab", session::reader_closed(tab_id)).await;
     }

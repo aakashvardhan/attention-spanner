@@ -8,6 +8,8 @@ body {
   background: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 
 .sidebar {
@@ -75,7 +77,8 @@ body {
 .video-notes {
   display: grid;
   gap: var(--space-2);
-  line-height: var(--leading-sm);
+  font-size: var(--text-md);
+  line-height: var(--leading-read);
 }
 
 .video-notes h3 {
@@ -137,4 +140,26 @@ body {
 .gotcha {
   margin-top: var(--space-1);
   color: var(--text-secondary);
+}
+
+.sidebar-range {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.sidebar-range label {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.sidebar-range input {
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
 }

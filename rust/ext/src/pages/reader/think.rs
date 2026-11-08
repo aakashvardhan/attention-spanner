@@ -57,6 +57,8 @@ pub fn QuestionCard(
 /// Problem, trick, why, in the reader's words; graded against the paper's
 /// pages to what is missing and the page to look at. The grade never carries
 /// the answer: `parse_grades` keeps only status, gap and page.
+const DRAFT_DELAY_MS: u64 = 600;
+
 #[component]
 pub fn ExplainPanel(
     doc_key: String,
@@ -70,10 +72,60 @@ pub fn ExplainPanel(
     let grades = RwSignal::new(None::<Vec<Grade>>);
     let unreadable = RwSignal::new(false);
     let saved = StoredValue::new(None::<[String; 3]>);
+    let draft_key = StoredValue::new(format!("explainDraft:{doc_key}"));
+    let loaded = RwSignal::new(false);
+    let draft_status = RwSignal::new("Loading draft…");
+    leptos::task::spawn_local(async move {
+        match store::get::<[String; 3]>(&draft_key.get_value()).await {
+            Ok(draft) => {
+                for (field, text) in fields.into_iter().zip(draft) {
+                    field.try_set(text);
+                }
+                loaded.try_set(true);
+                draft_status.try_set("Draft saved on this device");
+            }
+            // Never leave the panel locked: an unreadable draft is replaced by a new one.
+            Err(_) => {
+                loaded.try_set(true);
+                draft_status.try_set("Couldn't load your draft. Typing here starts a new one.");
+            }
+        }
+    });
+    // One write per pause in typing, not per keystroke.
+    // ponytail: closing the panel inside the delay drops the last keystrokes.
+    let pending = StoredValue::new(None::<TimeoutHandle>);
+    let write_draft = move || {
+        let draft = fields.map(|f| f.get_untracked());
+        let key = draft_key.get_value();
+        leptos::task::spawn_local(async move {
+            let status = if store::set(&key, &draft).await.is_ok() {
+                "Draft saved on this device"
+            } else {
+                "Couldn't save your draft. Keep this panel open and try editing again."
+            };
+            draft_status.try_set(status);
+        });
+    };
+    let save_draft = move || {
+        draft_status.set("Saving draft…");
+        if let Some(h) = pending.try_update_value(Option::take).flatten() {
+            h.clear();
+        }
+        pending.set_value(
+            set_timeout_with_handle(
+                write_draft,
+                std::time::Duration::from_millis(DRAFT_DELAY_MS),
+            )
+            .ok(),
+        );
+    };
     let first: NodeRef<html::Textarea> = NodeRef::new();
     Effect::new(move |_| {
-        if let Some(t) = first.get() {
-            let _ = t.focus();
+        // Next frame: by then the textarea's disabled attribute is gone.
+        if let Some(t) = first.get().filter(|_| loaded.get()) {
+            request_animation_frame(move || {
+                let _ = t.focus();
+            });
         }
     });
 
@@ -92,6 +144,12 @@ pub fn ExplainPanel(
             Some(g) => {
                 grades.set(Some(g.clone()));
                 let key = doc_key.get_value();
+                // Graded: the draft is done; reopening starts fresh.
+                if let Some(h) = pending.try_update_value(Option::take).flatten() {
+                    h.clear();
+                }
+                let draft = draft_key.get_value();
+                draft_status.set("Graded. The draft is cleared from this device.");
                 leptos::task::spawn_local(async move {
                     // ponytail: read-modify-write; two tabs grading the same second can drop one entry.
                     let mut all: ExplainBacks =
@@ -108,7 +166,10 @@ pub fn ExplainPanel(
                             grades: g,
                         },
                     );
-                    let _ = store::set("explainBacks", &all).await;
+                    // The draft goes only once the graded copy is kept.
+                    if store::set("explainBacks", &all).await.is_ok() {
+                        let _ = store::remove(&[draft]).await;
+                    }
                 });
             }
         }
@@ -138,16 +199,17 @@ pub fn ExplainPanel(
         }>
             <h2 id="explain-heading">"Explain it back"</h2>
             <p class="reader-explain-lede">"As if to a friend, in your own words. You get back what is missing and where to look, not the answer."</p>
+            <p class="define-label" role="status">{move || draft_status.get()}</p>
             <form on:submit=submit>
                 {Part::ALL.iter().zip(fields).enumerate().map(|(i, (part, field))| {
                     let id = format!("explain-{part:?}").to_lowercase();
                     let node = if i == 0 { first } else { NodeRef::new() };
                     view! {
                         <label class="define-label" for=id.clone()>{part.label()}</label>
-                        <textarea node_ref=node id=id class="provoke-answer" rows="3" prop:value=move || field.get() on:input=move |e| field.set(event_target_value(&e))></textarea>
+                        <textarea node_ref=node id=id class="provoke-answer" rows="3" disabled=move || !loaded.get() prop:value=move || field.get() on:input=move |e| { field.set(event_target_value(&e)); save_draft(); }></textarea>
                     }
                 }).collect_view()}
-                <button type="submit" class="fc-primary-btn" disabled=move || busy() || empty() || page_texts.with(Option::is_none)>
+                <button type="submit" class="fc-primary-btn" disabled=move || !loaded.get() || busy() || empty() || page_texts.with(Option::is_none)>
                     {move || if busy() { "Checking…" } else { "Check my explanation" }}
                 </button>
             </form>
