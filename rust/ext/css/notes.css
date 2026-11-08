@@ -74,16 +74,3 @@
 .notes-reading .video-notes {
   justify-self: stretch;
 }
-
-/* Notes taken a part at a time: one block per part, its range as the heading. */
-.notes-part + .notes-part {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-}
-
-.notes-part-range {
-  margin: 0 0 var(--space-2);
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}

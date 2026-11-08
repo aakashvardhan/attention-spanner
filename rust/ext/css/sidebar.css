@@ -89,6 +89,29 @@ body {
   text-transform: uppercase;
 }
 
+/* Notes taken a part at a time (side panel and Notes page): one block per
+   part, its range a real heading above the small CUES/SUMMARY labels. */
+.notes-part {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.notes-part + .notes-part {
+  margin-top: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.video-notes .notes-part-range {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 .video-notes ul,
 .video-notes ol {
   display: grid;
