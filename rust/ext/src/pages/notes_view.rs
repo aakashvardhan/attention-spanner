@@ -13,7 +13,7 @@ fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView
         }
         .into_any(),
         (Some(s), None) => view! {
-            <a class="stamp" href=format!("https://www.youtube.com/watch?v={id}&t={s}s") target="_blank" rel="noopener">{stamp(s)}</a>
+            <a class="stamp" href=format!("https://www.youtube.com/watch?v={id}&t={s}s") target="_blank" rel="noopener" aria-label=format!("{}, opens YouTube", stamp(s))>{stamp(s)}</a>
         }
         .into_any(),
         (None, _) => view! { <span class="stamp">{t}</span> }.into_any(),

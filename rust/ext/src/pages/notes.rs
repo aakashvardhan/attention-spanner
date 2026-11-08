@@ -8,6 +8,8 @@ use crate::js::local_date;
 use leptos::prelude::*;
 use reader_core::youtube::VideoNotes;
 use std::collections::BTreeMap;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 fn hash_id() -> Option<String> {
     let h = web_sys::window()?.location().hash().ok()?;
@@ -25,6 +27,13 @@ pub fn Notes() -> impl IntoView {
         v
     });
     let chosen = RwSignal::new(hash_id());
+    // Back, forward, or an edited #id: show what the address says.
+    let on_hash = Closure::<dyn FnMut()>::new(move || chosen.set(hash_id()));
+    if let Some(w) = web_sys::window() {
+        let _ = w.add_event_listener_with_callback("hashchange", on_hash.as_ref().unchecked_ref());
+    }
+    // The page lives as long as its listener.
+    on_hash.forget();
     let pick = move |id: String| {
         if let Some(w) = web_sys::window() {
             let _ = w.location().set_hash(&id);

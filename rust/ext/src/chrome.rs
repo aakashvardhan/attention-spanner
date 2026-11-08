@@ -80,6 +80,8 @@ extern "C" {
     pub fn open_options_page() -> Result<Promise, JsValue>;
     #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = addListener)]
     pub fn on_storage_changed(listener: &Closure<dyn FnMut(JsValue, JsValue)>);
+    #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = removeListener)]
+    pub fn off_storage_changed(listener: &Closure<dyn FnMut(JsValue, JsValue)>);
     #[wasm_bindgen(js_namespace = ["chrome", "tabs", "onActivated"], js_name = addListener)]
     pub fn tabs_on_activated(listener: &Closure<dyn FnMut(JsValue)>);
     #[wasm_bindgen(js_namespace = ["chrome", "tabs", "onUpdated"], js_name = addListener)]

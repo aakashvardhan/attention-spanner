@@ -39,9 +39,11 @@ describe('side panel: YouTube', () => {
   async function openVideo(id: string): Promise<number> {
     const page = await ext.ctx.newPage();
     await page.goto(watch(id));
-    return ext.sw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id!, watch(id));
+    // The newest tab on this video: earlier tests leave others open.
+    return ext.sw.evaluate(async (u) => Math.max(...(await chrome.tabs.query({ url: u })).map((t) => t.id!)), watch(id));
   }
-  const videoPage = (id: string) => ext.ctx.pages().find((p) => p.url().includes(id))!;
+  // The newest page on this video, matching openVideo's tab.
+  const videoPage = (id: string) => ext.ctx.pages().filter((p) => p.url().includes(id)).at(-1)!;
 
   beforeAll(async () => {
     ext = await launch();
@@ -219,6 +221,34 @@ describe('side panel: YouTube', () => {
     const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
     await videoPage(A).evaluate((id) => (window as unknown as { go(id: string, t: string): void }).go(id, 'Brand new talk'), 'ddddddddddd');
     await expect.poll(() => side.getByRole('heading', { name: 'Brand new talk' }).count(), { timeout: 8_000 }).toBe(1);
+    await side.close();
+  });
+
+  it('drops its storage listeners when the panel moves on', async () => {
+    // Count chrome.storage.onChanged listeners in the panel page.
+    await ext.ctx.addInitScript(() => {
+      const ev = (globalThis as unknown as { chrome?: typeof chrome }).chrome?.storage?.onChanged;
+      if (!ev) return;
+      const w = window as unknown as { __live: number };
+      w.__live = 0;
+      const add = ev.addListener.bind(ev);
+      const remove = ev.removeListener.bind(ev);
+      ev.addListener = (f: Parameters<typeof add>[0]) => { w.__live += 1; add(f); };
+      ev.removeListener = (f: Parameters<typeof remove>[0]) => { w.__live -= 1; remove(f); };
+    });
+    const tabId = await openVideo(A);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByText('What is an MMU for?').count()).toBe(1);
+    const live = () => side.evaluate(() => (window as unknown as { __live: number }).__live);
+    const first = await live();
+    expect(first).toBeGreaterThan(0);
+    const mine = videoPage(A);
+    for (const id of [B, A, B, A]) {
+      await mine.evaluate((v) => (window as unknown as { go(id: string): void }).go(v), id);
+      await side.waitForTimeout(1_600);
+    }
+    await expect.poll(() => side.getByText('What is an MMU for?').count()).toBe(1);
+    expect(await live()).toBe(first);
     await side.close();
   });
 

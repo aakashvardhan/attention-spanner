@@ -31,6 +31,14 @@ describe('notes page', () => {
     expect(await page.locator('a.stamp').first().getAttribute('href')).toBe('https://www.youtube.com/watch?v=aaaaaaaaaaa&t=75s');
     expect(await page.getByRole('link', { name: 'Watch on YouTube' }).getAttribute('href')).toBe('https://www.youtube.com/watch?v=aaaaaaaaaaa');
     expect(page.url()).toContain('#aaaaaaaaaaa');
+    // Each moment says where it goes.
+    // (the cue and the note are both at 1:15)
+    expect(await page.getByRole('link', { name: '1:15, opens YouTube' }).count()).toBe(2);
+    // Back and forward follow the picked video.
+    await page.goBack();
+    await expect.poll(() => page.getByText('Pick a video to read its notes.').count()).toBe(1);
+    await page.goForward();
+    await expect.poll(() => page.getByText('Page tables map addresses.').count()).toBe(1);
     await expectA11y(page, 'notes');
     // A link straight to one video's notes.
     const direct = await ext.page(`${PAGES.notes}#bbbbbbbbbbb`);

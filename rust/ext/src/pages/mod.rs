@@ -26,6 +26,7 @@ use wasm_bindgen::prelude::*;
 /// A storage key as a signal: `(value, loaded)`. Starts at the default, fills
 /// in once read, and follows every later change (another tab, the worker).
 /// The default stands in for a missing key, as the TS `useStorageValue` did.
+/// The listener is removed when the calling component is cleaned up.
 pub fn use_storage<T>(key: &'static str) -> (ReadSignal<T>, ReadSignal<bool>)
 where
     T: DeserializeOwned + Default + Clone + Send + Sync + 'static,
@@ -53,8 +54,15 @@ where
             }
         });
     chrome::on_storage_changed(&listener);
-    // The page lives as long as its listener: leak it on purpose.
-    listener.forget();
+    // Gone with its component: the side panel rebuilds its panels for every
+    // tab and video, and a leaked listener would re-parse every later write.
+    // (A page's root never cleans up; its listener lives as long as the page.)
+    let listener = StoredValue::new_local(Some(listener));
+    on_cleanup(move || {
+        if let Some(l) = listener.try_update_value(Option::take).flatten() {
+            chrome::off_storage_changed(&l);
+        }
+    });
     (value, loaded)
 }
 

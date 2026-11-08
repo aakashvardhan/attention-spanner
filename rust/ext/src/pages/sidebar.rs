@@ -101,6 +101,10 @@ pub fn Sidebar() -> impl IntoView {
             let Some(t) = tab(pinned, window).await else {
                 return;
             };
+            // A newer load started meanwhile: it decides which tab to follow.
+            if generation.get_value() != mine {
+                return;
+            }
             let tab_id = t["id"].as_i64().unwrap_or_default() as i32;
             following.set_value(Some(tab_id));
             following_window.set_value(t["windowId"].as_i64().map(|w| w as i32));
@@ -190,6 +194,11 @@ pub fn Sidebar() -> impl IntoView {
                         load();
                     }
                 });
+            } else if info["status"] == "loading" && info["url"].is_null() && !on_video {
+                // Reloaded at the same address: the page may have changed;
+                // read it again once it has loaded. (A video's notes don't
+                // depend on the page, so a reload keeps its panel.)
+                target.set(None);
             } else if info["status"] == "complete" && crate::js::now() >= settle_until.get_value() {
                 load();
             }

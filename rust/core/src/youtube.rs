@@ -17,7 +17,9 @@ pub fn gemini_url() -> String {
 pub fn video_id(raw: &str) -> Option<String> {
     let url = url::Url::parse(raw).ok()?;
     let host = url.host_str()?;
-    let yt = host == "youtube.com" || host.ends_with(".youtube.com");
+    let yt = ["youtube.com", "youtube-nocookie.com"]
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")));
     let id = if host == "youtu.be" {
         url.path_segments()?.next().map(String::from)
     } else if yt {
@@ -33,7 +35,9 @@ pub fn video_id(raw: &str) -> Option<String> {
     } else {
         None
     }?;
-    let ok = id.len() == 11
+    // An embedded playlist's "id" is the word videoseries: not a video.
+    let ok = id != "videoseries"
+        && id.len() == 11
         && id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
@@ -62,7 +66,7 @@ pub fn seconds(t: &str) -> Option<u32> {
         if i > 0 && (p.len() != 2 || n >= 60) {
             return None;
         }
-        total = total * 60 + n;
+        total = total.checked_mul(60)?.checked_add(n)?;
     }
     Some(total)
 }
@@ -358,6 +362,26 @@ mod tests {
         ] {
             assert_eq!(video_id(url), None, "{url}");
         }
+    }
+
+    #[test]
+    fn playlist_embeds_are_not_videos_and_nocookie_is_youtube() {
+        assert_eq!(
+            video_id("https://www.youtube.com/embed/videoseries?list=PL123"),
+            None
+        );
+        assert_eq!(
+            video_id("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ").as_deref(),
+            Some(ID)
+        );
+    }
+
+    #[test]
+    fn absurd_timestamps_do_not_overflow() {
+        assert_eq!(seconds("4294967295:00"), None);
+        assert_eq!(seconds("99999999:59:59"), None);
+        assert_eq!(seconds("1193046:28:16"), None);
+        assert_eq!(seconds("1193046:28:15"), Some(u32::MAX));
     }
 
     #[test]

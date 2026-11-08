@@ -109,6 +109,12 @@ describe('side panel: webpage', () => {
           '<p>' + 'x'.repeat(30_000) + '</p></article>',
       ),
     );
+    // A page that changes between loads.
+    let version = 0;
+    ext.sites.setRoute('notes', '/changing', (req, res) => {
+      version += 1;
+      html(`<main><h1>Version ${version}</h1><p>Text of version ${version}.</p></main>`)(req, res);
+    });
     // A Blogger post: blog title in a header, a date header over the post title, comments under it.
     ext.sites.setRoute(
       'notes',
@@ -363,6 +369,16 @@ describe('side panel: webpage', () => {
     await expect.poll(() => side.getByText("That's the end of the page.").count(), { timeout: 15_000 }).toBe(1);
     const narrate = calls.slice(before).filter((c) => c.system.includes('one section of the web page'));
     expect(narrate.map((c) => /section \d+ of \d+/.exec(c.prompt)?.[0])).toEqual(['section 1 of 1']);
+    await side.close();
+  });
+
+  it('reading the page again after a reload, at the same address', async () => {
+    const tabId = await openTab('/changing');
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side.getByRole('heading', { name: /^Version \d+$/ }).innerText()).toMatch(/Version \d+/);
+    const before = await side.getByRole('heading', { name: /^Version/ }).innerText();
+    await ext.sw.evaluate((id) => chrome.tabs.reload(id), tabId);
+    await expect.poll(() => side.getByRole('heading', { name: /^Version/ }).innerText(), { timeout: 8_000 }).not.toBe(before);
     await side.close();
   });
 });
