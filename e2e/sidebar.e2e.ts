@@ -59,7 +59,7 @@ describe('side panel: webpage', () => {
   beforeAll(async () => {
     ext = await launch();
     calls = await mockClaude(ext, (system) =>
-      system.includes('thinking partner') ? 'What do you think a good metric would reward?' : NARRATION,
+      system.includes('Socratic tutor') ? 'What do you think a good metric would reward?' : NARRATION,
     );
     await ext.ctx.route('https://api.anthropic.com/**', async (route) => {
       bodies.push(route.request().postData() ?? '');
@@ -181,7 +181,7 @@ describe('side panel: webpage', () => {
     await side.locator('#talk-type').fill('It measures success rate.');
     await side.getByRole('button', { name: 'Send' }).click();
     await expect.poll(() => side.getByText('What do you think a good metric would reward?').count(), { timeout: 15_000 }).toBeGreaterThan(0);
-    const talk = calls.filter((c) => c.system.includes('thinking partner')).at(-1)!;
+    const talk = calls.filter((c) => c.system.includes('Socratic tutor')).at(-1)!;
     expect(talk.system).toContain('the page "Agent evaluation"');
     expect(talk.system).toContain('you never tell');
     await side.close();

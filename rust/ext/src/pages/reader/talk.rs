@@ -1,5 +1,5 @@
-//! "Talk it through": a spoken partner that asks about the paper and never
-//! explains it. Groq Whisper hears your turn, Haiku writes the reply as it
+//! "Talk it through": a spoken Socratic tutor that asks about the paper and
+//! explains only after repeated misses or "just tell me". Groq Whisper hears your turn, Haiku writes the reply as it
 //! streams, and each finished sentence goes straight to Groq Orpheus, so the
 //! voice starts before the reply is done. Cut in stops it. A turn can be
 //! typed instead of spoken; a conversation begun by typing never opens the mic.
@@ -335,9 +335,9 @@ pub fn TalkPanel(
         }>
             <h2 id="talk-heading">"Talk it through"</h2>
             <p class="reader-explain-lede">{match source {
-                Source::Paper => "Say what you think the paper is doing. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
-                Source::Webpage => "Say what you think the page is saying. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
-                Source::Video => "Say what you took from the video so far. It asks back; it won't explain. It listens when it has finished speaking. Can't talk right now? Type instead.",
+                Source::Paper => "Say what you think the paper is doing. It tutors by asking; say \"just tell me\" for a straight answer. It listens when it has finished speaking. Can't talk right now? Type instead.",
+                Source::Webpage => "Say what you think the page is saying. It tutors by asking; say \"just tell me\" for a straight answer. It listens when it has finished speaking. Can't talk right now? Type instead.",
+                Source::Video => "Say what you took from the video so far. It tutors by asking; say \"just tell me\" for a straight answer. It listens when it has finished speaking. Can't talk right now? Type instead.",
             }}</p>
             <button type="button" class="fc-primary-btn" aria-pressed=move || (phase.get() != Phase::Off).to_string() on:click=move |_| toggle()>
                 {move || if phase.get() == Phase::Off { "Start talking" } else { "Stop" }}

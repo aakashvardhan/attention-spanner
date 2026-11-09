@@ -139,6 +139,10 @@ describe('reader: talk it through', () => {
     await expect.poll(() => page.locator('[data-who="you"]').first().innerText()).toContain('It replaces recurrence with attention.');
     await expect.poll(() => prompts.length).toBe(askedBefore + 1);
     expect(prompts.at(-1)!.prompt).toContain('Them: It replaces recurrence with attention.');
+    // The socratic-tutor method: diagnostic first, explain only on "just tell me" or repeated misses.
+    expect(prompts.at(-1)!.system).toContain('Socratic tutor');
+    expect(prompts.at(-1)!.system).toContain('teach nothing until you know');
+    expect(prompts.at(-1)!.system).toContain('Just tell me');
     await expect.poll(() => page.locator('[data-who="agent"]').first().innerText()).toContain('What problem does it solve?');
     await expect.poll(() => spoken.length).toBeGreaterThan(spokenBefore);
     // Begun by typing: when the reply has played it waits for more typing, mic off.

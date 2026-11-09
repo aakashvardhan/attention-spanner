@@ -249,7 +249,7 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
     const pdf = readFileSync(process.env.DEMO_PDF!);
     await ext.ctx.route('https://arxiv.org/pdf/**', (r) => r.fulfill({ contentType: 'application/pdf', body: pdf }));
     await mockClaude(ext, (system, prompt) =>
-      system.includes('thinking partner')
+      system.includes('Socratic tutor')
         ? [
             "So, Attention Is All You Need. Before we dig in, what do you think it's actually trying to fix?",
             "Okay, recurrence is slow. But why does reading one word at a time stop you from using a GPU well?",
