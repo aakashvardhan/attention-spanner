@@ -103,8 +103,12 @@ There is no account of the extension's own. It talks to:
 
 - **alphaXiv**, once you sign in (OAuth with PKCE), for your library;
 - **arXiv**, to fetch the PDFs you open;
-- **Claude**, with your own key, only for a definition you ask for or a brain
-  dump you submit.
+- **Claude**, with your own key, only for something you ask for: a
+  definition, a brain dump, a question, Listen or Talk it through;
+- **Groq** (and OpenAI as a fallback voice), with your keys, for speech when
+  you Talk it through or Listen;
+- **Gemini**, with your key, for notes on a YouTube video you ask about;
+- **Hacker News**, for the new tab's news card.
 
 Everything else stays in `chrome.storage` on your machine.
 
@@ -112,14 +116,87 @@ Everything else stays in `chrome.storage` on your machine.
 
 ## Installation
 
-### You cloned this repo
+The extension is not on the Chrome Web Store, so you build it and load it
+yourself. It works in Chrome, Brave, Edge and other Chromium browsers.
 
-Double-click **`install.command`** (macOS; on Linux `sh install.command`) or
-**`install.bat`** (Windows). It checks for Node.js and Rust, builds, opens
-`chrome://extensions`, and shows the folder to load. Chrome allows installs
-from outside the Web Store only through Developer mode → **Load unpacked**.
+### 1. Install the tools
 
-### Without building
+- [Node.js 22](https://nodejs.org) or newer
+- [Rust](https://rustup.rs) (stable), then the WebAssembly target:
+
+  ```sh
+  rustup target add wasm32-unknown-unknown
+  ```
+
+### 2. Get the code and build it
+
+```sh
+git clone https://github.com/aakashvardhan/attention-spanner.git
+cd attention-spanner
+npm install
+npm run build:ext
+```
+
+The first build takes a few minutes (it also installs the matching
+`wasm-bindgen-cli`). The extension lands in `rust/ext/dist/chromium`.
+
+Shortcut: on macOS double-click **`install.command`** (Linux:
+`sh install.command`; Windows: **`install.bat`**). It checks for Node.js and
+Rust, builds, opens the extensions page and shows the folder to load.
+
+### 3. Load it into the browser
+
+1. Open `chrome://extensions` (Brave: `brave://extensions`, Edge:
+   `edge://extensions`).
+2. Turn on **Developer mode** (top right).
+3. Click **Load unpacked** and choose the folder `rust/ext/dist/chromium`.
+4. Pin the extension from the puzzle-piece menu so its icon stays in the
+   toolbar.
+
+Open a new tab: it is now the extension's new tab.
+
+### 4. Add your API keys
+
+Open **Settings** (from the new tab's index, or right-click the toolbar icon →
+Options). Every AI feature uses your own key; each one is optional, and a
+feature without its key says so instead of failing.
+
+| Key | Used for | Get one |
+|---|---|---|
+| Anthropic API key | Click-to-define, brain dump, questions, Listen, Talk it through | [console.anthropic.com](https://console.anthropic.com) |
+| Groq API key | Talk it through: speech to text, and the tutor's voice | [console.groq.com](https://console.groq.com) |
+| Gemini API key | YouTube notes and Talk it through on videos | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| OpenAI API key | Fallback voice when Groq's daily speech limit runs out | [platform.openai.com](https://platform.openai.com/api-keys) |
+
+Keys are saved in the browser's local extension storage and sent only to their
+own provider.
+
+### 5. Connect your library (optional)
+
+In Settings, click **Sign in to alphaXiv**. Your alphaXiv folders become the
+shelves on the papers page and the new tab.
+
+### 6. Use it
+
+- **A paper:** open any arXiv PDF link; it opens in the reader. Use **Listen**,
+  **Talk it through** and **Explain it back** from the toolbar.
+- **Any webpage or YouTube video:** click the extension's toolbar icon to open
+  the side panel for that tab. On a page: Listen or Talk it through. On a
+  video: **Take notes**, then Talk it through.
+- **Talking:** the first time, allow the microphone. If the side panel can't
+  ask for it, click **Allow the microphone** in the panel; a tab opens and
+  asks once.
+
+### Updating
+
+```sh
+git pull
+npm run build:ext
+```
+
+Then click the reload arrow on the extension's card in `chrome://extensions`.
+
+### Sharing without building
 
 ```sh
 npm run package   # → release/install-reader.command + release/reader-extension-v*.zip
@@ -127,19 +204,6 @@ npm run package   # → release/install-reader.command + release/reader-extensio
 
 Send either file. The `.command` unpacks itself and walks the recipient through
 Load unpacked; the zip works on any OS. No Node, npm or Rust needed to install.
-
-### From source
-
-Needs Node.js 22 and Rust (stable, from [rustup](https://rustup.rs)).
-
-```sh
-rustup target add wasm32-unknown-unknown
-npm install
-npm run build     # the extension → rust/ext/dist/chromium, plus the brain MCP server
-```
-
-The first build installs the matching `wasm-bindgen-cli`. Then
-`chrome://extensions` → Developer mode → Load unpacked → `rust/ext/dist/chromium`.
 
 ---
 
