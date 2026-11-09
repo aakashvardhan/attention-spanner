@@ -15,7 +15,12 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-md);
   line-height: var(--leading-md);
-  /* The focus and break themes change the room; ease it, never snap. */
+}
+
+/* The focus and break themes change the room; ease it, never snap. Only once
+   the saved palette is in (data-settled, set by use_theme), or every new tab
+   would fade in from the default palette. */
+:root[data-settled] body {
   transition: background-color var(--dur-effect-slow) var(--ease-effect), color var(--dur-effect-slow) var(--ease-effect);
 }
 
@@ -1004,9 +1009,6 @@ body.todo-dragging .board--todos .board-empty {
     animation: none;
     transform: scale(0.7);
   }
-}
-body {
-  transition: background-color var(--dur-effect-slow) var(--ease-effect);
 }
 
 /* ---------- Feed ---------- */

@@ -91,20 +91,30 @@ pub const THEMES: [(&str, &str); 6] = [
     ("rose", "Rose"),
 ];
 
-/// Follow the saved palette: sets html[data-theme], live across tabs.
+/// Follow the saved palette: sets html[data-theme], live across tabs. Once
+/// the saved one is drawn, html[data-settled] lets theme changes ease in.
 pub fn use_theme() {
-    let (settings, _) = use_settings();
+    let (settings, loaded) = use_settings();
     Effect::new(move |_| {
         let theme = settings.get().theme;
-        if let Some(root) = web_sys::window()
+        let Some(root) = web_sys::window()
             .and_then(|w| w.document())
             .and_then(|d| d.document_element())
-        {
-            let _ = if theme == "paper" {
-                root.remove_attribute("data-theme")
-            } else {
-                root.set_attribute("data-theme", &theme)
-            };
+        else {
+            return;
+        };
+        let _ = if theme == "paper" {
+            root.remove_attribute("data-theme")
+        } else {
+            root.set_attribute("data-theme", &theme)
+        };
+        if loaded.get() && !root.has_attribute("data-settled") {
+            // Two frames: the palette must be styled before transitions turn on.
+            request_animation_frame(move || {
+                request_animation_frame(move || {
+                    let _ = root.set_attribute("data-settled", "");
+                })
+            });
         }
     });
 }

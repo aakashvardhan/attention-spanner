@@ -27,7 +27,9 @@ describe('rust port: phase 0 skeleton', () => {
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
     expect(await page.title()).toBe('Focus workspace');
     // theme.css loaded: the grid ground (the default palette), not the browser's white
+    // ...at once: no fade in from the default palette (theme changes only ease once settled).
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(5, 8, 13)');
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-settled'))).toBe(true);
     await expectA11y(page, 'newtab');
     expectClean(ext, NETWORK_NOISE);
     await page.close();
