@@ -129,10 +129,80 @@ body {
   font-size: var(--text-sm);
 }
 
+/* Lecture: one Cornell card per cue, cue left, its notes right (covered
+   until shown); stacks when the column is narrow. */
 .cornell {
+  display: grid;
+  gap: var(--space-2);
+  container-type: inline-size;
+}
+
+.cue-card {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.cue-card[data-shown="true"] {
+  border-color: var(--accent-text);
+}
+
+.cue-card-cue {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-2);
+  color: var(--text-primary);
+}
+
+.cue-card-notes {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border);
+}
+
+.cue-card-cover {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.cue-card-toggle {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.cue-card-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.cue-card-summary {
+  display: block;
+  margin-top: var(--space-2);
+}
+
+.cue-card-summary h3 {
+  margin-top: 0;
+}
+
+@container (max-width: 22rem) {
+  .cue-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cue-card-notes {
+    padding: var(--space-2) 0 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
 }
 
 .stamp {

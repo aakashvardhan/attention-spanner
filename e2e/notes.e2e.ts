@@ -27,6 +27,8 @@ describe('notes page', () => {
     expect(titles[0]).toContain('Newer explainer');
     expect(titles[1]).toContain('Older lecture');
     await page.locator('.notes-list button', { hasText: 'Older lecture' }).click();
+    // Cornell cards keep a cue's notes covered until asked for.
+    await page.getByRole('button', { name: 'Show notes' }).click();
     await expect.poll(() => page.getByText('Page tables map addresses.').count()).toBe(1);
     expect(await page.locator('a.stamp').first().getAttribute('href')).toBe('https://www.youtube.com/watch?v=aaaaaaaaaaa&t=75s');
     expect(await page.getByRole('link', { name: 'Watch on YouTube' }).getAttribute('href')).toBe('https://www.youtube.com/watch?v=aaaaaaaaaaa');
@@ -38,6 +40,7 @@ describe('notes page', () => {
     await page.goBack();
     await expect.poll(() => page.getByText('Pick a video to read its notes.').count()).toBe(1);
     await page.goForward();
+    await page.getByRole('button', { name: 'Show notes' }).click();
     await expect.poll(() => page.getByText('Page tables map addresses.').count()).toBe(1);
     await expectA11y(page, 'notes');
     // A link straight to one video's notes.
@@ -61,7 +64,9 @@ describe('notes page', () => {
     const page = await ext.page(`${PAGES.notes}#ccccccccccc`);
     await expect.poll(() => page.locator('.notes-part-range').allInnerTexts()).toEqual(['0:00–1:00:00', '2:00:00–3:00:00']);
     const two = page.getByRole('region', { name: 'Part 2:00:00–3:00:00' });
-    expect(await two.getByRole('region', { name: 'Notes' }).locator('li span').allInnerTexts()).toEqual(['Misses walk tables.', 'TLBs cache.']);
+    await two.getByRole('button', { name: 'Show notes' }).click();
+    // Both notes are nearest the one cue in this part, so they share its card.
+    expect(await two.locator('.cue-card-notes li span').allInnerTexts()).toEqual(['Misses walk tables.', 'TLBs cache.']);
     expect(await two.getByText('Part two, summed.').count()).toBe(1);
     expect(await page.getByRole('region', { name: 'Part 0:00–1:00:00' }).getByText('Why paging?').count()).toBe(1);
     await expectA11y(page, 'notes-parts');

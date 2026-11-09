@@ -3,7 +3,7 @@
 //! timestamp seeks the video; on the Notes page it links to that moment.
 
 use leptos::prelude::*;
-use reader_core::youtube::{group, seconds, stamp, Kind, VideoNotes};
+use reader_core::youtube::{cornell_cards, group, seconds, stamp, Kind, Stamped, VideoNotes};
 
 #[component]
 fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView {
@@ -17,6 +17,43 @@ fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView
         }
         .into_any(),
         (None, _) => view! { <span class="stamp">{t}</span> }.into_any(),
+    }
+}
+
+/// One Cornell cue as a study card: the question, its notes covered until
+/// asked for, so you answer it in your head first.
+#[component]
+fn CueCard(
+    cue: Stamped,
+    notes: Vec<Stamped>,
+    id: String,
+    on_seek: Option<Callback<u32>>,
+) -> impl IntoView {
+    let shown = RwSignal::new(false);
+    let id2 = id.clone();
+    let list = move || {
+        notes
+            .iter()
+            .map(|n| view! { <li><Stamp t=n.t.clone() id=id2.clone() on_seek=on_seek />" "<span>{n.text.clone()}</span></li> })
+            .collect_view()
+    };
+    view! {
+        <article class="cue-card" data-shown=move || shown.get().to_string()>
+            <div class="cue-card-cue">
+                <p><Stamp t=cue.t.clone() id=id on_seek=on_seek />" "<span>{cue.text.clone()}</span></p>
+                <button type="button" class="cue-card-toggle" aria-expanded=move || shown.get().to_string()
+                    on:click=move |_| shown.update(|v| *v = !*v)>
+                    {move || if shown.get() { "Cover notes" } else { "Show notes" }}
+                </button>
+            </div>
+            <div class="cue-card-notes">
+                {move || if shown.get() {
+                    view! { <ul>{list()}</ul> }.into_any()
+                } else {
+                    view! { <p class="cue-card-cover">"Answer it in your head first."</p> }.into_any()
+                }}
+            </div>
+        </article>
     }
 }
 
@@ -49,23 +86,35 @@ fn body(notes: &VideoNotes, on_seek: Option<Callback<u32>>) -> AnyView {
     let id = notes.id.clone();
     let s = move |t: &String| view! { <Stamp t=t.clone() id=id.clone() on_seek=on_seek /> };
     match notes.kind {
-        Kind::Lecture => view! {
-            <div class="cornell">
-                <section aria-label="Cues">
-                    <h3>"Cues"</h3>
-                    <ul>{notes.cues.iter().map(|c| view! { <li>{s(&c.t)}" "<span>{c.text.clone()}</span></li> }).collect_view()}</ul>
+        Kind::Lecture => {
+            let cards = cornell_cards(notes);
+            // Without cues there is nothing to quiz on: the notes as a list.
+            let column = if cards.is_empty() {
+                view! {
+                    <section aria-label="Notes">
+                        <h3>"Notes"</h3>
+                        <ul>{notes.notes.iter().map(|c| view! { <li>{s(&c.t)}" "<span>{c.text.clone()}</span></li> }).collect_view()}</ul>
+                    </section>
+                }
+                .into_any()
+            } else {
+                let id = notes.id.clone();
+                view! {
+                    <section class="cornell" aria-label="Cues">
+                        {cards.into_iter().map(|(cue, ns)| view! { <CueCard cue=cue notes=ns id=id.clone() on_seek=on_seek /> }).collect_view()}
+                    </section>
+                }
+                .into_any()
+            };
+            view! {
+                {column}
+                <section class="cue-card cue-card-summary" aria-label="Summary">
+                    <h3>"Summary"</h3>
+                    <p>{notes.summary.clone()}</p>
                 </section>
-                <section aria-label="Notes">
-                    <h3>"Notes"</h3>
-                    <ul>{notes.notes.iter().map(|c| view! { <li>{s(&c.t)}" "<span>{c.text.clone()}</span></li> }).collect_view()}</ul>
-                </section>
-            </div>
-            <section aria-label="Summary">
-                <h3>"Summary"</h3>
-                <p>{notes.summary.clone()}</p>
-            </section>
+            }
+            .into_any()
         }
-        .into_any(),
         Kind::Tutorial => view! {
             <p class="notes-lede">{notes.summary.clone()}</p>
             {(!notes.prerequisites.is_empty()).then(|| view! {

@@ -180,6 +180,30 @@ impl Section {
     }
 }
 
+/// Lecture notes as Cornell study cards: each cue with the notes nearest the
+/// moment it is answered (a tie goes to the earlier cue; a note without a
+/// time follows the note before it). Empty when there are no cues.
+pub fn cornell_cards(n: &VideoNotes) -> Vec<(Stamped, Vec<Stamped>)> {
+    let mut cards: Vec<(Stamped, Vec<Stamped>)> =
+        n.cues.iter().map(|c| (c.clone(), Vec::new())).collect();
+    if cards.is_empty() {
+        return cards;
+    }
+    let mut last = 0;
+    for note in &n.notes {
+        if let Some(s) = seconds(&note.t) {
+            last = n
+                .cues
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, c)| seconds(&c.t).map_or(u32::MAX, |c| c.abs_diff(s)))
+                .map_or(0, |(i, _)| i);
+        }
+        cards[last].1.push(note.clone());
+    }
+    cards
+}
+
 /// Sectioned notes split by part, each part's items in time order; an item
 /// goes to the last part starting at or before it (the first, without a time).
 /// Prerequisites and the question go with the first part. Empty when the
@@ -508,6 +532,40 @@ mod tests {
     use crate::voice_agent::{agent_system, turn_prompt, Source};
 
     const ID: &str = "dQw4w9WgXcQ";
+
+    #[test]
+    fn cornell_cards_pair_each_note_with_the_nearest_cue() {
+        let st = |t: &str, text: &str| Stamped {
+            t: t.into(),
+            text: text.into(),
+        };
+        let n = VideoNotes {
+            cues: vec![st("1:00", "Why?"), st("5:00", "How?")],
+            notes: vec![
+                st("0:10", "a"),
+                st("3:00", "tie"),
+                st("", "b"),
+                st("4:30", "c"),
+            ],
+            ..Default::default()
+        };
+        let cards = cornell_cards(&n);
+        let texts = |i: usize| {
+            cards[i]
+                .1
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(cards[0].0.text, "Why?");
+        assert_eq!(texts(0), ["a", "tie", "b"]);
+        assert_eq!(texts(1), ["c"]);
+        assert!(cornell_cards(&VideoNotes {
+            notes: n.notes.clone(),
+            ..Default::default()
+        })
+        .is_empty());
+    }
 
     #[test]
     fn video_ids() {

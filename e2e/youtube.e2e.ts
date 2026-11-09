@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PAGES, expectA11y, launch, mockClaude, seed, storage, type Ext } from './harness';
+import { PAGES, expectA11y, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
 
 /**
  * The side panel on YouTube: Gemini watches the video and writes takeaways
@@ -120,6 +120,22 @@ describe('side panel: YouTube', () => {
     await expect.poll(() => again.getByText('What is an MMU for?').count(), { timeout: 10_000 }).toBe(1);
     expect(gemini.at(-1)!.body.contents[0].parts[1].text).toContain('as a lecture');
     expect((await storage<Record<string, { kind: string }>>(ext, 'videoNotes'))[A].kind).toBe('lecture');
+    // Cornell cards: the cue's notes stay covered until asked for, and cover again.
+    const note = again.getByText('The MMU maps virtual to physical addresses.');
+    expect(await note.count()).toBe(0);
+    await again.setViewportSize({ width: 360, height: 700 });
+    await shot(again, 'cornell-covered');
+    await again.getByRole('button', { name: 'Show notes' }).click();
+    await expect.poll(() => note.count()).toBe(1);
+    expect(await again.getByRole('button', { name: 'Cover notes' }).getAttribute('aria-expanded')).toBe('true');
+    await shot(again, 'cornell-shown');
+    await again.getByRole('button', { name: 'Cover notes' }).click();
+    await expect.poll(() => note.count()).toBe(0);
+    const wide = await ext.page(`${PAGES.notes}#${A}`);
+    await wide.getByRole('button', { name: 'Show notes' }).click();
+    await expect.poll(() => wide.getByText('The MMU maps virtual to physical addresses.').count()).toBe(1);
+    await shot(wide, 'cornell-notes-page');
+    await wide.close();
     await again.close();
   });
 
@@ -196,7 +212,9 @@ describe('side panel: YouTube', () => {
     await side.getByRole('combobox', { name: 'To' }).fill('4:00:00');
     await side.getByRole('button', { name: 'Add notes for this part' }).click();
     await expect.poll(() => side.getByText('TLBs cache translations.').count(), { timeout: 10_000 }).toBe(1);
-    expect(await side.getByText('The MMU maps virtual to physical addresses.').count()).toBe(1);
+    // Each part has the MMU cue; the first card holds its note.
+    await side.getByRole('button', { name: 'Show notes' }).first().click();
+    await expect.poll(() => side.getByText('The MMU maps virtual to physical addresses.').count()).toBe(1);
     expect(gemini.at(-1)!.body.contents[0].parts[1].text).toContain('as a lecture');
     // Part by part, each with its own summary.
     expect(await side.locator('.notes-part-range').allInnerTexts()).toEqual(['2:00:00–3:00:00', '3:00:00–4:00:00']);
