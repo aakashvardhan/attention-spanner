@@ -3,7 +3,9 @@
 //! timestamp seeks the video; on the Notes page it links to that moment.
 
 use leptos::prelude::*;
-use reader_core::youtube::{cornell_cards, group, seconds, stamp, Kind, Stamped, VideoNotes};
+use reader_core::youtube::{
+    cornell_cards, group, seconds, stamp, watch_url, Kind, Stamped, VideoNotes,
+};
 
 #[component]
 fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView {
@@ -13,7 +15,7 @@ fn Stamp(t: String, id: String, on_seek: Option<Callback<u32>>) -> impl IntoView
         }
         .into_any(),
         (Some(s), None) => view! {
-            <a class="stamp" href=format!("https://www.youtube.com/watch?v={id}&t={s}s") target="_blank" rel="noopener" aria-label=format!("{}, opens YouTube", stamp(s))>{stamp(s)}</a>
+            <a class="stamp" href=format!("{}&t={s}s", watch_url(&id)) target="_blank" rel="noopener" aria-label=format!("{}, opens YouTube", stamp(s))>{stamp(s)}</a>
         }
         .into_any(),
         (None, _) => view! { <span class="stamp">{t}</span> }.into_any(),

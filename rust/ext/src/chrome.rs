@@ -76,6 +76,9 @@ extern "C" {
 
     #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = sendMessage)]
     pub fn send_message(msg: &JsValue) -> Result<Promise, JsValue>;
+    /// Cheap call that keeps a busy service worker from idling out.
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = getPlatformInfo)]
+    pub fn runtime_get_platform_info() -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "runtime"], js_name = openOptionsPage)]
     pub fn open_options_page() -> Result<Promise, JsValue>;
     #[wasm_bindgen(js_namespace = ["chrome", "storage", "onChanged"], js_name = addListener)]

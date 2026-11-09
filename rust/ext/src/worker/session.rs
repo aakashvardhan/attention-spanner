@@ -113,9 +113,9 @@ pub async fn remove_legacy_daily_gate_rule() -> Res<()> {
     Ok(())
 }
 
-/// An already-open blocked tab would defeat the point.
-pub async fn redirect_open_blocked_tabs(domains: &[String]) -> Res<()> {
-    let round: Option<Pomodoro> = store::get("pomodoro").await?;
+/// An already-open blocked tab would defeat the point. `round` is the
+/// Pomodoro the caller has just read (its study video stays open).
+pub async fn redirect_open_blocked_tabs(round: Option<&Pomodoro>, domains: &[String]) -> Res<()> {
     let tabs: Vec<Tab> = from_js(
         wait(chrome::tabs_query(&to_js(
             &json!({ "url": ["http://*/*", "https://*/*"] }),
@@ -124,7 +124,7 @@ pub async fn redirect_open_blocked_tabs(domains: &[String]) -> Res<()> {
     )?;
     for tab in tabs {
         if let (Some(id), Some(url)) = (tab.id, tab.url) {
-            redirect_if_blocked(id, &url, round.as_ref(), domains).await?;
+            redirect_if_blocked(id, &url, round, domains).await?;
         }
     }
     Ok(())
@@ -165,6 +165,10 @@ fn allows_study_video(round: Option<&Pomodoro>, url: &str) -> bool {
 
 /// YouTube also navigates without a document request, so check its URL changes.
 pub async fn check_focus_navigation(tab_id: i32, url: &str) -> Res<()> {
+    // Only web pages are ever blocked: skip the storage reads for the rest.
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Ok(());
+    }
     let round: Option<Pomodoro> = store::get("pomodoro").await?;
     if !is_focus(round.as_ref()) {
         return Ok(());
@@ -184,7 +188,9 @@ pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
     .await?;
     sync_session_access_rules().await?;
     if starting {
-        redirect_open_blocked_tabs(&store::settings().await?.focus_blocklist).await?;
+        let round: Option<Pomodoro> = store::get("pomodoro").await?;
+        redirect_open_blocked_tabs(round.as_ref(), &store::settings().await?.focus_blocklist)
+            .await?;
     }
     Ok(())
 }
@@ -276,10 +282,10 @@ pub async fn refresh_focus_rules(blocklist: &[String]) -> Res<()> {
     let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
     if is_focus(pomodoro.as_ref()) {
         sync_session_access_rules().await?;
-        redirect_open_blocked_tabs(&focus_blocklist(blocklist)).await?;
+        redirect_open_blocked_tabs(pomodoro.as_ref(), &focus_blocklist(blocklist)).await?;
     } else if session.is_some() {
         sync_session_access_rules().await?;
-        redirect_open_blocked_tabs(blocklist).await?;
+        redirect_open_blocked_tabs(pomodoro.as_ref(), blocklist).await?;
     }
     Ok(())
 }
@@ -298,8 +304,11 @@ pub async fn pomodoro_changed() -> Res<()> {
     }
     sync_session_access_rules().await?;
     if is_focus(p.as_ref()) {
-        redirect_open_blocked_tabs(&focus_blocklist(&store::settings().await?.focus_blocklist))
-            .await?;
+        redirect_open_blocked_tabs(
+            p.as_ref(),
+            &focus_blocklist(&store::settings().await?.focus_blocklist),
+        )
+        .await?;
     }
     Ok(())
 }

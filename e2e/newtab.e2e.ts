@@ -189,10 +189,14 @@ describe('new tab: reading board, to-dos, side column', () => {
   });
 
   it('starts focus from a board task and keeps completion, edits and reopening in sync', async () => {
-    await seed(ext, { todos: [{ id: 'read', text: 'Read section two', dueAt: null, doneAt: null }] });
+    await seed(ext, { todos: [{ id: 'read', text: 'Read section two', dueAt: null, doneAt: null }, { id: 'mail', text: 'Answer mail', dueAt: null, doneAt: null }] });
     const page = await ext.page(PAGES.newtab);
-    await page.locator('[data-todo-id="read"]').getByRole('button', { name: 'Start', exact: true }).click();
+    await page.locator('[data-todo-id="read"]').getByRole('button', { name: 'Focus', exact: true }).click();
     await expect.poll(async () => (await storage<{ tasks: { todoId: string }[] }>(ext, 'pomodoro'))?.tasks[0]?.todoId).toBe('read');
+    // During a round another task's button only moves it to In progress; the round keeps its one task.
+    await page.locator('[data-todo-id="mail"]').getByRole('button', { name: 'Start', exact: true }).click();
+    await expect.poll(async () => (await storage<{ id: string; startedAt: number | null }[]>(ext, 'todos')).find((t) => t.id === 'mail')?.startedAt).toBeTruthy();
+    expect((await storage<{ tasks: unknown[] }>(ext, 'pomodoro')).tasks.length).toBe(1);
     const round = page.getByRole('region', { name: 'Focus round' });
     const board = page.locator('[data-todo-id="read"]');
     const text = board.getByRole('textbox', { name: 'Edit task: Read section two', exact: true });

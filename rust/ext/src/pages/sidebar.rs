@@ -120,12 +120,9 @@ pub fn Sidebar() -> impl IntoView {
                 return;
             }
             let content = if let Some(id) = youtube::video_id(&url) {
-                let title = t["title"].as_str().unwrap_or_default();
-                let title = title
-                    .strip_suffix(" - YouTube")
-                    .unwrap_or(title)
-                    .to_string();
-                video_title.set(title);
+                video_title.set(youtube::video_title(
+                    t["title"].as_str().unwrap_or_default(),
+                ));
                 Content::Video { id }
             } else if url.starts_with("http://") || url.starts_with("https://") {
                 Content::Page(page_text::read(tab_id).await)
@@ -169,12 +166,7 @@ pub fn Sidebar() -> impl IntoView {
                     .is_some_and(|t| matches!(t.content, Content::Video { .. }))
             });
             if let (true, Some(title)) = (on_video, info["title"].as_str()) {
-                video_title.set(
-                    title
-                        .strip_suffix(" - YouTube")
-                        .unwrap_or(title)
-                        .to_string(),
-                );
+                video_title.set(youtube::video_title(title));
             }
             let moved = info["url"].as_str().is_some_and(|u| {
                 target.with_untracked(|t| t.as_ref().is_some_and(|t| page_of(&t.url) != page_of(u)))

@@ -123,18 +123,19 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
     result
 }
 
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    // The global timers: a page's window and the service worker both have them.
+    #[wasm_bindgen(js_name = setTimeout)]
+    fn set_timeout(cb: &wasm_bindgen::JsValue, ms: i32) -> i32;
+    #[wasm_bindgen(js_name = clearTimeout)]
+    fn clear_timeout_js(id: i32);
+}
+
 pub(crate) fn gloo_timeout(ms: i32, f: impl FnOnce() + 'static) -> i32 {
-    let cb = wasm_bindgen::closure::Closure::once_into_js(f);
-    web_sys::window()
-        .and_then(|w| {
-            w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms)
-                .ok()
-        })
-        .unwrap_or(0)
+    set_timeout(&wasm_bindgen::closure::Closure::once_into_js(f), ms)
 }
 
 pub(crate) fn clear_timeout(id: i32) {
-    if let Some(w) = web_sys::window() {
-        w.clear_timeout_with_handle(id);
-    }
+    clear_timeout_js(id);
 }

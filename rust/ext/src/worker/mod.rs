@@ -5,6 +5,7 @@
 mod alphaxiv;
 mod pdf_rules;
 mod session;
+mod video_notes;
 
 use crate::chrome;
 use crate::js::{from_js, log_error, now, to_js, wait, Res};
@@ -64,6 +65,8 @@ pub async fn on_startup() {
 #[wasm_bindgen]
 pub async fn on_worker_start() {
     guarded("[worker] start", async {
+        // First, before a message can start a new job.
+        video_notes::clear_jobs().await?;
         session::remove_legacy_daily_gate_rule().await?;
         session::reconcile_session().await?;
         pdf_rules::sync_pdf_rules().await
@@ -299,6 +302,14 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
             }
             result(next)
         }
+        Message::VideoNotesTake {
+            id,
+            title,
+            kind,
+            parts,
+            add,
+        } => video_notes::take(id, title, kind, parts, add).await,
+        Message::VideoNotesCancel { id } => video_notes::cancel(id).await,
         Message::AnnotDelete { id } => {
             let list: Vec<Annotation> = store::get("annotations").await?;
             store::set("annotations", &delete_annotation(&list, &id)).await?;

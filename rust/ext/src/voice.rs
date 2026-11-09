@@ -642,10 +642,11 @@ impl Speaker {
 
 /// Wait without blocking the page.
 pub async fn sleep_ms(ms: i32) {
+    // Works in the service worker too (no window there).
     let p = js_sys::Promise::new(&mut |resolve, _| {
-        if let Some(w) = web_sys::window() {
-            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
-        }
+        crate::claude::gloo_timeout(ms, move || {
+            let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
+        });
     });
     let _ = JsFuture::from(p).await;
 }

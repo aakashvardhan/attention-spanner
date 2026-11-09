@@ -1197,8 +1197,14 @@ fn TodoBoard() -> impl IntoView {
                         }))>{label}</button>
                     })}
                     {fwd.map(|label| view! {
-                        <button type="button" class="todo-move todo-move--fwd" disabled=move || col == 0 && pomodoro.with(Option::is_some) on:click=move |_| {
-                            if col == 0 {
+                        // To do: "Focus" starts a round on this task (it blocks
+                        // distracting sites); during a round it is "Start" and
+                        // only moves the task to In progress.
+                        <button type="button" class="todo-move todo-move--fwd" on:click=move |_| {
+                            let running = pomodoro.with_untracked(Option::is_some);
+                            if col == 0 && running {
+                                edit(id3.clone(), Box::new(move |t| t.started_at = Some(now())));
+                            } else if col == 0 {
                                 let id = id3.clone();
                                 leptos::task::spawn_local(async move {
                                     if let Err(e) = begin_round(vec![id], String::new()).await {
@@ -1206,7 +1212,7 @@ fn TodoBoard() -> impl IntoView {
                                     }
                                 });
                             } else { edit(id3.clone(), Box::new(move |t| t.done_at = Some(now()))); }
-                        }>{label}</button>
+                        }>{move || if col == 0 && pomodoro.with(Option::is_none) { "Focus" } else { label }}</button>
                     })}
                     <button type="button" class="todo-delete" aria-label=format!("Delete {}", t.text) on:click=move |_| {
                         let id = id4.clone();

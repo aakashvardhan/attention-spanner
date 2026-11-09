@@ -58,6 +58,8 @@ describe('side panel: YouTube', () => {
           // YouTube's player API: an ad can own the <video>, the player knows the real time.
           "const mp = document.getElementById('movie_player'); window.seeks = [];" +
           "mp.seekTo = (t) => { window.seeks.push(t); window.playerTime = t; }; mp.getCurrentTime = () => window.playerTime ?? 0;" +
+          // The player reports the video it is on (the panel waits until it is this one).
+          "mp.getPlayerResponse = () => ({ videoDetails: { videoId: new URLSearchParams(location.search).get('v'), lengthSeconds: '600', shortDescription: '' } });" +
           "window.go = (id, title) => { history.pushState({}, '', '/watch?v=' + id); if (title) setTimeout(() => { document.title = title + ' - YouTube'; }, 1500); };" +
           '</script></body></html>',
       }),
@@ -221,6 +223,16 @@ describe('side panel: YouTube', () => {
     expect(await side.getByRole('region', { name: 'Part 3:00:00–4:00:00' }).getByText('TLBs cache translations.').count()).toBe(1);
     expect(await side.getByText('A lecture summary.').count()).toBe(2);
     await expectA11y(side, 'sidebar-video-long');
+    // A new shape re-takes every kept part, not the From/To fields (now 4:00:00 onward).
+    const asked = gemini.length;
+    answer = () => notesReply(TUTORIAL);
+    await side.getByRole('button', { name: 'Tutorial' }).click();
+    await expect.poll(async () => (await storage<Record<string, { kind: string; sections: unknown[] }>>(ext, 'videoNotes'))[D]?.kind, { timeout: 10_000 }).toBe('tutorial');
+    expect(gemini.slice(asked).map((g) => g.body.contents[0].parts[0].video_metadata)).toEqual([
+      { start_offset: '7200s', end_offset: '10800s' },
+      { start_offset: '10800s', end_offset: '14400s' },
+    ]);
+    expect((await storage<Record<string, { sections: unknown[] }>>(ext, 'videoNotes'))[D].sections).toHaveLength(2);
     await side.close();
   });
 
@@ -238,11 +250,17 @@ describe('side panel: YouTube', () => {
     await page.goto(`${watch(C)}&list=PL123&index=3&pp=x&t=10s`);
     const tabId = await ext.sw.evaluate(async (id) => (await chrome.tabs.query({}))
       .find((t) => t.url?.includes(id))!.id!, C);
-    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
-    await side.getByRole('button', { name: 'Take notes' }).click();
-    await expect.poll(() => side.getByText('Gemini is watching the video', { exact: false }).count()).toBe(1);
+    const first = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await first.getByRole('button', { name: 'Take notes' }).click();
+    await expect.poll(() => first.getByText('Gemini is watching the video', { exact: false }).count()).toBe(1);
+    // The worker makes the notes: closing the panel loses nothing, and a new one shows the work.
+    await first.close();
+    const side2 = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
+    await expect.poll(() => side2.getByText('Gemini is watching the video', { exact: false }).count()).toBe(1);
+    await side2.close();
     // Off to another video while Gemini works; then back.
     await page.evaluate((id) => (window as unknown as { go(id: string): void }).go(id), B);
+    const side = await ext.page(`${PAGES.sidebar}?tab=${tabId}`);
     await expect.poll(() => side.getByRole('button', { name: 'Take notes' }).count(), { timeout: 5_000 }).toBe(1);
     release();
     await expect.poll(async () => (await storage<Record<string, { url: string }>>(ext, 'videoNotes'))[C]?.url, { timeout: 10_000 }).toBe(watch(C));
@@ -263,7 +281,18 @@ describe('side panel: YouTube', () => {
     await side.waitForTimeout(500);
     expect(await side.getByRole('alert').count()).toBe(0);
     expect(await side.getByRole('button', { name: 'Take notes' }).count()).toBe(1);
+    // Taking again at once: the stopped request settling late must not pass for this one.
+    answer = () => notesReply({ ...TUTORIAL, title: 'After cancel' });
+    await side.getByRole('button', { name: 'Take notes' }).click();
     hold2();
+    await expect.poll(async () => (await storage<Record<string, { title: string }>>(ext, 'videoNotes'))[B]?.title, { timeout: 10_000 }).toBe('After cancel');
+    expect(await side.getByRole('alert').count()).toBe(0);
+    // Later tests expect B without notes.
+    await ext.sw.evaluate(async (id) => {
+      const { videoNotes } = await chrome.storage.local.get('videoNotes');
+      delete videoNotes[id];
+      await chrome.storage.local.set({ videoNotes });
+    }, B);
     await ext.ctx.unroute('https://generativelanguage.googleapis.com/**', slow2);
     await side.close();
   });

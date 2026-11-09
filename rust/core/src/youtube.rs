@@ -50,6 +50,17 @@ pub fn watch_url(id: &str) -> String {
     format!("https://www.youtube.com/watch?v={id}")
 }
 
+/// A YouTube tab's title as the video's: no " - YouTube" suffix and no
+/// "(3) " unread-notifications prefix.
+pub fn video_title(tab_title: &str) -> String {
+    let t = tab_title.strip_suffix(" - YouTube").unwrap_or(tab_title);
+    let unread = t
+        .strip_prefix('(')
+        .and_then(|r| r.split_once(") "))
+        .filter(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit() || b == b'+'));
+    unread.map_or(t, |(_, rest)| rest).to_string()
+}
+
 /// `MM:SS`, `M:SS` or `H:MM:SS` to seconds.
 pub fn seconds(t: &str) -> Option<u32> {
     let parts: Vec<&str> = t.trim().split(':').collect();
@@ -315,6 +326,52 @@ pub fn chapters(description: &str) -> Vec<(u32, String)> {
     out
 }
 
+/// Notes being made for a video, by id under [`NOTES_JOBS`]. The worker
+/// makes them, so a request outlives the side panel that asked; an `error`
+/// stays until the next request for that video.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NotesJob {
+    pub started: i64,
+    pub error: String,
+}
+
+pub const NOTES_JOBS: &str = "videoNotesJobs";
+
+/// One reply as kept: a part's summary moves into its section, with its range.
+pub fn as_part(mut n: VideoNotes, part: Option<(u32, u32)>) -> VideoNotes {
+    n.sections = part
+        .map(|(from, to)| Section {
+            from,
+            to,
+            summary: std::mem::take(&mut n.summary),
+        })
+        .into_iter()
+        .collect();
+    n
+}
+
+/// What a new shape re-takes: every kept part, or the whole video.
+pub fn reshape_parts(n: &VideoNotes) -> Vec<Option<(u32, u32)>> {
+    if n.sections.is_empty() {
+        vec![None]
+    } else {
+        n.sections.iter().map(|s| Some((s.from, s.to))).collect()
+    }
+}
+
+/// A new part joins the kept notes. Notes on the whole video have no parts
+/// to join: adding one would file every earlier item under it.
+pub fn add_part(old: Option<VideoNotes>, new: VideoNotes) -> Result<VideoNotes, String> {
+    match old {
+        None => Ok(new),
+        Some(old) if old.sections.is_empty() => {
+            Err("These notes already cover the whole video.".into())
+        }
+        Some(old) => Ok(merge(old, new)),
+    }
+}
+
 /// A newly made part added to the notes already kept for the video: lists
 /// and sections appended. The kept title and shape stay.
 pub fn merge(mut old: VideoNotes, new: VideoNotes) -> VideoNotes {
@@ -532,6 +589,42 @@ mod tests {
     use crate::voice_agent::{agent_system, turn_prompt, Source};
 
     const ID: &str = "dQw4w9WgXcQ";
+
+    #[test]
+    fn parts_join_parts_but_never_whole_video_notes() {
+        let part = |from, to, text: &str| {
+            as_part(
+                VideoNotes {
+                    summary: text.into(),
+                    ..Default::default()
+                },
+                Some((from, to)),
+            )
+        };
+        let whole = as_part(
+            VideoNotes {
+                summary: "all".into(),
+                ..Default::default()
+            },
+            None,
+        );
+        assert_eq!(whole.summary, "all");
+        assert!(add_part(Some(whole.clone()), part(60, 90, "b")).is_err());
+        let two = add_part(Some(part(0, 60, "a")), part(60, 90, "b")).unwrap();
+        assert_eq!(two.sections.len(), 2);
+        assert_eq!(two.sections[0].summary, "a");
+        assert_eq!(reshape_parts(&two), [Some((0, 60)), Some((60, 90))]);
+        assert_eq!(reshape_parts(&whole), [None]);
+        assert_eq!(add_part(None, whole.clone()).unwrap(), whole);
+    }
+
+    #[test]
+    fn video_title_drops_the_suffix_and_unread_count() {
+        assert_eq!(video_title("(3) Paging - YouTube"), "Paging");
+        assert_eq!(video_title("(99+) Paging - YouTube"), "Paging");
+        assert_eq!(video_title("(Live) Paging - YouTube"), "(Live) Paging");
+        assert_eq!(video_title("Paging"), "Paging");
+    }
 
     #[test]
     fn cornell_cards_pair_each_note_with_the_nearest_cue() {

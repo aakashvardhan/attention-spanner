@@ -119,6 +119,20 @@ pub enum Message {
     AnnotDelete {
         id: String,
     },
+    /// Make a video's notes in the worker: each part in turn, then replace
+    /// the kept notes, or (`add`) join them as a new part.
+    VideoNotesTake {
+        id: String,
+        title: String,
+        #[serde(default)]
+        kind: Option<crate::youtube::Kind>,
+        parts: Vec<Option<(u32, u32)>>,
+        #[serde(default)]
+        add: bool,
+    },
+    VideoNotesCancel {
+        id: String,
+    },
 }
 
 #[cfg(test)]

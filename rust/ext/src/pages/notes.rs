@@ -84,7 +84,7 @@ pub fn Notes() -> impl IntoView {
                                 None => view! { <p class="sidebar-quiet">"Pick a video to read its notes."</p> }.into_any(),
                                 Some(n) => view! {
                                     <h2>{n.title.clone()}</h2>
-                                    <a class="ghost-btn" href=format!("https://www.youtube.com/watch?v={}", n.id) target="_blank" rel="noopener">"Watch on YouTube"</a>
+                                    <a class="ghost-btn" href=reader_core::youtube::watch_url(&n.id) target="_blank" rel="noopener">"Watch on YouTube"</a>
                                     <NotesView notes=n on_seek=None />
                                 }.into_any(),
                             }}
