@@ -12,9 +12,17 @@ The extension is written in Rust and compiled to WebAssembly, on a fork of
 [oxichrome](https://github.com/0xsouravm/oxichrome) with a
 [Leptos](https://leptos.dev) UI. pdf.js and KaTeX stay JavaScript.
 
-![The new tab: continue reading, the brain dump and the activity heatmap](docs/screenshots/newtab.png)
+Screenshots are frames from the end-to-end demo (`e2e/demo.e2e.ts`), which drives the real extension.
 
-![Reading a paper: a clicked term, guessed first, then defined in the paper's terms](docs/screenshots/reader-define.png)
+![The new tab: papers in progress, today's to-dos from the brain dump, and Hacker News](docs/screenshots/newtab.jpg)
+
+![Reading a paper: Talk it through, a Socratic tutor you answer out loud](docs/screenshots/reader-talk.jpg)
+
+![Any webpage, with the side panel: Listen reads it aloud section by section](docs/screenshots/sidebar-webpage.jpg)
+
+![A YouTube video, with the side panel: Gemini's notes, timestamped](docs/screenshots/sidebar-youtube.jpg)
+
+![The lexicon: every saved term, linked across papers](docs/screenshots/lexicon.jpg)
 
 ---
 

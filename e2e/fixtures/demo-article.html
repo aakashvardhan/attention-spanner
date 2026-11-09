@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Positional encodings, from sinusoids to RoPE</title>
+<style>
+  body { margin: 0; background: #fbfaf7; color: #222; font: 18px/1.65 Georgia, 'Iowan Old Style', serif; }
+  nav { padding: 14px 32px; border-bottom: 1px solid #e6e2da; font: 14px system-ui, sans-serif; color: #666; }
+  nav a { color: #666; margin-right: 18px; text-decoration: none; }
+  main { max-width: 640px; margin: 40px auto 80px; padding: 0 32px; }
+  h1 { font-size: 38px; line-height: 1.15; margin: 0 0 8px; }
+  .byline { font: 14px system-ui, sans-serif; color: #888; margin-bottom: 32px; }
+  h2 { font-size: 24px; margin: 36px 0 8px; }
+  code { font: 15px ui-monospace, Menlo, monospace; background: #efece5; padding: 1px 5px; border-radius: 4px; }
+  footer { text-align: center; font: 13px system-ui, sans-serif; color: #aaa; padding: 24px; }
+</style>
+</head>
+<body>
+<nav><a href="/">Notes on models</a><a href="/archive">Archive</a><a href="/about">About</a></nav>
+<main>
+  <h1>Positional encodings, from sinusoids to RoPE</h1>
+  <p class="byline">A long read, about 9 minutes</p>
+  <p>Attention compares every token with every other token at once. That is what makes it fast on a GPU, and also what makes it blind: a bag of words and a sentence look the same to it. Positional encodings are how a Transformer gets word order back.</p>
+  <h2>Why attention forgets order</h2>
+  <p>An attention layer takes a weighted sum over the values, with weights from query–key dot products. Shuffle the input tokens and you shuffle the outputs the same way; nothing in the sum knows which token came first. In other words, attention is permutation equivariant.</p>
+  <p>So something has to be added to each token that says where it sits.</p>
+  <h2>Sinusoids: adding position</h2>
+  <p>The original Transformer adds a fixed vector to each embedding: sines and cosines of the position at many frequencies, <code>PE(pos, 2i) = sin(pos / 10000^(2i/d))</code>. Low dimensions spin fast, high ones slowly, like the hands of a clock.</p>
+  <p>Because a shift in position is a linear map on these vectors, the model can learn to attend by relative offset. But the position is mixed into the content, and every layer has to untangle it again.</p>
+  <h2>RoPE: rotating instead</h2>
+  <p>Rotary embeddings do not add anything. They rotate each pair of query and key dimensions by an angle proportional to the position. When a query at position m meets a key at position n, the two rotations cancel down to one rotation by m − n.</p>
+  <p>The attention score then depends only on the content and the relative distance, which is exactly what we wanted, and it costs nothing extra to store.</p>
+  <h2>What to take away</h2>
+  <p>Sinusoids tell each token where it is. RoPE tells each pair of tokens how far apart they are. Most large language models today use the second.</p>
+</main>
+<footer>Written for the reading group. Comments welcome.</footer>
+</body>
+</html>

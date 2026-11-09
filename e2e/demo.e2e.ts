@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import ffmpeg from 'ffmpeg-static';
-import type { Locator, Page } from 'playwright';
+import type { FrameLocator, Locator, Page } from 'playwright';
 import { describe, expect, it } from 'vitest';
 import { OUT, PAGES, launch, mockClaude, seed } from './harness';
 import { bigLexicon } from './lexiconSeed';
@@ -36,14 +36,29 @@ const ARXIV = '1706.03762';
 const done = { id: '01985f0e-9788-7924-8401-000000000003', name: 'Completed', type: 'default-completed' };
 
 /** Playwright's video has no cursor: draw one that follows the mouse and pulses on click. */
-const CURSOR = `addEventListener('DOMContentLoaded', () => {
-  const c = document.createElement('div');
-  c.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:rgba(255,80,60,.55);border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.5);transition:transform .12s;left:-50px;top:-50px';
-  document.documentElement.appendChild(c);
-  addEventListener('mousemove', (e) => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }, true);
-  addEventListener('mousedown', () => (c.style.transform = 'scale(.6)'), true);
-  addEventListener('mouseup', () => (c.style.transform = ''), true);
-});`;
+const CURSOR = `(() => {
+  // Inside the split view's frames: hand the mouse to the top page, which draws the one cursor.
+  if (window !== top) {
+    for (const t of ['mousemove', 'mousedown', 'mouseup']) addEventListener(t, (e) => parent.postMessage({ __cursor: t, x: e.clientX, y: e.clientY }, '*'), true);
+    return;
+  }
+  addEventListener('DOMContentLoaded', () => {
+    const c = document.createElement('div');
+    c.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:rgba(255,80,60,.55);border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.5);transition:transform .12s;left:-50px;top:-50px';
+    document.documentElement.appendChild(c);
+    const on = (t, x, y) => {
+      if (t === 'mousemove') { c.style.left = x + 'px'; c.style.top = y + 'px'; }
+      else c.style.transform = t === 'mousedown' ? 'scale(.6)' : '';
+    };
+    for (const t of ['mousemove', 'mousedown', 'mouseup']) addEventListener(t, (e) => on(t, e.clientX, e.clientY), true);
+    addEventListener('message', (e) => {
+      const f = e.data?.__cursor && [...document.querySelectorAll('iframe')].find((f) => f.contentWindow === e.source);
+      if (!f) return;
+      const r = f.getBoundingClientRect();
+      on(e.data.__cursor, r.left + e.data.x, r.top + e.data.y);
+    });
+  });
+})();`;
 
 /**
  * The page's sound, for the soundtrack: every buffer it plays (when it
@@ -85,7 +100,8 @@ const AUDIO_TAP = `(() => {
   };
 })();`;
 
-type Sound = { kind: 'play' | 'mic' | 'stop'; id: number; at: number; rate?: number; pcm?: string };
+/** `file`: for a mic, what "you" said into it then. */
+type Sound = { kind: 'play' | 'mic' | 'stop'; id: number; at: number; rate?: number; pcm?: string; file?: string };
 
 function wav(pcm: Buffer, rate: number): Buffer {
   const h = Buffer.alloc(44);
@@ -117,22 +133,27 @@ async function openaiSpeech(input: string, voice: string, instructions: string):
   return Buffer.from(await res.arrayBuffer());
 }
 
-const SAID = 'I think it is about getting rid of recurrence. RNNs read one word at a time, so training is really slow.';
+/** What "you" answer out loud, per scene. Whisper is scripted to hear exactly this. */
+const SAID = {
+  paper: 'I think it is about getting rid of recurrence. RNNs read one word at a time, so training is really slow.',
+  webpage: 'Because attention is just a weighted sum. If you shuffle the words, you get the same thing back, just shuffled.',
+  video: "It's like each word asking which other words matter to it, and the keys are how every word answers.",
+};
 
 /** "You", spoken into the fake mic: a pause, the sentence, then quiet (the file loops). */
-async function youWav(): Promise<string> {
-  const out = join(OUT, 'demo-you.wav');
+async function youWav(name: keyof typeof SAID): Promise<string> {
+  const out = join(OUT, `demo-you-${name}.wav`);
   if (existsSync(out)) return out;
   mkdirSync(OUT, { recursive: true });
-  const raw = join(OUT, 'demo-you-raw.wav');
-  writeFileSync(raw, await openaiSpeech(SAID, 'ash', 'A grad student thinking out loud to a friend: casual, a little tentative, natural.'));
+  const raw = join(OUT, `demo-you-${name}-raw.wav`);
+  writeFileSync(raw, await openaiSpeech(SAID[name], 'ash', 'A grad student thinking out loud to a friend: casual, a little tentative, natural.'));
   execFileSync(ffmpeg!, ['-v', 'error', '-y', '-f', 'lavfi', '-t', '1.2', '-i', 'anullsrc=r=48000:cl=mono', '-i', raw, '-f', 'lavfi', '-t', '10', '-i', 'anullsrc=r=48000:cl=mono',
     '-filter_complex', '[1]aresample=48000,aformat=channel_layouts=mono[s];[0][s][2]concat=n=3:v=0:a=1', '-c:a', 'pcm_s16le', out]);
   return out;
 }
 
 /** The frames as video, every sound laid where it played, as one mp4. */
-function mux(dir: string, t0: number, sounds: Sound[], you: string, out: string) {
+function mux(dir: string, t0: number, sounds: Sound[], out: string) {
   const stops = new Map(sounds.filter((s) => s.kind === 'stop').map((s) => [s.id, s.at]));
   const clips: { file: string; at: number; until?: number }[] = [];
   for (const s of sounds) {
@@ -140,7 +161,7 @@ function mux(dir: string, t0: number, sounds: Sound[], you: string, out: string)
       const file = join(dir, `sound-${s.id}.wav`);
       writeFileSync(file, wav(Buffer.from(s.pcm!, 'base64'), s.rate!));
       clips.push({ file, at: s.at, until: stops.get(s.id) });
-    } else if (s.kind === 'mic') clips.push({ file: you, at: s.at, until: stops.get(s.id) });
+    } else if (s.kind === 'mic') clips.push({ file: s.file!, at: s.at, until: stops.get(s.id) });
   }
   // The mix goes to a WAV first: AAC straight out of amix trips over frame sizes.
   const mixed = join(dir, 'mix.wav');
@@ -232,24 +253,144 @@ async function glideClick(page: Page, target: Locator) {
 }
 const typeSlow = (target: Locator, text: string) => target.pressSequentially(text, { delay: 45 });
 
+/**
+ * The browser with its side panel open, as one picture: `left` (the page) and
+ * the side panel for `tabId`, side by side in frames of one extension page
+ * (CDP films one page; the real panel is outside any page).
+ */
+async function split(page: Page, extId: string, left: string, tabId: number): Promise<FrameLocator> {
+  await page.evaluate(
+    ([l, r]) => {
+      document.title = 'Demo';
+      document.body.replaceChildren();
+      document.body.style.cssText = 'margin:0;display:flex;height:100vh;overflow:hidden;background:#000';
+      for (const [src, name, css] of [[l, 'page', 'flex:1'], [r, 'side', 'width:420px;border-left:1px solid #444']]) {
+        const f = document.createElement('iframe');
+        Object.assign(f, { src, name, allow: 'microphone; autoplay' });
+        f.style.cssText = `${css};border-top:0;border-right:0;border-bottom:0;height:100%`;
+        document.body.appendChild(f);
+      }
+    },
+    [left, `chrome-extension://${extId}/${PAGES.sidebar}?tab=${tabId}`],
+  );
+  return page.frameLocator('iframe[name="side"]');
+}
+
+/** Talk it through, out loud: it opens, you answer once, it follows up; then Stop before the mic hears you again. */
+async function talkOnce(page: Page, root: Page | FrameLocator) {
+  await glideClick(page, root.getByRole('button', { name: 'Start talking' }));
+  const phase = () => root.locator('[data-phase]').getAttribute('data-phase');
+  await root.locator('[data-who="you"]').first().waitFor({ timeout: 90_000 });
+  await root.locator('[data-who="agent"]').nth(1).waitFor({ timeout: 60_000 });
+  await expect.poll(phase, { timeout: 90_000, interval: 100 }).toBe('listening');
+  await glideClick(page, root.getByRole('button', { name: 'Stop' }));
+  await pause(page, 1500);
+}
+
 describe.skipIf(!process.env.DEMO)('demo', () => {
-  it('records the walkthrough', { timeout: 600_000 }, async () => {
-    const you = await youWav();
-    const ext = await launch({ fakeAudio: you });
+  it('records the walkthrough', { timeout: 1_200_000 }, async () => {
+    const yours = { paper: await youWav('paper'), webpage: await youWav('webpage'), video: await youWav('video') };
+    // The fake mic plays this file; each talk scene copies its line in first.
+    const MIC = join(OUT, 'demo-mic.wav');
+    let scene: keyof typeof SAID = 'webpage';
+    const speak = (s: keyof typeof SAID) => copyFileSync(yours[(scene = s)], MIC);
+    speak('webpage');
+    const ext = await launch({ fakeAudio: MIC });
     await ext.ctx.addInitScript(CURSOR);
     await ext.ctx.addInitScript(AUDIO_TAP);
     const sounds: Sound[] = [];
-    await ext.ctx.exposeFunction('__demoAudio', (s: Sound) => void sounds.push(s));
+    await ext.ctx.exposeFunction('__demoAudio', (s: Sound) => void sounds.push(s.kind === 'mic' ? { ...s, file: yours[scene] } : s));
+    // Whisper hears this scene's line, word for word.
+    await ext.ctx.route('https://api.groq.com/openai/v1/audio/transcriptions', (route) =>
+      route.fulfill({ json: { text: SAID[scene] } }),
+    );
+    // The new tab's Hacker News card; the top story is the article in the side-panel scene.
+    const article = `${ext.sites.origin('notes')}/rope`;
+    ext.sites.setRoute('notes', '/rope', (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(readFileSync(resolve(__dirname, 'fixtures/demo-article.html')));
+    });
+    const stories: [string, string][] = [
+      ['Positional encodings, from sinusoids to RoPE', article],
+      ['Show HN: A vector index in 400 lines of C', 'https://example.com/2'],
+      ['The case for boring software', 'https://example.com/3'],
+      ['Ask HN: How do you actually read research papers?', 'https://example.com/4'],
+      ['Why GPUs hate branches', 'https://example.com/5'],
+      ['A field guide to tokenizers', 'https://example.com/6'],
+    ];
+    await ext.ctx.route('https://news.ycombinator.com/rss', (route) =>
+      route.fulfill({
+        contentType: 'application/rss+xml',
+        body: `<rss><channel>${stories
+          .map(([t, l], i) => `<item><title>${t}</title><link>${l}</link><comments>https://news.ycombinator.com/item?id=${4210 + i}</comments></item>`)
+          .join('')}</channel></rss>`,
+      }),
+    );
+    // YouTube: a watch page with the player API the side panel asks (the real one can't be scripted).
+    const VIDEO = 'eMlx5fFNoYc';
+    const VIDEO_TITLE = 'Attention in transformers, step-by-step';
+    await ext.ctx.route('https://www.youtube.com/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body:
+          `<!doctype html><html lang="en"><head><title>${VIDEO_TITLE} - YouTube</title></head>` +
+          '<body style="margin:0;background:#0f0f0f;color:#f1f1f1;font:15px system-ui,sans-serif">' +
+          '<div style="padding:24px 28px">' +
+          `<div id="movie_player" style="aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#222 url(https://i.ytimg.com/vi/${VIDEO}/maxresdefault.jpg) center/cover"><video></video></div>` +
+          `<h1 style="font-size:20px;margin:14px 0 6px">${VIDEO_TITLE}</h1><p style="color:#aaa;margin:0">Deep learning, chapter 6 &middot; 26:10</p></div>` +
+          '<script>' +
+          "const mp = document.getElementById('movie_player');" +
+          'mp.seekTo = (t) => { window.playerTime = t; }; mp.getCurrentTime = () => window.playerTime ?? 742;' +
+          `mp.getPlayerResponse = () => ({ videoDetails: { videoId: '${VIDEO}', lengthSeconds: '1570', shortDescription: '' } });` +
+          '</script></body></html>',
+      }),
+    );
+    // Gemini watches the video and talks it through.
+    const geminiTalk = [
+      "You're about twelve minutes in, right at queries and keys. In your own words, what is a query asking for?",
+      'Nice. So then why do you think those scores go through a softmax before they weight the values?',
+    ];
+    await ext.ctx.route('https://generativelanguage.googleapis.com/**', async (route) => {
+      const body = JSON.stringify(route.request().postDataJSON());
+      const text = body.includes('you never tell')
+        ? geminiTalk[Math.min(1, body.split('Them: ').length - 1)]
+        : JSON.stringify({
+            kind: 'educational',
+            title: VIDEO_TITLE,
+            summary: 'How a single attention head lets each word pull in meaning from the words around it.',
+            question: 'How does a word like "mole" come to mean the right thing in its sentence?',
+            ideas: [
+              { t: '2:10', idea: 'Embeddings are a starting point', intuition: 'Each token starts with one vector, the same whatever its context.' },
+              { t: '7:45', idea: 'Queries and keys', intuition: 'A query asks "who matters to me?"; a key answers "here is what I am". Their dot product scores the match.' },
+              { t: '13:30', idea: 'Softmax makes weights', intuition: 'Scores become a distribution, so each word takes a weighted mix of the values.' },
+              { t: '18:05', idea: 'Values move meaning', intuition: 'The weighted values are added to the embedding, nudging it toward its meaning in context.' },
+              { t: '22:40', idea: 'Many heads, in parallel', intuition: 'Each head learns its own kind of question, and they all run at once.' },
+            ],
+          });
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text }] } }] } });
+    });
     // The extension's own OpenAI request, in the voice it maps "autumn" to.
     await ext.ctx.route('https://api.groq.com/openai/v1/audio/speech', async (route) => {
       const { input } = route.request().postDataJSON() as { input: string };
       await route.fulfill({ status: 200, headers: { 'content-type': 'audio/wav' }, body: await openaiSpeech(input, 'marin', OPENAI_INSTRUCTIONS) });
     });
     let narrated = 0;
+    let narratedPage = 0;
     const pdf = readFileSync(process.env.DEMO_PDF!);
     await ext.ctx.route('https://arxiv.org/pdf/**', (r) => r.fulfill({ contentType: 'application/pdf', body: pdf }));
     await mockClaude(ext, (system, prompt) =>
-      system.includes('Socratic tutor')
+      system.includes('Socratic tutor') && system.includes('the page "')
+        ? [
+            "So this post is about RoPE. Before you read on: why would attention lose track of word order in the first place?",
+            "Right, it's a sum, so order washes out. Now, if RoPE rotates each query and key by its position, what's left of the two rotations when you take their dot product?",
+          ][Math.min(1, prompt.split('Them:').length - 1)]
+        : system.includes('one section of the web page')
+          ? ([
+              'Positional encodings, from sinusoids to RoPE. Attention compares every token with every other token at once. That makes it fast, but also blind to order: to attention, a bag of words and a sentence look the same.',
+              'Why attention forgets order. Attention is a weighted sum. Shuffle the inputs, and the outputs shuffle the same way. Nothing in the sum knows which word came first, so position has to be added in.',
+              'Sinusoids. The original Transformer adds sines and cosines of the position to each embedding, at many frequencies, like the hands of a clock.',
+            ][narratedPage++] ?? '[SKIP]')
+        : system.includes('Socratic tutor')
         ? [
             "So, Attention Is All You Need. Before we dig in, what do you think it's actually trying to fix?",
             "Okay, recurrence is slow. But why does reading one word at a time stop you from using a GPU well?",
@@ -277,8 +418,10 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
         claudeKey: 'sk-demo',
         groqKey: process.env.GROQ_API_KEY,
         openaiKey: process.env.OPENAI_API_KEY,
+        geminiKey: 'AIza-demo',
         talkVoice: 'autumn',
-        focusBlocklist: ['linkedin.com', 'youtube.com', 'x.com', 'reddit.com', 'netflix.com'],
+        // YouTube stays open: it has its own scene.
+        focusBlocklist: ['linkedin.com', 'x.com', 'reddit.com', 'netflix.com'],
       },
       // An existing vault, so the brain dump seals straight in (no passphrase setup on camera).
       vault: TS_VAULT.vault,
@@ -348,6 +491,39 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
     await pause(page, 3500);
     await page.mouse.wheel(0, -600);
     await pause(page, 1000);
+
+    // Hacker News on the new tab (folded under News): open the top story.
+    const news = page.locator('.news-disclosure summary');
+    await news.scrollIntoViewIfNeeded({ timeout: 10_000 });
+    await glideClick(page, news);
+    const story = page.locator('.feed-link').first();
+    await story.waitFor({ timeout: 15_000 });
+    // Its column scrolls on its own: center the whole card, smoothly.
+    await story.evaluate((e) => e.closest('.news-disclosure')!.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    await pause(page, 3000);
+    await glideTo(page, ...(await story.boundingBox().then((b) => [b!.x + 40, b!.y + b!.height / 2] as const)));
+    await pause(page, 800);
+
+    // A webpage, with the side panel: Listen reads it aloud, section by section.
+    const articleTab = await ext.ctx.newPage();
+    await articleTab.goto(article);
+    const articleId = await ext.sw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id!, article);
+    await page.bringToFront();
+    await cam.go(`chrome-extension://${ext.id}/chime.html`);
+    let side = await split(page, ext.id, article, articleId);
+    await side.getByRole('heading', { name: 'Positional encodings, from sinusoids to RoPE' }).waitFor({ timeout: 15_000 });
+    await pause(page, 2500);
+    await glideClick(page, side.getByRole('button', { name: 'Read the page' }));
+    await side.locator('.reader-talk-turns', { hasText: 'Why attention forgets order.' }).waitFor({ timeout: 90_000 });
+    await pause(page, 8000);
+    await glideClick(page, side.getByRole('button', { name: 'Pause' }));
+    await pause(page, 1000);
+    // Talk it through about the page, out loud.
+    speak('webpage');
+    await glideClick(page, side.getByRole('button', { name: 'Talk it through' }));
+    await pause(page, 1000);
+    await talkOnce(page, side);
+    await articleTab.close();
 
     // The bookshelf: walk it by keyboard, pull a paper out.
     await cam.go(`chrome-extension://${ext.id}/${PAGES.papers}`);
@@ -446,24 +622,8 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
     await glideClick(page, page.getByRole('button', { name: 'Talk it through' }));
     await page.getByRole('heading', { name: 'Talk it through' }).waitFor();
     await pause(page, 1500);
-    await glideClick(page, page.getByRole('button', { name: 'Start talking' }));
-    const agent = page.locator('[data-who="agent"]');
-    const phase = () => page.locator('[data-phase]').getAttribute('data-phase');
-    await page.locator('[data-who="you"]').first().waitFor({ timeout: 90_000 });
-    await agent.nth(1).waitFor({ timeout: 60_000 });
-    // Its second question has played: stop before the mic hears "you" again.
-    await expect.poll(phase, { timeout: 90_000, interval: 100 }).toBe('listening');
-    await glideClick(page, page.getByRole('button', { name: 'Stop' }));
-    await pause(page, 1000);
-
-    // Can't talk? Type the turn instead; it still answers aloud.
-    await glideClick(page, page.getByLabel('Or type it'));
-    await typeSlow(page.getByLabel('Or type it'), "Because each step waits for the last one, so nothing runs in parallel.");
-    await pause(page, 400);
-    await page.keyboard.press('Enter');
-    await agent.nth(2).waitFor({ timeout: 60_000 });
-    await expect.poll(phase, { timeout: 90_000, interval: 200 }).toBe('off');
-    await pause(page, 2000);
+    speak('paper');
+    await talkOnce(page, page);
 
     // Listen: the paper read aloud, a page at a time, from where you are.
     await glideTo(page, 900, 12);
@@ -474,6 +634,30 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
     await glideTo(page, 900, 12);
     await glideClick(page, page.getByRole('button', { name: 'Listen', exact: true }));
     await pause(page, 1500);
+
+    // YouTube, with the side panel: Gemini watches the video and takes notes shaped to it.
+    const videoUrl = `https://www.youtube.com/watch?v=${VIDEO}`;
+    const videoTab = await ext.ctx.newPage();
+    await videoTab.goto(videoUrl);
+    const videoId = await ext.sw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id!, videoUrl);
+    await page.bringToFront();
+    await cam.go(`chrome-extension://${ext.id}/chime.html`);
+    side = await split(page, ext.id, videoUrl, videoId);
+    await pause(page, 2500);
+    await glideClick(page, side.getByRole('button', { name: 'Take notes' }));
+    await side.getByText('Queries and keys').waitFor({ timeout: 30_000 });
+    await pause(page, 3000);
+    await glideTo(page, 1070, 600);
+    await page.mouse.wheel(0, 400);
+    await pause(page, 3000);
+    await page.mouse.wheel(0, -400);
+    await pause(page, 800);
+    // Talk it through about the video, from where you are in it.
+    speak('video');
+    await glideClick(page, side.getByRole('button', { name: 'Talk it through' }));
+    await pause(page, 1000);
+    await talkOnce(page, side);
+    await videoTab.close();
 
     // The lexicon: every term kept from every paper, as a graph.
     await cam.go(`chrome-extension://${ext.id}/${PAGES.lexicon}`);
@@ -503,7 +687,7 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
       const { count, t0 } = await cam.stop();
       await page.close();
       await ext.close();
-      const clips = mux(join(OUT, 'demo'), t0, sounds, you, join(OUT, 'demo.mp4'));
+      const clips = mux(join(OUT, 'demo'), t0, sounds, join(OUT, 'demo.mp4'));
       console.log(`${count} frames, ${clips} sounds`);
       for (const s of sounds) console.log(s.kind, s.id, s.at - t0);
     }

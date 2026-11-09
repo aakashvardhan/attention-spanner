@@ -29,9 +29,10 @@ pub fn voice_or_default(v: &str) -> &str {
 }
 /// Orpheus rejects longer input.
 pub const TTS_MAX_CHARS: usize = 200;
-/// Quiet this long after speech ends your turn. Calibration knob: lower
-/// feels snappier, but cuts people off mid-thought.
-pub const TURN_SILENCE_MS: u32 = 700;
+/// Quiet this long after speech ends your turn. Calibration knob: long enough
+/// to stop and think about a question mid-answer; lower feels snappier but
+/// cuts people off (700 did).
+pub const TURN_SILENCE_MS: u32 = 2_000;
 /// The paper as context; past this only the opening is sent.
 const PAPER_MAX_CHARS: usize = 40_000;
 /// Turns of history sent each time: enough for the tutor to come back to
