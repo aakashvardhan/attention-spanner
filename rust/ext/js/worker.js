@@ -58,6 +58,27 @@ globalThis.togglePanel = (tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(panelError);
 };
 chrome.action.onClicked.addListener((tab) => globalThis.togglePanel(tab));
+// Keyboard commands (manifest `commands`); the icon's own shortcut arrives as a click above.
+chrome.commands.onCommand.addListener((command) => run(wasm.on_command, command));
+// `r <words>` in the address bar: papers on the shelf.
+chrome.omnibox.onInputChanged.addListener((text, suggest) => {
+  ready.then(() => wasm.omnibox_suggest(text)).then(suggest, (e) => console.error('[worker] omnibox', e));
+});
+chrome.omnibox.onInputEntered.addListener((text, disposition) => {
+  ready
+    .then(() => wasm.omnibox_url(text))
+    .then((url) =>
+      disposition === 'currentTab'
+        ? chrome.tabs.update({ url })
+        : chrome.tabs.create({ url, active: disposition === 'newForegroundTab' }),
+    )
+    .catch((e) => console.error('[worker] omnibox', e));
+});
+// The page menu opens the panel here, inside the click; the rest is Rust's.
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== 'panel') return run(wasm.on_menu, info, tab ?? null);
+  if (tab && !panelTabs.has(tab.id)) globalThis.togglePanel(tab);
+});
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.settings) {
     run(wasm.on_settings_changed, changes.settings.oldValue ?? null, changes.settings.newValue ?? null);

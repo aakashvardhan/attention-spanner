@@ -41,8 +41,8 @@ extern "C" {
     fn info_fn() -> JsValue;
 }
 
-/// Runs `func` (one of js/tab-video.mjs) with `arg` in the tab's page, where the player is.
-async fn in_tab(tab_id: i32, func: &JsValue, arg: JsValue) -> Option<JsValue> {
+/// Runs `func` (one of js/tab-video.mjs or js/tab-mark.mjs) with `arg` in the tab's page, where the player is.
+pub(super) async fn in_tab(tab_id: i32, func: &JsValue, arg: JsValue) -> Option<JsValue> {
     let details = Object::new();
     let target = Object::new();
     Reflect::set(&target, &"tabId".into(), &tab_id.into()).ok()?;

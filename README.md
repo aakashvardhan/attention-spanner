@@ -49,6 +49,11 @@ alphaXiv one menu item away.
 - **Section rail.** The outline rests as tick marks on the left edge, the
   current section lit.
 - **Focus line.** Press F and a reading band holds your place.
+- **Keys for everything.** E, T and L open Explain it back, Talk and Listen;
+  N places a note; J and K step through sections; Shift+F is full screen;
+  `?` lists them all.
+- **The tab names the paper.** The tab title is the paper and the page you
+  are on, so a reader tab is easy to find among many.
 - **Figure mentions jump.** "Figure 3" in the text goes to the figure, and a
   Back button returns you to where you were reading. Citations and section
   links jump the same way.
@@ -70,14 +75,29 @@ page that names what you were reading. Closing the last reader tab lifts the
 block. Blocking is `declarativeNetRequest`, so it holds across service-worker
 restarts.
 
+### In the browser itself
+
+- **Toolbar badge**: minutes left in a focus round, or a dot while a reader
+  tab is open.
+- **Address bar**: type `r`, a space, and a few words of a title to open a
+  paper from your shelf where you stopped.
+- **Shortcuts** (change them at `chrome://extensions/shortcuts`):
+  Alt+Shift+R toggles the side panel, Alt+Shift+P goes back to your paper,
+  Alt+Shift+F starts a focus round with your top tasks.
+- **Right-click**: "Open in Reader" on an arXiv link, "Add to the lexicon" on
+  selected text, and the side panel on any page.
+
 ### The new tab
 
-- **Continue reading**: the paper you read last, opened where you stopped.
+- **Continue reading**: the paper you read last, opened where you stopped,
+  with a Resume button at the top of the page.
   Queued and completed papers are tucked into expandable sections.
 - **Focus rounds**: start from a task on the board, or choose up to three
   for 25 minutes. Task edits and completion stay in sync with the round.
   An optional YouTube link allows that study video while other videos stay
-  blocked. News stays hidden during focus and reading sessions.
+  blocked. News stays hidden during focus and reading sessions. The time
+  left shows in the tab title, in the reader, and (Float timer) in a small
+  window that stays above your other tabs.
 - **Brain dump**: type what is looping; Claude Haiku hands it back a little
   lighter, and the words go into an encrypted vault (RSA-OAEP and AES-GCM,
   unlocked by your passphrase or a recovery code). The new tab never shows a
@@ -183,7 +203,8 @@ shelves on the papers page and the new tab.
 - **A paper:** open any arXiv PDF link; it opens in the reader. Use **Listen**,
   **Talk it through** and **Explain it back** from the toolbar.
 - **Any webpage or YouTube video:** click the extension's toolbar icon to open
-  the side panel for that tab. On a page: Listen or Talk it through. On a
+  the side panel for that tab. On a page: Listen (the page scrolls to the
+  section being read and marks it) or Talk it through. On a
   video: **Take notes**, then Talk it through.
 - **Talking:** the first time, allow the microphone. If the side panel can't
   ask for it, click **Allow the microphone** in the panel; a tab opens and
@@ -271,6 +292,7 @@ shadow anywhere else; `theme.test.ts` checks every text/surface pair for 7:1;
 | `geolocation` | The temperature by the new tab's clock |
 | `scripting` | Reading the page, or the YouTube player, for the side panel |
 | `sidePanel` | The side panel the toolbar icon opens |
+| `contextMenus` | "Open in Reader", "Add to the lexicon" and the side panel, on right-click |
 | `<all_urls>` | Fetching PDFs for the reader, reaching alphaXiv and the AI providers, and reading the tab the side panel is on |
 
 ---

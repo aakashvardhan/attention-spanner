@@ -84,8 +84,8 @@ body {
 
 .library-keys {
   color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .library-status {

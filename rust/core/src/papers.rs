@@ -87,9 +87,68 @@ pub fn group_by_folder(
     map
 }
 
+/// The shelf's papers whose title holds every word of `query`, the one read
+/// last first: what the omnibox keyword offers. A blank query is the shelf.
+pub fn search_papers<'a>(
+    papers: &'a [crate::types::Paper],
+    query: &str,
+    max: usize,
+) -> Vec<&'a crate::types::Paper> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    let mut hits: Vec<&crate::types::Paper> = papers
+        .iter()
+        .filter(|p| p.deleted_at.is_none())
+        .filter(|p| {
+            let title = p.title.to_lowercase();
+            words.iter().all(|w| title.contains(w))
+        })
+        .collect();
+    hits.sort_by_key(|p| std::cmp::Reverse(p.last_read_at));
+    hits.truncate(max);
+    hits
+}
+
+/// Text made safe for the omnibox's XML descriptions.
+pub fn xml_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn searches_titles_by_every_word_newest_read_first() {
+        let paper = |title: &str, read: Option<i64>, deleted: bool| crate::types::Paper {
+            title: title.into(),
+            last_read_at: read,
+            deleted_at: deleted.then_some(1),
+            ..Default::default()
+        };
+        let shelf = [
+            paper("Attention Is All You Need", Some(1), false),
+            paper("Mamba: Linear-Time Sequence Modeling", Some(2), false),
+            paper("Attention, deleted", Some(3), true),
+        ];
+        let titles = |q: &str| -> Vec<&str> {
+            search_papers(&shelf, q, 6)
+                .iter()
+                .map(|p| p.title.as_str())
+                .collect()
+        };
+        assert_eq!(titles("need ATTENTION"), ["Attention Is All You Need"]);
+        assert_eq!(titles("").len(), 2);
+        assert_eq!(titles("")[0], "Mamba: Linear-Time Sequence Modeling");
+        assert!(titles("diffusion").is_empty());
+        assert_eq!(
+            xml_escape("A <b> & \"c\""),
+            "A &lt;b&gt; &amp; &quot;c&quot;"
+        );
+    }
 
     #[test]
     fn recognizes_arxiv_abs_pdf_versioned_and_pdf_suffix_as_the_same_id() {

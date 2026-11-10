@@ -36,5 +36,19 @@
   "side_panel": {
     "default_path": "src/pages/sidebar/index.html"
   },
-  "options_page": "src/pages/options/index.html"
+  "options_page": "src/pages/options/index.html",
+  "omnibox": { "keyword": "r" },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+R" }
+    },
+    "back-to-paper": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Back to the paper you are reading"
+    },
+    "focus-round": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "Start a focus round with your top tasks"
+    }
+  }
 }

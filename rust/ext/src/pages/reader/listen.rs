@@ -33,7 +33,8 @@ pub fn ListenPanel(
     page_texts: Signal<Option<Vec<String>>>,
     /// Where the reader is now: listening starts here.
     page: Signal<u32>,
-    /// Turns the reader's pages as it reads; none in the side panel.
+    /// Turns the reader's pages as it reads; in the side panel, marks the
+    /// section on the webpage (and is run with 0 when the voice stops).
     on_jump: Option<Callback<u32>>,
     on_close: Callback<()>,
 ) -> impl IntoView {
@@ -117,7 +118,11 @@ pub fn ListenPanel(
                     keep_in_view(panel);
                 }
                 if !live() || matches!(phase.get_untracked(), Phase::Off | Phase::Done) {
-                    spoken.set(None);
+                    spoken.try_set(None);
+                    // A webpage's mark goes when the voice stops (0 is no section).
+                    if let Some(jump) = on_jump.filter(|_| !matches!(source, Source::Paper)) {
+                        jump.try_run(0);
+                    }
                     return;
                 }
                 let now = player.with_value(Player::now_ms);
@@ -314,7 +319,7 @@ pub fn ListenPanel(
                 {on_jump.is_some().then(|| view! {
                     <label class="define-label">
                         <input type="checkbox" prop:checked=move || follow.get() on:change=move |e| follow.set(event_target_checked(&e)) />
-                        " Turn pages as it reads"
+                        {if matches!(source, Source::Paper) { " Turn pages as it reads" } else { " Follow along on the page" }}
                     </label>
                 })}
                 <Show when=move || notice.with(|n| !n.is_empty())>

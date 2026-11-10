@@ -69,10 +69,22 @@ body {
 
 .reader-document-title span {
   display: block;
+  max-width: min(34vw, 420px);
   margin-top: 4px;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  line-height: 1;
+  line-height: var(--leading-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-more-menu kbd {
+  justify-self: end;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .reader-toolbar-right {
@@ -525,6 +537,92 @@ body {
   }
 }
 
+/* And they leave the way they came. A panel is unmounted the moment it
+   closes, so its exit is a view transition (pages::transition): the browser
+   keeps a picture of it to slide away. The arriving panel keeps its own
+   animation above, so its transition picture is left alone. */
+.reader-outline {
+  view-transition-name: reader-outline;
+}
+
+.reader-notes,
+.reader-find {
+  view-transition-name: reader-panel;
+}
+
+::view-transition-new(reader-outline),
+::view-transition-new(reader-panel) {
+  animation: none;
+}
+
+::view-transition-old(reader-outline) {
+  animation: reader-panel-out-left var(--transition-base) var(--ease-out) both;
+}
+
+::view-transition-old(reader-panel) {
+  animation: reader-panel-out-right var(--transition-base) var(--ease-out) both;
+}
+
+@keyframes reader-panel-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes reader-panel-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* The shortcut sheet (?). */
+.reader-keys-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: var(--reading-dim);
+}
+
+.reader-keys {
+  width: min(420px, calc(100% - var(--space-6)));
+  max-height: calc(100% - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.reader-keys dl {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.reader-keys dl div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--space-3);
+  align-items: baseline;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.reader-keys kbd {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.reader-keys dd {
+  color: var(--text-secondary);
+}
+
 /* Text layer — minimal subset of pdf.js web/pdf_viewer.css `.textLayer` rules.
    Transparent glyphs positioned over the canvas so native selection works. */
 
@@ -938,18 +1036,44 @@ body {
   text-align: center;
 }
 
-.reader-loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: reader-spin 0.8s linear infinite;
+/* While the PDF opens: a page where the first page will land. */
+.reader-skeleton {
+  justify-content: flex-start;
+  padding-top: var(--space-8);
 }
 
-@keyframes reader-spin {
+.reader-skeleton-page {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  width: min(816px, 100%);
+  aspect-ratio: 17 / 22;
+  max-height: 70vh;
+  padding: var(--space-8) var(--space-7);
+  background: var(--pdf-page);
+  outline: 1px solid var(--border-subtle);
+}
+
+.reader-skeleton-page span {
+  height: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  animation: reader-skeleton 1.2s var(--ease-effect) infinite alternate;
+}
+
+.reader-skeleton-page span:first-child {
+  width: 60%;
+  height: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.reader-skeleton-page span:last-child {
+  width: 72%;
+}
+
+@keyframes reader-skeleton {
   to {
-    transform: rotate(360deg);
+    opacity: 0.4;
   }
 }
 
@@ -965,8 +1089,8 @@ body {
     transition: none;
   }
 
-  .reader-loading-spinner {
-    animation-duration: 1.6s;
+  .reader-skeleton-page span {
+    animation: none;
   }
 }
 
@@ -1319,6 +1443,59 @@ body {
   padding: var(--space-3) var(--space-4);
   color: var(--text-primary);
   overflow-y: auto;
+}
+
+/* Whose turn it is, at a glance: a ring while it waits for you, filled in
+   your colour while it hears you, turning while it thinks, filled in the
+   accent while it speaks. */
+.talk-orb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: var(--space-3) 0 var(--space-2);
+  border: 2px solid var(--accent-border);
+  border-radius: 50%;
+}
+
+.talk-orb[data-state='off'] {
+  display: none;
+}
+
+.talk-orb[data-state='hearing'] {
+  border-color: var(--success-border);
+  background: var(--success-border);
+  animation: talk-orb-pulse 0.6s var(--ease-effect) infinite alternate;
+}
+
+.talk-orb[data-state='thinking'] {
+  border-style: dashed;
+  animation: talk-orb-turn 2.4s linear infinite;
+}
+
+.talk-orb[data-state='speaking'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  animation: talk-orb-pulse 1.2s var(--ease-effect) infinite alternate;
+}
+
+@keyframes talk-orb-pulse {
+  to {
+    transform: scale(0.82);
+  }
+}
+
+@keyframes talk-orb-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .talk-orb[data-state='hearing'],
+  .talk-orb[data-state='thinking'],
+  .talk-orb[data-state='speaking'] {
+    animation: none;
+  }
 }
 
 .reader-talk-type {

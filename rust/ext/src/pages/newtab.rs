@@ -37,7 +37,7 @@ use wasm_bindgen_futures::JsFuture;
 #[oxichrome::page(path = "src/pages/newtab/index.html", title = "New Tab", css = ["assets/theme.css", "assets/newtab.css"])]
 pub fn NewTab() -> impl IntoView {
     super::use_theme();
-    let (papers, _) = use_storage::<Vec<Paper>>("papers");
+    let (papers, papers_loaded) = use_storage::<Vec<Paper>>("papers");
     // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
     leptos::task::spawn_local(async {
         send(json!({ "type": "ALPHAXIV_SYNC" })).await;
@@ -46,10 +46,26 @@ pub fn NewTab() -> impl IntoView {
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
     let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
     // Read once here and handed down: each use_storage is its own listener.
-    let (todos, _) = use_storage::<Vec<Todo>>("todos");
+    let (todos, todos_loaded) = use_storage::<Vec<Todo>>("todos");
     let (activity, _) = use_storage::<ActivityLog>("activity");
     let tick = RwSignal::new(now());
     set_interval(move || tick.set(now()), std::time::Duration::from_secs(1));
+    // A running round counts down in the tab strip, where the other tabs are.
+    let tab_title = Memo::new(move |_| {
+        pomodoro.with(|p| match p {
+            Some(p) => format!(
+                "{} · {}",
+                left_label(p.ends_at - tick.get()),
+                if p.phase == PomPhase::Break {
+                    "Break"
+                } else {
+                    "Focus"
+                }
+            ),
+            None => "New Tab".to_string(),
+        })
+    });
+    Effect::new(move |_| document().set_title(&tab_title.get()));
     // To read, in progress, completed: by how far each paper is read.
     let columns = Memo::new(move |_| {
         let mut cols: [Vec<Paper>; 3] = Default::default();
@@ -69,6 +85,9 @@ pub fn NewTab() -> impl IntoView {
         cols
     });
     let base = chrome::get_url("");
+    // The one thing: the paper read last, a click from where it was left.
+    let resume = Memo::new(move |_| columns.with(|c| c[1].first().cloned()));
+    let resume_base = base.clone();
     let card = move |p: Paper, first: bool| {
         let href = paper_open_url(&p, false, &base);
         let n = p.progress_percent.round() as i64;
@@ -127,7 +146,24 @@ pub fn NewTab() -> impl IntoView {
         <div id="root">
             <main class="edition">
                 <section class="focus-home" aria-label="Focus round">
-                    <div><h1>"Today"</h1><p class="hint">"Pick one thing. Give it 25 minutes."</p></div>
+                    <div class="today-lead">
+                        <h1>"Today"</h1>
+                        {move || match resume.get() {
+                            None => view! { <p class="hint">"Pick one thing. Give it 25 minutes."</p> }.into_any(),
+                            Some(p) => {
+                                let n = p.progress_percent.round() as i64;
+                                let meta = if p.left_off.is_empty() { format!("{n}% read") } else { format!("{} · {n}% read", p.left_off) };
+                                view! {
+                                    <a class="resume" href=paper_open_url(&p, false, &resume_base)>
+                                        <span class="label">"Continue reading"</span>
+                                        <span class="resume-title">{p.title.clone()}</span>
+                                        <span class="hint">{meta}</span>
+                                        <span class="fc-primary-btn resume-go">"Resume"</span>
+                                    </a>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
                     <Clock pomodoro=pomodoro tick=tick todos=todos log=activity />
                     <PomodoroPanel pomodoro=pomodoro tick=tick todos=todos />
                 </section>
@@ -146,6 +182,10 @@ pub fn NewTab() -> impl IntoView {
                                 <ul class="board-list">
                                     {move || {
                                         let list = columns.with(|c| c[i].clone());
+                                        // Not "nothing" until storage has answered: no flash of an empty shelf.
+                                        if list.is_empty() && !papers_loaded.get() {
+                                            return ().into_any();
+                                        }
                                         if list.is_empty() {
                                             return view! { <li class="hint board-empty">"Nothing here yet."</li> }.into_any();
                                         }
@@ -158,7 +198,7 @@ pub fn NewTab() -> impl IntoView {
                     }).collect_view()}
                 </section>
 
-                <TodoBoard todos=todos pomodoro=pomodoro />
+                <TodoBoard todos=todos loaded=todos_loaded pomodoro=pomodoro />
 
                 <aside class="side-col">
                     <BrainDump />
@@ -1084,6 +1124,7 @@ async fn begin_round(ids: Vec<String>, video: String) -> crate::js::Res<()> {
 #[component]
 fn TodoBoard(
     todos: ReadSignal<Vec<Todo>>,
+    loaded: ReadSignal<bool>,
     pomodoro: ReadSignal<Option<Pomodoro>>,
 ) -> impl IntoView {
     let feedback = RwSignal::new(String::new());
@@ -1173,6 +1214,7 @@ fn TodoBoard(
             .due_at
             .map(|d| format_local(local_parts(d)))
             .unwrap_or_default();
+        let timed = !when.is_empty();
         // One step forward, one step back: To do -> In progress -> Done.
         let (fwd, back) = match col {
             0 => (Some("Start"), None),
@@ -1189,7 +1231,7 @@ fn TodoBoard(
                     } else { edit(id6.clone(), Box::new(move |t| t.text = text)); }
                 } />
                 <div class="todo-row">
-                    <input type="datetime-local" class="todo-when" aria-label=format!("Remind me: {}", t.text) prop:value=when on:change=move |e| {
+                    <input type="datetime-local" class="todo-when" class:todo-when--set=timed aria-label=format!("Remind me: {}", t.text) prop:value=when on:change=move |e| {
                         let due = parse_local(&event_target_value(&e)).map(to_ms);
                         edit(id1.clone(), Box::new(move |t| t.due_at = due));
                     } />
@@ -1244,6 +1286,9 @@ fn TodoBoard(
                             {move || {
                                 let list = columns.with(|c| c[i].clone());
                                 if list.is_empty() && i != 0 {
+                                    if !loaded.get() {
+                                        return ().into_any();
+                                    }
                                     return view! { <li class="hint board-empty">"Nothing here yet."</li> }.into_any();
                                 }
                                 list.into_iter().map(|t| card(t, i)).collect_view().into_any()
@@ -1582,6 +1627,14 @@ fn TodayStats(todos: ReadSignal<Vec<Todo>>, log: ReadSignal<ActivityLog>) -> imp
 
 /* ---------- Pomodoro ---------- */
 
+#[wasm_bindgen(module = "/js/pip-timer.mjs")]
+extern "C" {
+    #[wasm_bindgen(js_name = canFloat)]
+    fn can_float() -> bool;
+    #[wasm_bindgen(js_name = floatTimer, catch)]
+    async fn float_timer() -> Result<JsValue, JsValue>;
+}
+
 /// Choose up to three board tasks; the worker owns the alarm, blocking and bell.
 #[component]
 fn PomodoroPanel(
@@ -1722,7 +1775,18 @@ fn PomodoroPanel(
                         {p.study_video.filter(|_| !on_break).map(|id| view! {
                             <a class="hint" href=reader_core::youtube::watch_url(&id) target="_blank" rel="noopener">"Open your allowed study video"</a>
                         })}
-                        <button type="button" class="edition-pill" on:click=stop>{if on_break { "End break" } else { "Stop" }}</button>
+                        <div class="pomo-actions">
+                            <button type="button" class="edition-pill" on:click=stop>{if on_break { "End break" } else { "Stop" }}</button>
+                            {can_float().then(|| view! {
+                                <button type="button" class="edition-pill" title="Keep the time left in a small window over your other tabs" on:click=move |_| {
+                                    leptos::task::spawn_local(async move {
+                                        if float_timer().await.is_err() {
+                                            error.try_set("Couldn't open the floating timer.".into());
+                                        }
+                                    });
+                                }>"Float timer"</button>
+                            })}
+                        </div>
                     }.into_any()
                 }
             }}

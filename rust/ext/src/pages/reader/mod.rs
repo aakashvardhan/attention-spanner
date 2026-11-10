@@ -8,7 +8,7 @@ mod think;
 mod ui;
 mod viewport;
 
-use super::{patch_settings, send, use_settings, use_storage};
+use super::{patch_settings, send, transition, use_settings, use_storage};
 use crate::pdfjs::{self, PageSize};
 use annotate::{post, AnnotationLayer, NotesSidebar, SelectionMenu};
 use define::{define_target, pending_selection, DefinePopover, DefineTarget, PendingSelection};
@@ -20,6 +20,7 @@ use reader_core::messages::{AnnotationDraft, Message};
 use reader_core::outline::{heading_for_page, section_index_at, top_level, FlatOutlineItem};
 use reader_core::papers::paper_match_key;
 use reader_core::pdf::{reader_pdf_src, PdfPosition};
+use reader_core::pomodoro::{left_label, Phase as PomPhase, Pomodoro};
 use reader_core::questions::{question_request, section_finished, spot_at, spot_pages, Spot};
 use reader_core::reading_aids::{minutes_left, time_left_label, word_counts};
 use reader_core::types::{
@@ -463,6 +464,29 @@ fn PdfReader(src: String) -> impl IntoView {
                 .map(|t| word_counts(&t.iter().map(String::as_str).collect::<Vec<_>>()))
         })
     });
+    // A running round shows its time here too: the new tab is out of sight while reading.
+    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+    let clock = RwSignal::new(crate::js::now());
+    let ticking = set_interval_with_handle(
+        move || clock.set(crate::js::now()),
+        std::time::Duration::from_secs(20),
+    )
+    .ok();
+    on_cleanup(move || {
+        if let Some(h) = ticking {
+            h.clear();
+        }
+    });
+    let round_label = move || {
+        pomodoro.get().map_or(String::new(), |p| {
+            let kind = if p.phase == PomPhase::Break {
+                "break"
+            } else {
+                "focus"
+            };
+            format!("{} {kind}", left_label(p.ends_at - clock.get()))
+        })
+    };
     let capsule_label = Signal::derive(move || {
         let pos = position.get();
         let left = time_left_label(minutes_left(
@@ -470,11 +494,15 @@ fn PdfReader(src: String) -> impl IntoView {
             pos.page as usize - 1,
             pos.offset,
         ));
-        [format!("p. {} of {}", pos.page, page_count.get()), left]
-            .into_iter()
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>()
-            .join(" · ")
+        [
+            format!("p. {} of {}", pos.page, page_count.get()),
+            left,
+            round_label(),
+        ]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
     });
     let progress = Signal::derive(move || {
         let (pos, n) = (position.get(), page_count.get());
@@ -489,6 +517,23 @@ fn PdfReader(src: String) -> impl IntoView {
     let section_index =
         Signal::derive(move || section_index_at(&sections.get(), position.get().page));
     let section_toast = ui::use_section_toast(sections, section_index);
+    // Under the title: where you are, not what kind of file this is.
+    let section_name = Signal::derive(move || {
+        section_index
+            .get()
+            .and_then(|i| sections.with(|s| s.get(i).map(|x| x.title.clone())))
+            .unwrap_or_else(|| "PDF document".to_string())
+    });
+    // The tab strip names the paper and the page, so a reader tab is findable among many.
+    let page_now = Memo::new(move |_| position.get().page);
+    Effect::new(move |_| {
+        let (t, n) = (title.get(), page_count.get());
+        document().set_title(&if n > 0 {
+            format!("{t} · p. {}/{n}", page_now.get())
+        } else {
+            t
+        });
+    });
 
     // Questions: one at a section's end, or after a stall; never twice for one spot.
     let question = RwSignal::new(None::<(String, reader_core::ai::AiRequest)>);
@@ -575,15 +620,41 @@ fn PdfReader(src: String) -> impl IntoView {
 
     // F toggles the focus line anywhere except text fields.
     let focus_line = Signal::derive(move || settings.get().reader_focus_line);
-    // E opens the explain-back, Q asks a question about where you are now.
+    let help_open = RwSignal::new(false);
+    let toggle = move |name: &'static str| {
+        transition(move || panel.update(|p| *p = if *p == name { "none" } else { name }))
+    };
+    let close_panel = Callback::new(move |_: ()| transition(move || panel.set("none")));
+    // E opens the explain-back, Q asks a question about where you are now;
+    // T, L and N are Talk, Listen and a note; J and K step through sections.
     let fkey = window_event_listener(leptos::ev::keydown, move |e| {
         let key = e.key();
         if e.meta_key() || e.ctrl_key() || e.alt_key() || is_typing_target(e.target()) {
             return;
         }
-        if key == "e" {
+        let step = |by: i64| {
+            let at = section_index.get_untracked().map_or(-1, |i| i as i64) + by;
+            if let Some(s) = usize::try_from(at)
+                .ok()
+                .and_then(|i| sections.with_untracked(|s| s.get(i).cloned()))
+            {
+                go.run(s.page);
+            }
+        };
+        let known = matches!(key.as_str(), "e" | "t" | "l" | "n" | "j" | "k" | "?" | "F");
+        match key.as_str() {
+            "e" => toggle("explain"),
+            "t" => toggle("talk"),
+            "l" => toggle("listen"),
+            "n" => note_mode.update(|n| *n = !*n),
+            "j" => step(1),
+            "k" => step(-1),
+            "?" => help_open.update(|h| *h = !*h),
+            "F" => toggle_fullscreen(),
+            _ => {}
+        }
+        if known {
             e.prevent_default();
-            panel.update(|p| *p = if *p == "explain" { "none" } else { "explain" });
             return;
         }
         if key == "q" {
@@ -608,6 +679,7 @@ fn PdfReader(src: String) -> impl IntoView {
             note_mode.set(false);
             pending.set(None);
             define.set(None);
+            help_open.set(false);
         }
     });
     on_cleanup(move || esc.remove());
@@ -625,13 +697,14 @@ fn PdfReader(src: String) -> impl IntoView {
     };
     let src_error = src.clone();
     let explain_key = doc_key.clone();
-    let toggle =
-        move |name: &'static str| panel.update(|p| *p = if *p == name { "none" } else { name });
 
     view! {
         <div class="reader-root" data-chrome=move || if awake.get() { "awake" } else { "asleep" } data-focus-line=move || focus_line.get().then_some("true")>
             <ReaderToolbar
                 title=title
+                section=section_name
+                on_help=Callback::new(move |_| help_open.set(true))
+                on_fullscreen=Callback::new(move |_| toggle_fullscreen())
                 zoom=zoom
                 has_outline=Signal::derive(move || matches!(load.get(), Load::Ready))
                 outline_open=outline_open
@@ -654,9 +727,12 @@ fn PdfReader(src: String) -> impl IntoView {
                     <OutlineSidebar outline=outline.into() current_page=Signal::derive(move || position.get().page) on_jump=go />
                 </Show>
                 {move || match load.get() {
+                    // A page-shaped placeholder where the first page will land, so the paper arrives without a jump.
                     Load::Loading => view! {
-                        <div class="reader-fallback" role="status" aria-live="polite">
-                            <span class="reader-loading-spinner" aria-hidden="true"></span>
+                        <div class="reader-fallback reader-skeleton" role="status" aria-live="polite">
+                            <div class="reader-skeleton-page" aria-hidden="true">
+                                <span></span><span></span><span></span><span></span><span></span><span></span>
+                            </div>
                             <p>"Preparing your document…"</p>
                         </div>
                     }
@@ -794,7 +870,7 @@ fn PdfReader(src: String) -> impl IntoView {
                         page_texts=page_texts.into()
                         page_count=page_count
                         on_jump=go
-                        on_close=Callback::new(move |_| panel.set("none"))
+                        on_close=close_panel
                     />
                 </Show>
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "talk">
@@ -803,7 +879,7 @@ fn PdfReader(src: String) -> impl IntoView {
                         source=Source::Paper
                         page_texts=page_texts.into()
                         page=Signal::derive(move || position.get().page)
-                        on_close=Callback::new(move |_| panel.set("none"))
+                        on_close=close_panel
                     />
                 </Show>
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "listen">
@@ -814,14 +890,28 @@ fn PdfReader(src: String) -> impl IntoView {
                         page_texts=page_texts.into()
                         page=Signal::derive(move || position.get().page)
                         on_jump=Some(go)
-                        on_close=Callback::new(move |_| panel.set("none"))
+                        on_close=close_panel
                     />
                 </Show>
                 <Show when=move || matches!(load.get(), Load::Ready) && panel.get() == "find">
-                    <FindPanel pages=page_texts.into() on_jump=go on_close=Callback::new(move |_| panel.set("none")) />
+                    <FindPanel pages=page_texts.into() on_jump=go on_close=close_panel />
+                </Show>
+                <Show when=move || help_open.get()>
+                    <ui::ShortcutSheet on_close=Callback::new(move |_| help_open.set(false)) />
                 </Show>
             </div>
         </div>
+    }
+}
+
+/// The whole screen for the paper, and back. The browser may refuse outside a
+/// key press or click; then nothing happens.
+fn toggle_fullscreen() {
+    let doc = document();
+    if doc.fullscreen_element().is_some() {
+        doc.exit_fullscreen();
+    } else if let Some(root) = doc.document_element() {
+        let _ = root.request_fullscreen();
     }
 }
 

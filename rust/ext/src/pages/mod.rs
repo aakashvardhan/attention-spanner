@@ -128,6 +128,49 @@ pub fn reduced_motion() -> bool {
         .is_some_and(|m| m.matches())
 }
 
+/// Run a change to the page inside a view transition, so what leaves can
+/// animate out as well as what arrives animates in. Without the API, or under
+/// Reduce Motion, the change just runs.
+pub fn transition(f: impl FnOnce() + 'static) {
+    use wasm_bindgen::JsCast;
+    let doc = document();
+    let start = js_sys::Reflect::get(&doc, &"startViewTransition".into())
+        .ok()
+        .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+        .filter(|_| !reduced_motion());
+    let Some(start) = start else {
+        f();
+        return;
+    };
+    let mut f = Some(f);
+    let update = Closure::once_into_js(move || -> js_sys::Promise {
+        if let Some(f) = f.take() {
+            f();
+        }
+        // Leptos draws the change on a later microtask; the "after" picture waits for it.
+        js_sys::Promise::new(&mut |resolve, _| {
+            set_timeout(
+                move || {
+                    let _ = resolve.call0(&JsValue::NULL);
+                },
+                std::time::Duration::ZERO,
+            );
+        })
+    });
+    // A transition cut short by the next one rejects its `ready`; that is
+    // not an error, so it must not surface as an unhandled rejection.
+    if let Some(ready) = start
+        .call1(&doc, &update)
+        .ok()
+        .and_then(|vt| js_sys::Reflect::get(&vt, &"ready".into()).ok())
+        .and_then(|p| p.dyn_into::<js_sys::Promise>().ok())
+    {
+        leptos::task::spawn_local(async move {
+            let _ = wasm_bindgen_futures::JsFuture::from(ready).await;
+        });
+    }
+}
+
 /// Send a message to the worker; the reply as JSON (`{ ok: false }` on failure).
 pub async fn send(msg: Value) -> Value {
     let Ok(js) = to_js(&msg) else {

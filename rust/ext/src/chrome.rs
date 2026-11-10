@@ -60,6 +60,18 @@ extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["chrome", "notifications"], js_name = create)]
     pub fn notifications_create(id: &str, options: &JsValue) -> Result<Promise, JsValue>;
 
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "action"], js_name = setBadgeText)]
+    pub fn action_set_badge_text(details: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "action"], js_name = setBadgeBackgroundColor)]
+    pub fn action_set_badge_background_color(details: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "action"], js_name = setBadgeTextColor)]
+    pub fn action_set_badge_text_color(details: &JsValue) -> Result<Promise, JsValue>;
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "contextMenus"], js_name = removeAll)]
+    pub fn context_menus_remove_all() -> Result<Promise, JsValue>;
+    /// Returns the item's id, not a Promise.
+    #[wasm_bindgen(catch, js_namespace = ["chrome", "contextMenus"], js_name = create)]
+    pub fn context_menus_create(props: &JsValue) -> Result<JsValue, JsValue>;
+
     #[wasm_bindgen(catch, js_namespace = ["chrome", "declarativeNetRequest"], js_name = getSessionRules)]
     pub fn dnr_get_session_rules() -> Result<Promise, JsValue>;
     #[wasm_bindgen(catch, js_namespace = ["chrome", "declarativeNetRequest"], js_name = updateSessionRules)]

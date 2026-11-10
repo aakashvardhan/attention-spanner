@@ -56,6 +56,10 @@ fn close_on_outside(open: RwSignal<bool>, root: NodeRef<html::Div>) {
 #[component]
 pub fn ReaderToolbar(
     title: Signal<String>,
+    /// The section being read, shown under the title.
+    section: Signal<String>,
+    on_help: Callback<()>,
+    on_fullscreen: Callback<()>,
     zoom: RwSignal<f64>,
     has_outline: Signal<bool>,
     outline_open: RwSignal<bool>,
@@ -130,7 +134,7 @@ pub fn ReaderToolbar(
                         aria-label=move || if outline_open.get() { "Hide sidebar" } else { "Show sidebar" }
                         aria-pressed=move || outline_open.get().to_string()
                         title=move || if outline_open.get() { "Hide sidebar" } else { "Show sidebar" }
-                        on:click=move |_| outline_open.update(|o| *o = !*o)
+                        on:click=move |_| crate::pages::transition(move || outline_open.update(|o| *o = !*o))
                     >
                         <ToolbarIcon>
                             <rect x="3.5" y="4" width="17" height="16" rx="2" />
@@ -140,7 +144,7 @@ pub fn ReaderToolbar(
                 </Show>
                 <div class="reader-document-title">
                     <h1 title=title class="reader-title">{title}</h1>
-                    <span>"PDF document"</span>
+                    <span class="reader-section-name">{section}</span>
                 </div>
             </div>
 
@@ -157,7 +161,8 @@ pub fn ReaderToolbar(
                 <button
                     class=move || active(talk_open.get(), "ghost-btn reader-explain-btn")
                     aria-pressed=move || talk_open.get().to_string()
-                    title="Talk the paper through out loud; it asks, never explains"
+                    aria-keyshortcuts="T"
+                    title="Talk the paper through out loud; it asks, never explains (T)"
                     on:click=move |_| on_toggle_talk.run(())
                 >
                     "Talk it through"
@@ -165,7 +170,8 @@ pub fn ReaderToolbar(
                 <button
                     class=move || active(listen_open.get(), "ghost-btn reader-explain-btn")
                     aria-pressed=move || listen_open.get().to_string()
-                    title="Read the paper aloud from this page, explaining the math"
+                    aria-keyshortcuts="L"
+                    title="Read the paper aloud from this page, explaining the math (L)"
                     on:click=move |_| on_toggle_listen.run(())
                 >
                     "Listen"
@@ -186,7 +192,8 @@ pub fn ReaderToolbar(
                     class=move || active(note_mode.get(), "reader-icon-btn")
                     aria-label=move || if note_mode.get() { "Cancel note placement" } else { "Add a note" }
                     aria-pressed=move || note_mode.get().to_string()
-                    title=move || if note_mode.get() { "Cancel note placement (Esc)" } else { "Add a note" }
+                    aria-keyshortcuts="N"
+                    title=move || if note_mode.get() { "Cancel note placement (Esc)" } else { "Add a note (N)" }
                     on:click=move |_| note_mode.update(|n| *n = !*n)
                 >
                     <ToolbarIcon>
@@ -255,11 +262,54 @@ pub fn ReaderToolbar(
                                     </button>
                                 }
                             }
+                            <button role="menuitem" on:click=move |_| { more_open.set(false); on_fullscreen.run(()); }>
+                                <ToolbarIcon><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></ToolbarIcon>
+                                <span>"Full screen"</span>
+                                <kbd>"⇧F"</kbd>
+                            </button>
+                            <button role="menuitem" on:click=move |_| { more_open.set(false); on_help.run(()); }>
+                                <ToolbarIcon><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" /></ToolbarIcon>
+                                <span>"Keyboard shortcuts"</span>
+                                <kbd>"?"</kbd>
+                            </button>
                         </div>
                     </Show>
                 </div>
             </div>
         </header>
+    }
+}
+
+/// Every key the reader answers to, on one sheet (`?`).
+#[component]
+pub fn ShortcutSheet(on_close: Callback<()>) -> impl IntoView {
+    const KEYS: [(&str, &str); 13] = [
+        ("E", "Explain it back"),
+        ("T", "Talk it through"),
+        ("L", "Listen"),
+        ("Q", "Ask me a question about this part"),
+        ("N", "Place a note"),
+        ("J / K", "Next / previous section"),
+        ("F", "Focus line"),
+        ("⇧F", "Full screen"),
+        ("⌘F", "Find in paper"),
+        ("⌘+ / ⌘−", "Zoom in / out"),
+        ("⌘0", "Fit width"),
+        ("Esc", "Close what is open"),
+        ("?", "This sheet"),
+    ];
+    view! {
+        <div class="reader-keys-scrim" on:click=move |_| on_close.run(())>
+            <section class="reader-keys" role="dialog" aria-modal="true" aria-labelledby="reader-keys-title" on:click=|e| e.stop_propagation()>
+                <div class="reader-related-head">
+                    <h2 id="reader-keys-title">"Keyboard shortcuts"</h2>
+                    <button class="ghost-btn" autofocus on:click=move |_| on_close.run(()) aria-label="Close shortcuts">"✕"</button>
+                </div>
+                <dl>
+                    {KEYS.into_iter().map(|(key, what)| view! { <div><dt><kbd>{key}</kbd></dt><dd>{what}</dd></div> }).collect_view()}
+                </dl>
+            </section>
+        </div>
     }
 }
 

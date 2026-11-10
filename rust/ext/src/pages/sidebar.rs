@@ -17,6 +17,15 @@ use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
+#[wasm_bindgen(module = "/js/tab-mark.mjs")]
+extern "C" {
+    #[wasm_bindgen(js_name = markFn)]
+    fn mark_fn() -> JsValue;
+}
+
+/// How much of a section's first block is enough to find it on the page.
+const MARK_CHARS: usize = 48;
+
 #[derive(Debug, Clone, PartialEq)]
 enum Content {
     /// Any page: its text, or why it can't be read.
@@ -202,9 +211,13 @@ pub fn Sidebar() -> impl IntoView {
     view! {
         <main class="sidebar">
             {move || match target.get() {
-                None => view! { <p class="sidebar-quiet" role="status">"Reading the page…"</p> }.into_any(),
+                // The panel's shape while the page is read, so the switch between tabs is not a blank flash.
+                None => view! {
+                    <p class="sidebar-quiet" role="status">"Reading the page…"</p>
+                    <div class="sidebar-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+                }.into_any(),
                 Some(Target { content: Content::Page(Err(m)), .. }) => view! { <p class="sidebar-quiet" role="status">{m}</p> }.into_any(),
-                Some(Target { content: Content::Page(Ok(page)), .. }) => view! { <PagePanels page=page /> }.into_any(),
+                Some(Target { tab_id, content: Content::Page(Ok(page)), .. }) => view! { <PagePanels tab_id=tab_id page=page /> }.into_any(),
                 Some(Target { tab_id, content: Content::Video { id }, .. }) => view! { <VideoPanel tab_id=tab_id id=id title=video_title.into() /> }.into_any(),
             }}
         </main>
@@ -213,8 +226,28 @@ pub fn Sidebar() -> impl IntoView {
 }
 
 #[component]
-fn PagePanels(page: PageText) -> impl IntoView {
+fn PagePanels(tab_id: i32, page: PageText) -> impl IntoView {
     let mode = RwSignal::new("listen");
+    // Listen says which section it is on; the page marks where that section
+    // starts and scrolls there. Section 0 means it stopped: the mark goes.
+    let starts: Vec<String> = page
+        .sections
+        .iter()
+        .map(|s| {
+            let first = s.lines().next().unwrap_or_default();
+            let words = first.split_whitespace().collect::<Vec<_>>().join(" ");
+            words.chars().take(MARK_CHARS).collect()
+        })
+        .collect();
+    let follow = Callback::new(move |section: u32| {
+        let needle = (section as usize)
+            .checked_sub(1)
+            .and_then(|i| starts.get(i).cloned())
+            .unwrap_or_default();
+        leptos::task::spawn_local(async move {
+            super::video_panel::in_tab(tab_id, &mark_fn(), needle.into()).await;
+        });
+    });
     let title = Signal::stored(page.title.clone());
     let texts = Signal::stored(Some(page.sections));
     let none = Callback::new(|_: ()| {});
@@ -226,7 +259,7 @@ fn PagePanels(page: PageText) -> impl IntoView {
         </div>
         {move || if mode.get() == "listen" {
             view! {
-                <ListenPanel title=title source=Source::Webpage doc=None page_texts=texts page=Signal::stored(1) on_jump=None on_close=none />
+                <ListenPanel title=title source=Source::Webpage doc=None page_texts=texts page=Signal::stored(1) on_jump=Some(follow) on_close=none />
             }.into_any()
         } else {
             view! {

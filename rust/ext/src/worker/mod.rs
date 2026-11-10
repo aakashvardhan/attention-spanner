@@ -3,6 +3,7 @@
 //! the worker's first turn) and forwards each event here once wasm is ready.
 
 mod alphaxiv;
+mod browser;
 mod pdf_rules;
 mod session;
 mod video_notes;
@@ -46,9 +47,34 @@ pub async fn on_installed() {
         }
         clear_retired_alarms().await?;
         session::remove_legacy_daily_gate_rule().await?;
-        session::reconcile_session().await
+        session::reconcile_session().await?;
+        browser::create_menus().await
     })
     .await;
+}
+
+#[wasm_bindgen]
+pub async fn on_command(name: String) {
+    guarded("[worker] command", browser::command(&name)).await;
+}
+
+#[wasm_bindgen]
+pub async fn on_menu(info: JsValue, tab: JsValue) {
+    guarded("[worker] menu", browser::menu_clicked(info, tab)).await;
+}
+
+#[wasm_bindgen]
+pub async fn omnibox_suggest(text: String) -> JsValue {
+    browser::omnibox_suggest(&text)
+        .await
+        .unwrap_or_else(|_| js_sys::Array::new().into())
+}
+
+#[wasm_bindgen]
+pub async fn omnibox_url(text: String) -> String {
+    browser::omnibox_url(&text)
+        .await
+        .unwrap_or_else(|_| chrome::get_url(reader_core::constants::PAPERS_PAGE_PATH))
 }
 
 #[wasm_bindgen]
@@ -97,6 +123,8 @@ async fn clear_retired_alarms() -> Res<()> {
 pub async fn on_alarm(name: String) {
     if name == SYNC_ALARM {
         alphaxiv::sync(false).await;
+    } else if name == browser::BADGE_ALARM {
+        guarded("[worker] badge", browser::refresh_badge()).await;
     } else if name == POMODORO_ALARM {
         guarded("[worker] pomodoro", session::pomodoro_alarm()).await;
     } else if let Some(id) = name.strip_prefix(TODO_ALARM_PREFIX) {

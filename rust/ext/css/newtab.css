@@ -66,6 +66,74 @@ ul {
   flex: 0 1 480px;
   margin: 0;
 }
+/* The one thing: the paper read last, a click from where it was left. */
+.today-lead {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+.resume {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.resume .label {
+  margin: var(--space-2) 0 0;
+}
+.resume-title,
+.resume .hint {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 700;
+}
+.resume .hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.resume-go {
+  margin-top: var(--space-2);
+}
+.resume:hover .resume-go {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* The floating timer (js/pip-timer.mjs): this sheet, in a small window of its own. */
+.pip-timer {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  text-align: center;
+}
+.pip-time,
+.pip-task {
+  margin: 0;
+  max-width: 100%;
+}
+.pip-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
+  font-variant-numeric: tabular-nums;
+}
+.pip-task {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
 .pomo-plan {
   display: grid;
   gap: var(--space-3);
@@ -486,8 +554,8 @@ ul + .hint {
 }
 .heat-title {
   margin: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   color: var(--text-muted);
 }
 .heat-seg {
@@ -718,6 +786,11 @@ body.todo-dragging .board--todos .board-empty {
   color: var(--text-muted);
   font-weight: 400;
   text-decoration: line-through;
+}
+/* A reminder nobody set stays out of sight until the card is in hand (hover,
+   or focus anywhere in it: the field is still in the tab order). */
+.todo:not(:hover):not(:focus-within) .todo-when:not(.todo-when--set) {
+  opacity: 0;
 }
 .todo--late .todo-when {
   color: var(--danger);

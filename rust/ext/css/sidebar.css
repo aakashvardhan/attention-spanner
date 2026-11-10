@@ -33,6 +33,24 @@ body {
   color: var(--text-secondary);
 }
 
+/* The panel's shape while a page is being read. */
+.sidebar-skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+.sidebar-skeleton span {
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+.sidebar-skeleton span:first-child {
+  height: var(--space-7);
+}
+.sidebar-skeleton span:last-child {
+  width: 60%;
+  height: var(--space-4);
+}
+
 .sidebar-switch {
   display: flex;
   gap: var(--space-2);

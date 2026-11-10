@@ -345,6 +345,14 @@ pub fn TalkPanel(
             <Show when=move || matches!(phase.get(), Phase::Thinking | Phase::Speaking)>
                 <button type="button" class="ghost-btn" on:click=move |_| cut_in()>"Cut in"</button>
             </Show>
+            // One large sign of whose turn it is; the words beside it say the same for a screen reader.
+            <span class="talk-orb" aria-hidden="true" data-state=move || match phase.get() {
+                Phase::Off => "off",
+                Phase::Listening if hearing.get() => "hearing",
+                Phase::Listening => "listening",
+                Phase::Writing | Phase::Thinking => "thinking",
+                Phase::Speaking => "speaking",
+            }></span>
             <p class="define-label" role="status" aria-live="polite" data-phase=move || format!("{:?}", phase.get()).to_lowercase()>{status}</p>
             <Show when=move || notice.with(|n| !n.is_empty())>
                 <p class="define-label" role="status">{move || notice.get()}</p>

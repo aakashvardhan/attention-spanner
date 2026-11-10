@@ -91,6 +91,11 @@ pub async fn sync_session_access_rules() -> Res<()> {
             break;
         }
     }
+    // Every change to the session or the round passes through here, so the
+    // badge follows from one place. It is decoration: never fail the rules for it.
+    if let Err(e) = super::browser::refresh_badge().await {
+        crate::js::log_error("[worker] badge", &e);
+    }
     last
 }
 

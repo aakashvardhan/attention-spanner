@@ -242,6 +242,19 @@ fn label_of(lex: &Lexicon, id: &str) -> String {
 /// Where a popover sits for an anchor at (`x`, `y`): below it in the top half
 /// of the stage, above it in the bottom half, never off the sides.
 fn pop_style(x: f64, y: f64, (w, h): (f64, f64)) -> String {
+    // On a stage with room, the card docks at the edge away from the term, so
+    // the term's own neighbours stay in view instead of under the card.
+    if w >= 4.0 * (POP_HALF + 16.0) {
+        let left = if x < w / 2.0 {
+            w - POP_HALF - 16.0
+        } else {
+            POP_HALF + 16.0
+        };
+        return format!(
+            "left: {left:.0}px; top: 16px; max-height: {:.0}px;",
+            h - 32.0
+        );
+    }
     let x = x
         .max(POP_HALF.min(w / 2.0))
         .min((w - POP_HALF).max(w / 2.0));

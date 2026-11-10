@@ -18,7 +18,7 @@ describe('rust port: phase 0 skeleton', () => {
   it('the worker boots from wasm', async () => {
     expect(await ext.sw.evaluate(() => chrome.runtime.getManifest().name)).toBe('Reader');
     const permissions = await ext.sw.evaluate(() => chrome.runtime.getManifest().permissions);
-    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen', 'scripting', 'sidePanel']);
+    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen', 'scripting', 'sidePanel', 'contextMenus']);
   });
 
   it('the new tab override mounts a Leptos page with the shared stylesheets, accessibly', async () => {
