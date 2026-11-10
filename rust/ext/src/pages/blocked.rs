@@ -28,6 +28,8 @@ pub fn Blocked() -> impl IntoView {
     let focusing = move || pomodoro.with(|p| is_focus(p.as_ref()));
     let reading = move || session.get().is_some_and(|s| !s.tab_ids.is_empty());
     let title = move || session.get().map(|s| s.title).unwrap_or_default();
+    let (game, _) = super::use_game();
+    let nudge = move || game.with(|g| g.nudge());
     // A reader closed while the worker was not listening leaves a stale
     // session; the worker drops it and storage re-renders this page.
     leptos::task::spawn_local(async {
@@ -52,6 +54,7 @@ pub fn Blocked() -> impl IntoView {
                                 <ul class="blocked-tasks">
                                     {tasks.into_iter().map(|t| view! { <li class:done=t.done>{t.text}</li> }).collect_view()}
                                 </ul>
+                                <p class="blocked-sub">{nudge}</p>
                             </div>
                         </main>
                     }
@@ -90,6 +93,7 @@ pub fn Blocked() -> impl IntoView {
                                 >
                                     "Back to your paper"
                                 </button>
+                                <p class="blocked-sub">{nudge}</p>
                                 <p class="blocked-sub">"Close the reader to end the session."</p>
                             </div>
                         </main>

@@ -181,6 +181,82 @@ ul {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ---------- The game ---------- */
+
+.game {
+  display: grid;
+  gap: var(--space-2);
+}
+.game .label,
+.game p {
+  margin: 0;
+}
+.game-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+.game-level {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  color: var(--text-primary);
+}
+.game-streak {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+}
+.game-earned {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+}
+.game .paper-card-bar {
+  margin: 0;
+}
+/* The bar fills as XP lands, rather than jumping. */
+.game .paper-card-bar::before {
+  transition: width var(--dur-smooth) var(--spring-smooth);
+}
+@media (prefers-reduced-motion: reduce) {
+  .game .paper-card-bar::before {
+    transition: none;
+  }
+}
+.game-quests {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+}
+.game-quests li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.game-quests li::before {
+  content: '';
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+.game-quests .game-quest--done::before {
+  background: var(--accent);
+}
+.game-quests .hint {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 /* ---------- Board ---------- */
 
 .board-col {

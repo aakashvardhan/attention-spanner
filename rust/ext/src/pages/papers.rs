@@ -62,6 +62,7 @@ pub fn Papers() -> impl IntoView {
     let (papers, _) = use_storage::<Vec<Paper>>("papers");
     let (folders, _) = use_storage::<Vec<Folder>>("folders");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
+    let (lexicon, _) = use_storage::<reader_core::lexicon::Lexicon>("lexicon");
     // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
     leptos::task::spawn_local(async {
         send(json!({ "type": "ALPHAXIV_SYNC" })).await;
@@ -200,7 +201,9 @@ pub fn Papers() -> impl IntoView {
                                 <ul class="shelf-row">
                                     {books.is_empty().then(|| view! { <li class="shelf-empty">"Nothing on this shelf yet."</li> })}
                                     {books.into_iter().enumerate().map(|(b, p)| {
-                                        let label = format!("{}. {}.", p.title, progress_label(&p));
+                                        let marks = explains.with(|e| lexicon.with(|l| reader_core::game::marks(&p, e, l)));
+                                        let label = format!("{}. {}. {}.", p.title, progress_label(&p), reader_core::game::marks_label(marks));
+                                        let on = [marks.0, marks.1, marks.2 >= reader_core::game::TERMS_GOAL];
                                         let drag = format!("{}\n{}", p.id, folder.id);
                                         let from = folder.id.clone();
                                         view! {
@@ -221,7 +224,10 @@ pub fn Papers() -> impl IntoView {
                                                     <span class="book-meta" aria-hidden="true">{byline(&p)}</span>
                                                     <span class="book-foot" aria-hidden="true">
                                                         <span class="book-bar"></span>
-                                                        {progress_label(&p)}
+                                                        <span class="book-foot-line">
+                                                            {progress_label(&p)}
+                                                            <span class="book-marks">{on.map(|on| view! { <i data-on=on.then_some("")></i> })}</span>
+                                                        </span>
                                                     </span>
                                                 </button>
                                             </li>
@@ -243,6 +249,7 @@ pub fn Papers() -> impl IntoView {
                         (Some(pdf), true) => format!("Page {} of {}", pdf.page, pdf.page_count),
                         (None, true) => "Not opened yet".into(),
                     };
+                    let marks = reader_core::game::marks_label(explains.with(|e| lexicon.with(|l| reader_core::game::marks(&p, e, l))));
                     let byline = byline(&p);
                     let href = paper_open_url(&p, false, &chrome::get_url(""));
                     let mv = Shelving::Move { paper: Box::new(p.clone()), from };
@@ -255,6 +262,7 @@ pub fn Papers() -> impl IntoView {
                             <dl class="book-card-facts">
                                 <dt>"Progress"</dt><dd>{progress_label(&p)}</dd>
                                 <dt>"Where you stopped"</dt><dd>{stopped}</dd>
+                                <dt>"Marks"</dt><dd>{marks}</dd>
                             </dl>
                             {(!gaps.is_empty()).then(|| view! {
                                 <h3 class="define-label">"Still open from your last explain-back"</h3>

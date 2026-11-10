@@ -19,6 +19,7 @@ pub mod figures;
 pub mod find;
 pub mod focus_rules;
 pub mod format;
+pub mod game;
 pub mod graph_layout;
 pub mod lexicon;
 pub mod markdown;

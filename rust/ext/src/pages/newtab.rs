@@ -202,6 +202,7 @@ pub fn NewTab() -> impl IntoView {
 
                 <aside class="side-col">
                     <BrainDump />
+                    <GameCard />
                     <ActivityHeatmap papers=papers log=activity />
                     <Show when=move || pomodoro.with(Option::is_none) && session.with(Option::is_none)>
                         <details class="news-disclosure"><summary>"News"</summary><HnFeed /></details>
@@ -226,6 +227,38 @@ fn LockIcon(class: &'static str) -> impl IntoView {
         <svg aria-hidden="true" class=class viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 11V8a4 4 0 0 1 8 0v3M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" />
         </svg>
+    }
+}
+
+/* ---------- The game ---------- */
+
+/// Level, streak and today's quests (`reader_core::game`): derived, never stored.
+#[component]
+fn GameCard() -> impl IntoView {
+    let (game, earned) = super::use_game();
+    view! {
+        <section class="game" aria-label="Progress" class:game--cleared=move || game.with(|g| g.cleared())>
+            <h2 class="label">{move || if game.with(|g| g.cleared()) { "Progress · today cleared" } else { "Progress" }}</h2>
+            <p class="game-head">
+                <span class="game-level">{move || game.with(|g| format!("Level {}", g.level))}</span>
+                <span class="hint" hidden=move || earned.with(Option::is_some)>{move || game.with(|g| format!("{} · {} of {} XP", g.title, g.into, g.span))}</span>
+                // Always mounted, so a gain arriving later is announced.
+                <span class="game-earned" role="status">{move || earned.get().unwrap_or_default()}</span>
+                <span class="game-streak">{move || game.with(|g| match g.streak {
+                    0 => "No streak yet".to_string(),
+                    n => format!("{n}-day streak"),
+                })}</span>
+            </p>
+            <span class="paper-card-bar" role="progressbar" aria-label="XP toward the next level" aria-valuemin="0"
+                aria-valuemax=move || game.with(|g| g.span)
+                aria-valuenow=move || game.with(|g| g.into)
+                style=move || game.with(|g| format!("--p: {}%", g.into * 100 / g.span.max(1)))></span>
+            <ul class="game-quests" aria-label="Today's quests">
+                {move || game.with(|g| g.quests.clone()).into_iter().map(|q| view! {
+                    <li class:game-quest--done=q.done><span>{q.label}</span><span class="hint">{q.detail}</span></li>
+                }).collect_view()}
+            </ul>
+        </section>
     }
 }
 

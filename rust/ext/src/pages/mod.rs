@@ -191,3 +191,65 @@ pub async fn patch_settings(field: &str, value: Value) {
     settings[field] = value;
     let _ = crate::store::set("settings", &settings).await;
 }
+
+/// The game (`reader_core::game`), live: it follows every key it is derived
+/// from, and the minutes of a session still running count as they pass. The
+/// second signal is what was just earned ("+30 XP"), shown for a few seconds.
+pub fn use_game() -> (Memo<reader_core::game::Game>, ReadSignal<Option<String>>) {
+    use crate::js::{local_date, now};
+    use reader_core::game::{build, gain, Game};
+    use reader_core::pomodoro::{Phase, Pomodoro};
+    let (log, l1) = use_storage::<reader_core::activity::ActivityLog>("activity");
+    let (explains, l2) = use_storage::<reader_core::explain::ExplainBacks>("explainBacks");
+    let (lexicon, l3) = use_storage::<reader_core::lexicon::Lexicon>("lexicon");
+    let (papers, l4) = use_storage::<Vec<reader_core::types::Paper>>("papers");
+    let (todos, l5) = use_storage::<Vec<reader_core::todos::Todo>>("todos");
+    let (session, l6) = use_storage::<Option<reader_core::types::FocusSession>>("focusSession");
+    let (pomodoro, l7) = use_storage::<Option<Pomodoro>>("pomodoro");
+    let tick = RwSignal::new(now());
+    set_interval(move || tick.set(now()), std::time::Duration::from_secs(30));
+    let game = Memo::new(move |_| {
+        let t = tick.get();
+        let since = |start: i64| ((t - start) / 60_000).max(0) as u32;
+        let live = session.with(|s| s.as_ref().map_or(0, |s| since(s.started_at)))
+            + pomodoro.with(|p| {
+                p.as_ref()
+                    .filter(|p| p.phase == Phase::Focus)
+                    .map_or(0, |p| since(p.started_at))
+            });
+        build(
+            &log.get(),
+            &explains.get(),
+            &lexicon.get(),
+            &papers.get(),
+            &todos.get(),
+            live,
+            local_date(t),
+            local_date,
+        )
+    });
+    let (earned, set_earned) = signal(None::<String>);
+    // Nothing is "earned" while storage is still answering: that is just loading.
+    Effect::new(move |prev: Option<Option<Game>>| {
+        let next = game.get();
+        if ![l1, l2, l3, l4, l5, l6, l7].iter().all(|l| l.get()) {
+            return None;
+        }
+        if let Some(message) = prev.flatten().and_then(|p| gain(&p, &next)) {
+            set_earned.set(Some(message.clone()));
+            set_timeout(
+                move || {
+                    // A newer message keeps its own time.
+                    set_earned.try_update(|m| {
+                        if m.as_deref() == Some(&message) {
+                            *m = None;
+                        }
+                    });
+                },
+                std::time::Duration::from_secs(5),
+            );
+        }
+        Some(next)
+    });
+    (game, earned)
+}

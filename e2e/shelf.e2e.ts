@@ -80,7 +80,7 @@ describe('papers: the bookcase', () => {
     await expect.poll(() => book.locator('.book-title').textContent()).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces');
     expect(await book.locator('.book-meta').textContent()).toBe('A. Author · 2023');
     expect(await book.locator('.book-foot').textContent()).toBe('60% read');
-    expect(await book.getAttribute('aria-label')).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces. 60% read.');
+    expect(await book.getAttribute('aria-label')).toBe('Mamba: Linear-Time Sequence Modeling with Selective State Spaces. 60% read. Not read yet · Explained · 0 of 3 terms.');
     expect(await page.locator('#book-0-1 .book-foot').textContent()).toBe('not started');
 
     // One tab stop for the case; arrows walk it.

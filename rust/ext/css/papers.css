@@ -212,6 +212,27 @@ body {
   line-height: var(--leading-xs);
 }
 
+/* The paper's three marks (read, explained, terms kept), filled as earned. */
+.book-foot-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.book-marks {
+  display: flex;
+  gap: var(--space-1);
+}
+.book-marks i {
+  width: var(--space-2);
+  height: var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+.book-marks i[data-on] {
+  background: var(--accent);
+}
+
 /* Progress: --p is set per card (papers.rs). */
 .book-bar {
   height: 4px;

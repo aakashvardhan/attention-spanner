@@ -517,6 +517,9 @@ fn PdfReader(src: String) -> impl IntoView {
     let section_index =
         Signal::derive(move || section_index_at(&sections.get(), position.get().page));
     let section_toast = ui::use_section_toast(sections, section_index);
+    // The game speaks through the same quiet line: "+30 XP", a level, the day's goal.
+    let (_, earned) = super::use_game();
+    let section_toast = Signal::derive(move || section_toast.get().or_else(|| earned.get()));
     // Under the title: where you are, not what kind of file this is.
     let section_name = Signal::derive(move || {
         section_index
