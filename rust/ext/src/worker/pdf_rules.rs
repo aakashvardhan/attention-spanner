@@ -1,4 +1,4 @@
-//! arXiv PDFs into the reader (src/background/pdfIntercept.ts).
+//! arXiv PDFs into the reader.
 
 use crate::chrome;
 use crate::js::{from_js, to_js, wait, Res};

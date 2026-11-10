@@ -1,5 +1,4 @@
-//! Shown when a blocked site is hit while a paper is open in the reader
-//! (src/pages/blocked/Blocked.tsx). Renders from storage only: when the
+//! Shown when a blocked site is hit while a paper is open in the reader. Renders from storage only: when the
 //! session ends, the page turns into a "continue" link by itself.
 
 use super::{send, use_storage};
@@ -16,7 +15,7 @@ fn blocked_url() -> Option<url::Url> {
     matches!(url.scheme(), "http" | "https").then_some(url)
 }
 
-#[oxichrome::page(path = "src/pages/blocked/index.html", title = "Focus Mode", css = ["assets/theme.css", "assets/blocked.css"])]
+#[oxichrome::page(path = "src/pages/blocked/index.html", title = "Blocked", css = ["assets/theme.css", "assets/blocked.css"])]
 pub fn Blocked() -> impl IntoView {
     super::use_theme();
     let (session, _) = use_storage::<Option<FocusSession>>("focusSession");

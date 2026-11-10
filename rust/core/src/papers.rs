@@ -1,4 +1,4 @@
-//! Recognising papers from links and ids (src/shared/papers.ts).
+//! Recognising papers from links and ids.
 
 use regex::Regex;
 use std::sync::LazyLock;

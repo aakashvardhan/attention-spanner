@@ -274,12 +274,6 @@ body {
   color: var(--text-secondary);
 }
 
-.reader-menu-separator {
-  height: 1px;
-  margin: 4px 8px;
-  background: var(--border);
-}
-
 .ghost-btn {
   background: transparent;
   border: none;
@@ -762,7 +756,7 @@ body {
 
 /* The click-to-define popover */
 
-.cite-tooltip {
+.popover-card {
   position: fixed;
   z-index: 10;
   transform: translate(-50%, -100%);
@@ -1087,20 +1081,6 @@ body {
   color: var(--text-primary);
 }
 
-.reader-capsule-action {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.reader-capsule-action:hover {
-  text-decoration: underline;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .reader-toolbar,
   .reader-progress-line {
@@ -1204,7 +1184,7 @@ body {
   border-left: 2px solid var(--accent);
 }
 
-.provoke-answer {
+.answer-input {
   width: 100%;
   box-sizing: border-box;
   padding: var(--space-2) var(--space-3);
@@ -1218,54 +1198,9 @@ body {
   resize: vertical;
 }
 
-.provoke-answer:focus {
+.answer-input:focus {
   outline: 2px solid var(--accent-border);
   outline-offset: 0;
-}
-
-.capsule-prompt-skip {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.capsule-prompt-skip:hover {
-  color: var(--text-secondary);
-}
-
-.capsule-prompt {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.capsule-prompt-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-style: italic;
-}
-
-.capsule-prompt-input {
-  width: min(360px, 50vw);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-page);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-}
-
-.reader-capsule-action:disabled {
-  color: var(--disabled);
-  cursor: default;
 }
 
 /* Guess-first define */
@@ -1302,7 +1237,6 @@ body {
   font-size: var(--text-sm);
   cursor: pointer;
 }
-
 
 /* The reader asks: a question card in the margin, and the explain-back panel. */
 .reader-question {

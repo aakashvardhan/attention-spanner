@@ -1,4 +1,4 @@
-//! The only place past dumps can be read (src/pages/dumps/Dumps.tsx). The
+//! The only place past dumps can be read. The
 //! private key lives in this page's memory alone: closing it locks it again.
 
 use super::use_storage;
@@ -77,7 +77,10 @@ fn Unlock(on_open: Callback<(Vec<(String, DumpEntry)>, usize)>) -> impl IntoView
         leptos::task::spawn_local(async move {
             let v: Option<Vault> = store::get("vault").await.ok().flatten();
             let locked: Vec<LockedDump> = store::get("lockedDumps").await.unwrap_or_default();
-            let Some(v) = v else { return };
+            let Some(v) = v else {
+                busy.set(false);
+                return;
+            };
             match vault::unlock_vault(&v, &s, recovery.get_untracked()).await {
                 Ok(key) => {
                     let (opened, failed) = vault::open_all(&key, &locked).await;

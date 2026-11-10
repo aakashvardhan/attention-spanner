@@ -9,7 +9,6 @@ release/
 # Local env (never commit secrets or keys)
 .env
 .env.*
-!.env.example
 
 # Firebase Functions build output + emulator state; the bridge is gone, but keep
 # these so a copy from another branch is never committed.
@@ -24,9 +23,6 @@ gcal-key.pem
 
 # iOS Swift package build artifacts
 ios/**/.build/
-demo/.profile/
-demo/.profile-probe/
-demo/out/
 
 # Brainstorm mockups from the visual companion.
 .superpowers/

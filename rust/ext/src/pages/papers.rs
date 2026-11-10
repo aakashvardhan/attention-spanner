@@ -116,17 +116,18 @@ pub fn Papers() -> impl IntoView {
                 format!("Shelved in {}.", folder.name),
             ),
         };
-        status.set(match m {
-            Shelving::Move { .. } => format!("Moving to {}…", folder.name),
-            Shelving::Save { .. } => format!("Shelving in {}…", folder.name),
-        });
+        let (doing, not_done) = match m {
+            Shelving::Move { .. } => (format!("Moving to {}…", folder.name), "Not moved"),
+            Shelving::Save { .. } => (format!("Shelving in {}…", folder.name), "Not shelved"),
+        };
+        status.set(doing);
         leptos::task::spawn_local(async move {
             let r = send(msg).await;
             status.set(if r["ok"] == true {
                 done
             } else {
                 let why = r["message"].as_str().unwrap_or("alphaXiv did not answer.");
-                format!("Not moved: {why}")
+                format!("{not_done}: {why}")
             });
         });
     };

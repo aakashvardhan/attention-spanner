@@ -321,10 +321,12 @@ pub async fn synthesize(
 }
 
 /// A failed speech request, in words for the page.
-pub fn failure_text(f: &TtsFailure) -> String {
+pub fn failure_text(provider: TtsProvider, f: &TtsFailure) -> String {
     match f {
         TtsFailure::Stop(m) => m.to_string(),
-        TtsFailure::Wait { secs } => format!("Groq is busy. Try again in {secs} s."),
+        TtsFailure::Wait { secs } => {
+            format!("{} is busy. Try again in {secs} s.", provider.name())
+        }
     }
 }
 
@@ -364,9 +366,8 @@ impl Player {
         Ok(c)
     }
 
-    /// Plays `wav` after everything already queued. `Some(ms)`: it starts in
-    /// that many ms of playback; `None`: dropped (stopped meanwhile, or silent).
-    /// `Some((ms until it starts, ms it lasts))`, or `None` if stopped meanwhile.
+    /// Plays `wav` after everything already queued. `Some((ms until it starts,
+    /// ms it lasts))`; `None`: dropped (stopped meanwhile, or silent).
     pub async fn queue(&self, wav: js_sys::ArrayBuffer) -> Result<Option<(i32, i32)>, JsValue> {
         let ctx = self.open()?;
         let epoch = self.0.borrow().epoch;
@@ -420,7 +421,6 @@ impl Player {
         }
     }
 
-    /// Milliseconds of queued speech still to play.
     /// The output's clock in ms; it stands still while paused.
     pub fn now_ms(&self) -> f64 {
         self.0
@@ -430,6 +430,7 @@ impl Player {
             .map_or(0.0, |c| c.current_time() * 1000.0)
     }
 
+    /// Milliseconds of queued speech still to play.
     pub fn remaining_ms(&self) -> i32 {
         let s = self.0.borrow();
         s.ctx.as_ref().map_or(0, |c| {
@@ -599,11 +600,11 @@ impl Speaker {
                                 emit(SpeakerEvent::Switched(format!(
                                     "Switched to {}'s voice: {}",
                                     next.name(),
-                                    failure_text(&f)
+                                    failure_text(provider, &f)
                                 )));
                             }
                             None => {
-                                emit(SpeakerEvent::Error(failure_text(&f)));
+                                emit(SpeakerEvent::Error(failure_text(provider, &f)));
                                 me.failed.set(true);
                                 break 'lines;
                             }

@@ -1,4 +1,4 @@
-//! Short dates for people (src/shared/format.ts).
+//! Short dates for people.
 
 use crate::civil_date::{CivilDate, MONTHS_SHORT};
 

@@ -1,4 +1,4 @@
-//! alphaXiv, the network half (src/background/alphaxiv.ts): sign-in (OAuth
+//! alphaXiv, the network half: sign-in (OAuth
 //! 2.1 with PKCE, a public client registered on first use), an MCP session
 //! over Streamable HTTP, and the library sync. Every rule is in
 //! reader_core::alphaxiv / ::mcp; this file only moves bytes.
@@ -122,7 +122,7 @@ async fn client_for(redirect_uri: &str) -> AxResult<String> {
         return Ok(c.client_id);
     }
     let body = json!({
-        "client_name": "ADHD Reader",
+        "client_name": "Reader",
         "redirect_uris": [redirect_uri],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],

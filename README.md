@@ -108,7 +108,9 @@ There is no account of the extension's own. It talks to:
 - **Groq** (and OpenAI as a fallback voice), with your keys, for speech when
   you Talk it through or Listen;
 - **Gemini**, with your key, for notes on a YouTube video you ask about;
-- **Hacker News**, for the new tab's news card.
+- **Hacker News**, for the new tab's news card;
+- **Open-Meteo**, for the temperature by the new tab's clock, with your
+  rounded location if you allow the browser's location prompt.
 
 Everything else stays in `chrome.storage` on your machine.
 
@@ -232,13 +234,17 @@ rust/
   ext/         the extension crate (#[oxichrome::extension])
     src/worker/   the background worker: messages, the reading session,
                   PDF redirects, alphaXiv sign-in and sync
-    src/pages/    Leptos pages: newtab, papers, reader, options, blocked, dumps
-    js/           the hand-written worker shim and the pdf.js / KaTeX bridges
+    src/pages/    Leptos pages: newtab, papers, reader, sidebar, notes,
+                  lexicon, options, blocked, dumps
+    js/           the hand-written worker shim, the pdf.js / KaTeX bridges,
+                  and the scripts the side panel runs in a tab
     css/          the stylesheets, and the tests that hold them to the
                   design system (AAA contrast, tokens only, motion)
   NOTES.md     what each phase of the port taught, file by file
 vendor/oxichrome/   the extended oxichrome fork (pages, newtab, manifest patches)
 e2e/                Playwright suite, run against the built extension
+eval/               model evals for the side panel and YouTube notes
+                    (`npm run eval:sidebar`, `npm run eval:youtube`)
 mcp/brain/          the brain MCP server (Node; not part of the extension)
 tests/              repository-wide guards (cut features stay cut)
 ```
@@ -257,10 +263,15 @@ shadow anywhere else; `theme.test.ts` checks every text/surface pair for 7:1;
 | Permission | Why |
 |---|---|
 | `storage` | Everything is stored locally |
-| `alarms` | The periodic alphaXiv sync |
-| `declarativeNetRequest` | Blocking during a reading session, and sending arXiv PDFs to the reader |
+| `alarms` | The periodic alphaXiv sync, the end of a focus round, and to-do reminders |
+| `declarativeNetRequest` | Blocking during a reading session or focus round, and sending arXiv PDFs to the reader |
 | `identity` | Signing in to alphaXiv (`launchWebAuthFlow`) |
-| `<all_urls>` | Fetching PDFs for the reader, and reaching alphaXiv and Claude from the worker |
+| `notifications` | To-do reminders, and the end of a focus round or break |
+| `offscreen` | Playing the bell at the end of a focus round (a service worker cannot play audio) |
+| `geolocation` | The temperature by the new tab's clock |
+| `scripting` | Reading the page, or the YouTube player, for the side panel |
+| `sidePanel` | The side panel the toolbar icon opens |
+| `<all_urls>` | Fetching PDFs for the reader, reaching alphaXiv and the AI providers, and reading the tab the side panel is on |
 
 ---
 

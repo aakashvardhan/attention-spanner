@@ -1,4 +1,4 @@
-//! The reading session's blocking rules (src/shared/focusRules.ts). The
+//! The reading session's blocking rules. The
 //! extension turns these into declarativeNetRequest session rules; deciding
 //! what they are is pure.
 

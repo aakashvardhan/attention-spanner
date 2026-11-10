@@ -1,5 +1,4 @@
-//! A PDF's outline, flattened, and the heading a page sits under
-//! (src/shared/pdfOutline.ts). pdf.js resolves destinations asynchronously, so
+//! A PDF's outline, flattened, and the heading a page sits under. pdf.js resolves destinations asynchronously, so
 //! the caller hands in a synchronous lookup and everything here stays pure.
 
 /// pdf.js `getOutline()` items, only the fields used. `D` is whatever the

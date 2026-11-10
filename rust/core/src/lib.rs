@@ -41,14 +41,3 @@ pub mod voice;
 pub mod voice_agent;
 pub mod webpage;
 pub mod youtube;
-
-/// The extension's name, shared by the manifest and the pages.
-pub const APP_NAME: &str = "Reader";
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn the_name_is_set() {
-        assert_eq!(super::APP_NAME, "Reader");
-    }
-}

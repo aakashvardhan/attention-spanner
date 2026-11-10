@@ -1,4 +1,4 @@
-//! AI answers as Markdown with LaTeX maths (src/shared/components/renderMarkdown.ts).
+//! AI answers as Markdown with LaTeX maths.
 //!
 //! Maths is lifted out before Markdown parsing, so `_`, `*` and `\` inside a
 //! formula are not read as Markdown, then spliced back as whatever the

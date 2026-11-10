@@ -39,7 +39,7 @@ pub fn QuestionCard(
             <AiNote ai=ai />
             <Show when=move || ai.view.with(|v| v.status == AiStatus::Done)>
                 <label class="define-label" for="question-answer">"Your answer, in your own words"</label>
-                <textarea id="question-answer" class="provoke-answer" rows="3" prop:value=move || answer.get() on:input=move |e| answer.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
+                <textarea id="question-answer" class="answer-input" rows="3" prop:value=move || answer.get() on:input=move |e| answer.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
                     if e.key() == "Enter" && (e.meta_key() || e.ctrl_key()) { keep(); }
                 }></textarea>
             </Show>
@@ -151,23 +151,26 @@ pub fn ExplainPanel(
                 let draft = draft_key.get_value();
                 draft_status.set("Graded. The draft is cleared from this device.");
                 leptos::task::spawn_local(async move {
-                    // ponytail: read-modify-write; two tabs grading the same second can drop one entry.
-                    let mut all: ExplainBacks =
-                        store::get("explainBacks").await.unwrap_or_default();
-                    let [problem, trick, why] = said;
-                    record(
-                        &mut all,
-                        &key,
-                        ExplainBack {
-                            at: crate::js::now(),
-                            problem,
-                            trick,
-                            why,
-                            grades: g,
-                        },
-                    );
+                    let kept = store::with_lock("explainBacks", async move {
+                        let mut all: ExplainBacks =
+                            store::get("explainBacks").await.unwrap_or_default();
+                        let [problem, trick, why] = said;
+                        record(
+                            &mut all,
+                            &key,
+                            ExplainBack {
+                                at: crate::js::now(),
+                                problem,
+                                trick,
+                                why,
+                                grades: g,
+                            },
+                        );
+                        store::set("explainBacks", &all).await.is_ok()
+                    })
+                    .await;
                     // The draft goes only once the graded copy is kept.
-                    if store::set("explainBacks", &all).await.is_ok() {
+                    if kept {
                         let _ = store::remove(&[draft]).await;
                     }
                 });
@@ -206,7 +209,7 @@ pub fn ExplainPanel(
                     let node = if i == 0 { first } else { NodeRef::new() };
                     view! {
                         <label class="define-label" for=id.clone()>{part.label()}</label>
-                        <textarea node_ref=node id=id class="provoke-answer" rows="3" disabled=move || !loaded.get() prop:value=move || field.get() on:input=move |e| { field.set(event_target_value(&e)); save_draft(); }></textarea>
+                        <textarea node_ref=node id=id class="answer-input" rows="3" disabled=move || !loaded.get() prop:value=move || field.get() on:input=move |e| { field.set(event_target_value(&e)); save_draft(); }></textarea>
                     }
                 }).collect_view()}
                 <button type="submit" class="fc-primary-btn" disabled=move || !loaded.get() || busy() || empty() || page_texts.with(Option::is_none)>

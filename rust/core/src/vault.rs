@@ -1,4 +1,4 @@
-//! The brain-dump vault's encodings (src/shared/vault.ts, the pure half). The
+//! The brain-dump vault's encodings. The
 //! cryptography itself is WebCrypto, in the extension; these are the bits
 //! around it that must match the TypeScript exactly, or old vaults won't open.
 

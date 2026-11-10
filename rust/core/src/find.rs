@@ -1,4 +1,4 @@
-//! Find in the paper (src/pages/reader/components/PdfFindPanel.tsx): every
+//! Find in the paper: every
 //! page containing the query, with an excerpt around the first hit.
 
 pub const MAX_MATCHES: usize = 50;

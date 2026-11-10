@@ -282,64 +282,7 @@ ul + .hint {
   margin-top: var(--space-2);
 }
 
-.row {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-2) 0;
-  border: 0;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-.row:hover .row-title {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-.row-title {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-/* Continue reading: the paper read last, and where you stopped. */
-.continue-paper {
-  display: grid;
-  gap: var(--space-1);
-  color: var(--text-primary);
-  text-decoration: none;
-}
-.continue-paper:hover .row-title {
-  text-decoration: underline;
-}
-.continue-paper:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-.row-title {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* ---------- Brain dump (BrainDump.tsx) ---------- */
+/* ---------- Brain dump ---------- */
 
 .notebook {
   display: grid;
@@ -525,7 +468,7 @@ ul + .hint {
   animation: dump-word var(--dur-smooth) var(--spring-smooth) backwards; /* motion-exempt: the brain dump always animates, by the owner's choice */
 }
 
-/* ---------- Activity (ActivityHeatmap.tsx) ---------- */
+/* ---------- Activity ---------- */
 
 .heat {
   display: grid;

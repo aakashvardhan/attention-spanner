@@ -123,11 +123,6 @@ pub fn add_term(lex: &mut Lexicon, label: &str, source: Source) -> bool {
     true
 }
 
-pub fn has_term(lex: &Lexicon, label: &str) -> bool {
-    let id = term_key(label);
-    lex.terms.iter().any(|t| t.id == id)
-}
-
 /// A definition as click-to-define writes it, `**Term**: definition`, split
 /// into the term Haiku named (it widens a clicked word to its whole term) and
 /// the definition. Any other shape is all definition.
@@ -365,7 +360,6 @@ mod tests {
         assert_eq!((t.id.as_str(), t.label.as_str()), ("td", "TD"));
         assert_eq!(t.sources.len(), 2);
         assert_eq!(t.sources[0].definition, "new");
-        assert!(has_term(&l, "Td"));
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! Schema migrations (src/shared/storage.ts `migrate`), as one pure function:
+//! Schema migrations, as one pure function:
 //! a snapshot of chrome.storage.local in, a plan (keys to set, keys to remove)
 //! out. The worker applies the plan; the order of steps is the TS order.
 

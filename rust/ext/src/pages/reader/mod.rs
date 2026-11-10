@@ -1,4 +1,4 @@
-//! The reader (src/pages/reader/Reader.tsx, PdfReader.tsx).
+//! The reader.
 
 mod annotate;
 mod define;
@@ -279,7 +279,6 @@ fn PdfReader(src: String) -> impl IntoView {
         StoredValue::new(
             move |kind: AnnotationKind, page: u32, rects: Vec<AnnotationRect>, x: f64, y: f64| {
                 AnnotationDraft {
-                    tag: None,
                     doc_key: doc_key.clone(),
                     doc_url: src.clone(),
                     paper_id: paper.get_untracked().map(|p| p.id),
@@ -411,18 +410,11 @@ fn PdfReader(src: String) -> impl IntoView {
         if !force && now - last_sent.get_value() < PROGRESS_THROTTLE_MS {
             return;
         }
-        let since = last_sent.get_value();
         last_sent.set_value(now);
         let pos = position.get_untracked();
-        // Credit at most one throttle window, so a reader left open can't bank hours.
-        let delta = if since == 0 {
-            0.0
-        } else {
-            ((now - since) as f64 / 1000.0).min((PROGRESS_THROTTLE_MS / 1000) as f64)
-        };
         let msg = json!({
             "type": "PAPER_READER_PROGRESS", "paperId": p.id, "pdfUrl": src_progress.get_value(), "page": pos.page,
-            "pageCount": page_count.get_untracked(), "offset": pos.offset, "leftOff": left_off_for(pos.page), "activeSecondsDelta": delta,
+            "pageCount": page_count.get_untracked(), "offset": pos.offset, "leftOff": left_off_for(pos.page),
         });
         leptos::task::spawn_local(async move {
             send(msg).await;
@@ -599,8 +591,7 @@ fn PdfReader(src: String) -> impl IntoView {
             ask.with_value(|f| f(spot_now(), true));
             return;
         }
-        if key != "f" || e.meta_key() || e.ctrl_key() || e.alt_key() || is_typing_target(e.target())
-        {
+        if key != "f" {
             return;
         }
         e.prevent_default();
@@ -696,8 +687,9 @@ fn PdfReader(src: String) -> impl IntoView {
                             zoom=zoom
                             initial=initial()
                             on_restored=Callback::new(move |_| {
-                                if let Some(d) = paper.get_untracked().and_then(|p| p.pdf) {
-                                    position.set(PdfPosition { page: d.page, offset: d.offset });
+                                // Where the view was put: a #page=N link wins over the saved place.
+                                if let Some((page, offset)) = initial() {
+                                    position.set(PdfPosition { page, offset });
                                 }
                                 restored.set_value(true);
                             })
@@ -847,11 +839,7 @@ fn is_typing_target(target: Option<web_sys::EventTarget>) -> bool {
 fn use_chrome_awake(pinned: Signal<bool>) -> Signal<bool> {
     let awake = RwSignal::new(true);
     let timer: StoredValue<Option<TimeoutHandle>, LocalStorage> = StoredValue::new_local(None);
-    let reduced = window()
-        .match_media("(prefers-reduced-motion: reduce)")
-        .ok()
-        .flatten()
-        .is_some_and(|m| m.matches());
+    let reduced = crate::pages::reduced_motion();
     let arm = move || {
         if let Some(h) = timer.try_update_value(Option::take).flatten() {
             h.clear();

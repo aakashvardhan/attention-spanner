@@ -1,5 +1,4 @@
-//! One AI answer's lifecycle, and how every answer renders
-//! (src/shared/hooks/useAi.ts, components/AiNote.tsx, Markdown.tsx).
+//! One AI answer's lifecycle, and how every answer renders.
 
 use crate::{chrome, claude, store};
 use leptos::prelude::*;
@@ -169,17 +168,19 @@ impl Ai {
             match reply {
                 Ok(text) => {
                     if let Some(key) = key.filter(|_| !text.trim().is_empty()) {
-                        // ponytail: read-modify-write without a queue; two answers landing
-                        // in the same tick can drop one cache entry, which is regenerated.
-                        let mut cache: AiCache = store::get("aiCache").await.unwrap_or_default();
                         let entry = AiCacheEntry {
                             text: text.clone(),
                             target: "claude".into(),
                             model: model.into(),
                             at: crate::js::now(),
                         };
-                        cache_put(&mut cache, key, entry);
-                        let _ = store::set("aiCache", &cache).await;
+                        store::with_lock("aiCache", async move {
+                            let mut cache: AiCache =
+                                store::get("aiCache").await.unwrap_or_default();
+                            cache_put(&mut cache, key, entry);
+                            let _ = store::set("aiCache", &cache).await;
+                        })
+                        .await;
                     }
                     self.view.try_update(|v| {
                         v.status = AiStatus::Done;

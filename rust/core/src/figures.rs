@@ -1,5 +1,4 @@
-//! In-text figure and table mentions and their captions
-//! (src/pages/reader/figures.ts, the pure half; walking pdf.js text stays in the reader).
+//! In-text figure and table mentions and their captions.
 
 use crate::pdf::PdfPosition;
 use regex::Regex;

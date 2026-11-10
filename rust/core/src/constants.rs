@@ -1,4 +1,4 @@
-//! Values shared across the extension (src/shared/constants.ts).
+//! Values shared across the extension.
 
 pub const MAX_PDF_NATIVE_BYPASS: usize = 100;
 
@@ -34,7 +34,6 @@ pub const ANNOTATION_TEXT_MAX_CHARS: usize = 500;
 
 pub const AI_CACHE_MAX_ENTRIES: usize = 200;
 pub const CLAUDE_MODEL_QUICK: &str = "claude-haiku-5-5";
-pub const CLAUDE_MODEL_DEEP: &str = "claude-sonnet-5-5";
 
 /// Alarms of cut features, cleared by name on install (an alarm outlives its code).
 pub const RETIRED_ALARMS: &[&str] = &[

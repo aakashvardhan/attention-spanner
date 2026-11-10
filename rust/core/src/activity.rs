@@ -1,5 +1,4 @@
-//! The heatmap of papers read and reading sessions per local day
-//! (src/shared/activity.ts). Dates come in as `CivilDate`s; see civil_date.rs.
+//! The heatmap of papers read and reading sessions per local day. Dates come in as `CivilDate`s; see civil_date.rs.
 
 use crate::civil_date::{CivilDate, MONTHS_SHORT};
 use crate::types::DayActivity;

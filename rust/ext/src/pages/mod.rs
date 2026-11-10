@@ -119,6 +119,15 @@ pub fn use_theme() {
     });
 }
 
+/// The reader asked the system for less motion.
+pub fn reduced_motion() -> bool {
+    window()
+        .match_media("(prefers-reduced-motion: reduce)")
+        .ok()
+        .flatten()
+        .is_some_and(|m| m.matches())
+}
+
 /// Send a message to the worker; the reply as JSON (`{ ok: false }` on failure).
 pub async fn send(msg: Value) -> Value {
     let Ok(js) = to_js(&msg) else {

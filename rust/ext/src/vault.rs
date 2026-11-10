@@ -1,4 +1,4 @@
-//! The brain-dump vault, cryptography in WebCrypto (src/shared/vault.ts).
+//! The brain-dump vault, cryptography in WebCrypto.
 //! Byte-compatible with the TypeScript: the same algorithms, parameters and
 //! encodings, so a vault made there opens here and the other way round (the
 //! e2e test checks both directions).

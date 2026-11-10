@@ -1,4 +1,4 @@
-//! The reading session (src/background/focus.ts + accessRules.ts): while a
+//! The reading session: while a
 //! reader tab is open, the blocklist redirects to the blocked page. Storage
 //! (`focusSession`) is the truth; DNR session rules are rebuilt from it.
 

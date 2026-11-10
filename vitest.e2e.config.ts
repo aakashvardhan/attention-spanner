@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// Drives the built extension (dist/, from `npm run build:e2e`) in Chromium.
+// Drives the built extension (rust/ext/dist/chromium, from `npm run build:ext`) in Chromium.
 // Kept out of `npm test`: these need a browser and take tens of seconds.
 export default defineConfig({
   test: {

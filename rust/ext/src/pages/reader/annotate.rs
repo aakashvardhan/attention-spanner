@@ -1,5 +1,4 @@
-//! Highlights, sticky notes and the notes list (components/AnnotationLayer.tsx,
-//! SelectionMenu.tsx, AnnotationsSidebar.tsx). Every change goes to the worker
+//! Highlights, sticky notes and the notes list. Every change goes to the worker
 //! as a message; the list re-renders from storage.
 
 use crate::pages::send;

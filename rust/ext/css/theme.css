@@ -1,5 +1,5 @@
 /*
- * Theme tokens shared by every extension page. Import from main.tsx before the
+ * Theme tokens shared by every extension page. Loaded before the
  * page stylesheet. One theme (walnut and brass); page CSS uses only these
  * tokens for colors. Alternate palettes override them under [data-theme].
  *

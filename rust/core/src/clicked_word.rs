@@ -1,5 +1,4 @@
-//! The word under a click, and the text around it for the model
-//! (src/pages/reader/clickedWord.ts).
+//! The word under a click, and the text around it for the model.
 //!
 //! Offsets count `char`s here. JavaScript counts UTF-16 units, so the reader
 //! converts the DOM offset before calling in (the same for all BMP text).

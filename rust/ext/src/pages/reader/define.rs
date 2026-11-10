@@ -1,6 +1,5 @@
 //! Click-to-define and select-to-highlight: reading the DOM back into page
-//! fractions and words (PdfViewport.tsx's defineAt and handlePointerUp,
-//! components/DefinePopover.tsx). The word rules are reader_core's.
+//! fractions and words. The word rules are reader_core's.
 
 use crate::chrome;
 use crate::pages::ai::{use_ai, AiNote, AiStatus, SaveNotePrompt};
@@ -302,13 +301,13 @@ pub fn DefinePopover(
     };
     let question = format!("From the sentence around it, what do you think “{word}” means here?");
     view! {
-        <div node_ref=root class="cite-tooltip define-popover" role="dialog" aria-label=format!("Definition of {word}") style=style>
+        <div node_ref=root class="popover-card define-popover" role="dialog" aria-label=format!("Definition of {word}") style=style>
             <Show
                 when=move || guess.with(Option::is_some)
                 fallback=move || view! {
                     <form class="define-guess" on:submit=submit>
                         <label class="define-guess-question" for="define-guess-input">{question.clone()}</label>
-                        <input node_ref=input id="define-guess-input" class="provoke-answer" prop:value=move || draft.get() on:input=move |e| draft.set(event_target_value(&e)) />
+                        <input node_ref=input id="define-guess-input" class="answer-input" prop:value=move || draft.get() on:input=move |e| draft.set(event_target_value(&e)) />
                         <button type="submit" class="fc-primary-btn" disabled=move || draft.with(|d| d.trim().is_empty())>"Compare"</button>
                     </form>
                 }

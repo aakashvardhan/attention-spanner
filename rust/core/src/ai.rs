@@ -1,6 +1,5 @@
-//! Where an AI call runs, and the requests the extension makes
-//! (src/shared/llm/route.ts, terms.ts, generate.ts's request shape).
-//! Haiku is the only writer; alphaXiv supplies the passages.
+//! Where an AI call runs, and the requests the extension makes.
+//! Haiku is the only writer; the paper's own pages are the passages.
 
 use crate::constants::{AI_CACHE_MAX_ENTRIES, CLAUDE_MODEL_QUICK};
 use crate::types::AiCacheEntry;

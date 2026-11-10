@@ -1,4 +1,4 @@
-//! The stored shapes (src/shared/types.ts). Field names are camelCase on the
+//! The stored shapes. Field names are camelCase on the
 //! wire and absent optionals are left out, so these read and write exactly the
 //! JSON the TypeScript build stored: a profile moves across with no migration.
 
@@ -81,14 +81,6 @@ pub enum AnnotationColor {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum HighlightTag {
-    Claim,
-    Evidence,
-    Doubt,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum AnnotationKind {
     Highlight,
     Sticky,
@@ -128,8 +120,6 @@ pub enum AnnotationAnchor {
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tag: Option<HighlightTag>,
     /// Stable document identity: paper_match_key(url), else the normalised url
     pub doc_key: String,
     pub doc_url: String,

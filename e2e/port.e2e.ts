@@ -25,7 +25,7 @@ describe('rust port: phase 0 skeleton', () => {
     const page = await ext.page(PAGES.newtab);
     await expect.poll(() => page.locator('main.edition .label').first().innerText()).toBeTruthy();
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
-    expect(await page.title()).toBe('Focus workspace');
+    expect(await page.title()).toBe('New Tab');
     // theme.css loaded: the grid ground (the default palette), not the browser's white
     // ...at once: no fade in from the default palette (theme changes only ease once settled).
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(5, 8, 13)');
@@ -87,7 +87,7 @@ describe('rust port: phase 2 worker', () => {
   it('folds reader progress into a paper and logs the day', async () => {
     await seed(ext, { papers: [paper('1', 'P')], activity: {} });
     const id = '2601.00001';
-    expect(await send({ type: 'PAPER_READER_PROGRESS', paperId: id, pdfUrl: 'https://arxiv.org/pdf/2601.00001', page: 5, pageCount: 20, offset: 0.5, leftOff: '3 Method', activeSecondsDelta: 5 })).toEqual({ ok: true });
+    expect(await send({ type: 'PAPER_READER_PROGRESS', paperId: id, pdfUrl: 'https://arxiv.org/pdf/2601.00001', page: 5, pageCount: 20, offset: 0.5, leftOff: '3 Method' })).toEqual({ ok: true });
     const [p] = await storage<{ progressPercent: number; leftOff: string; pdf: { page: number } }[]>(ext, 'papers');
     expect([p.progressPercent, p.leftOff, p.pdf.page]).toEqual([30, '3 Method', 5]); // seeded at 30, 23 does not lower it
     const activity = await storage<Record<string, { papers: string[] }>>(ext, 'activity');

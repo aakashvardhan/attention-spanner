@@ -1,4 +1,4 @@
-//! alphaXiv, the pure half (src/shared/alphaxiv.ts): the OAuth request shapes,
+//! alphaXiv, the pure half: the OAuth request shapes,
 //! the MCP tool replies, and how the library folds into the shelf. alphaXiv is
 //! the master copy of the library; the shelf keeps only reading state.
 

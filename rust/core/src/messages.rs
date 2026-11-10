@@ -1,15 +1,13 @@
-//! Messages from pages to the worker (src/shared/messages.ts). One enum,
+//! Messages from pages to the worker. One enum,
 //! tagged on `type` with the TS names, so the JSON on the wire is unchanged.
 
-use crate::types::{Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind, HighlightTag};
+use crate::types::{Annotation, AnnotationAnchor, AnnotationColor, AnnotationKind};
 use serde::{Deserialize, Serialize};
 
 /// An annotation before the worker gives it an id and timestamps.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnnotationDraft {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tag: Option<HighlightTag>,
     pub doc_key: String,
     pub doc_url: String,
     pub paper_id: Option<String>,
@@ -24,7 +22,6 @@ impl AnnotationDraft {
     pub fn into_annotation(self, id: String, now: i64) -> Annotation {
         Annotation {
             id,
-            tag: self.tag,
             doc_key: self.doc_key,
             doc_url: self.doc_url,
             paper_id: self.paper_id,
@@ -46,8 +43,6 @@ pub struct AnnotationPatch {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<AnnotationColor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tag: Option<HighlightTag>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -94,8 +89,6 @@ pub enum Message {
         page_count: f64,
         offset: f64,
         left_off: String,
-        #[serde(default)]
-        active_seconds_delta: f64,
     },
     ReaderOpenNative {
         url: String,
@@ -207,7 +200,7 @@ mod tests {
             );
         }
         let progress: Message = serde_json::from_value(json!({
-            "type": "PAPER_READER_PROGRESS", "paperId": "p", "pdfUrl": "u", "page": 2, "pageCount": 10, "offset": 0.5, "leftOff": "", "activeSecondsDelta": 5
+            "type": "PAPER_READER_PROGRESS", "paperId": "p", "pdfUrl": "u", "page": 2, "pageCount": 10, "offset": 0.5, "leftOff": ""
         }))
         .unwrap();
         assert!(

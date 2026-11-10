@@ -1,4 +1,4 @@
-//! The reader's pure helpers (src/shared/pdf.ts): which URLs are PDFs, reader
+//! The reader's pure helpers: which URLs are PDFs, reader
 //! URLs, mapping scroll to a page. The `chrome.runtime.getURL` call stays in
 //! the extension; here the extension's base URL is a parameter.
 

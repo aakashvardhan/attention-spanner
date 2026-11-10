@@ -1,18 +1,6 @@
-//! The reader's anti-drift aids as pure decisions (src/shared/readingAids.ts).
+//! The reader's anti-drift aids as pure decisions.
 
 const WORDS_PER_MINUTE: f64 = 230.0;
-
-/// How far down the view the reading line sits.
-pub const READING_LINE: f64 = 0.4;
-
-/// The block under the reading line: the first whose bottom reaches it; past
-/// the last block, the last; none at all, 0.
-pub fn block_at_line(bottoms: &[f64], line: f64) -> usize {
-    bottoms
-        .iter()
-        .position(|&b| b >= line)
-        .unwrap_or(bottoms.len().saturating_sub(1))
-}
 
 pub fn word_counts(passages: &[&str]) -> Vec<usize> {
     passages
@@ -97,16 +85,5 @@ mod tests {
         assert_eq!(section_done_label(2, 6), "Section 3 done · 3 left");
         assert_eq!(section_done_label(4, 6), "Section 5 done · 1 left");
         assert_eq!(section_done_label(5, 6), "Last section done");
-    }
-
-    #[test]
-    fn block_at_line_is_the_first_bottom_reaching_the_line() {
-        let b = [-200.0, 120.0, 380.0, 700.0, 1100.0];
-        assert_eq!(block_at_line(&b, 360.0), 2);
-        assert_eq!(block_at_line(&b, 380.0), 2);
-        assert_eq!(block_at_line(&b, 381.0), 3);
-        assert_eq!(block_at_line(&b, 0.0), 1);
-        assert_eq!(block_at_line(&b, 5000.0), 4);
-        assert_eq!(block_at_line(&[], 100.0), 0);
     }
 }

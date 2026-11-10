@@ -1,4 +1,4 @@
-//! The scrolling page list (src/pages/reader/components/PdfViewport.tsx).
+//! The scrolling page list.
 //! Every page gets a fixed-size placeholder up front (sizes are known before
 //! any rendering), so scroll geometry is exact; IntersectionObservers fill in
 //! canvases near the viewport and drop far-away ones to bound memory.
@@ -32,11 +32,7 @@ pub const ZOOM_MAX: f64 = 3.0;
 
 /// Navigation glides; restore and zoom re-anchoring never do.
 pub(super) fn nav_smooth() -> bool {
-    !window()
-        .match_media("(prefers-reduced-motion: reduce)")
-        .ok()
-        .flatten()
-        .is_some_and(|m| m.matches())
+    !crate::pages::reduced_motion()
 }
 
 /// A request to scroll: (page, offset, sequence) so the same target twice still moves.

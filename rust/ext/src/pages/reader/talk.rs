@@ -355,7 +355,7 @@ pub fn TalkPanel(
             </Show>
             <form class="reader-talk-type" on:submit=move |e: web_sys::SubmitEvent| { e.prevent_default(); send(); }>
                 <label class="define-label" for="talk-type">"Or type it"</label>
-                <textarea id="talk-type" class="provoke-answer" rows="2" placeholder="What you'd have said…" prop:value=move || draft.get() on:input=move |e| draft.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
+                <textarea id="talk-type" class="answer-input" rows="2" placeholder="What you'd have said…" prop:value=move || draft.get() on:input=move |e| draft.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
                     // Enter sends, Shift+Enter starts a new line.
                     if e.key() == "Enter" && !e.shift_key() && !e.is_composing() { e.prevent_default(); send(); }
                 }></textarea>

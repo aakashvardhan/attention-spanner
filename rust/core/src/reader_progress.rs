@@ -1,4 +1,4 @@
-//! Folding a reader position into a paper (src/background/papers.ts).
+//! Folding a reader position into a paper.
 
 use crate::pdf::compute_pdf_percent;
 use crate::types::{Paper, PdfState};

@@ -57,35 +57,3 @@ export const LIST_LIBRARY = JSON.stringify({
     },
   ],
 });
-
-/** get_hot_feed { limit: 3 } */
-export const HOT_FEED = '{"papers":[{"universal_paper_id":"2610.39302"},{"universal_paper_id":"2610.40564"},{"universal_paper_id":"2610.40636"}]}';
-
-/** get_for_you_feed { limit: 3 } */
-export const FOR_YOU_FEED = '{"papers":[{"universal_paper_id":"2610.37381"},{"universal_paper_id":"2610.28480"},{"universal_paper_id":"2609.24972"}]}';
-
-/** The authorization server's metadata (/.well-known/oauth-authorization-server/auth), trimmed to what we use. */
-export const AUTH_METADATA = {
-  issuer: 'https://api.alphaxiv.org/auth',
-  authorization_endpoint: 'https://api.alphaxiv.org/auth/oauth2/authorize',
-  token_endpoint: 'https://api.alphaxiv.org/auth/oauth2/token',
-  registration_endpoint: 'https://api.alphaxiv.org/auth/oauth2/register',
-  userinfo_endpoint: 'https://api.alphaxiv.org/auth/oauth2/userinfo',
-  revocation_endpoint: 'https://api.alphaxiv.org/auth/oauth2/revoke',
-  code_challenge_methods_supported: ['S256'],
-  token_endpoint_auth_methods_supported: ['none', 'client_secret_basic', 'client_secret_post'],
-  scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
-};
-
-/** POST /auth/oauth2/register for a chromiumapp.org redirect (client id changed). */
-export const REGISTER_REPLY = {
-  client_id: 'e2eClientIdAAAAAAAAAAAAAAAAAAAAA',
-  scope: 'openid profile email offline_access',
-  client_name: 'ADHD Reader',
-  redirect_uris: ['https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/alphaxiv'],
-  token_endpoint_auth_method: 'none',
-  grant_types: ['authorization_code', 'refresh_token'],
-  response_types: ['code'],
-  public: true,
-  disabled: false,
-};

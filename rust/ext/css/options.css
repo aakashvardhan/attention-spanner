@@ -222,12 +222,12 @@ button:hover {
   color: var(--on-accent);
 }
 
-.add-feed-form {
+.add-domain-form {
   display: flex;
   gap: var(--space-2);
 }
 
-.add-feed-form input {
+.add-domain-form input {
   flex: 1;
   min-width: 0;
   min-height: 44px;
@@ -240,19 +240,19 @@ button:hover {
   color: var(--text-primary);
 }
 
-.add-feed-form input:focus {
+.add-domain-form input:focus {
   border-color: var(--accent);
 }
 
 /* ---------- Feeds ---------- */
 
-.feeds-list {
+.domain-list {
   display: flex;
   flex-direction: column;
 }
 
 /* Rows, not boxes: a hairline between entries, like the setting rows. */
-.feed-entry {
+.domain-entry {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -260,11 +260,11 @@ button:hover {
   min-height: 44px;
 }
 
-.feed-entry + .feed-entry {
+.domain-entry + .domain-entry {
   border-top: 1px solid var(--border-subtle);
 }
 
-.feed-entry-url {
+.domain-entry-name {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   overflow: hidden;
@@ -272,7 +272,7 @@ button:hover {
   white-space: nowrap;
 }
 
-.remove-feed-btn {
+.remove-domain-btn {
   min-height: 32px;
   background: transparent;
   color: var(--text-faint);
@@ -280,7 +280,7 @@ button:hover {
   font-size: var(--text-sm);
 }
 
-.remove-feed-btn:hover {
+.remove-domain-btn:hover {
   background: var(--danger-bg);
   color: var(--danger);
 }

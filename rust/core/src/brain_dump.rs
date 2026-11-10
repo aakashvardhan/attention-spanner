@@ -1,4 +1,4 @@
-//! The brain dump's prompt and reply parsing (src/shared/brainDump.ts).
+//! The brain dump's prompt and reply parsing.
 
 use crate::todos::{parse_todos, LocalTime};
 use regex::Regex;

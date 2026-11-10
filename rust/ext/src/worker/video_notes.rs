@@ -4,8 +4,8 @@
 //! Gemini's work). Progress and failures are in `videoNotesJobs`, which every
 //! panel watches; the notes are saved under the `videoNotes` lock.
 
-use crate::claude::gloo_timeout;
 use crate::js::{log_error, now, wait, Res};
+use crate::voice::sleep_ms;
 use crate::{chrome, gemini, store};
 use reader_core::youtube::{
     add_part, as_part, merge, notes_request, parse_notes, watch_url, Kind, NotesJob, VideoNotes,
@@ -45,15 +45,6 @@ fn finish(id: &str, token: u64) -> bool {
 
 fn failed(error: &str) -> Value {
     json!({ "ok": false, "error": error })
-}
-
-async fn sleep(ms: i32) {
-    let p = js_sys::Promise::new(&mut |resolve, _| {
-        gloo_timeout(ms, move || {
-            let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
-        });
-    });
-    let _ = wasm_bindgen_futures::JsFuture::from(p).await;
 }
 
 /// Sets (or, with None, clears) one video's entry in `videoNotesJobs`.
@@ -132,7 +123,7 @@ pub async fn cancel(id: String) -> Value {
 fn keep_alive(id: String, token: u64) {
     wasm_bindgen_futures::spawn_local(async move {
         loop {
-            sleep(KEEPALIVE_MS).await;
+            sleep_ms(KEEPALIVE_MS).await;
             if !running(&id, token) {
                 return;
             }

@@ -17,9 +17,9 @@ for (const css of readdirSync('rust/ext/css').filter((f) => f.endsWith('.css')))
 cpSync('rust/ext/js/worker.js', join(out, 'worker.js'));
 // The side panel's page reader, injected into a tab (chrome.scripting).
 cpSync('rust/ext/js/page-text.js', join(out, 'page-text.js'));
-// The Pomodoro bell: an offscreen page, since a service worker cannot play audio.
 // The brain dump's mic tap (an AudioWorklet module must be its own file).
 cpSync('rust/ext/js/mic-worklet.js', join(out, 'mic-worklet.js'));
+// The Pomodoro bell: an offscreen page, since a service worker cannot play audio.
 for (const f of ['chime.html', 'chime.js']) cpSync(join('rust/ext/js', f), join(out, f));
 // pdf.js, unmodified: the library, its worker, and the wasm decoders for scanned pages.
 mkdirSync(join(out, 'pdfjs'), { recursive: true });

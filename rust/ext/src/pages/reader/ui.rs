@@ -1,5 +1,4 @@
-//! The reader's chrome (src/pages/reader/components/ReaderToolbar.tsx,
-//! ReaderCapsule.tsx, OutlineRail.tsx, OutlineSidebar.tsx, PdfFindPanel.tsx).
+//! The reader's chrome.
 
 use super::viewport::{ZOOM_MAX, ZOOM_MIN};
 use crate::chrome;
@@ -120,7 +119,7 @@ pub fn ReaderToolbar(
     view! {
         <header class="reader-toolbar">
             <div class="reader-toolbar-left">
-                <button class="reader-icon-btn" aria-label="Back to Dashboard" title="Back to Dashboard" on:click=|_| {
+                <button class="reader-icon-btn" aria-label="Back to Today" title="Back to Today" on:click=|_| {
                     let _ = window().location().set_href(&chrome::get_url(NEWTAB_PAGE_PATH));
                 }>
                     <ToolbarIcon><path d="m15 18-6-6 6-6" /></ToolbarIcon>

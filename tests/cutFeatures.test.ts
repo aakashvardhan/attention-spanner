@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 // Patterns must not use the g or y flag: hits() reuses one RegExp across lines and .test() would carry lastIndex.
 const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'Hero', pattern: /\bHero\b|edition-masthead/ },
+  // The old weather card stays cut; the clock's temperature (Open-Meteo, `weatherNow`) is a later, separate feature.
   { name: 'weather', pattern: /weatherLocation|WeatherCache|\bWeather\b/ },
   { name: 'greeting', pattern: /displayName/ },
   { name: 'ambient', pattern: /ambientMotion|useAmbient|ObstacleCourse/ },

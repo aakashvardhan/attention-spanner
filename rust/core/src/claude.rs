@@ -1,4 +1,4 @@
-//! The Claude Messages API, streaming (src/shared/llm/claude.ts), the pure
+//! The Claude Messages API, streaming, the pure
 //! half: the request body, cutting a byte stream into server-sent events as
 //! chunks arrive, and reading each event.
 

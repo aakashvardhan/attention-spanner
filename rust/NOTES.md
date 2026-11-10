@@ -5,7 +5,7 @@ them. Read the files in the order listed.
 
 ## Phase 0: fork and skeleton
 
-**Build it:** `npm run build:rust`, then load `rust/ext/dist/chromium` unpacked.
+**Build it:** `npm run build:ext`, then load `rust/ext/dist/chromium` unpacked.
 **Test it:** `npm run test:rust` (cargo test, clippy, fmt) and
 `DIST=rust/ext/dist/chromium npx vitest run --config vitest.e2e.config.ts e2e/port.e2e.ts`.
 
@@ -106,7 +106,7 @@ Ported test for test from the TypeScript (`cargo test -p reader-core`: 55 ported
 
 ## Phase 2: the background worker (`rust/ext/src/worker`, `rust/ext/js/worker.js`)
 
-`npm run test:e2e:rust`: 11 browser tests drive the Rust worker for real.
+`npm run test:e2e`: 11 browser tests drive the Rust worker for real.
 
 1. **Why a hand-written `worker.js`.** MV3 only delivers the event that woke
    the worker to listeners registered in its first turn; `init()` (loading

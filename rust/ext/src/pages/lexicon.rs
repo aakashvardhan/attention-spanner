@@ -5,7 +5,7 @@
 //! reader_core::lexicon.
 
 use super::ai::Markdown;
-use super::use_storage;
+use super::{reduced_motion, use_storage};
 use crate::js::now;
 use crate::{chrome, claude, store};
 use leptos::html;
@@ -39,19 +39,15 @@ pub async fn keep_term(label: String, source: Source) {
     .await;
 }
 
-async fn edit(f: impl FnOnce(&mut Lexicon)) {
-    // ponytail: read-modify-write without a lock; two tabs writing in the same tick can drop one change.
-    let mut lex: Lexicon = store::get("lexicon").await.unwrap_or_default();
-    f(&mut lex);
-    let _ = store::set("lexicon", &lex).await;
-}
-
-fn reduced_motion() -> bool {
-    window()
-        .match_media("(prefers-reduced-motion: reduce)")
-        .ok()
-        .flatten()
-        .is_some_and(|m| m.matches())
+/// Every lexicon write, under one lock across tabs.
+async fn edit<T: 'static>(f: impl FnOnce(&mut Lexicon) -> T + 'static) -> T {
+    store::with_lock("lexicon", async move {
+        let mut lex: Lexicon = store::get("lexicon").await.unwrap_or_default();
+        let out = f(&mut lex);
+        let _ = store::set("lexicon", &lex).await;
+        out
+    })
+    .await
 }
 
 #[derive(Clone, PartialEq)]
@@ -661,18 +657,15 @@ async fn link_once() -> String {
         Ok(t) => t,
         Err(e) => return e,
     };
-    let mut now_lex: Lexicon = store::get("lexicon").await.unwrap_or_default();
-    match parse_links(&text, &now_lex, now()) {
+    let merged = edit(move |now_lex| {
+        parse_links(&text, now_lex, now()).map(|edges| merge_links(now_lex, edges, &sent, now()))
+    })
+    .await;
+    match merged {
         Err(e) => e,
-        Ok(edges) => {
-            let added = merge_links(&mut now_lex, edges, &sent, now());
-            let _ = store::set("lexicon", &now_lex).await;
-            match added {
-                0 => "No new links this time.".into(),
-                1 => "Found 1 new link.".into(),
-                n => format!("Found {n} new links."),
-            }
-        }
+        Ok(0) => "No new links this time.".into(),
+        Ok(1) => "Found 1 new link.".into(),
+        Ok(n) => format!("Found {n} new links."),
     }
 }
 

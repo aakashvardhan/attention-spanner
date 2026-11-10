@@ -1,7 +1,7 @@
 {
   "client_id": "e2eClientIdAAAAAAAAAAAAAAAAAAAAA",
   "scope": "openid profile email offline_access",
-  "client_name": "ADHD Reader",
+  "client_name": "Reader",
   "redirect_uris": [
     "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/alphaxiv"
   ],

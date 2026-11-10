@@ -1,5 +1,4 @@
-//! The new tab (src/pages/newtab/Dashboard.tsx, ActivityHeatmap.tsx,
-//! BrainDump.tsx, VaultSetup.tsx, Icon.tsx).
+//! The new tab.
 
 use super::{send, todo_drag, use_settings, use_storage};
 use crate::js::{local_date, now};
@@ -35,7 +34,7 @@ use std::cell::RefCell;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
-#[oxichrome::page(path = "src/pages/newtab/index.html", title = "Focus workspace", css = ["assets/theme.css", "assets/newtab.css"])]
+#[oxichrome::page(path = "src/pages/newtab/index.html", title = "New Tab", css = ["assets/theme.css", "assets/newtab.css"])]
 pub fn NewTab() -> impl IntoView {
     super::use_theme();
     let (papers, _) = use_storage::<Vec<Paper>>("papers");
@@ -46,6 +45,9 @@ pub fn NewTab() -> impl IntoView {
     let (session, _) = use_storage::<Option<FocusSession>>("focusSession");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
     let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+    // Read once here and handed down: each use_storage is its own listener.
+    let (todos, _) = use_storage::<Vec<Todo>>("todos");
+    let (activity, _) = use_storage::<ActivityLog>("activity");
     let tick = RwSignal::new(now());
     set_interval(move || tick.set(now()), std::time::Duration::from_secs(1));
     // To read, in progress, completed: by how far each paper is read.
@@ -126,8 +128,8 @@ pub fn NewTab() -> impl IntoView {
             <main class="edition">
                 <section class="focus-home" aria-label="Focus round">
                     <div><h1>"Today"</h1><p class="hint">"Pick one thing. Give it 25 minutes."</p></div>
-                    <Clock pomodoro=pomodoro tick=tick />
-                    <PomodoroPanel pomodoro=pomodoro tick=tick />
+                    <Clock pomodoro=pomodoro tick=tick todos=todos log=activity />
+                    <PomodoroPanel pomodoro=pomodoro tick=tick todos=todos />
                 </section>
                 <section class="board" aria-label="Reading board">
                     {[(1usize, "In progress"), (0, "To read"), (2, "Completed")].into_iter().map(|(i, name)| {
@@ -156,11 +158,11 @@ pub fn NewTab() -> impl IntoView {
                     }).collect_view()}
                 </section>
 
-                <TodoBoard />
+                <TodoBoard todos=todos pomodoro=pomodoro />
 
                 <aside class="side-col">
                     <BrainDump />
-                    <ActivityHeatmap papers=papers />
+                    <ActivityHeatmap papers=papers log=activity />
                     <Show when=move || pomodoro.with(Option::is_none) && session.with(Option::is_none)>
                         <details class="news-disclosure"><summary>"News"</summary><HnFeed /></details>
                     </Show>
@@ -190,8 +192,7 @@ fn LockIcon(class: &'static str) -> impl IntoView {
 /* ---------- Activity ---------- */
 
 #[component]
-fn ActivityHeatmap(papers: ReadSignal<Vec<Paper>>) -> impl IntoView {
-    let (log, _) = use_storage::<ActivityLog>("activity");
+fn ActivityHeatmap(papers: ReadSignal<Vec<Paper>>, log: ReadSignal<ActivityLog>) -> impl IntoView {
     let metric = RwSignal::new(Metric::All);
     let model = Memo::new(move |_| {
         let ids: Vec<(String, Option<i64>)> = papers
@@ -1081,9 +1082,10 @@ async fn begin_round(ids: Vec<String>, video: String) -> crate::js::Res<()> {
 /// Today's to-dos (from brain dumps, or typed here) as a board: To do, In
 /// progress, Done. Each card retimes its reminder, moves, or is deleted.
 #[component]
-fn TodoBoard() -> impl IntoView {
-    let (todos, _) = use_storage::<Vec<Todo>>("todos");
-    let (pomodoro, _) = use_storage::<Option<Pomodoro>>("pomodoro");
+fn TodoBoard(
+    todos: ReadSignal<Vec<Todo>>,
+    pomodoro: ReadSignal<Option<Pomodoro>>,
+) -> impl IntoView {
     let feedback = RwSignal::new(String::new());
     // A drop shows at once; storage catches up a moment later and takes over.
     let dropped = RwSignal::new(None::<Vec<Todo>>);
@@ -1334,7 +1336,12 @@ async fn sky_now() -> Option<SkyNow> {
 /// CSS animations started at the current time, so no timer ticks.
 // ponytail: the date window is set at load; a new tab left open past midnight shows yesterday.
 #[component]
-fn Clock(pomodoro: ReadSignal<Option<Pomodoro>>, tick: RwSignal<i64>) -> impl IntoView {
+fn Clock(
+    pomodoro: ReadSignal<Option<Pomodoro>>,
+    tick: RwSignal<i64>,
+    todos: ReadSignal<Vec<Todo>>,
+    log: ReadSignal<ActivityLog>,
+) -> impl IntoView {
     let d = js_sys::Date::new_0();
     let secs = d.get_seconds() as f64 + d.get_milliseconds() as f64 / 1000.0;
     let mins = d.get_minutes() as f64 * 60.0 + secs;
@@ -1449,7 +1456,7 @@ fn Clock(pomodoro: ReadSignal<Option<Pomodoro>>, tick: RwSignal<i64>) -> impl In
                     Some(None) => view! { <p class="hint">"No weather: location is off or offline."</p> }.into_any(),
                 }}
             </div>
-            <TodayStats />
+            <TodayStats todos=todos log=log />
         </section>
     }
 }
@@ -1528,9 +1535,7 @@ fn HnFeed() -> impl IntoView {
 /// What today has added up to so far, beside the clock: focus, to-dos,
 /// papers, and the next reminder.
 #[component]
-fn TodayStats() -> impl IntoView {
-    let (log, _) = use_storage::<ActivityLog>("activity");
-    let (todos, _) = use_storage::<Vec<Todo>>("todos");
+fn TodayStats(todos: ReadSignal<Vec<Todo>>, log: ReadSignal<ActivityLog>) -> impl IntoView {
     let day = move || {
         log.with(|l| {
             l.get(&local_date(now()).to_string())
@@ -1579,8 +1584,11 @@ fn TodayStats() -> impl IntoView {
 
 /// Choose up to three board tasks; the worker owns the alarm, blocking and bell.
 #[component]
-fn PomodoroPanel(pomodoro: ReadSignal<Option<Pomodoro>>, tick: RwSignal<i64>) -> impl IntoView {
-    let (todos, _) = use_storage::<Vec<Todo>>("todos");
+fn PomodoroPanel(
+    pomodoro: ReadSignal<Option<Pomodoro>>,
+    tick: RwSignal<i64>,
+    todos: ReadSignal<Vec<Todo>>,
+) -> impl IntoView {
     let planning = RwSignal::new(false);
     let selected = RwSignal::new(Vec::<String>::new());
     let video = RwSignal::new(String::new());

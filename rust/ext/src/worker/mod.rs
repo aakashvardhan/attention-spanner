@@ -206,11 +206,22 @@ pub async fn on_message(msg: JsValue, sender: JsValue) -> JsValue {
     to_js(&reply).unwrap_or(JsValue::NULL)
 }
 
-fn result(r: Result<impl serde::Serialize, String>) -> Value {
-    match r {
-        Ok(_) => json!({ "ok": true }),
-        Err(error) => json!({ "ok": false, "error": error }),
-    }
+/// One change to the annotation list, under a lock: a selection across two
+/// pages sends two adds at once, and unlocked the second write drops the first.
+async fn edit_annotations(
+    f: impl FnOnce(&[Annotation]) -> Result<(Vec<Annotation>, Value), String> + 'static,
+) -> Res<Value> {
+    store::with_lock("annotations", async move {
+        let list: Vec<Annotation> = store::get("annotations").await?;
+        Ok(match f(&list) {
+            Ok((next, reply)) => {
+                store::set("annotations", &next).await?;
+                reply
+            }
+            Err(error) => json!({ "ok": false, "error": error }),
+        })
+    })
+    .await
 }
 
 async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
@@ -244,7 +255,6 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
             page_count,
             offset,
             left_off,
-            ..
         } => {
             let mut papers: Vec<Paper> = store::get("papers").await?;
             let Some(paper) = papers.iter_mut().find(|p| p.id == paper_id) else {
@@ -277,30 +287,23 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
             None => json!({ "ok": false }),
         },
         Message::AnnotAdd { draft } => {
-            let list: Vec<Annotation> = store::get("annotations").await?;
-            match add_annotation(&list, draft, chrome::random_uuid(), now()) {
-                Ok((next, made)) => {
-                    store::set("annotations", &next).await?;
-                    json!({ "ok": true, "annotation": made })
-                }
-                Err(error) => json!({ "ok": false, "error": error }),
-            }
+            edit_annotations(move |list| {
+                add_annotation(list, draft, chrome::random_uuid(), now())
+                    .map(|(next, made)| (next, json!({ "ok": true, "annotation": made })))
+            })
+            .await?
         }
         Message::AnnotUpdate { id, patch } => {
-            let list: Vec<Annotation> = store::get("annotations").await?;
-            let next = update_annotation(&list, &id, patch, now());
-            if let Ok(next) = &next {
-                store::set("annotations", next).await?;
-            }
-            result(next)
+            edit_annotations(move |list| {
+                update_annotation(list, &id, patch, now()).map(|next| (next, json!({ "ok": true })))
+            })
+            .await?
         }
         Message::AnnotMove { id, x, y } => {
-            let list: Vec<Annotation> = store::get("annotations").await?;
-            let next = move_annotation(&list, &id, x, y, now());
-            if let Ok(next) = &next {
-                store::set("annotations", next).await?;
-            }
-            result(next)
+            edit_annotations(move |list| {
+                move_annotation(list, &id, x, y, now()).map(|next| (next, json!({ "ok": true })))
+            })
+            .await?
         }
         Message::VideoNotesTake {
             id,
@@ -311,9 +314,8 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
         } => video_notes::take(id, title, kind, parts, add).await,
         Message::VideoNotesCancel { id } => video_notes::cancel(id).await,
         Message::AnnotDelete { id } => {
-            let list: Vec<Annotation> = store::get("annotations").await?;
-            store::set("annotations", &delete_annotation(&list, &id)).await?;
-            json!({ "ok": true })
+            edit_annotations(move |list| Ok((delete_annotation(list, &id), json!({ "ok": true }))))
+                .await?
         }
     })
 }

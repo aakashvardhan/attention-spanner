@@ -1,4 +1,4 @@
-//! Highlights and sticky notes (src/shared/annotations.ts): turning a
+//! Highlights and sticky notes: turning a
 //! selection's client rects into page fractions, and reading order.
 
 use crate::constants::{ANNOTATION_TEXT_MAX_CHARS, MAX_ANNOTATIONS};
@@ -176,7 +176,7 @@ fn anchor_problem(draft: &AnnotationDraft) -> Option<&'static str> {
     }
 }
 
-/// The worker's writes (src/background/annotations.ts) as list transforms:
+/// The worker's writes as list transforms:
 /// the list in, the new list (and the made record) out, or why not.
 pub fn add_annotation(
     list: &[Annotation],
@@ -217,9 +217,6 @@ pub fn update_annotation(
     }
     if let Some(color) = patch.color {
         a.color = color;
-    }
-    if patch.tag.is_some() {
-        a.tag = patch.tag;
     }
     a.updated_at = now;
     Ok(next)
@@ -350,7 +347,6 @@ mod tests {
     fn base(id: &str, kind: AnnotationKind, anchor: AnnotationAnchor) -> Annotation {
         Annotation {
             id: id.into(),
-            tag: None,
             doc_key: "k".into(),
             doc_url: "u".into(),
             paper_id: None,
@@ -401,7 +397,6 @@ mod tests {
 
     fn draft(kind: AnnotationKind, anchor: AnnotationAnchor) -> AnnotationDraft {
         AnnotationDraft {
-            tag: None,
             doc_key: "arxiv:1".into(),
             doc_url: "u".into(),
             paper_id: None,
@@ -503,7 +498,6 @@ mod tests {
             AnnotationPatch {
                 note: Some("hi".into()),
                 color: Some(AnnotationColor::Blue),
-                tag: None,
             },
             2,
         )

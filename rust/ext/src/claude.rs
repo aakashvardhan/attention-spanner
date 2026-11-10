@@ -1,4 +1,4 @@
-//! Claude Haiku from a page, streamed (src/shared/llm/claude.ts). The
+//! Claude Haiku from a page, streamed. The
 //! protocol is reader_core::claude; this reads the response body chunk by
 //! chunk so text appears as it is written.
 

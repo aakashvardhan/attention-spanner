@@ -1,4 +1,4 @@
-//! Settings (src/pages/options/Options.tsx, AlphaxivSection.tsx, SectionIndex.tsx).
+//! Settings.
 
 use super::{patch_settings, send, use_settings, use_storage};
 use crate::voice::{synthesize, Player};
@@ -99,7 +99,7 @@ pub fn Options() -> impl IntoView {
                         <section class="section" id="questions">
                             <h2>"Questions"</h2>
                             <p class="hint">
-                                "alphaXiv finds the passages; Claude Haiku writes the questions, checks your explanations and defines terms. It never explains the paper to you."
+                                "Claude Haiku reads the pages you have open, writes the questions, checks your explanations and defines terms. It never explains the paper to you."
                             </p>
                             <TextRow
                                 id="claude-key"
@@ -139,7 +139,7 @@ pub fn Options() -> impl IntoView {
                             <div class="setting-row">
                                 <label for="talk-voice">
                                     "Voice "
-                                    <span class="hint-inline">"(Groq Orpheus speaks for Talk it through in the reader)"</span>
+                                    <span class="hint-inline">"(for Talk it through and Listen, in the reader and the side panel)"</span>
                                 </label>
                                 <select
                                     id="talk-voice"
@@ -163,7 +163,7 @@ pub fn Options() -> impl IntoView {
                                         let Ok(ctl) = web_sys::AbortController::new() else { return };
                                         match synthesize(TtsProvider::Groq, &s.groq_key, &s.talk_voice, VOICE_SAMPLE, &ctl.signal(), false).await {
                                             Ok(wav) => { let _ = player.queue(wav).await; }
-                                            Err(f) => preview_error.set(crate::voice::failure_text(&f)),
+                                            Err(f) => preview_error.set(crate::voice::failure_text(TtsProvider::Groq, &f)),
                                         }
                                     });
                                 }>"Hear it"</button>
@@ -176,7 +176,7 @@ pub fn Options() -> impl IntoView {
                         <section class="section" id="reading-session">
                             <h2>"Reading session"</h2>
                             <p class="hint">"While a paper is open in the reader, these sites are blocked:"</p>
-                            <form class="add-feed-form" on:submit=move |e| { e.prevent_default(); add_block_domain(); }>
+                            <form class="add-domain-form" on:submit=move |e| { e.prevent_default(); add_block_domain(); }>
                                 <input
                                     type="text"
                                     aria-label="Domain to block"
@@ -187,15 +187,15 @@ pub fn Options() -> impl IntoView {
                                 <button type="submit">"Add"</button>
                             </form>
                             {move || block_feedback.get().map(|f| view! { <p class="feedback error" role="alert">{f}</p> })}
-                            <ul class="feeds-list">
+                            <ul class="domain-list">
                                 <For each=move || settings.get().focus_blocklist key=|d| d.clone() let:domain>
                                     {
                                         let label = format!("Unblock {domain}");
                                         let d = domain.clone();
                                         view! {
-                                            <li class="feed-entry">
-                                                <span class="feed-entry-url">{domain}</span>
-                                                <button type="button" class="remove-feed-btn" aria-label=label on:click=move |_| remove_block_domain(d.clone())>
+                                            <li class="domain-entry">
+                                                <span class="domain-entry-name">{domain}</span>
+                                                <button type="button" class="remove-domain-btn" aria-label=label on:click=move |_| remove_block_domain(d.clone())>
                                                     "✕"
                                                 </button>
                                             </li>
