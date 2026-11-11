@@ -129,12 +129,11 @@ const render = (v: FmValue): string => (Array.isArray(v) ? `[${v.map(scalar).joi
 const renderKey = (k: string): string =>
   /^[\p{L}\p{N}_][\p{L}\p{N}_ -]*$/u.test(k) && k === k.trim() && !['null', 'true', 'false', '~'].includes(k.toLowerCase()) ? k : JSON.stringify(k);
 
-function edit(note: Note, key: string, line: string | null): Note {
+function edit(note: Note, key: string, line: string): Note {
   if (note.error) throw new Error(`cannot edit frontmatter: ${note.error}`);
   const text = toText(note);
   const h = splitHead(text);
   if (!h) {
-    if (line === null) return note;
     // A BOM stays at the start of the file, not inside the body.
     const bom = text.startsWith('﻿') ? '﻿' : '';
     return parseNote(`${bom}---${note.eol}${line}${note.eol}---${note.eol}${text.slice(bom.length)}`);
@@ -146,10 +145,9 @@ function edit(note: Note, key: string, line: string | null): Note {
   if (k) {
     let end = k.line + 1;
     while (end < lines.length && (/^[ \t]+\S/.test(lines[end]) || /^-(\s|$)/.test(lines[end]))) end++;
-    lines.splice(k.line, end - k.line, ...(line === null ? [] : [line]));
-  } else if (line !== null) lines.push(line);
+    lines.splice(k.line, end - k.line, line);
+  } else lines.push(line);
   return parseNote(h.bom + h.open + lines.map((l) => l + eol).join('') + h.close + note.body);
 }
 
 export const setField = (note: Note, key: string, value: FmValue): Note => edit(note, key, `${renderKey(key)}: ${render(value)}`);
-export const removeField = (note: Note, key: string): Note => edit(note, key, null);

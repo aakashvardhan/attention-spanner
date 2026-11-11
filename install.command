@@ -6,8 +6,8 @@
 #
 # It builds the extension from source and then walks you through the single
 # manual step Chrome requires ("Load unpacked" — Chrome does not allow
-# installs from outside the Web Store). Needs Node.js and Rust, which it checks
-# for and points you to if either is missing.
+# installs from outside the Web Store). Needs Node.js 22 or newer and Rust,
+# which it checks for and points you to if either is missing.
 set -e
 
 # Double-clicking runs from your home folder, so move into the repo the script
@@ -34,6 +34,16 @@ if ! command -v npm >/dev/null 2>&1; then
   read _ || true
   exit 1
 fi
+if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'; then
+  echo "✗  Node.js $(node --version) is too old — the build needs version 22 or newer."
+  echo ""
+  echo "   Install the current \"LTS\" from  https://nodejs.org , then"
+  echo "   double-click install.command again."
+  echo ""
+  echo "Press Return to close."
+  read _ || true
+  exit 1
+fi
 
 # --- 1b. Make sure Rust is available (the extension is Rust compiled to wasm) -
 if ! command -v cargo >/dev/null 2>&1; then
@@ -54,7 +64,7 @@ npm install
 
 echo ""
 echo "▸  Building the extension…"
-npm run build
+npm run build:ext
 
 echo ""
 echo "✓  Built. The extension is the  rust/ext/dist/chromium  folder inside this project."

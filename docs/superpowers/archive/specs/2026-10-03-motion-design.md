@@ -1,6 +1,9 @@
 # Motion: Apple-style springs across the extension
 
-Date: 2026-10-03 · Branch: `pixel-walk` · Status: approved in brainstorming, awaiting spec review
+> **Status (2026-11-10): archived.** Written for the TypeScript extension, which the
+> Rust port deleted (see `docs/superpowers/specs/2026-11-02-rust-port-design.md`), so most
+> paths and code named here no longer exist. What shipped lives on in `rust/`; the README
+> describes the current behaviour.
 
 ## Intent
 

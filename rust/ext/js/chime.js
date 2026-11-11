@@ -1,7 +1,11 @@
 // The Pomodoro bell, played once on load. Three soft singing-bowl strikes:
 // falling into a break, rising back into focus. Partials at bowl ratios.
+// As the worker's offscreen document (?offscreen) it closes itself once the
+// last strike has rung out, instead of waiting for Chrome to close it after
+// 30 s of silence or for the next bell.
 const ctx = new AudioContext();
 const notes = location.hash === '#break' ? [784, 659, 523] : [523, 659, 784];
+let last;
 notes.forEach((f, i) => {
   const t = ctx.currentTime + 0.1 + i * 0.9;
   for (const [ratio, peak] of [[1, 0.22], [2.76, 0.05], [5.4, 0.015]]) {
@@ -14,5 +18,7 @@ notes.forEach((f, i) => {
     osc.connect(gain).connect(ctx.destination);
     osc.start(t);
     osc.stop(t + 4.1);
+    last = osc;
   }
 });
+if (new URLSearchParams(location.search).has('offscreen')) last.onended = () => window.close();

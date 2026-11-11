@@ -114,6 +114,22 @@ describe('papers: the bookcase', () => {
     await page.close();
   });
 
+  it('keeps your place on the shelf when the library changes under it', async () => {
+    await mockAlphaxiv(ext, { get_hot_feed: () => EMPTY_FEED, get_for_you_feed: () => EMPTY_FEED });
+    const page = await ext.page(PAGES.papers);
+    await page.locator('#book-0-1').focus();
+    // Marks the element itself: a rebuilt shelf would hand focus to a new one (or to <body>).
+    await page.evaluate(() => document.activeElement?.setAttribute('data-probe', ''));
+    // Another tab drops the explain-back: the first book's marks change in place.
+    await seed(ext, { explainBacks: {} });
+    await expect.poll(() => page.locator('#book-0-0').getAttribute('aria-label')).toContain('Not explained yet');
+    expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-probe'))).toBe(true);
+    await page.keyboard.press('ArrowLeft');
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('book-0-0');
+    expectClean(ext);
+    await page.close();
+  });
+
   it('moves a book with M at once, and puts it back when alphaXiv refuses', async () => {
     let refuse = false;
     const calls = await mockAlphaxiv(ext, {

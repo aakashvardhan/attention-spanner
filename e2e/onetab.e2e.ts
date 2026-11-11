@@ -38,5 +38,16 @@ describe('reader: one tab per paper', () => {
     await gone;
     await expect.poll(() => first.evaluate(() => location.hash)).toBe('#page=2');
     await expect.poll(() => first.locator('.reader-capsule').textContent()).toContain('2');
+    await first.close();
+  });
+
+  it('keeps one of two copies opened together', async () => {
+    // Both are under 2s old when they meet; only the older answers, so one stays.
+    const [a, b] = await Promise.all([ext.ctx.newPage(), ext.ctx.newPage()]);
+    await Promise.all([a.goto(`chrome-extension://${ext.id}/${url}`), b.goto(`chrome-extension://${ext.id}/${url}`)].map((p) => p.catch(() => {})));
+    const readers = () => ext.ctx.pages().filter((p) => p.url().includes('reader/index.html')).length;
+    await expect.poll(readers).toBe(1);
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(readers()).toBe(1);
   });
 });

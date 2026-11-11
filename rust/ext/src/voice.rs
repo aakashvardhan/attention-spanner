@@ -236,11 +236,7 @@ async fn transcribe_once(key: &str, wav: &[u8]) -> Result<String, (String, bool)
     Reflect::set(&init, &"body".into(), &form).map_err(|_| fail("init"))?;
     Reflect::set(&init, &"signal".into(), &controller.signal()).map_err(|_| fail("init"))?;
     let abort = controller.clone();
-    let cb = Closure::once_into_js(move || abort.abort());
-    let window = web_sys::window().ok_or_else(|| fail("window"))?;
-    let timer = window
-        .set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), GROQ_TIMEOUT_MS)
-        .unwrap_or(0);
+    let timer = crate::js::Timeout::new(GROQ_TIMEOUT_MS, move || abort.abort());
 
     let result = async {
         let res: web_sys::Response =
@@ -261,7 +257,7 @@ async fn transcribe_once(key: &str, wav: &[u8]) -> Result<String, (String, bool)
             .ok_or_else(|| fail("Groq sent a reply we couldn't read."))
     }
     .await;
-    window.clear_timeout_with_handle(timer);
+    drop(timer);
     result
 }
 
@@ -647,11 +643,14 @@ impl Speaker {
 
 /// Wait without blocking the page.
 pub async fn sleep_ms(ms: i32) {
-    // Works in the service worker too (no window there).
+    // Works in the service worker too (no window there). The timer lives as
+    // long as the wait: a wait dropped early cancels it.
+    let mut timer = None;
     let p = js_sys::Promise::new(&mut |resolve, _| {
-        crate::claude::gloo_timeout(ms, move || {
+        timer = Some(crate::js::Timeout::new(ms, move || {
             let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
-        });
+        }));
     });
     let _ = JsFuture::from(p).await;
+    drop(timer);
 }

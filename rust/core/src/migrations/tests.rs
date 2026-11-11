@@ -366,6 +366,64 @@ fn a_legacy_profile_drops_only_the_cut_and_lands_on_the_current_schema() {
 }
 
 #[test]
+fn v29_drops_soft_deleted_records_and_rekeys_slashed_arxiv_links() {
+    assert_eq!(
+        v29_doc_key("url:arxiv.org/abs/2006.11239").as_deref(),
+        Some("arxiv:2006.11239")
+    );
+    assert_eq!(v29_doc_key("url:example.com/w.pdf"), None);
+    assert_eq!(v29_doc_key("arxiv:2006.11239"), None);
+    let records = [
+        json!({ "id": "a1", "docKey": "url:arxiv.org/abs/2006.11239", "deletedAt": null }),
+        json!({ "id": "a2", "docKey": "arxiv:1", "deletedAt": 5 }),
+        json!({ "id": "a3", "docKey": "url:example.com/w.pdf" }),
+    ];
+    assert_eq!(
+        v29_records(&records),
+        [
+            json!({ "id": "a1", "docKey": "arxiv:2006.11239" }),
+            json!({ "id": "a3", "docKey": "url:example.com/w.pdf" }),
+        ]
+    );
+    let lex = json!({ "terms": [{ "id": "t", "sources": [{ "docKey": "url:arxiv.org/pdf/2006.11239" }, { "docKey": "url:x.org/a" }] }], "edges": [] });
+    assert_eq!(
+        v29_lexicon(&lex)["terms"][0]["sources"],
+        json!([{ "docKey": "arxiv:2006.11239" }, { "docKey": "url:x.org/a" }])
+    );
+    assert_eq!(v29_lexicon(&json!("odd")), json!("odd"));
+    let backs = json!({
+        "arxiv:2006.11239": [{ "at": 3 }],
+        "url:arxiv.org/abs/2006.11239": [{ "at": 1 }],
+        "url:x.org/a": [{ "at": 2 }]
+    });
+    assert_eq!(
+        v29_explain_backs(&backs),
+        json!({ "arxiv:2006.11239": [{ "at": 1 }, { "at": 3 }], "url:x.org/a": [{ "at": 2 }] })
+    );
+}
+
+#[test]
+fn a_v28_profile_moves_to_v29_touching_only_what_changed() {
+    let before = obj(json!({
+        "schemaVersion": 28,
+        "settings": { "theme": "grid", "geminiKey": "g", "claudeKey": "k" },
+        "papers": [{ "id": "1", "deletedAt": null }],
+        "annotations": [{ "id": "a", "docKey": "arxiv:1" }, { "id": "b", "docKey": "arxiv:1", "deletedAt": 9 }],
+        "lexicon": { "terms": [], "edges": [] }
+    }));
+    let after = apply(&before, &migrate(&before, NOW, no_ids()));
+    assert_eq!(after["schemaVersion"], json!(29));
+    assert_eq!(after["settings"], before["settings"]);
+    assert_eq!(after["papers"], json!([{ "id": "1" }]));
+    assert_eq!(
+        after["annotations"],
+        json!([{ "id": "a", "docKey": "arxiv:1" }])
+    );
+    assert_eq!(after["lexicon"], before["lexicon"]);
+    assert!(!after.contains_key("explainBacks"));
+}
+
+#[test]
 fn migrate_is_idempotent() {
     let before = legacy_profile();
     let first = apply(&before, &migrate(&before, NOW, no_ids()));

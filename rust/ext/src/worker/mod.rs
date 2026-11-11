@@ -12,13 +12,11 @@ use crate::chrome;
 use crate::js::{from_js, log_error, now, to_js, wait, Res};
 use crate::store;
 use reader_core::activity::ActivityEvent;
-use reader_core::annotations::{
-    add_annotation, delete_annotation, move_annotation, update_annotation,
-};
+use reader_core::annotations::{add_annotation, delete_annotation, update_annotation};
 use reader_core::constants::{RETIRED_ALARMS, RETIRED_ALARM_PREFIXES, SYNC_ALARM};
 use reader_core::messages::Message;
 use reader_core::migrations::migrate;
-use reader_core::pomodoro::POMODORO_ALARM;
+use reader_core::pomodoro::{Pomodoro, POMODORO_ALARM};
 use reader_core::reader_progress::{apply_reader_progress, ReaderPosition};
 use reader_core::todos::{alarms_due, Todo, TODO_ALARM_PREFIX};
 use reader_core::types::{Annotation, Paper};
@@ -37,15 +35,27 @@ async fn guarded(context: &str, f: impl std::future::Future<Output = Res<()>>) {
 #[wasm_bindgen]
 pub async fn on_installed() {
     guarded("[worker] install", async {
-        let plan = migrate(&store::snapshot().await?, now(), chrome::random_uuid);
-        store::session_remove(&plan.session_remove).await?;
-        if !plan.remove.is_empty() {
-            store::remove(&plan.remove).await?;
-        }
-        if !plan.set.is_empty() {
-            store::set_many(&plan.set).await?;
-        }
+        // Under the locks of the keys the worker rewrites from a read: the
+        // plan is made from a snapshot, and on_worker_start reconciles the
+        // session at the same moment.
+        store::with_lock(PAPERS_LOCK, async {
+            store::with_lock(session::SESSION_LOCK, async {
+                let plan = migrate(&store::snapshot().await?, now(), chrome::random_uuid);
+                store::session_remove(&plan.session_remove).await?;
+                if !plan.remove.is_empty() {
+                    store::remove(&plan.remove).await?;
+                }
+                if !plan.set.is_empty() {
+                    store::set_many(&plan.set).await?;
+                }
+                session::forget_tabs();
+                Res::Ok(())
+            })
+            .await
+        })
+        .await?;
         clear_retired_alarms().await?;
+        // Only an install or update can bring the retired daily gate's rules back.
         session::remove_legacy_daily_gate_rule().await?;
         session::reconcile_session().await?;
         browser::create_menus().await
@@ -77,27 +87,52 @@ pub async fn omnibox_url(text: String) -> String {
         .unwrap_or_else(|_| chrome::get_url(reader_core::constants::PAPERS_PAGE_PATH))
 }
 
-#[wasm_bindgen]
-pub async fn on_startup() {
-    guarded("[worker] startup", async {
-        session::remove_legacy_daily_gate_rule().await?;
-        session::reconcile_session().await
-    })
-    .await;
-}
-
 /// Every worker start, not just install or browser start: session rules
-/// outlive the worker but not the browser.
+/// outlive the worker but not the browser, and alarms may not outlive either.
 #[wasm_bindgen]
 pub async fn on_worker_start() {
     guarded("[worker] start", async {
         // First, before a message can start a new job.
         video_notes::clear_jobs().await?;
-        session::remove_legacy_daily_gate_rule().await?;
         session::reconcile_session().await?;
-        pdf_rules::sync_pdf_rules().await
+        pdf_rules::sync_pdf_rules().await?;
+        ensure_alarms().await
     })
     .await;
+}
+
+/// Chrome keeps alarms until the extension updates, and may drop them when the
+/// browser restarts: put back any that state still calls for. Only missing
+/// ones are created: a periodic alarm made again on every wake would keep
+/// moving its next firing away, and a missed one Chrome is about to deliver
+/// must not be replaced.
+async fn ensure_alarms() -> Res<()> {
+    let all: Vec<Alarm> = from_js(wait(chrome::alarms_get_all()).await?)?;
+    let missing = |name: &str| !all.iter().any(|a| a.name == name);
+    let todos: Vec<Todo> = store::get("todos").await?;
+    for (name, when) in alarms_due(&todos, now()) {
+        if missing(&name) {
+            wait(chrome::alarms_create(
+                &name,
+                &to_js(&json!({ "when": when }))?,
+            ))
+            .await?;
+        }
+    }
+    // A round whose end has passed gets an alarm now, which ends it.
+    if let Some(p) = store::get::<Option<Pomodoro>>("pomodoro").await? {
+        if missing(POMODORO_ALARM) {
+            wait(chrome::alarms_create(
+                POMODORO_ALARM,
+                &to_js(&json!({ "when": p.ends_at }))?,
+            ))
+            .await?;
+        }
+    }
+    if missing(SYNC_ALARM) {
+        alphaxiv::ensure_sync_alarm().await?;
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -174,6 +209,14 @@ pub async fn on_todos_changed() {
     .await;
 }
 
+/// Any write of the session, the worker's own included: the next close of a
+/// tab reads storage again, so a write from elsewhere (a test's seed, the
+/// install migration) can never leave the mirror of reader tabs stale.
+#[wasm_bindgen]
+pub fn on_session_changed() {
+    session::forget_tabs();
+}
+
 #[wasm_bindgen]
 pub async fn on_pomodoro_changed() {
     guarded("[worker] pomodoro", session::pomodoro_changed()).await;
@@ -237,6 +280,11 @@ pub async fn on_message(msg: JsValue, sender: JsValue) -> JsValue {
 /// The Web Lock every read-modify-write of `papers` takes: the reader's
 /// progress and the alphaXiv sync and shelf moves all rewrite the whole list.
 const PAPERS_LOCK: &str = "papers";
+
+/// Held across each read and rebuild of the DNR session rules: the reading
+/// session's and the PDF redirect's share one id space and one update call,
+/// and two rebuilds that read the same rules collide on duplicate ids.
+const DNR_LOCK: &str = "dnr";
 
 /// One change to the annotation list, under a lock: a selection across two
 /// pages sends two adds at once, and unlocked the second write drops the first.
@@ -332,12 +380,6 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
         Message::AnnotUpdate { id, patch } => {
             edit_annotations(move |list| {
                 update_annotation(list, &id, patch, now()).map(|next| (next, json!({ "ok": true })))
-            })
-            .await?
-        }
-        Message::AnnotMove { id, x, y } => {
-            edit_annotations(move |list| {
-                move_annotation(list, &id, x, y, now()).map(|next| (next, json!({ "ok": true })))
             })
             .await?
         }

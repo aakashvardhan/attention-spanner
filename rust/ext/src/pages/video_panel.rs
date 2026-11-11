@@ -41,13 +41,24 @@ extern "C" {
     fn info_fn() -> JsValue;
 }
 
-/// Runs `func` (one of js/tab-video.mjs or js/tab-mark.mjs) with `arg` in the tab's page, where the player is.
-pub(super) async fn in_tab(tab_id: i32, func: &JsValue, arg: JsValue) -> Option<JsValue> {
+/// The page's own world, where YouTube's player API is.
+pub(super) const MAIN: &str = "MAIN";
+/// The extension's world in the page: the same DOM, its own globals.
+pub(super) const ISOLATED: &str = "ISOLATED";
+
+/// Runs `func` (one of js/tab-video.mjs or js/tab-mark.mjs) with `arg` in the
+/// tab's page, in `world`: MAIN only for what needs the page's own scripts.
+pub(super) async fn in_tab(
+    tab_id: i32,
+    world: &str,
+    func: &JsValue,
+    arg: JsValue,
+) -> Option<JsValue> {
     let details = Object::new();
     let target = Object::new();
     Reflect::set(&target, &"tabId".into(), &tab_id.into()).ok()?;
     Reflect::set(&details, &"target".into(), &target).ok()?;
-    Reflect::set(&details, &"world".into(), &"MAIN".into()).ok()?;
+    Reflect::set(&details, &"world".into(), &world.into()).ok()?;
     Reflect::set(&details, &"func".into(), func).ok()?;
     Reflect::set(&details, &"args".into(), &Array::of1(&arg)).ok()?;
     let results = wait(chrome::scripting_execute_script(&details))
@@ -62,6 +73,8 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
     let (all, loaded) = use_storage::<BTreeMap<String, VideoNotes>>("videoNotes");
     let id_ = id.clone();
     let notes = Memo::new(move |_| all.with(|m| m.get(&id_).cloned()));
+    // Whether there are notes, not what they say: the view below is built per state.
+    let has_notes = Memo::new(move |_| notes.with(Option::is_some));
     let no_key = Memo::new(move |_| settings.with(|s| s.gemini_key.is_empty()));
     let (jobs, _) = use_storage::<BTreeMap<String, NotesJob>>(NOTES_JOBS);
     let id_j = id.clone();
@@ -102,7 +115,7 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
     let verified = RwSignal::new(false);
     let load_info = move || async move {
         for _ in 0..INFO_TRIES {
-            let info = in_tab(tab_id, &info_fn(), JsValue::NULL)
+            let info = in_tab(tab_id, MAIN, &info_fn(), JsValue::NULL)
                 .await
                 .and_then(|v| from_js::<Value>(v).ok())
                 .unwrap_or_default();
@@ -211,7 +224,7 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
     };
     let seek = Callback::new(move |s: u32| {
         leptos::task::spawn_local(async move {
-            let _ = in_tab(tab_id, &seek_fn(), s.into()).await;
+            let _ = in_tab(tab_id, MAIN, &seek_fn(), s.into()).await;
         });
     });
 
@@ -225,7 +238,7 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
         leptos::task::spawn_local(async move {
             while alive.try_get_value() == Some(true) && position_gen.try_get_value() == Some(mine)
             {
-                let t = in_tab(tab_id, &position_fn(), JsValue::NULL).await;
+                let t = in_tab(tab_id, MAIN, &position_fn(), JsValue::NULL).await;
                 if let Some(secs) = t
                     .and_then(|v| from_js::<Value>(v).ok())
                     .and_then(|v| v.as_f64())
@@ -277,24 +290,27 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
             </p>
             <button type="button" class="ghost-btn" on:click=cancel.clone()>"Cancel"</button>
         })}
-        {move || match (loaded.get(), notes.get()) {
+        {move || match (loaded.get(), has_notes.get()) {
             (false, _) => ().into_any(),
-            (true, None) => view! {
+            (true, false) => view! {
                 <p class="sidebar-quiet">"Gemini watches the video and writes takeaways shaped to it: lecture, tutorial or explainer."</p>
                 {range}
                 <button type="button" class="fc-primary-btn" disabled=busy on:click=move |_| take.with_value(|f| f(None, false))>"Take notes"</button>
             }.into_any(),
-            (true, Some(n)) => {
-                let kind = n.kind;
-                let n_whole = n.sections.is_empty();
-                let texts = Signal::stored(Some(vec![notes_document(&n)]));
+            (true, true) => {
+                // Read live: the notes change in place (a part lands) without remounting Talk.
+                let kind = Memo::new(move |_| notes.with(|n| n.as_ref().map(|n| n.kind).unwrap_or_default()));
+                let n_whole = Memo::new(move |_| notes.with(|n| n.as_ref().is_none_or(|n| n.sections.is_empty())));
+                let texts = Signal::derive(move || notes.with(|n| n.as_ref().map(|n| vec![notes_document(n)])));
+                let title = Signal::derive(move || notes.with(|n| n.as_ref().map(|n| n.title.clone()).unwrap_or_default()));
+                let talking = Memo::new(move |_| mode.get() == "talk");
                 view! {
                     // The shape is fixed while talking: a new one would end the conversation.
                     <Show when=move || mode.get() == "notes">
                         <div class="sidebar-switch" role="group" aria-label="Notes shape">
                             {Kind::ALL.into_iter().map(|k| view! {
-                                <button type="button" aria-pressed=(k == kind).to_string() disabled=busy
-                                    on:click=move |_| if k != kind { take.with_value(|f| f(Some(k), false)) }>{k.label()}</button>
+                                <button type="button" aria-pressed=move || (k == kind.get()).to_string() disabled=busy
+                                    on:click=move |_| if k != kind.get_untracked() { take.with_value(|f| f(Some(k), false)) }>{k.label()}</button>
                             }).collect_view()}
                         </div>
                     </Show>
@@ -303,18 +319,19 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
                         <button type="button" aria-pressed=move || (mode.get() == "talk").to_string() on:click=move |_| mode.set("talk")>"Talk it through"</button>
                     </div>
                     // Notes on the whole video have no parts to add to.
-                    <Show when=move || mode.get() == "notes" && !n_whole>
+                    <Show when=move || mode.get() == "notes" && !n_whole.get()>
                         {range}
                         <button type="button" class="ghost-btn" disabled=busy
-                            on:click=move |_| take.with_value(|f| f(Some(kind), true))>"Add notes for this part"</button>
+                            on:click=move |_| take.with_value(|f| f(Some(kind.get_untracked()), true))>"Add notes for this part"</button>
                     </Show>
-                    {move || if mode.get() == "notes" {
-                        view! { <NotesView notes=n.clone() on_seek=Some(seek) /> }.into_any()
-                    } else {
+                    // Only a change of mode swaps these: Talk outlives new parts landing.
+                    {move || if talking.get() {
                         view! {
-                            <TalkPanel title=Signal::stored(n.title.clone()) source=Source::Video page_texts=texts page=position.into() on_close=Callback::new(|_| {}) />
+                            <TalkPanel title=title source=Source::Video page_texts=texts page=position.into() on_close=Callback::new(|_| {}) />
                             <MicHelp />
                         }.into_any()
+                    } else {
+                        view! { {move || notes.get().map(|n| view! { <NotesView notes=n on_seek=Some(seek) /> })} }.into_any()
                     }}
                 }.into_any()
             }

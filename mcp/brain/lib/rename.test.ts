@@ -4,7 +4,7 @@ import { buildEntry, targetsOf } from './entry';
 import { resolve } from './links';
 import { nfc, titleKey } from './names';
 import { runPlan } from './plan';
-import { planDelete, planHeadingRename, planMove, planRename, STARRED, type NoteText, type Planned } from './rename';
+import { planDelete, planMove, planRename, STARRED, type NoteText, type Planned } from './rename';
 import { FC, MemFs } from './testing';
 
 const SIG: NoteText = { path: 'Concepts/Sigmoid.md', text: '---\naliases: [Logistic function]\n---\n# Sigmoid\n\nSelf [[Sigmoid#Uses]].\n\n## Uses\n' };
@@ -59,16 +59,6 @@ describe('planMove and planDelete', () => {
     const p = planDelete({ note: SIG, date: '2026-10-14', taken: new Set([titleKey('.brain/trash/2026-10-14/Sigmoid.md')]) });
     const fs = await apply([SIG], p);
     expect(fs.all()).toEqual([['.brain/trash/2026-10-14/Sigmoid 2.md', SIG.text]]);
-  });
-});
-
-describe('planHeadingRename', () => {
-  it('rewrites links to that heading in other notes and in the note itself, and nothing else', async () => {
-    const other: NoteText = { path: 'Other.md', text: '[[Sigmoid#uses]] [[Sigmoid#Definition]] [[Lecture 3#Uses]]\n' };
-    const self = { ...SIG, text: SIG.text.replace('## Uses', '## Applications').replace('[[Sigmoid#Uses]]', '[[Sigmoid#Uses]] [[#Uses]]') };
-    const fs = await apply([self, other], planHeadingRename({ note: self, oldHeading: 'Uses', newHeading: 'Applications', linkers: [other] }));
-    expect(await fs.readText('Other.md')).toBe('[[Sigmoid#Applications]] [[Sigmoid#Definition]] [[Lecture 3#Uses]]\n');
-    expect(await fs.readText(SIG.path)).toContain('[[Sigmoid#Applications]] [[#Applications]]');
   });
 });
 

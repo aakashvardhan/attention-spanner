@@ -1,5 +1,10 @@
 # Metacognition Reader Implementation Plan
 
+> **Status (2026-11-10): archived.** Written for the TypeScript extension, which the
+> Rust port deleted (see `docs/superpowers/specs/2026-11-02-rust-port-design.md`), so most
+> paths and code named here no longer exist. What shipped lives on in `rust/`; the README
+> describes the current behaviour. Its boxes were never ticked, so they say nothing about what was built.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The PDF reader stops handing over answers and starts asking. Highlights get a tag and a reason, which the AI may challenge. Equations and terms ask for your guess first. A manual pass switch makes pass 3 stop you at pages worth justifying. The deck shows your own claims, doubts and open questions, with XP for thinking moves.
@@ -8,7 +13,7 @@
 
 **Tech Stack:** TypeScript, React 18, Vite, Chrome MV3, vitest, the e2e harness in `e2e/` (Playwright), pdf.js.
 
-**Spec:** `docs/superpowers/specs/2026-10-29-metacognition-reader-design.md`. The mockups are in Figma file `v78SxOZoPes508DhOQrCAJ`, screens 1–5.
+**Spec:** `docs/superpowers/archive/specs/2026-10-29-metacognition-reader-design.md`. The mockups are in Figma file `v78SxOZoPes508DhOQrCAJ`, screens 1–5.
 
 ## Global Constraints
 

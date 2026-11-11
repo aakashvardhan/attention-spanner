@@ -10,10 +10,18 @@ pub struct FindMatch {
     pub excerpt: String,
 }
 
+/// One char lowercased to one char, so positions in the lowered text are
+/// positions in the page (`str::to_lowercase` turns `İ` into two chars).
+fn lower(text: &str) -> Vec<char> {
+    text.chars()
+        .map(|c| c.to_lowercase().next().unwrap_or(c))
+        .collect()
+}
+
 /// Case-insensitive; 60 chars before and 100 after the hit, whitespace
 /// collapsed, ellipses where the page goes on. At most 50 pages.
 pub fn find_matches(pages: &[String], query: &str) -> Vec<FindMatch> {
-    let needle: Vec<char> = query.trim().to_lowercase().chars().collect();
+    let needle = lower(query.trim());
     if needle.is_empty() {
         return vec![];
     }
@@ -22,12 +30,7 @@ pub fn find_matches(pages: &[String], query: &str) -> Vec<FindMatch> {
         .enumerate()
         .filter_map(|(i, text)| {
             let chars: Vec<char> = text.chars().collect();
-            let lower: Vec<char> = text.to_lowercase().chars().collect();
-            // Lowercasing can change the char count (rare scripts); only compare when it doesn't.
-            if lower.len() != chars.len() {
-                return None;
-            }
-            let at = lower
+            let at = lower(text)
                 .windows(needle.len())
                 .position(|w| w == needle.as_slice())?;
             let start = at.saturating_sub(60);
@@ -73,6 +76,14 @@ mod tests {
         assert!(m[0].excerpt.starts_with('…') && m[0].excerpt.ends_with('…'));
         assert!(m[0].excerpt.contains("The Attention mechanism works."));
         assert_eq!(m[1].excerpt, "ATTENTION here");
+    }
+
+    #[test]
+    fn a_char_that_lowercases_to_two_does_not_hide_the_page() {
+        let m = find_matches(&["İstanbul has attention here".into()], "attention");
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].excerpt, "İstanbul has attention here");
+        assert_eq!(find_matches(&["İstanbul".into()], "istanbul").len(), 1);
     }
 
     #[test]

@@ -61,7 +61,13 @@ alphaXiv one menu item away.
   between them.
 - **Find in document**, and **resume where you left off**: the exact page and
   scroll position, saved the moment you switch or close the tab.
-- **Explain it back**: unfinished explanations save automatically on this
+- **It asks, one question at a time.** When you read through to the end of a
+  section, or sit on one view for two minutes, a card asks one question about
+  that part. Answer in your own words and keep the answer as a note, or put it
+  away. Q asks one about where you are at any time.
+- **Explain it back**: the problem, the key trick and why it works, in your
+  words. Claude Haiku grades each part and names the gap and the page to look
+  at, never the answer. Unfinished explanations save automatically on this
   device, separately for each paper, even when you close the panel or reload.
 - **Click a word to define it.** You write your guess from the sentence around
   it first; then Claude Haiku says what it means in this paper. This is the
@@ -72,7 +78,8 @@ alphaXiv one menu item away.
 
 While a reader tab is open, the sites on your block list redirect to a quiet
 page that names what you were reading. Closing the last reader tab lifts the
-block. Blocking is `declarativeNetRequest`, so it holds across service-worker
+block. A focus round blocks the same list, plus a fixed set of feeds and video
+sites, until the round ends. Blocking is `declarativeNetRequest`, so it holds across service-worker
 restarts.
 
 ### In the browser itself
@@ -98,14 +105,41 @@ restarts.
   blocked. News stays hidden during focus and reading sessions. The time
   left shows in the tab title, in the reader, and (Float timer) in a small
   window that stays above your other tabs.
-- **Brain dump**: type what is looping; Claude Haiku hands it back a little
-  lighter, and the words go into an encrypted vault (RSA-OAEP and AES-GCM,
-  unlocked by your passphrase or a recovery code). The new tab never shows a
-  dump; the dumps page does, once unlocked.
+- **Brain dump**: type what is looping, or dictate it with the mic button;
+  Claude Haiku hands it back a little lighter, and the words go into an
+  encrypted vault (RSA-OAEP and AES-GCM, unlocked by your passphrase or a
+  recovery code). The new tab never shows a dump; the dumps page does, once
+  unlocked.
   The box shows when vault setup is still needed; submissions remain
   unencrypted until setup finishes. Extracted tasks can be edited on the
   board or undone together.
 - **Activity**: a year of reading and focus sessions as a heatmap.
+
+### The game
+
+A level, a streak and three quests a day, all worked out from what you already
+do: minutes reading or in a focus round, explanations, kept terms, finished
+papers and to-dos. Nothing extra is stored. A day counts at twenty minutes, and
+a single missed day between two good ones is forgiven, at most once a week.
+
+- **The new tab** shows your level and XP, the streak, and today's quests:
+  read or focus for 20 minutes, explain a paper back or keep a term, finish a
+  to-do.
+- **The papers page** gives each paper three marks: read, explained, and three
+  terms kept.
+- **The blocked page** says where your streak stands; **the reader's capsule**
+  says what you just earned.
+
+### Notes and the lexicon
+
+- **Notes**: the takeaways the side panel writes for a YouTube video are kept
+  per video. The Notes page (in the new tab's index, next to Papers) lists them
+  newest first, and every moment links back into the video.
+- **The lexicon**: the terms you keep, from click-to-define or by
+  right-clicking selected text, each with your guess and the definition from
+  every paper you met it in. They sit in a graph you can drag and zoom.
+  **Find links** asks Claude Haiku how the terms connect across papers, and a
+  term opens the paper where you met it.
 
 ### Design
 
@@ -123,8 +157,10 @@ There is no account of the extension's own. It talks to:
 
 - **alphaXiv**, once you sign in (OAuth with PKCE), for your library;
 - **arXiv**, to fetch the PDFs you open;
-- **Claude**, with your own key, only for something you ask for: a
-  definition, a brain dump, a question, Listen or Talk it through;
+- **Claude**, with your own key: for what you ask for (a definition, a brain
+  dump, grading an explanation, the lexicon's Find links, Listen, Talk it
+  through, a question on Q), and for the reader's own questions, one at the end
+  of a section you read through or after two minutes on one view;
 - **Groq** (and OpenAI as a fallback voice), with your keys, for speech when
   you Talk it through, Listen or dictate a brain dump;
 - **Gemini**, with your key, for notes on a YouTube video you ask about;
@@ -139,7 +175,8 @@ Everything else stays in `chrome.storage` on your machine.
 ## Installation
 
 The extension is not on the Chrome Web Store, so you build it and load it
-yourself. It works in Chrome, Brave, Edge and other Chromium browsers.
+yourself. It works in Chrome, Brave, Edge and other Chromium browsers, version
+116 or newer.
 
 ### 1. Install the tools
 
@@ -163,7 +200,7 @@ The first build takes a few minutes (it also installs the matching
 `wasm-bindgen-cli`). The extension lands in `rust/ext/dist/chromium`.
 
 Shortcut: on macOS double-click **`install.command`** (Linux:
-`sh install.command`; Windows: **`install.bat`**). It checks for Node.js and
+`sh install.command`; Windows: **`install.bat`**). It checks for Node.js 22 and
 Rust, builds, opens the extensions page and shows the folder to load.
 
 ### 3. Load it into the browser
@@ -185,7 +222,7 @@ feature without its key says so instead of failing.
 
 | Key | Used for | Get one |
 |---|---|---|
-| Anthropic API key | Click-to-define, brain dump, questions, Listen, Talk it through | [console.anthropic.com](https://console.anthropic.com) |
+| Anthropic API key | Click-to-define, brain dump, the reader's questions, grading Explain it back, the lexicon's Find links, Listen, Talk it through | [console.anthropic.com](https://console.anthropic.com) |
 | Groq API key | Talk it through and Listen: speech to text and the voice; dictating a brain dump | [console.groq.com](https://console.groq.com) |
 | Gemini API key | YouTube notes and Talk it through on videos | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | OpenAI API key | Fallback voice when Groq's daily speech limit runs out | [platform.openai.com](https://platform.openai.com/api-keys) |
@@ -226,7 +263,8 @@ npm run package   # → release/install-reader.command + release/reader-extensio
 ```
 
 Send either file. The `.command` unpacks itself and walks the recipient through
-Load unpacked; the zip works on any OS. No Node, npm or Rust needed to install.
+Load unpacked on macOS or Linux; the zip works on any OS. No Node, npm or Rust
+needed to install. `npm run package` itself runs on any OS.
 
 ---
 
@@ -241,9 +279,21 @@ npm run test:e2e    # the browser suite against the built extension (Playwright)
 npm run check       # all of the above
 ```
 
-A pre-commit hook (`.githooks/pre-commit`, installed by `npm install`) runs
-`check:fast`: typecheck, unit tests and the Rust checks. CI runs everything,
-including the browser suite.
+A pre-commit hook (`.githooks/pre-commit`, installed by `npm install` in a git
+checkout) runs `check:fast`: typecheck, unit tests and the Rust checks. CI runs
+everything, including the browser suite.
+
+Screenshot baselines are per OS, and only macOS's are committed
+(`e2e/baselines/darwin`). Where a baseline is missing the suite writes one
+instead of comparing, so on CI's Linux the screenshots are not yet compared:
+the run uploads the baselines it wrote (artifact `e2e-screenshots`), and
+committing them as `e2e/baselines/linux` makes CI compare too.
+
+The demo (`e2e/demo.e2e.ts`, skipped unless `DEMO=1`) records a video and needs
+`ffmpeg` on your PATH, or `FFMPEG=/path/to/ffmpeg`.
+
+A `ponytail:` comment marks a deliberate simplification and says when to
+revisit it.
 
 ### Project layout
 
@@ -273,9 +323,12 @@ tests/              repository-wide guards (cut features stay cut)
 ### The design system
 
 Every colour, space, radius and duration is a token in `rust/ext/css/theme.css`.
-`rust/ext/css/designSystem.test.ts` fails the build on a raw colour, radius or
-shadow anywhere else; `theme.test.ts` checks every text/surface pair for 7:1;
-`motion.test.ts` checks that every spring is stilled under Reduce Motion.
+`rust/ext/css/designSystem.test.ts` fails the build on a raw colour, radius,
+shadow or duration anywhere else, and on a font size set without its line
+height; `theme.test.ts` checks every text/surface pair for 7:1 and that every
+token is read somewhere; `motion.test.ts` checks that every spring, endless loop
+and press or hover scale is stilled under Reduce Motion, and that colour fades
+use the effect timing.
 
 ---
 
@@ -289,11 +342,14 @@ shadow anywhere else; `theme.test.ts` checks every text/surface pair for 7:1;
 | `identity` | Signing in to alphaXiv (`launchWebAuthFlow`) |
 | `notifications` | To-do reminders, and the end of a focus round or break |
 | `offscreen` | Playing the bell at the end of a focus round (a service worker cannot play audio) |
-| `geolocation` | The temperature by the new tab's clock |
 | `scripting` | Reading the page, or the YouTube player, for the side panel |
 | `sidePanel` | The side panel the toolbar icon opens |
 | `contextMenus` | "Open in Reader", "Add to the lexicon" and the side panel, on right-click |
 | `<all_urls>` | Fetching PDFs for the reader, reaching alphaXiv and the AI providers, and reading the tab the side panel is on |
+
+The reader and blocked pages are web-accessible, because the redirects to
+them start on other sites; the extension's pages refuse to be framed by any
+site (`frame-ancestors 'self'`).
 
 ---
 

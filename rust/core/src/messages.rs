@@ -32,7 +32,6 @@ impl AnnotationDraft {
             note: self.note,
             created_at: now,
             updated_at: now,
-            deleted_at: None,
         }
     }
 }
@@ -102,12 +101,6 @@ pub enum Message {
         id: String,
         patch: AnnotationPatch,
     },
-    #[serde(rename = "ANNOT_MOVE")]
-    AnnotMove {
-        id: String,
-        x: f64,
-        y: f64,
-    },
     #[serde(rename = "ANNOT_DELETE")]
     AnnotDelete {
         id: String,
@@ -172,14 +165,6 @@ mod tests {
             (
                 json!({ "type": "ALPHAXIV_SYNC", "force": true }),
                 Message::AlphaxivSync { force: true },
-            ),
-            (
-                json!({ "type": "ANNOT_MOVE", "id": "a", "x": 0.1, "y": 0.2 }),
-                Message::AnnotMove {
-                    id: "a".into(),
-                    x: 0.1,
-                    y: 0.2,
-                },
             ),
             (
                 json!({ "type": "ANNOT_UPDATE", "id": "a", "patch": { "color": "green" } }),

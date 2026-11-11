@@ -27,7 +27,6 @@ fn paper(id: &str) -> Paper {
         added_at: 1,
         updated_at: 1,
         last_read_at: None,
-        deleted_at: None,
     }
 }
 fn lib() -> Library {
@@ -574,6 +573,25 @@ fn skips_papers_already_there_and_duplicates() {
     assert_eq!(
         plan_push(&[item("a", "X"), item("a", "x")], &[], &[]).saves,
         vec![("X".to_string(), vec!["a".to_string()])]
+    );
+}
+
+#[test]
+fn a_new_folder_is_named_the_same_whatever_the_queue_order() {
+    let a = plan_push(
+        &[item("a", "x"), item("b", "X  "), item("c", "Y")],
+        &[],
+        &[],
+    );
+    let b = plan_push(&[item("c", "Y"), item("b", " X"), item("a", "x")], &[], &[]);
+    assert_eq!(a.create, ["X", "Y"]);
+    assert_eq!(b.create, a.create);
+    let names = |p: &PushPlan| p.saves.iter().map(|s| s.0.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&a), names(&b));
+    // Inner spaces collapse too: "My  deck" is created as "My deck".
+    assert_eq!(
+        plan_push(&[item("a", "My  deck")], &[], &[]).create,
+        ["My deck"]
     );
 }
 

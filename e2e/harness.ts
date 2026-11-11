@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, type BrowserContext, type Page, type Worker } from 'playwright';
-import { expect } from 'vitest';
+import { afterEach, beforeEach, expect } from 'vitest';
 import { A11Y_BASELINE } from './a11yBaseline';
 import { startSites, type Sites } from './sites';
 
@@ -38,73 +38,98 @@ export interface Ext {
 export async function launch(opts: { fakeAudio?: string } = {}): Promise<Ext> {
   const sites = await startSites();
   const profile = mkdtempSync(join(tmpdir(), 'reader-e2e-'));
-  const ctx = await chromium.launchPersistentContext(profile, {
-    headless: !process.env.HEADED,
-    // BROWSER=/path/to/binary runs the suite in another Chromium (e.g. Brave).
-    ...(process.env.BROWSER ? { executablePath: process.env.BROWSER } : { channel: 'chromium' }),
-    viewport: { width: 1280, height: 900 },
-    // One place and language for every browser: Brave hands the extension the Mac's real location, headless Chromium none.
-    locale: 'en-US',
-    geolocation: { latitude: 37.34, longitude: -121.89 },
-    permissions: ['geolocation'],
-    args: [
-      `--disable-extensions-except=${DIST}`,
-      `--load-extension=${DIST}`,
-      `--host-resolver-rules=MAP *.e2e.test 127.0.0.1`,
-      // The fake sites live on 127.0.0.1. Real feeds are on the public
-      // internet, so Chrome's local-network checks never apply to users; here
-      // they would only stand between the suite and its own server.
-      '--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights',
-      ...(opts.fakeAudio
-        ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${opts.fakeAudio}`]
-        : []),
-    ],
-  });
-  // The new tab's weather, pinned like the feed below.
-  await ctx.route('https://api.open-meteo.com/**', (route) =>
-    route.fulfill({ json: { current: { temperature_2m: 64, weather_code: 0 } } }),
-  );
-  // The new tab's Hacker News card, pinned: live headlines would change its screenshot and its layout daily.
-  await ctx.route('https://news.ycombinator.com/rss', (route) =>
-    route.fulfill({
-      contentType: 'application/rss+xml',
-      body: `<rss><channel>${[1, 2, 3]
-        .map((n) => `<item><title>Story ${n} for the suite</title><link>https://example.com/${n}</link><comments>https://news.ycombinator.com/item?id=${n}</comments></item>`)
-        .join('')}</channel></rss>`,
-    }),
-  );
-  let [sw] = ctx.serviceWorkers();
-  if (!sw) sw = await ctx.waitForEvent('serviceworker');
-  const id = new URL(sw.url()).host;
-
-  const errors: string[] = [];
-  ctx.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(`console: ${msg.text()} (${msg.location().url})`);
-  });
-  ctx.on('weberror', (err) => errors.push(`uncaught: ${err.error().message}`));
-
-  // Let onInstalled (migrate, alarms) finish before a test seeds storage over it.
-  await sw.evaluate(() => new Promise((r) => setTimeout(r, 300)));
-
-  return {
-    ctx,
-    sw,
-    id,
-    sites,
-    errors,
-    async page(path) {
-      const page = await ctx.newPage();
-      await page.goto(`chrome-extension://${id}/${path}`);
-      await page.waitForLoadState('domcontentloaded');
-      await page.waitForTimeout(800);
-      return page;
-    },
-    async close() {
-      await ctx.close();
-      await sites.close();
-      rmSync(profile, { recursive: true, force: true });
-    },
+  let ctx: BrowserContext | undefined;
+  // A launch that fails (no Chromium, a bad DIST, a worker that never starts)
+  // must not leave the sites server listening and the profile on disk.
+  const cleanUp = async () => {
+    await ctx?.close();
+    await sites.close();
+    rmSync(profile, { recursive: true, force: true });
   };
+  try {
+    const c = await chromium.launchPersistentContext(profile, {
+      headless: !process.env.HEADED,
+      // BROWSER=/path/to/binary runs the suite in another Chromium (e.g. Brave).
+      ...(process.env.BROWSER ? { executablePath: process.env.BROWSER } : { channel: 'chromium' }),
+      viewport: { width: 1280, height: 900 },
+      // One place and language for every browser: Brave hands the extension the Mac's real location, headless Chromium none.
+      locale: 'en-US',
+      geolocation: { latitude: 37.34, longitude: -121.89 },
+      permissions: ['geolocation'],
+      args: [
+        `--disable-extensions-except=${DIST}`,
+        `--load-extension=${DIST}`,
+        `--host-resolver-rules=MAP *.e2e.test 127.0.0.1`,
+        // The fake sites live on 127.0.0.1. Real feeds are on the public
+        // internet, so Chrome's local-network checks never apply to users; here
+        // they would only stand between the suite and its own server.
+        '--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights',
+        ...(opts.fakeAudio
+          ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${opts.fakeAudio}`]
+          : []),
+      ],
+    });
+    ctx = c;
+    // The new tab's weather, pinned like the feed below.
+    await c.route('https://api.open-meteo.com/**', (route) =>
+      route.fulfill({ json: { current: { temperature_2m: 64, weather_code: 0 } } }),
+    );
+    // The new tab's Hacker News card, pinned: live headlines would change its screenshot and its layout daily.
+    await c.route('https://news.ycombinator.com/rss', (route) =>
+      route.fulfill({
+        contentType: 'application/rss+xml',
+        body: `<rss><channel>${[1, 2, 3]
+          .map((n) => `<item><title>Story ${n} for the suite</title><link>https://example.com/${n}</link><comments>https://news.ycombinator.com/item?id=${n}</comments></item>`)
+          .join('')}</channel></rss>`,
+      }),
+    );
+    let [sw] = c.serviceWorkers();
+    if (!sw) sw = await c.waitForEvent('serviceworker');
+    const id = new URL(sw.url()).host;
+
+    const errors: string[] = [];
+    c.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(`console: ${msg.text()} (${msg.location().url})`);
+    });
+    c.on('weberror', (err) => errors.push(`uncaught: ${err.error().message}`));
+
+    // Let onInstalled (migrate, alarms) finish before a test seeds storage over it.
+    await sw.evaluate(() => new Promise((r) => setTimeout(r, 300)));
+
+    return {
+      ctx: c,
+      sw,
+      id,
+      sites,
+      errors,
+      async page(path) {
+        const page = await c.newPage();
+        await page.goto(`chrome-extension://${id}/${path}`);
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(800);
+        return page;
+      },
+      close: cleanUp,
+    };
+  } catch (e) {
+    await cleanUp().catch(() => {});
+    throw e;
+  }
+}
+
+/**
+ * Call inside a describe: after each test, closes every page that test opened.
+ * One browser serves a whole file, so tabs left open pile up (and a later
+ * `chrome.tabs.query({ url })` can find an earlier test's tab).
+ */
+export function closeTestPages(ext: () => Ext | undefined): void {
+  let before = new Set<Page>();
+  beforeEach(() => {
+    before = new Set(ext()?.ctx.pages());
+  });
+  afterEach(async () => {
+    for (const page of ext()?.ctx.pages() ?? []) if (!before.has(page)) await page.close();
+  });
 }
 
 export async function seed(ext: Ext, data: Record<string, unknown>): Promise<void> {
@@ -250,7 +275,8 @@ const BASELINES = resolve(__dirname, 'baselines', process.platform);
  * intended change. Fails when more than 0.5% of pixels move by more than 24
  * in any channel, which absorbs anti-aliasing but not a layout or colour change.
  * Baselines are per OS (macOS is committed). CI on another OS writes its own
- * on first run and uploads them; commit those to make CI compare too.
+ * on every run and uploads them (artifact e2e-screenshots); commit those as
+ * e2e/baselines/<platform> to make CI compare too.
  */
 export async function expectScreenshot(page: Page, name: string): Promise<void> {
   await settle(page);
@@ -263,6 +289,8 @@ export async function expectScreenshot(page: Page, name: string): Promise<void> 
     baseline = readFileSync(file);
   } catch {
     writeFileSync(file, actual);
+    // Said out loud: on an OS with no committed baselines (CI's Linux) nothing is compared.
+    if (!process.env.UPDATE_BASELINES) console.warn(`[screenshot] ${name}: no ${process.platform} baseline, wrote ${file}; commit it to compare from now on`);
     return;
   }
   const result = await page.evaluate(

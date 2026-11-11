@@ -71,6 +71,24 @@ describe('Vault', () => {
     const [stamp] = await v.fs.listDirs('.brain/history/2026-10-14');
     expect(await v.fs.readText(`.brain/history/2026-10-14/${stamp}/a.md`)).toBe('old\n');
   });
+  it('on open, sweeps trash older than 30 days and keeps the rest', async () => {
+    root = await writeVault({ '.brain/trash/2020-01-02/Old.md': 'x', '.brain/trash/2026-09-13/Edge.md': 'x', '.brain/trash/2026-09-14/Kept.md': 'x', '.brain/trash/notes/Mine.md': 'x' });
+    const v = await Vault.open(root, { now });
+    expect(await v.fs.listDirs('.brain/trash')).toEqual(['2026-09-14', 'notes']);
+  });
+  it('sees a new note and attachment in targets and backlinks after a refresh', async () => {
+    root = await writeVault({ 'a.md': '[[b]] ![[c.png]]\n' });
+    const v = await Vault.open(root, { now });
+    expect(v.targets().files.size).toBe(0);
+    expect(v.find('b')).toBeNull();
+    await writeFile(join(root, 'b.md'), '# b\n');
+    await mkdir(join(root, 'attachments'));
+    await writeFile(join(root, 'attachments/c.png'), 'png');
+    await v.refresh();
+    expect(v.find('b')?.path).toBe('b.md');
+    expect(v.backlinksOf('b.md').map((x) => x.from)).toEqual(['a.md']);
+    expect(v.targets().files.get('c.png')).toBe('attachments/c.png');
+  });
   it('on open, sweeps temporary files and finishes interrupted plans', async () => {
     root = await writeVault({
       '.a.md.brain-tmp-0b3f5c1e-2f4a-4d7e-9a51-6c1d2e3f4a5b': 'half',

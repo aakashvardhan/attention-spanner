@@ -66,16 +66,11 @@ impl Sim {
         self.alpha < ALPHA_MIN && self.target == 0.0
     }
 
-    /// Warm the layout up again (a drag, a new term).
-    pub fn reheat(&mut self, alpha: f64) {
-        self.alpha = self.alpha.max(alpha);
-    }
-
     /// While dragging, alpha holds warm so the neighbours follow.
     pub fn hold_warm(&mut self, on: bool) {
         self.target = if on { 0.3 } else { 0.0 };
         if on {
-            self.reheat(0.3);
+            self.alpha = self.alpha.max(0.3);
         }
     }
 

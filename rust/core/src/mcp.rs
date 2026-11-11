@@ -74,7 +74,7 @@ pub fn parse_reply(content_type: &str, body: &str, id: u64) -> Result<Value, Rep
 
 /// The `data` of each SSE event: consecutive `data:` lines joined by newlines,
 /// events separated by a blank line (the HTML spec's rules, minus retry/id).
-pub fn sse_data(body: &str) -> Vec<String> {
+pub(crate) fn sse_data(body: &str) -> Vec<String> {
     let mut events = Vec::new();
     let mut data: Vec<&str> = Vec::new();
     for line in body.lines().chain(std::iter::once("")) {

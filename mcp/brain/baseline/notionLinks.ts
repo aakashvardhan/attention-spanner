@@ -13,7 +13,7 @@ const ids = (s?: string) => (s ? s.split(',').map((x) => toUuid(x.trim().replace
  */
 export async function notionLinks(argv: string[]): Promise<void> {
   const { values } = parseArgs({ args: argv, options: { vault: { type: 'string' }, notion: { type: 'string' }, roots: { type: 'string' }, exclude: { type: 'string' } } });
-  const { blocks, collectionParents } = readNotion(values.notion ?? NOTION_DB);
+  const { blocks, collectionParents } = await readNotion(values.notion ?? NOTION_DB);
   const scope = { roots: ids(values.roots), exclude: ids(values.exclude) };
   const m = linkMeasure(blocks, collectionParents, scope);
   const reports = await reportsDir(vaultPath(values.vault));

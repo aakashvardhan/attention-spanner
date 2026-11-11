@@ -1,5 +1,12 @@
 # Sidebars (webpage + YouTube) and your own papers
 
+> **Status (2026-11-10):** Parts 1 and 2 shipped, with two changes. The toolbar icon
+> toggles the side panel for its own tab only (`rust/ext/js/worker.js`), rather than
+> `setPanelBehavior({openPanelOnActionClick: true})` on every tab. And Listen does
+> scroll the page to the section being read and mark it (`rust/ext/js/tab-mark.mjs`).
+> **Part 3, your own papers and decks, was dropped**: only arXiv papers are supported
+> (README).
+
 Date: 2026-11-07. Branch: papers-library. Extension is Rust/wasm (rust/ext, rust/core; Leptos).
 
 ## Why

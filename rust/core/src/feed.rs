@@ -24,7 +24,7 @@ pub fn rss_items(xml: &str) -> Vec<FeedItem> {
     ITEM.captures_iter(xml)
         .filter_map(|c| {
             let body = c.get(1)?.as_str();
-            let get = |i: usize| TAG[i].captures(body).map(|m| crate::shelf::unescape(&m[1]));
+            let get = |i: usize| TAG[i].captures(body).map(|m| crate::xml::unescape(&m[1]));
             let (title, link) = (get(0)?, get(1)?);
             (!title.is_empty() && !link.is_empty()).then(|| FeedItem {
                 title,

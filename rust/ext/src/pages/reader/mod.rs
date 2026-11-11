@@ -79,7 +79,9 @@ pub fn Reader() -> impl IntoView {
 /// One reader tab per paper. A new tab asks the others "open <key>"; a tab
 /// already showing that paper answers "here", brings itself forward and says
 /// so, and the new tab closes. Only a tab under 2s old closes, so an old
-/// reader holding your notes is never the one that goes.
+/// reader holding your notes is never the one that goes. Only the older tab
+/// answers: two opened together (session restore, two quick clicks) would
+/// otherwise each close on the other's answer.
 fn one_tab_per_paper(src: &str, already_open: RwSignal<bool>) {
     use wasm_bindgen::{closure::Closure, JsCast};
     let key = paper_match_key(src).unwrap_or_else(|| src.to_string());
@@ -87,15 +89,23 @@ fn one_tab_per_paper(src: &str, already_open: RwSignal<bool>) {
         return;
     };
     let born = crate::js::now();
+    // Age, then a coin for tabs born in the same millisecond.
+    let age = (born, js_sys::Math::random());
     let ask = format!(
-        "open\n{key}\n{}",
+        "open\n{key}\n{} {}\n{}",
+        age.0,
+        age.1,
         window().location().hash().unwrap_or_default()
     );
     let reply = channel.clone();
     let on_message =
         Closure::<dyn Fn(web_sys::MessageEvent)>::new(move |e: web_sys::MessageEvent| {
             let msg = e.data().as_string().unwrap_or_default();
-            if let Some(hash) = msg.strip_prefix(&format!("open\n{key}\n")) {
+            let asked = msg
+                .strip_prefix(&format!("open\n{key}\n"))
+                .and_then(|rest| rest.split_once('\n'))
+                .and_then(|(theirs, hash)| Some((older(age, theirs)?, hash)));
+            if let Some((true, hash)) = asked {
                 // Their #page=N becomes ours; clear first so the same hash still fires.
                 if !hash.is_empty() {
                     let loc = window().location();
@@ -149,6 +159,26 @@ fn one_tab_per_paper(src: &str, already_open: RwSignal<bool>) {
     channel.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     on_message.forget(); // lives as long as the page
     let _ = channel.post_message(&ask.into());
+}
+
+/// The page a `#page=N` deep link names: one parse for opening and for a later hash change.
+fn page_from_hash() -> Option<u32> {
+    page_in_hash(&window().location().hash().ok()?)
+}
+
+fn page_in_hash(hash: &str) -> Option<u32> {
+    hash.split("page=")
+        .nth(1)
+        .and_then(|n| n.parse().ok())
+        .filter(|n| *n > 0)
+}
+
+/// Whether a tab of age `ours` is older than the one that sent `theirs`
+/// ("born coin"). None for a malformed age.
+fn older(ours: (i64, f64), theirs: &str) -> Option<bool> {
+    let (born, coin) = theirs.split_once(' ')?;
+    let theirs = (born.parse::<i64>().ok()?, coin.parse::<f64>().ok()?);
+    Some(ours.0 < theirs.0 || (ours.0 == theirs.0 && ours.1 < theirs.1))
 }
 
 /// The shelved paper this PDF belongs to (abs/pdf/version variants collapse).
@@ -236,12 +266,7 @@ fn PdfReader(src: String) -> impl IntoView {
     }
 
     // #page=N (a deep link) wins over the saved position.
-    let hash_page: Option<u32> = window()
-        .location()
-        .hash()
-        .ok()
-        .and_then(|h| h.split("page=").nth(1).and_then(|n| n.parse().ok()))
-        .filter(|n| *n > 0);
+    let hash_page = page_from_hash();
     let position = RwSignal::new(PdfPosition {
         page: 1,
         offset: 0.0,
@@ -258,13 +283,7 @@ fn PdfReader(src: String) -> impl IntoView {
     });
     // A #page=N link to this paper from another tab lands here as a hash change.
     let on_hash = window_event_listener(leptos::ev::hashchange, move |_| {
-        if let Some(n) = window()
-            .location()
-            .hash()
-            .ok()
-            .and_then(|h| h.split("page=").nth(1).and_then(|n| n.parse::<u32>().ok()))
-            .filter(|n| *n > 0)
-        {
+        if let Some(n) = page_from_hash() {
             go.run(n);
         }
     });
@@ -453,12 +472,19 @@ fn PdfReader(src: String) -> impl IntoView {
     });
 
     let scan_dismissed = RwSignal::new(false);
-    let looks_scanned = move || {
+    // Counted once per text, not on every render, and without joining the pages.
+    let looks_scanned = Memo::new(move |_| {
         page_texts.with(|t| {
-            t.as_ref()
-                .is_some_and(|t| t.concat().chars().filter(|c| !c.is_whitespace()).count() < 200)
+            t.as_ref().is_some_and(|t| {
+                t.iter()
+                    .flat_map(|p| p.chars())
+                    .filter(|c| !c.is_whitespace())
+                    .take(200)
+                    .count()
+                    < 200
+            })
         })
-    };
+    });
     let counts = Memo::new(move |_| {
         page_texts.with(|t| {
             t.as_ref()
@@ -553,17 +579,20 @@ fn PdfReader(src: String) -> impl IntoView {
         if panel.get_untracked() == "listen" {
             return;
         }
-        let Some(texts) = page_texts.get_untracked() else {
-            return;
-        };
         let secs = sections.get_untracked();
         let (from, to) = spot_pages(&secs, &spot, page_count.get_untracked());
-        let pages: Vec<String> = texts
-            .iter()
-            .skip(from.saturating_sub(1) as usize)
-            .take((to + 1).saturating_sub(from) as usize)
-            .cloned()
-            .collect();
+        // Only the pages asked about are copied, not every page's text.
+        let Some(pages) = page_texts.with_untracked(|t| {
+            t.as_ref().map(|t| {
+                t.iter()
+                    .skip(from.saturating_sub(1) as usize)
+                    .take((to + 1).saturating_sub(from) as usize)
+                    .cloned()
+                    .collect::<Vec<String>>()
+            })
+        }) else {
+            return;
+        };
         if pages.concat().trim().is_empty() {
             return;
         }
@@ -817,7 +846,7 @@ fn PdfReader(src: String) -> impl IntoView {
                                 }
                             })
                         }
-                        <Show when=move || looks_scanned() && !scan_dismissed.get()>
+                        <Show when=move || looks_scanned.get() && !scan_dismissed.get()>
                             <div class="reader-toast reader-scan-toast" role="status">
                                 <span>"This looks like a scanned PDF. Search and highlighting may be limited until it has OCR text."</span>
                                 <button type="button" on:click=move |_| scan_dismissed.set(true)>"Dismiss"</button>
@@ -972,4 +1001,27 @@ fn use_chrome_awake(pinned: Signal<bool>) -> Signal<bool> {
         wheel.remove();
     });
     awake.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_hash_names_a_page() {
+        assert_eq!(page_in_hash("#page=12"), Some(12));
+        assert_eq!(page_in_hash("#page=0"), None);
+        assert_eq!(page_in_hash("#page=x"), None);
+        assert_eq!(page_in_hash(""), None);
+    }
+
+    #[test]
+    fn only_the_older_tab_answers() {
+        assert_eq!(older((1, 0.5), "2 0.1"), Some(true));
+        assert_eq!(older((2, 0.1), "1 0.5"), Some(false));
+        // Born together: the coin decides, and exactly one side wins.
+        assert_eq!(older((1, 0.2), "1 0.7"), Some(true));
+        assert_eq!(older((1, 0.7), "1 0.2"), Some(false));
+        assert_eq!(older((1, 0.2), "#page=3"), None);
+    }
 }

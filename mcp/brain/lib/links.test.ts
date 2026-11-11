@@ -68,6 +68,10 @@ describe('retarget', () => {
       '---\nrelated: "[[Bob\'s]]"\nkeep: 1\n---\n[[Bob\'s]] [[Bob\'s#H|x]] ![[Bob\'s#H]] `[[Old]]` [[Other]]\n',
     );
   });
+  it('edits a property only when its value is exactly one link, as backlinks read it', () => {
+    const text = '---\nnote: "see [[Old]] first"\nup: ["[[Old]]", "[[A]]"]\n---\n';
+    expect(retarget(text, isOld, () => ({ target: 'New' }))).toBe('---\nnote: "see [[Old]] first"\nup: ["[[New]]", "[[A]]"]\n---\n');
+  });
   it('keeps CRLF line endings', () => {
     expect(retarget('# N\r\n\r\nSee [[Old]].\r\n', isOld, () => ({ target: 'New' }))).toBe('# N\r\n\r\nSee [[New]].\r\n');
   });

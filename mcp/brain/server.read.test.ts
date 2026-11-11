@@ -47,4 +47,10 @@ describe('read tools', () => {
     expect((await t.call('list_folder', {})).text).toBe('Concepts/\nSchool/\nHome (Home.md)');
     expect((await t.call('list_folder', { folder: 'School' })).text).toBe('Lecture 3 (School/Lecture 3.md)');
   });
+  it('leaves out folders that hold no notes: sources/, attachments/ and hidden ones', async () => {
+    t = await testServer({ ...FILES, 'sources/notion/P.md': 'raw', 'attachments/a.png': 'png', '.git/HEAD': 'x', 'School/.cache/x.md': '' });
+    expect((await t.call('list_folder', {})).text).toBe('Concepts/\nSchool/\nHome (Home.md)');
+    expect((await t.call('list_folder', { folder: 'School' })).text).toBe('Lecture 3 (School/Lecture 3.md)');
+    expect(await t.call('list_folder', { folder: 'sources' })).toEqual({ text: '"sources" is not a folder notes live in.', error: true });
+  });
 });

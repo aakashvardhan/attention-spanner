@@ -4,13 +4,13 @@
 use crate::todos::Todo;
 use serde::{Deserialize, Serialize};
 
-pub const FOCUS_MS: i64 = 25 * 60 * 1000;
-pub const BREAK_MS: i64 = 5 * 60 * 1000;
+pub(crate) const FOCUS_MS: i64 = 25 * 60 * 1000;
+pub(crate) const BREAK_MS: i64 = 5 * 60 * 1000;
 pub const POMODORO_ALARM: &str = "pomodoro";
 pub const MAX_TASKS: usize = 3;
 
 /// Always blocked during focus, on top of the settings blocklist.
-pub const DISTRACTIONS: [&str; 10] = [
+pub(crate) const DISTRACTIONS: [&str; 10] = [
     "youtube.com",
     "linkedin.com",
     "netflix.com",
@@ -47,6 +47,16 @@ pub struct Pomodoro {
     pub tasks: Vec<PomTask>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub study_video: Option<String>,
+}
+
+/// The board's unfinished tasks in the order a round offers them: in progress
+/// first, then where they sit on the board, then by reminder (untimed last).
+/// The new tab's picker and the focus-round shortcut both preselect the first
+/// MAX_TASKS of this list.
+pub fn open_tasks(todos: &[Todo]) -> Vec<&Todo> {
+    let mut open: Vec<&Todo> = todos.iter().filter(|t| t.done_at.is_none()).collect();
+    open.sort_by_key(|t| (t.started_at.is_none(), t.rank, t.due_at.is_none(), t.due_at));
+    open
 }
 
 /// Start from existing, unfinished board tasks; repeated or stale ids are ignored.
@@ -215,6 +225,28 @@ mod tests {
         sync_tasks(&mut p, &[]);
         assert_eq!(p.tasks.len(), 1);
         assert_eq!(p.study_video, None);
+    }
+
+    #[test]
+    fn open_tasks_put_started_then_board_order_then_reminder_first() {
+        let t =
+            |id: &str, rank: i32, due: Option<i64>, started: Option<i64>, done: Option<i64>| Todo {
+                id: id.into(),
+                text: id.into(),
+                rank,
+                due_at: due,
+                started_at: started,
+                done_at: done,
+            };
+        let todos = [
+            t("untimed", 0, None, None, None),
+            t("done", 0, None, Some(1), Some(2)),
+            t("later", 1, Some(9), None, None),
+            t("soon", 0, Some(5), None, None),
+            t("going", 3, None, Some(1), None),
+        ];
+        let ids: Vec<&str> = open_tasks(&todos).iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["going", "soon", "untimed", "later"]);
     }
 
     #[test]

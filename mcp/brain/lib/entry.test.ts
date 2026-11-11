@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { backlinks, buildEntry, contentHash, duplicateTitles, inlineTags, targetsOf } from './entry';
+import { backlinks, buildEntry, duplicateTitles, inlineTags, targetsOf } from './entry';
+import { budgetMs, PERF_TIMEOUT } from './testing';
 
 const SIGMOID = '---\ntags: [concept, "#ml"]\naliases: Logistic function\nsources: ["[[Lecture 3]]"]\n---\n# Sigmoid\n\nSee [[Gradient descent]] and #maths, not #2026 or `#code`.\n\n- [ ] derive it\n';
 
@@ -24,9 +25,9 @@ describe('buildEntry', () => {
     const big = Array.from({ length: 20_000 }, (_, i) => (i % 50 === 0 ? `## Part ${i}` : `Line ${i} links [[Note ${i % 97}]] and says something.`)).join('\n');
     const t0 = performance.now();
     const b = buildEntry('Big.md', big);
-    expect(performance.now() - t0).toBeLessThan(1500);
+    expect(performance.now() - t0).toBeLessThan(budgetMs(1500));
     expect(b.links).toHaveLength(19_600);
-  });
+  }, PERF_TIMEOUT);
 });
 
 describe('inlineTags', () => {
@@ -50,8 +51,5 @@ describe('targets, backlinks and duplicates', () => {
   });
   it('finds two files with one title', () => {
     expect(duplicateTitles([a, buildEntry('Inbox/sigmoid.md', '')])).toEqual([['Concepts/Sigmoid.md', 'Inbox/sigmoid.md']]);
-  });
-  it('hashes content with SHA-256', async () => {
-    expect(await contentHash('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
   });
 });

@@ -61,7 +61,7 @@ pub fn arrivals_from_atom(xml: &str, ids: &[String]) -> Vec<Arrival> {
             let body = e.get(1)?.as_str();
             let id = ENTRY_ID.captures(body)?.get(1)?.as_str().to_string();
             let raw = TITLE.captures(body)?.get(1)?.as_str();
-            Some((id, unescape(raw)))
+            Some((id, crate::xml::unescape(raw)))
         })
         .collect();
     ids.iter()
@@ -73,35 +73,6 @@ pub fn arrivals_from_atom(xml: &str, ids: &[String]) -> Vec<Arrival> {
                 .map_or_else(|| id.clone(), |(_, t)| t.clone()),
         })
         .collect()
-}
-
-static ENTITY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"&(?:#[xX]([0-9a-fA-F]+)|#([0-9]+)|(lt|gt|quot|apos|amp));").unwrap()
-});
-
-/// Collapse whitespace and undo the XML entities: the five named ones and any
-/// numeric one (&#39;, &#x27;). One pass, so &amp;#39; stays &#39;.
-pub fn unescape(raw: &str) -> String {
-    let text = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    ENTITY
-        .replace_all(&text, |c: &regex::Captures| {
-            let code = c
-                .get(1)
-                .map(|h| u32::from_str_radix(h.as_str(), 16))
-                .or_else(|| c.get(2).map(|d| d.as_str().parse()));
-            match (code, c.get(3).map(|n| n.as_str())) {
-                (Some(Ok(n)), _) => {
-                    char::from_u32(n).map_or_else(|| c[0].to_string(), String::from)
-                }
-                (_, Some("lt")) => "<".into(),
-                (_, Some("gt")) => ">".into(),
-                (_, Some("quot")) => "\"".into(),
-                (_, Some("apos")) => "'".into(),
-                (_, Some("amp")) => "&".into(),
-                _ => c[0].to_string(),
-            }
-        })
-        .into_owned()
 }
 
 pub fn arxiv_query_url(ids: &[String]) -> String {

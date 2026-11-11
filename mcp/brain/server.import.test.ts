@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { readCapped } from './tools/import';
 import { testServer } from './testServer';
 
 let t: Awaited<ReturnType<typeof testServer>>;
@@ -24,7 +25,7 @@ describe('import tools', () => {
   it('refuses unsafe areas, paths and URLs', async () => {
     t = await testServer({}, { fetch: fakeFetch });
     expect((await t.call('stage_note', { area: '../x', path: 'a.md', text: '' })).error).toBe(true);
-    for (const path of ['.brain/x.md', '.obsidian/a.md', 'attachments/a.md', 'a.txt', 'A/B: c.md']) expect((await t.call('stage_note', { area: 'pilot', path, text: '' })).error, path).toBe(true);
+    for (const path of ['.brain/x.md', '.obsidian/a.md', '.git/a.md', 'Concepts/.trash/a.md', 'attachments/a.md', 'a.txt', 'A/B: c.md']) expect((await t.call('stage_note', { area: 'pilot', path, text: '' })).error, path).toBe(true);
     expect((await t.call('stage_attachment', { area: 'pilot', url: 'http://file.notion.so/x.png', filename: 'x.png' })).text).toBe('Only https URLs are fetched.');
   });
   it('refuses folder, source and attachment names Windows cannot hold', async () => {
@@ -65,5 +66,53 @@ describe('import tools', () => {
     await t.call('stage_attachment', { area: 'pilot', url: 'https://file.notion.so/x.png', filename: 'a.png' });
     await audit('pilot');
     expect((await t.call('promote_staging', { area: 'pilot' })).text).toBe('attachments/a.png already exists with different content; stage it under another name.');
+  });
+  it('never removes a stage that lands while the same path is being promoted', async () => {
+    t = await testServer({ '.brain/reports/.keep': '' }, { fetch: fakeFetch });
+    await t.call('stage_note', { area: 'pilot', path: 'Concepts/A.md', text: 'v1' });
+    await audit('pilot');
+    // Stage v2 just before promote removes the staged copy of A.md, and give it time to land.
+    const fs = t.vault.fs;
+    const remove = fs.remove.bind(fs);
+    let staging: Promise<unknown> | null = null;
+    fs.remove = async (rel) => {
+      if (!staging && rel.endsWith('Concepts/A.md')) {
+        staging = t.call('stage_note', { area: 'pilot', path: 'Concepts/A.md', text: 'v2' });
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return remove(rel);
+    };
+    expect((await t.call('promote_staging', { area: 'pilot' })).text).toBe('Promoted 1 files from pilot.');
+    await staging;
+    const where = [await t.vault.fs.readText('.brain/staging/pilot/Concepts/A.md'), await t.vault.fs.readText('Concepts/A.md')];
+    expect(where).toContain('v2');
+  });
+  it('refuses an attachment over 100 MB by its Content-Length, before reading it', async () => {
+    let read = false;
+    // highWaterMark 0: pull runs only when someone reads.
+    const body = new ReadableStream({ pull: () => void (read = true) }, { highWaterMark: 0 });
+    const big = (async () => new Response(body, { status: 200, headers: { 'content-length': String(200 * 1024 * 1024) } })) as unknown as typeof fetch;
+    t = await testServer({}, { fetch: big });
+    expect(await t.call('stage_attachment', { area: 'pilot', url: 'https://file.notion.so/x.png', filename: 'x.png' })).toEqual({ text: 'x.png is 209715200 bytes or more, over the 100 MB limit.', error: true });
+    expect(read).toBe(false);
+    expect(await t.vault.fs.walk('.brain/staging')).toEqual([]);
+  });
+});
+
+describe('readCapped', () => {
+  const stream = (chunks: number, size: number) => {
+    let n = 0;
+    const chunk = new Uint8Array(size).fill(7);
+    return new ReadableStream<Uint8Array>({ pull: (c) => (n++ < chunks ? c.enqueue(chunk) : c.close()) });
+  };
+  it('stops reading as soon as a body without Content-Length passes the limit', async () => {
+    let pulled = 0;
+    const s = stream(1_000, 10);
+    const counted = s.pipeThrough(new TransformStream({ transform: (c, ctl) => void (pulled++, ctl.enqueue(c)) }));
+    expect(await readCapped(new Response(counted), 25)).toBe(30);
+    expect(pulled).toBeLessThan(10);
+  });
+  it('returns the whole body within the limit', async () => {
+    expect(await readCapped(new Response(stream(3, 4)), 12)).toEqual(new Uint8Array(12).fill(7));
   });
 });

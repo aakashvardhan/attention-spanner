@@ -1,15 +1,27 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { notionTitle } from './notion';
+import { notionTitle, PAGE_TYPES } from './notion';
 
 /** One row of Notion's local block cache, the columns the baseline needs. */
 export interface NBlock { id: string; type: string; parent_id: string | null; properties: string | null; format: string | null; alive: number }
 
 export const NOTION_DB = join(homedir(), 'Library/Application Support/Notion/notion.db');
 
+/**
+ * node:sqlite, loaded only by the commands that read a database: a static import makes every CLI
+ * command print Node's experimental warning, and fail to load on Node before 22.13.
+ */
+export async function sqlite(): Promise<typeof import('node:sqlite')> {
+  try {
+    return await import('node:sqlite');
+  } catch {
+    throw new Error(`This command reads SQLite through node:sqlite, which needs Node 22.13 or newer (this is ${process.version}).`);
+  }
+}
+
 /** Read-only: Notion keeps the file open, and nothing here may change it. */
-export function readNotion(file = NOTION_DB): { blocks: NBlock[]; collectionParents: Map<string, string> } {
+export async function readNotion(file = NOTION_DB): Promise<{ blocks: NBlock[]; collectionParents: Map<string, string> }> {
+  const { DatabaseSync } = await sqlite();
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     const rows = db.prepare('SELECT id, type, parent_id, properties, format, alive FROM block').all() as unknown as NBlock[];
@@ -24,6 +36,6 @@ export function readNotion(file = NOTION_DB): { blocks: NBlock[]; collectionPare
 
 export function pageTitles(blocks: NBlock[]): Map<string, string> {
   const out = new Map<string, string>();
-  for (const b of blocks) if (b.type === 'page' || b.type === 'collection_view_page') out.set(b.id, notionTitle(b.properties));
+  for (const b of blocks) if (PAGE_TYPES.has(b.type)) out.set(b.id, notionTitle(b.properties));
   return out;
 }

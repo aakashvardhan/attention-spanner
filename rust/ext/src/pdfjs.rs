@@ -92,7 +92,7 @@ thread_local! {
     };
 }
 
-/// The walnut page: what `renderPage` runs on every page's pixels.
+/// The themed page: what `renderPage` runs on every page's pixels.
 pub fn recolor_fn() -> js_sys::Function {
     RECOLOR.with(Clone::clone)
 }

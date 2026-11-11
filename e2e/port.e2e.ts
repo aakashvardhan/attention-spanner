@@ -18,7 +18,10 @@ describe('rust port: phase 0 skeleton', () => {
   it('the worker boots from wasm', async () => {
     expect(await ext.sw.evaluate(() => chrome.runtime.getManifest().name)).toBe('Reader');
     const permissions = await ext.sw.evaluate(() => chrome.runtime.getManifest().permissions);
-    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'geolocation', 'offscreen', 'scripting', 'sidePanel', 'contextMenus']);
+    // No geolocation: the new tab's weather asks through the browser's own prompt.
+    expect(permissions).toEqual(['storage', 'alarms', 'declarativeNetRequest', 'identity', 'notifications', 'offscreen', 'scripting', 'sidePanel', 'contextMenus']);
+    // getContexts and sidePanel.open need 116.
+    expect(await ext.sw.evaluate(() => chrome.runtime.getManifest().minimum_chrome_version)).toBe('116');
   });
 
   it('the new tab override mounts a Leptos page with the shared stylesheets, accessibly', async () => {
@@ -52,7 +55,7 @@ describe('rust port: phase 2 worker', () => {
   afterAll(async () => ext?.close());
 
   it('migrates a fresh profile on install', async () => {
-    expect(await storage(ext, 'schemaVersion')).toBe(28);
+    expect(await storage(ext, 'schemaVersion')).toBe(29);
     expect(await storage(ext, 'papers')).toEqual([]);
   });
 
@@ -69,16 +72,17 @@ describe('rust port: phase 2 worker', () => {
     expect(await matched('https://example.com/paper.pdf')).toEqual([]);
   });
 
-  it('adds, edits, moves and deletes annotations, refusing bad drafts', async () => {
+  it('adds, edits and deletes annotations, refusing bad drafts', async () => {
     const draft = { docKey: 'arxiv:1706.03762', docUrl: 'u', paperId: null, kind: 'sticky', anchor: { kind: 'pdf', page: 1, rects: [], x: 0.1, y: 0.1 }, text: '', color: 'yellow', note: '' };
     const added = (await send({ type: 'ANNOT_ADD', draft })) as { ok: boolean; annotation: { id: string } };
     expect(added.ok).toBe(true);
     const id = added.annotation.id;
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect(await send({ type: 'ANNOT_UPDATE', id, patch: { note: 'hi', color: 'green' } })).toEqual({ ok: true });
-    expect(await send({ type: 'ANNOT_MOVE', id, x: 0.5, y: 0.6 })).toEqual({ ok: true });
+    // Sticky notes do not move: there is no ANNOT_MOVE.
+    expect(await send({ type: 'ANNOT_MOVE', id, x: 0.5, y: 0.6 })).toEqual({ ok: false, error: 'Unknown message.' });
     const [a] = await storage<{ note: string; color: string; anchor: { x: number; y: number } }[]>(ext, 'annotations');
-    expect([a.note, a.color, a.anchor.x, a.anchor.y]).toEqual(['hi', 'green', 0.5, 0.6]);
+    expect([a.note, a.color, a.anchor.x, a.anchor.y]).toEqual(['hi', 'green', 0.1, 0.1]);
     expect(await send({ type: 'ANNOT_ADD', draft: { ...draft, kind: 'highlight' } })).toEqual({ ok: false, error: 'Highlight has no selection rects.' });
     expect(await send({ type: 'ANNOT_DELETE', id })).toEqual({ ok: true });
     expect(await storage(ext, 'annotations')).toEqual([]);
@@ -243,17 +247,19 @@ describe('rust port: phase 3 brain dump and vault', () => {
     await again.getByLabel('Recovery code').fill(recoveryCode.toLowerCase().replace(/-/g, ' '));
     await again.getByLabel('Recovery code').press('Enter');
     await expect.poll(() => again.locator('.dumps-bullets li').count(), { timeout: 20_000 }).toBe(1);
-    await again.close();
 
     // Rust seals a new dump into that vault; the next test opens both.
     await mockClaude(ext, () => '- Rust sealed this.');
     await seed(ext, { settings: { claudeKey: 'sk-e2e' } });
     const tab = await ext.page(PAGES.newtab);
     await tab.getByLabel('Empty your head here').fill('written in the Rust build');
-    await tab.getByLabel('Empty your head here').press('Meta+Enter');
+    await tab.getByLabel('Empty your head here').press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
     await expect.poll(() => tab.locator('.notebook-count').innerText(), { timeout: 20_000 }).toContain('2 locked');
     expect(JSON.stringify(await storage(ext, 'lockedDumps'))).not.toContain('written in the Rust build');
     await tab.close();
+    // The open dumps page follows the stored list: the new one opens there too.
+    await expect.poll(() => again.locator('.dumps-entry').count(), { timeout: 20_000 }).toBe(2);
+    await again.close();
   });
 
   it('deleting an entry asks first and removes only that one', async () => {

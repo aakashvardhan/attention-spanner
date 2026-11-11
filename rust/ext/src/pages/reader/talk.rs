@@ -355,16 +355,16 @@ pub fn TalkPanel(
                 Phase::Writing | Phase::Thinking => "thinking",
                 Phase::Speaking => "speaking",
             }></span>
-            <p class="define-label" role="status" aria-live="polite" data-phase=move || format!("{:?}", phase.get()).to_lowercase()>{status}</p>
+            <p class="small-label" role="status" aria-live="polite" data-phase=move || format!("{:?}", phase.get()).to_lowercase()>{status}</p>
             <Show when=move || notice.with(|n| !n.is_empty())>
-                <p class="define-label" role="status">{move || notice.get()}</p>
+                <p class="small-label" role="status">{move || notice.get()}</p>
             </Show>
-            {move || waiting.get().map(|s| view! { <p class="define-label" role="status">{format!("Groq's per-minute limit: carrying on in {s} s…")}</p> })}
+            {move || waiting.get().map(|s| view! { <p class="small-label" role="status">{format!("Groq's per-minute limit: carrying on in {s} s…")}</p> })}
             <Show when=move || error.with(|e| !e.is_empty())>
                 <p class="ai-note-error" role="alert">{move || error.get()}</p>
             </Show>
             <form class="reader-talk-type" on:submit=move |e: web_sys::SubmitEvent| { e.prevent_default(); send(); }>
-                <label class="define-label" for="talk-type">"Or type it"</label>
+                <label class="small-label" for="talk-type">"Or type it"</label>
                 <textarea id="talk-type" class="answer-input" rows="2" placeholder="What you'd have said…" prop:value=move || draft.get() on:input=move |e| draft.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
                     // Enter sends, Shift+Enter starts a new line.
                     if e.key() == "Enter" && !e.shift_key() && !e.is_composing() { e.prevent_default(); send(); }

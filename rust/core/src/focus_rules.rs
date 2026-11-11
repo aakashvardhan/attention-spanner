@@ -191,7 +191,7 @@ pub fn without_reader_tab(session: Option<FocusSession>, tab_id: i32) -> Option<
 }
 
 /// Rules are on exactly when a session holds a reader tab.
-pub fn is_blocking(session: Option<&FocusSession>) -> bool {
+pub(crate) fn is_blocking(session: Option<&FocusSession>) -> bool {
     session.is_some_and(|s| !s.tab_ids.is_empty())
 }
 

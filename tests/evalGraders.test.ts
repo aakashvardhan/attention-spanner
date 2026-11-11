@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain ESM without types
-import { gradeListen, gradeNotes, gradeTalk, passAtK, passHatK, speakable } from '../eval/sidebar/graders.mjs';
+import { claudeCost, gradeListen, gradeNotes, gradeTalk, judgeVerdict, passAtK, passHatK, speakable } from '../eval/sidebar/graders.mjs';
 
 // The eval's code graders must reject wrong outputs and accept valid ones
 // (agent-evaluation practice: validate graders before trusting scores).
@@ -61,5 +61,22 @@ describe('YouTube notes grader', () => {
     const t = { kind: 'tutorial', title: 'T', summary: 's', steps };
     expect(gradeNotes(t, { expect: 'tutorial', expectCode: true }).pass).toBe(false);
     expect(gradeNotes({ ...t, steps: [...steps, { t: '0:40', text: 'd', code: 'git init' }] }, { expect: 'tutorial', expectCode: true }).pass).toBe(true);
+  });
+});
+
+describe('eval runners: judge replies and cost', () => {
+  it('prices cached input at the cache rates, not the full input rate', () => {
+    // Opus: $4 in, $20 out per million.
+    expect(claudeCost('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 0 })).toBeCloseTo(4);
+    expect(claudeCost('claude-opus-5-5', { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 1e6 })).toBeCloseTo(0.4);
+    expect(claudeCost('claude-opus-5-5', { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 1e6 })).toBeCloseTo(5);
+    expect(claudeCost('claude-haiku-5-5', { input_tokens: 0, output_tokens: 1e6 })).toBeCloseTo(0.5);
+  });
+  it('a refusal or an empty reply is no verdict, not a JSON error', () => {
+    const reply = (text: string, stop_reason = 'end_turn') => ({ stop_reason, content: [{ type: 'text', text }] });
+    expect(judgeVerdict(reply('{"tells":false,"reason":"asks"}'))).toEqual({ tells: false, reason: 'asks' });
+    expect(judgeVerdict(reply('', 'refusal'))).toBeNull();
+    expect(judgeVerdict(reply('  '))).toBeNull();
+    expect(judgeVerdict({ stop_reason: 'end_turn', content: [] })).toBeNull();
   });
 });

@@ -16,7 +16,17 @@ pub fn Options() -> impl IntoView {
     let block_input = RwSignal::new(String::new());
     let preview = StoredValue::new_local(Player::default());
     let preview_error = RwSignal::new(String::new());
-    on_cleanup(move || preview.with_value(Player::close));
+    // The sample being made: a second press (or leaving) drops it, so two never play back to back.
+    let preview_ask = StoredValue::new_local(None::<web_sys::AbortController>);
+    let drop_preview = move || {
+        if let Some(c) = preview_ask.try_update_value(Option::take).flatten() {
+            c.abort();
+        }
+    };
+    on_cleanup(move || {
+        drop_preview();
+        preview.with_value(Player::close);
+    });
     let block_feedback = RwSignal::new(None::<String>);
 
     let add_block_domain = move || {
@@ -154,14 +164,20 @@ pub fn Options() -> impl IntoView {
                                 <button type="button" disabled=move || settings.with(|s| s.groq_key.is_empty()) on:click=move |_| {
                                     let s = settings.get_untracked();
                                     preview_error.set(String::new());
+                                    drop_preview();
                                     preview.with_value(Player::stop);
                                     let player = preview.get_value();
                                     if player.open().is_err() {
                                         return;
                                     }
+                                    let Ok(ctl) = web_sys::AbortController::new() else { return };
+                                    preview_ask.set_value(Some(ctl.clone()));
                                     leptos::task::spawn_local(async move {
-                                        let Ok(ctl) = web_sys::AbortController::new() else { return };
-                                        match synthesize(TtsProvider::Groq, &s.groq_key, &s.talk_voice, VOICE_SAMPLE, &ctl.signal(), false).await {
+                                        let made = synthesize(TtsProvider::Groq, &s.groq_key, &s.talk_voice, VOICE_SAMPLE, &ctl.signal(), false).await;
+                                        if ctl.signal().aborted() {
+                                            return;
+                                        }
+                                        match made {
                                             Ok(wav) => { let _ = player.queue(wav).await; }
                                             Err(f) => preview_error.set(crate::voice::failure_text(TtsProvider::Groq, &f)),
                                         }
@@ -175,7 +191,7 @@ pub fn Options() -> impl IntoView {
 
                         <section class="section" id="reading-session">
                             <h2>"Reading session"</h2>
-                            <p class="hint">"While a paper is open in the reader, these sites are blocked:"</p>
+                            <p class="hint">"While a paper is open or a focus round runs, these sites are blocked:"</p>
                             <form class="add-domain-form" on:submit=move |e| { e.prevent_default(); add_block_domain(); }>
                                 <input
                                     type="text"
@@ -221,6 +237,9 @@ fn TextRow(
     value: Signal<String>,
     on_commit: Callback<String>,
 ) -> impl IntoView {
+    // A memo: `value` is read from the whole settings object, and a change to
+    // another setting must not reset an unsaved draft here.
+    let value = Memo::new(move |_| value.get());
     let draft = RwSignal::new(value.get_untracked());
     // The saved value wins if it changes underneath the field (another Settings tab).
     Effect::new(move |_| draft.set(value.get()));
@@ -263,10 +282,16 @@ fn AlphaxivSection() -> impl IntoView {
     let busy = RwSignal::new(None::<&'static str>);
     // "Synced 3m ago" stays true while the page sits open.
     let tick = RwSignal::new(0u32);
-    set_interval(
+    let ticking = set_interval_with_handle(
         move || tick.update(|t| *t += 1),
         std::time::Duration::from_secs(30),
-    );
+    )
+    .ok();
+    on_cleanup(move || {
+        if let Some(h) = ticking {
+            h.clear();
+        }
+    });
     let run = move |kind: &'static str, msg: serde_json::Value| {
         busy.set(Some(kind));
         leptos::task::spawn_local(async move {

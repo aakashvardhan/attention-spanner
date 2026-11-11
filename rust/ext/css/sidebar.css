@@ -26,6 +26,7 @@ body {
   -webkit-line-clamp: 2;
   font-family: var(--font-display);
   font-size: var(--text-lg);
+  line-height: var(--leading-lg);
 }
 
 .sidebar-quiet {
@@ -103,6 +104,7 @@ body {
   margin: var(--space-3) 0 0;
   color: var(--text-secondary);
   font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -125,6 +127,7 @@ body {
   color: var(--text-primary);
   font-family: var(--font-display);
   font-size: var(--text-lg);
+  line-height: var(--leading-lg);
   font-variant-numeric: tabular-nums;
   letter-spacing: normal;
   text-transform: none;
@@ -145,6 +148,7 @@ body {
 .notes-lede {
   color: var(--text-primary);
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 /* Lecture: one Cornell card per cue, cue left, its notes right (covered
@@ -195,6 +199,7 @@ body {
   color: var(--accent-text);
   font: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   cursor: pointer;
 }
 

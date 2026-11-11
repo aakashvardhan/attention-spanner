@@ -28,14 +28,10 @@ pub fn time_left_label(minutes: Option<u32>) -> String {
     }
 }
 
-/// Reading forward into the next section finishes the previous one; jumps do not.
-pub fn crossed_section(prev: i32, next: i32) -> Option<i32> {
-    (prev >= 0 && next == prev + 1).then_some(prev)
-}
-
-pub fn section_done_label(finished: i32, total: i32) -> String {
-    let left = total - finished - 1;
-    if left <= 0 {
+/// `finished` is the 0-based section just read, of `total`.
+pub fn section_done_label(finished: usize, total: usize) -> String {
+    let left = total.saturating_sub(finished + 1);
+    if left == 0 {
         "Last section done".into()
     } else {
         format!("Section {} done · {left} left", finished + 1)
@@ -73,17 +69,10 @@ mod tests {
     }
 
     #[test]
-    fn crossed_section_only_for_reading_forward() {
-        assert_eq!(crossed_section(2, 3), Some(2));
-        for (a, b) in [(2, 5), (3, 2), (-1, 0), (-1, -1), (2, 2)] {
-            assert_eq!(crossed_section(a, b), None, "{a} -> {b}");
-        }
-    }
-
-    #[test]
     fn section_done_label_counts_what_is_left() {
         assert_eq!(section_done_label(2, 6), "Section 3 done · 3 left");
         assert_eq!(section_done_label(4, 6), "Section 5 done · 1 left");
         assert_eq!(section_done_label(5, 6), "Last section done");
+        assert_eq!(section_done_label(7, 6), "Last section done");
     }
 }

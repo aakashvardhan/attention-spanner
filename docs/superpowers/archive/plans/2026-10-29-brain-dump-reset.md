@@ -1,5 +1,10 @@
 # Brain Dump Reset Implementation Plan
 
+> **Status (2026-11-10): archived.** Written for the TypeScript extension, which the
+> Rust port deleted (see `docs/superpowers/specs/2026-11-02-rust-port-design.md`), so most
+> paths and code named here no longer exist. What shipped lives on in `rust/`; the README
+> describes the current behaviour. Its boxes were never ticked, so they say nothing about what was built.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the task-engine brain dump with: type on a notebook card, Cmd+Enter, Haiku returns gently reframed bullets, raw + bullets are encrypted into a passphrase-locked entries page.
@@ -8,7 +13,7 @@
 
 **Tech Stack:** React 18, TypeScript, Vite + CRXJS (MV3), Vitest (Node 25, `globalThis.crypto.subtle` available), Playwright via `/verify`.
 
-**Spec:** `docs/superpowers/specs/2026-10-29-brain-dump-reset-design.md`
+**Spec:** `docs/superpowers/archive/specs/2026-10-29-brain-dump-reset-design.md`
 **Mockups:** https://www.figma.com/design/mxN5zLYsFWhTgQ9c5iY5q4 (direction B, "Notebook")
 
 ## Global Constraints

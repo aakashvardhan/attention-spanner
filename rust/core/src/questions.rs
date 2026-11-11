@@ -58,7 +58,7 @@ pub fn section_finished(before: Option<usize>, now: Option<usize>) -> Option<usi
     }
 }
 
-pub fn question_system() -> String {
+pub(crate) fn question_system() -> String {
     format!(
         "You help someone read a research paper by asking, never telling. You get the text of one \
 section. Ask exactly one short question (at most 30 words) that makes the reader put the \

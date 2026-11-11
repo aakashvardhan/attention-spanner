@@ -46,8 +46,6 @@ pub struct Paper {
     pub added_at: i64,
     pub updated_at: i64,
     pub last_read_at: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deleted_at: Option<i64>,
 }
 
 /// A reading session: distracting sites are blocked while a reader tab is open.
@@ -131,8 +129,6 @@ pub struct Annotation {
     pub note: String,
     pub created_at: i64,
     pub updated_at: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -221,7 +217,7 @@ mod tests {
         let paper: Paper = serde_json::from_value(stored.clone()).unwrap();
         assert_eq!(paper.folder_ids, vec!["f1"]);
         assert_eq!(paper.pdf.as_ref().unwrap().page_count, 20);
-        // Written back: the same keys, and no `deletedAt: null` that TS never wrote.
+        // Written back: the same keys, and no `pdf: null` for an absent PdfState.
         let back = serde_json::to_value(&paper).unwrap();
         assert_eq!(
             back.as_object().unwrap().keys().collect::<Vec<_>>(),

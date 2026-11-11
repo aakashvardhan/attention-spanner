@@ -19,15 +19,15 @@ static HTTP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^https?://").un
 /// A pasted reference as a typed key: `arXiv:<id>`, `DOI:<doi>` or `URL:<url>`;
 /// `None` when there is nothing usable. arXiv ids (new `2006.11239` and legacy
 /// `hep-th/9901001`, bare or inside arxiv.org / alphaxiv.org abs, pdf or
-/// overview links) lose their version and `.pdf` suffix.
-pub fn parse_paper_ref(input: &str) -> Option<String> {
+/// overview links) lose their version, `.pdf` suffix and a trailing slash.
+pub(crate) fn parse_paper_ref(input: &str) -> Option<String> {
     let raw = input.trim();
     if raw.is_empty() {
         return None;
     }
-    let candidate = ARXIV_URL
-        .captures(raw)
-        .map_or(raw, |c| c.get(1).map_or(raw, |m| m.as_str()));
+    let candidate = ARXIV_URL.captures(raw).map_or(raw, |c| {
+        c.get(1).map_or(raw, |m| m.as_str().trim_end_matches('/'))
+    });
     let candidate = PDF_SUFFIX.replace(candidate, "");
     if let Some(c) = NEW_STYLE
         .captures(&candidate)
@@ -57,7 +57,7 @@ pub fn paper_match_key(url: &str) -> Option<String> {
 }
 
 /// The bare arXiv id in a link or id, or `None` when it is not arXiv.
-pub fn arxiv_id(input: &str) -> Option<String> {
+pub(crate) fn arxiv_id(input: &str) -> Option<String> {
     parse_paper_ref(input)?
         .strip_prefix("arXiv:")
         .map(str::to_string)
@@ -97,7 +97,6 @@ pub fn search_papers<'a>(
     let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
     let mut hits: Vec<&crate::types::Paper> = papers
         .iter()
-        .filter(|p| p.deleted_at.is_none())
         .filter(|p| {
             let title = p.title.to_lowercase();
             words.iter().all(|w| title.contains(w))
@@ -123,16 +122,14 @@ mod tests {
 
     #[test]
     fn searches_titles_by_every_word_newest_read_first() {
-        let paper = |title: &str, read: Option<i64>, deleted: bool| crate::types::Paper {
+        let paper = |title: &str, read: Option<i64>| crate::types::Paper {
             title: title.into(),
             last_read_at: read,
-            deleted_at: deleted.then_some(1),
             ..Default::default()
         };
         let shelf = [
-            paper("Attention Is All You Need", Some(1), false),
-            paper("Mamba: Linear-Time Sequence Modeling", Some(2), false),
-            paper("Attention, deleted", Some(3), true),
+            paper("Attention Is All You Need", Some(1)),
+            paper("Mamba: Linear-Time Sequence Modeling", Some(2)),
         ];
         let titles = |q: &str| -> Vec<&str> {
             search_papers(&shelf, q, 6)
@@ -157,6 +154,8 @@ mod tests {
             "https://arxiv.org/pdf/2006.11239",
             "https://arxiv.org/pdf/2006.11239.pdf",
             "https://arxiv.org/abs/2006.11239v3",
+            "https://arxiv.org/abs/2006.11239/",
+            "https://arxiv.org/pdf/2006.11239v2/",
             "2006.11239",
         ] {
             assert_eq!(

@@ -299,7 +299,7 @@ pub fn NotesSidebar(
         <nav class="reader-notes">
             <h2>"Notes"</h2>
             <Show when=move || annotations.with(Vec::is_empty)>
-                <p class="reader-notes-empty">"Select text in the PDF to highlight it."</p>
+                <p class="reader-sheet-empty">"Select text in the PDF to highlight it."</p>
             </Show>
             {move || groups().into_iter().map(|(page, list)| view! {
                 <div>

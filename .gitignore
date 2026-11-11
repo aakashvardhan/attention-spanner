@@ -21,9 +21,6 @@ firestore-debug.log
 # the rule so an existing copy is never committed.
 gcal-key.pem
 
-# iOS Swift package build artifacts
-ios/**/.build/
-
 # Brainstorm mockups from the visual companion.
 .superpowers/
 
@@ -42,10 +39,8 @@ mcp/brain/fixtures/vault/.brain/
 
 # Rust
 target/
-rust/ext/dist/
 rust/ext/.build/
 rust/ext/static/
-test-results/
 
 # Agentic eval runs (npm run eval:sidebar)
 eval/out/

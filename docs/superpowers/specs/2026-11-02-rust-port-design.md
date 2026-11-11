@@ -1,5 +1,12 @@
 # Rust/WebAssembly port (oxichrome, extended)
 
+> **Status (2026-11-10): done**; the TypeScript tree is deleted. Two things were built
+> differently from this spec. The layout is `rust/core` (the pure rules) and `rust/ext`
+> with `src/worker/`, `src/pages/`, `js/` and `css/` (README, Project layout), not the
+> `src/chrome/`, `src/background/` and `assets/` below. And there are no
+> `wasm-bindgen-test` tests: the extern-bound code is covered by the browser suite
+> (`e2e/`).
+
 ## Intent
 Learn Rust and WebAssembly on a real project by porting this extension to Rust,
 compiled to wasm, built on [oxichrome](https://github.com/0xsouravm/oxichrome)

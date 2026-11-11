@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PAGES, expectA11y, launch, mockClaude, seed, type Ext } from './harness';
+import { PAGES, closeTestPages, expectA11y, launch, mockClaude, seed, type Ext } from './harness';
 import { toneWav } from './seed';
 import { html } from './sites';
 
@@ -118,6 +118,7 @@ describe('side panel: webpage', () => {
     url = `${ext.sites.origin('notes')}/agent-evaluation`;
   });
   afterAll(async () => ext?.close());
+  closeTestPages(() => ext);
 
   it('reads the main text with math as LaTeX, leaving out menus and footers', async () => {
     const tabId = await openTab('/agent-evaluation');
@@ -330,7 +331,7 @@ describe('side panel: webpage', () => {
     const ms = Date.now() - t0;
     expect(r.blocks.length).toBe(1 + 1_000 * 6);
     expect(ms).toBeLessThan(3_000);
-    expect(r.blocks.map((b) => b.text).join('')).toContain('$x_{0}^2$'.replace('{0}', '0'));
+    expect(r.blocks.map((b) => b.text).join('')).toContain('$x_0^2$');
 
     const before = calls.length;
     const opened = Date.now();

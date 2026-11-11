@@ -1,4 +1,5 @@
 {
+  "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -15,7 +16,7 @@
     "newtab": "src/pages/newtab/index.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; frame-ancestors 'self'"
   },
   "web_accessible_resources": [
     {

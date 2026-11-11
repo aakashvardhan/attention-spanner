@@ -1,5 +1,10 @@
 # Minimal revamp: keep what gets used, one quiet layout
 
+> **Status (2026-11-10): archived.** Written for the TypeScript extension, which the
+> Rust port deleted (see `docs/superpowers/specs/2026-11-02-rust-port-design.md`), so most
+> paths and code named here no longer exist. What shipped lives on in `rust/`; the README
+> describes the current behaviour.
+
 Date: 2026-10-29. Branch at time of writing: `second-brain`.
 
 ## Why

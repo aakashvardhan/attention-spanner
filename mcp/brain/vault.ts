@@ -29,6 +29,8 @@ export class Vault {
   private queue: Promise<unknown> = Promise.resolve();
   private refreshing: Promise<void> = Promise.resolve();
   private promoting = false;
+  // Built on first use after a refresh that changed something: every find and rename reads them.
+  private derived: { targets?: Targets; backlinks?: Map<string, { from: string; link: Link }[]> } = {};
 
   private constructor(
     root: string,
@@ -37,7 +39,7 @@ export class Vault {
     this.fs = nodeFs(root, (rel) => serverMayWrite(rel, this.promoting));
   }
 
-  /** `maintain` sweeps temp files, finishes journals and old history (spec, Start). Read-only tools pass false. */
+  /** `maintain` sweeps temp files, finishes journals, old history and old trash (spec, Start). Read-only tools pass false. */
   static async open(root: string, opts: { now?: () => Date; maintain?: boolean } = {}): Promise<Vault> {
     const v = new Vault(root, opts.now ?? (() => new Date()));
     if (opts.maintain !== false) {
@@ -50,6 +52,7 @@ export class Vault {
         v.promoting = false;
       }
       await v.sweepHistory();
+      await v.sweepTrash();
     }
     await v.refresh();
     return v;
@@ -67,12 +70,14 @@ export class Vault {
 
   private async reindex(): Promise<void> {
     const seen = new Set<string>();
+    let changed = false;
     for (const f of await this.fs.walk('', indexSkips)) {
       if (!/\.md$/i.test(f.path)) continue;
       seen.add(f.path);
       const m = this.meta.get(f.path);
       if (m && m.mtimeMs === f.mtimeMs && m.size === f.size) continue;
       this.meta.set(f.path, { mtimeMs: f.mtimeMs, size: f.size });
+      changed = true;
       let text: string | null = null;
       try {
         text = await this.fs.readText(f.path);
@@ -86,12 +91,16 @@ export class Vault {
       if (seen.has(p)) continue;
       this.meta.delete(p);
       this.entries.delete(p);
+      changed = true;
     }
-    this.files = (await this.fs.walk('attachments')).map((f) => f.path);
+    const files = (await this.fs.walk('attachments')).map((f) => f.path);
+    if (files.join('\n') !== this.files.join('\n')) changed = true;
+    this.files = files;
+    if (changed) this.derived = {};
   }
 
   targets(): Targets {
-    return targetsOf([...this.entries.values()], this.files);
+    return (this.derived.targets ??= targetsOf([...this.entries.values()], this.files));
   }
 
   /** By vault path, title or alias, ignoring case and Unicode form. */
@@ -104,7 +113,7 @@ export class Vault {
   }
 
   backlinksOf(path: string): { from: string; link: Link }[] {
-    return backlinks(this.entries.values(), this.targets()).get(path) ?? [];
+    return (this.derived.backlinks ??= backlinks(this.entries.values(), this.targets())).get(path) ?? [];
   }
 
   duplicates(): string[][] {
@@ -137,9 +146,19 @@ export class Vault {
     for (const p of paths) if (!p.startsWith('.brain/') && (await this.fs.exists(p))) await this.fs.copy(p, `.brain/history/${stamp}/${p}`);
   }
 
-  async sweepHistory(days = 7): Promise<void> {
+  sweepHistory(days = 7): Promise<void> {
+    return this.sweepDays('.brain/history', days);
+  }
+
+  /** delete_note promises 30 days in .brain/trash/ (spec, Start: sweep trash older than 30 days). */
+  sweepTrash(days = 30): Promise<void> {
+    return this.sweepDays('.brain/trash', days);
+  }
+
+  /** Removes the <date> folders under `dir` older than `days`. Anything not named like a date is left alone. */
+  private async sweepDays(dir: string, days: number): Promise<void> {
     const cutoff = ymd(new Date(this.now().getTime() - days * 86_400_000));
-    for (const day of await this.fs.listDirs('.brain/history')) if (day < cutoff) await this.fs.removeDir(`.brain/history/${day}`);
+    for (const day of await this.fs.listDirs(dir)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && day < cutoff) await this.fs.removeDir(`${dir}/${day}`);
   }
 
   /** Snapshot what the plan changes, run it through the journal, then re-read. */

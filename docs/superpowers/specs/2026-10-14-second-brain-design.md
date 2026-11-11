@@ -1,5 +1,10 @@
 # Second brain: an Obsidian-style vault that replaces Notion
 
+> **Status (2026-11-10):** the vault MCP server described here shipped and lives on
+> in `mcp/brain` (TypeScript). The extension side (the Brain page, `src/shared/brain`)
+> was written for the TypeScript extension, which the Rust port deleted; those paths no
+> longer exist.
+
 *2026-10-14. Milestone 1 in full; later milestones scoped only. Decided
 in three interviews, the third after reverse engineering Obsidian and Notion
 (see "What we took from Obsidian and Notion", which also covers Gloss).

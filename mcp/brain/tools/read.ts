@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { resolve } from '../lib/links';
 import { hasRegex, parseQuery } from '../lib/query';
 import { search, toSearchDoc } from '../lib/search';
+import { indexSkips } from '../guards';
 import type { SearchRunner } from '../regexSearch';
 import type { Vault } from '../vault';
 import { fail, guard, ok, READ } from './common';
@@ -29,7 +30,7 @@ export function registerReadTools(server: McpServer, vault: Vault, runRegex: Sea
         const q = parseQuery(query);
         const docs = [...vault.entries.values()].map(toSearchDoc);
         const n = limit ?? 20;
-        const r = hasRegex(q) ? await runRegex(query, docs, n) : search(q, docs, { limit: n });
+        const r = hasRegex(q) ? await runRegex(query, docs, n) : { hits: search(q, docs, n), partial: false };
         const lines = r.hits.map((h) => `${h.title} (${h.path})`);
         if (r.partial) lines.push('Partial results: the regular expression was stopped after 2 s.');
         return ok(lines.length ? lines.join('\n') : 'No matches.');
@@ -108,14 +109,16 @@ export function registerReadTools(server: McpServer, vault: Vault, runRegex: Sea
     'list_folder',
     {
       title: 'List a folder',
-      description: 'List the subfolders and notes in a vault folder; the top of the vault when no folder is given.',
+      description: 'List the subfolders and notes in a vault folder; the top of the vault when no folder is given. sources/, attachments/ and hidden folders hold no notes and are not listed.',
       inputSchema: { folder: z.string().optional() },
       annotations: READ,
     },
     async ({ folder }) =>
       guard(vault, async () => {
         const f = (folder ?? '').replace(/^\/+|\/+$/g, '');
-        const dirs = (await vault.fs.listDirs(f)).filter((d) => !d.startsWith('.')).map((d) => `${d}/`);
+        // The folders the index never reads (sources/, attachments/, hidden ones) are left out: their notes are not in it.
+        if (f && indexSkips(f)) return fail(`"${f}" is not a folder notes live in.`);
+        const dirs = (await vault.fs.listDirs(f)).filter((d) => !indexSkips(f ? `${f}/${d}` : d)).map((d) => `${d}/`);
         const notes = [...vault.entries.values()].filter((e) => dirOf(e.path) === f).sort((a, b) => (a.title < b.title ? -1 : 1)).map((e) => `${e.title} (${e.path})`);
         const all = [...dirs, ...notes];
         return ok(all.length ? all.join('\n') : `"${f}" is empty or does not exist.`);

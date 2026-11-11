@@ -517,7 +517,7 @@ pub fn gemini_error(status: u16, body: &str) -> String {
         .ok()
         .and_then(|v| v["error"]["message"].as_str().map(str::to_lowercase))
         .unwrap_or_default();
-    if msg.contains("api key") || status == 401 || status == 403 && msg.contains("key") {
+    if msg.contains("api key") || status == 401 || (status == 403 && msg.contains("key")) {
         "The Gemini key in Settings isn't valid.".into()
     } else if status == 429 {
         "Gemini's usage limit is reached (per minute or per day). Try again later.".into()

@@ -29,6 +29,17 @@ pub fn now() -> i64 {
     js_sys::Date::now() as i64
 }
 
+/// Local midnight today, as epoch ms: where "today's" to-do list starts.
+pub fn today_start() -> i64 {
+    let d = js_sys::Date::new_0();
+    js_sys::Date::new_with_year_month_day(
+        d.get_full_year(),
+        d.get_month() as i32,
+        d.get_date() as i32,
+    )
+    .get_time() as i64
+}
+
 /// The local calendar date of a timestamp (the browser knows the time zone).
 pub fn local_date(ms: i64) -> CivilDate {
     let d = js_sys::Date::new(&JsValue::from_f64(ms as f64));
@@ -41,4 +52,44 @@ pub fn error(message: impl AsRef<str>) -> JsValue {
 
 pub fn log_error(context: &str, e: &JsValue) {
     web_sys::console::error_2(&JsValue::from_str(context), e);
+}
+
+#[wasm_bindgen]
+extern "C" {
+    // The global timers: a page's window and the service worker both have them.
+    #[wasm_bindgen(js_name = setTimeout)]
+    fn set_timeout(cb: &JsValue, ms: i32) -> i32;
+    #[wasm_bindgen(js_name = clearTimeout)]
+    fn clear_timeout(id: i32);
+}
+
+/// A timer that owns its callback: dropping it cancels the timer and frees the
+/// callback, so one cleared early (every answer that beats its timeout) leaks
+/// nothing. Keep it alive for as long as it may fire.
+pub struct Timeout {
+    id: i32,
+    _callback: Closure<dyn FnMut()>,
+}
+
+impl Timeout {
+    pub fn new(ms: i32, f: impl FnOnce() + 'static) -> Self {
+        let mut f = Some(f);
+        let callback = Closure::<dyn FnMut()>::new(move || {
+            if let Some(f) = f.take() {
+                f();
+            }
+        });
+        let id = set_timeout(callback.as_ref(), ms);
+        Self {
+            id,
+            _callback: callback,
+        }
+    }
+}
+
+impl Drop for Timeout {
+    fn drop(&mut self) {
+        // Before the callback is freed (fields drop after this), so it can never fire freed.
+        clear_timeout(self.id);
+    }
 }

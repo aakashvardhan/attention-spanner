@@ -1,9 +1,9 @@
 import { retarget, type Link } from './links';
-import { nfc, safeTitle, shortHash, titleKey, titleOf } from './names';
+import { folderProblem, nfc, safeTitle, shortHash, titleKey, titleOf } from './names';
 import { newPlanId, type Plan, type Step } from './plan';
 
 /**
- * Plans for rename, move, delete and heading rename (spec, Brain page 12, 13).
+ * Plans for rename, move and delete (spec, Brain page 12, 13).
  * Links are title-only, so a move changes no link; a rename rewrites every
  * link to the old title, in bodies, embeds, properties and the starred list.
  */
@@ -69,10 +69,8 @@ export function planRename(a: { note: NoteText; newTitle: string; linkers: NoteT
 
 export function planMove(a: { note: NoteText; folder: string; paths: Set<string> }): Planned {
   const folder = a.folder.replace(/^\/+|\/+$/g, '');
-  const parts = folder ? folder.split('/') : [];
-  if (parts.some((s) => s === '' || s === '.' || s === '..' || s.startsWith('.')) || /^(sources|attachments)$/i.test(parts[0] ?? '')) {
-    return fail(`"${a.folder}" is not a folder notes can live in`);
-  }
+  const problem = folderProblem(folder);
+  if (problem) return fail(problem);
   const to = join(folder, nameOf(a.note.path));
   if (titleKey(to) === titleKey(a.note.path)) return fail(`it is already in ${folder || 'the top folder'}`);
   if (a.paths.has(titleKey(to))) return fail(`${to} already exists`);
@@ -93,24 +91,4 @@ export function planDelete(a: { note: NoteText; date: string; taken: Set<string>
     plan: { id: newPlanId(), label: `delete "${titleOf(a.note.path)}"`, steps: [{ op: 'copy', from: a.note.path, to }, { op: 'remove', path: a.note.path }] },
     rewritten: [],
   };
-}
-
-export function planHeadingRename(a: { note: NoteText; oldHeading: string; newHeading: string; linkers: NoteText[] }): Planned {
-  const title = titleOf(a.note.path);
-  const sameHeading = (l: Link) => l.heading !== null && titleKey(l.heading) === titleKey(a.oldHeading);
-  const toNote = (l: Link) => l.target !== '' && titleKey(linkTitle(l)) === titleKey(title);
-  const change = () => ({ heading: a.newHeading.trim() });
-  const steps: Step[] = [];
-  const rewritten: string[] = [];
-  const own = retarget(a.note.text, (l) => sameHeading(l) && (l.target === '' || toNote(l)), change);
-  if (own !== a.note.text) steps.push({ op: 'write', path: a.note.path, text: own });
-  for (const l of a.linkers) {
-    if (titleKey(l.path) === titleKey(a.note.path)) continue;
-    const t = retarget(l.text, (x) => sameHeading(x) && toNote(x), change);
-    if (t !== l.text) {
-      steps.push({ op: 'write', path: l.path, text: t });
-      rewritten.push(l.path);
-    }
-  }
-  return { ok: true, plan: { id: newPlanId(), label: `rename heading "${a.oldHeading}" in "${title}"`, steps }, rewritten };
 }

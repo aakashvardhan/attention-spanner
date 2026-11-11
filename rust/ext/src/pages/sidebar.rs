@@ -11,6 +11,7 @@ use crate::js::{from_js, to_js, wait};
 use crate::page_text::{self, PageText, UNREADABLE};
 use crate::voice::sleep_ms;
 use leptos::prelude::*;
+use reader_core::constants::SIDEBAR_PAGE_PATH;
 use reader_core::voice_agent::Source;
 use reader_core::youtube;
 use serde_json::{json, Value};
@@ -81,7 +82,7 @@ async fn tab(pinned: Option<i32>, window: Option<i32>) -> Option<Value> {
     from_js(found).ok()
 }
 
-#[oxichrome::page(path = "src/pages/sidebar/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css", "assets/aiNote.css", "assets/markdown.css", "assets/sidebar.css"])]
+#[oxichrome::page(path = "src/pages/sidebar/index.html", title = "Reader", css = ["assets/theme.css", "assets/reader.css", "assets/aiNote.css", "assets/sidebar.css"])]
 pub fn Sidebar() -> impl IntoView {
     super::use_theme();
     if query_param("mic").is_some() {
@@ -245,7 +246,13 @@ fn PagePanels(tab_id: i32, page: PageText) -> impl IntoView {
             .and_then(|i| starts.get(i).cloned())
             .unwrap_or_default();
         leptos::task::spawn_local(async move {
-            super::video_panel::in_tab(tab_id, &mark_fn(), needle.into()).await;
+            super::video_panel::in_tab(
+                tab_id,
+                super::video_panel::ISOLATED,
+                &mark_fn(),
+                needle.into(),
+            )
+            .await;
         });
     });
     let title = Signal::stored(page.title.clone());
@@ -275,7 +282,7 @@ fn PagePanels(tab_id: i32, page: PageText) -> impl IntoView {
 pub fn MicHelp() -> impl IntoView {
     let open_mic = move |_| {
         if let Ok(props) =
-            to_js(&json!({ "url": chrome::get_url("src/pages/sidebar/index.html?mic=1") }))
+            to_js(&json!({ "url": chrome::get_url(&format!("{SIDEBAR_PAGE_PATH}?mic=1")) }))
         {
             let _ = chrome::tabs_create(&props);
         }

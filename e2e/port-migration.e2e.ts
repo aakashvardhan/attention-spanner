@@ -23,7 +23,7 @@ describe('rust port: phase 2 migration on update', () => {
     await ext.sw.evaluate(() => chrome.storage.local.remove('alphaxivPush'));
     // What an update does: fire the worker's own onInstalled listener (Playwright cannot follow a reloaded worker).
     await ext.sw.evaluate(() => (chrome.runtime.onInstalled as unknown as { dispatch(d: object): void }).dispatch({ reason: 'update' }));
-    await expect.poll(() => storage(ext, 'schemaVersion'), { timeout: 10_000 }).toBe(28);
+    await expect.poll(() => storage(ext, 'schemaVersion'), { timeout: 10_000 }).toBe(29);
     expect(await storage(ext, 'settings')).toEqual({ claudeKey: 'sk', focusBlocklist: ['x.com'] });
     expect((await storage<{ id: string }[]>(ext, 'papers')).map((p) => p.id)).toEqual(['2006.11239']);
     expect(await storage(ext, 'alphaxivPush')).toEqual([{ id: '2006.11239', folder: 'Diffusion' }]);

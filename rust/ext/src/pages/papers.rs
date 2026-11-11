@@ -10,6 +10,7 @@ use leptos::prelude::*;
 use reader_core::annotations::annotation_doc_key;
 use reader_core::constants::{LEXICON_PAGE_PATH, NEWTAB_PAGE_PATH};
 use reader_core::explain::ExplainBacks;
+use reader_core::lexicon::Lexicon;
 use reader_core::papers::group_by_folder;
 use reader_core::pdf::paper_open_url;
 use reader_core::shelf::{step, Arrival};
@@ -62,7 +63,7 @@ pub fn Papers() -> impl IntoView {
     let (papers, _) = use_storage::<Vec<Paper>>("papers");
     let (folders, folders_loaded) = use_storage::<Vec<Folder>>("folders");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
-    let (lexicon, _) = use_storage::<reader_core::lexicon::Lexicon>("lexicon");
+    let (lexicon, _) = use_storage::<Lexicon>("lexicon");
     // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
     leptos::task::spawn_local(async {
         send(json!({ "type": "ALPHAXIV_SYNC" })).await;
@@ -183,61 +184,9 @@ pub fn Papers() -> impl IntoView {
                     <Show when=move || folders_loaded.get() && folders.with(Vec::is_empty)>
                         <p class="library-hint">"Sign in to alphaXiv in Settings to bring in your library."</p>
                     </Show>
-                    {move || shelves.get().into_iter().enumerate().map(|(s, (folder, books))| {
-                        let heading = format!("folder-{}", folder.id);
-                        let labelled_by = heading.clone();
-                        let target = folder.clone();
-                        view! {
-                            <section class="shelf" aria-labelledby=labelled_by
-                                on:dragover=|e: web_sys::DragEvent| e.prevent_default()
-                                on:drop=move |e: web_sys::DragEvent| {
-                                    e.prevent_default();
-                                    let Some(data) = e.data_transfer().and_then(|d| d.get_data("application/x-paper").ok()) else { return };
-                                    let Some((paper_id, from)) = data.split_once('\n') else { return };
-                                    if from == target.id { return; }
-                                    let Some(paper) = papers.with_untracked(|p| p.iter().find(|p| p.id == paper_id).cloned()) else { return };
-                                    shelve(Shelving::Move { paper: Box::new(paper), from: from.to_string() }, target.clone());
-                                }>
-                                <h2 id=heading>{folder.name.clone()}<span class="shelf-count">{books.len()}</span></h2>
-                                <ul class="shelf-row">
-                                    {books.is_empty().then(|| view! { <li class="shelf-empty">"Nothing on this shelf yet."</li> })}
-                                    {books.into_iter().enumerate().map(|(b, p)| {
-                                        let marks = explains.with(|e| lexicon.with(|l| reader_core::game::marks(&p, e, l)));
-                                        let label = format!("{}. {}. {}.", p.title, progress_label(&p), reader_core::game::marks_label(marks));
-                                        let on = [marks.0, marks.1, marks.2 >= reader_core::game::TERMS_GOAL];
-                                        let drag = format!("{}\n{}", p.id, folder.id);
-                                        let from = folder.id.clone();
-                                        view! {
-                                            <li>
-                                                <button type="button" class="book" id=book_id(s, b)
-                                                    tabindex=move || if at.get() == (s, b) { "0" } else { "-1" }
-                                                    style=format!("--p: {}%", p.progress_percent.clamp(0.0, 100.0).round())
-                                                    aria-label=label aria-keyshortcuts="M" draggable="true"
-                                                    on:focus=move |_| at.set((s, b))
-                                                    on:dragstart=move |e: web_sys::DragEvent| {
-                                                        if let Some(d) = e.data_transfer() { let _ = d.set_data("application/x-paper", &drag); }
-                                                    }
-                                                    on:click={
-                                                        let p = p.clone();
-                                                        move |_| { at.set((s, b)); card.set(Some((p.clone(), from.clone(), (s, b)))); request_animation_frame(|| focus_id("book-card-continue")); }
-                                                    }>
-                                                    <span class="book-title" aria-hidden="true">{p.title.clone()}</span>
-                                                    <span class="book-meta" aria-hidden="true">{byline(&p)}</span>
-                                                    <span class="book-foot" aria-hidden="true">
-                                                        <span class="book-bar"></span>
-                                                        <span class="book-foot-line">
-                                                            {progress_label(&p)}
-                                                            <span class="book-marks">{on.map(|on| view! { <i data-on=on.then_some("")></i> })}</span>
-                                                        </span>
-                                                    </span>
-                                                </button>
-                                            </li>
-                                        }
-                                    }).collect_view()}
-                                </ul>
-                            </section>
-                        }
-                    }).collect_view()}
+                    <For each=move || shelves.with(|sh| sh.iter().map(|(f, _)| f.clone()).collect::<Vec<_>>()) key=|f| f.id.clone() let:folder>
+                        <Shelf folder shelves papers explains lexicon at card shelve=Callback::new(move |(m, f)| shelve(m, f)) />
+                    </For>
                 </section>
 
                 {move || card.get().map(|(p, from, _)| {
@@ -266,7 +215,7 @@ pub fn Papers() -> impl IntoView {
                                 <dt>"Marks"</dt><dd>{marks}</dd>
                             </dl>
                             {(!gaps.is_empty()).then(|| view! {
-                                <h3 class="define-label">"Still open from your last explain-back"</h3>
+                                <h3 class="small-label">"Still open from your last explain-back"</h3>
                                 <ul class="book-card-gaps">
                                     {gaps.into_iter().map(|(g, page)| view! {
                                         <li>{g}{page.map(|n| format!(" (page {n})"))}</li>
@@ -319,7 +268,7 @@ pub fn Papers() -> impl IntoView {
                         let items: Vec<Arrival> = items.into_iter().filter(|a| !shelved(a)).collect();
                         view! {
                             <div class="cart-list">
-                                <h3 class="define-label">{name}</h3>
+                                <h3 class="small-label">{name}</h3>
                                 {items.is_empty().then(|| view! { <p class="library-hint">"Nothing new here."</p> })}
                                 <ul>
                                     {items.into_iter().map(|a| {
@@ -351,5 +300,140 @@ pub fn Papers() -> impl IntoView {
                 })}
             </div>
         </div>
+    }
+}
+
+/// What a shelf is now: where it stands, its folder and its books.
+type Shelves = Memo<Vec<(Folder, Vec<Paper>)>>;
+type Card = RwSignal<Option<(Paper, String, (usize, usize))>>;
+
+/// One shelf. Shelves are keyed by folder id and books by paper id, so a
+/// write to papers, explain-backs or the lexicon (a sync, another tab)
+/// updates the books in place: the book you are on keeps its focus.
+#[component]
+fn Shelf(
+    folder: Folder,
+    shelves: Shelves,
+    papers: ReadSignal<Vec<Paper>>,
+    explains: ReadSignal<ExplainBacks>,
+    lexicon: ReadSignal<Lexicon>,
+    at: RwSignal<(usize, usize)>,
+    card: Card,
+    shelve: Callback<(Shelving, Folder)>,
+) -> impl IntoView {
+    // Kept while the shelf is on its way out, so it never reads as another.
+    let now = Memo::new(move |prev: Option<&(usize, Folder, Vec<String>)>| {
+        shelves
+            .with(|sh| {
+                sh.iter()
+                    .enumerate()
+                    .find(|(_, (f, _))| f.id == folder.id)
+                    .map(|(s, (f, books))| {
+                        (s, f.clone(), books.iter().map(|p| p.id.clone()).collect())
+                    })
+            })
+            .or_else(|| prev.cloned())
+            .unwrap_or_else(|| (0, folder.clone(), Vec::new()))
+    });
+    let heading = move || now.with(|(_, f, _)| format!("folder-{}", f.id));
+    view! {
+        <section class="shelf" aria-labelledby=heading
+            on:dragover=|e: web_sys::DragEvent| e.prevent_default()
+            on:drop=move |e: web_sys::DragEvent| {
+                e.prevent_default();
+                let Some(data) = e.data_transfer().and_then(|d| d.get_data("application/x-paper").ok()) else { return };
+                let Some((paper_id, from)) = data.split_once('\n') else { return };
+                let target = now.with_untracked(|(_, f, _)| f.clone());
+                if from == target.id { return; }
+                let Some(paper) = papers.with_untracked(|p| p.iter().find(|p| p.id == paper_id).cloned()) else { return };
+                shelve.run((Shelving::Move { paper: Box::new(paper), from: from.to_string() }, target));
+            }>
+            <h2 id=heading>{move || now.with(|(_, f, _)| f.name.clone())}<span class="shelf-count">{move || now.with(|(_, _, b)| b.len())}</span></h2>
+            <ul class="shelf-row">
+                <Show when=move || now.with(|(_, _, b)| b.is_empty())>
+                    <li class="shelf-empty">"Nothing on this shelf yet."</li>
+                </Show>
+                <For each=move || now.with(|(_, _, b)| b.clone()) key=|id| id.clone() let:id>
+                    <Book id shelf=now shelves explains lexicon at card />
+                </For>
+            </ul>
+        </section>
+    }
+}
+
+/// One book, updated in place; its place on the case is read live.
+#[component]
+fn Book(
+    id: String,
+    shelf: Memo<(usize, Folder, Vec<String>)>,
+    shelves: Shelves,
+    explains: ReadSignal<ExplainBacks>,
+    lexicon: ReadSignal<Lexicon>,
+    at: RwSignal<(usize, usize)>,
+    card: Card,
+) -> impl IntoView {
+    let book = Memo::new(move |prev: Option<&((usize, usize), Paper)>| {
+        let s = shelf.with(|(s, _, _)| *s);
+        shelves
+            .with(|sh| {
+                let books = &sh.get(s)?.1;
+                let b = books.iter().position(|p| p.id == id)?;
+                Some(((s, b), books[b].clone()))
+            })
+            .or_else(|| prev.cloned())
+            .unwrap_or_default()
+    });
+    let place = move || book.with(|(at, _)| *at);
+    let marks = Memo::new(move |_| {
+        book.with(|(_, p)| explains.with(|e| lexicon.with(|l| reader_core::game::marks(p, e, l))))
+    });
+    let paper = move |f: fn(&Paper) -> String| move || book.with(|(_, p)| f(p));
+    let label = move || {
+        book.with(|(_, p)| {
+            format!(
+                "{}. {}. {}.",
+                p.title,
+                progress_label(p),
+                reader_core::game::marks_label(marks.get())
+            )
+        })
+    };
+    view! {
+        <li>
+            <button type="button" class="book" id=move || { let (s, b) = place(); book_id(s, b) }
+                tabindex=move || if at.get() == place() { "0" } else { "-1" }
+                style=move || book.with(|(_, p)| format!("--p: {}%", p.progress_percent.clamp(0.0, 100.0).round()))
+                aria-label=label aria-keyshortcuts="M" draggable="true"
+                on:focus=move |_| at.set(place())
+                on:dragstart=move |e: web_sys::DragEvent| {
+                    let drag = book.with_untracked(|(_, p)| p.id.clone()) + "\n" + &shelf.with_untracked(|(_, f, _)| f.id.clone());
+                    if let Some(d) = e.data_transfer() { let _ = d.set_data("application/x-paper", &drag); }
+                }
+                on:click=move |_| {
+                    let here = place();
+                    at.set(here);
+                    let from = shelf.with_untracked(|(_, f, _)| f.id.clone());
+                    card.set(Some((book.with_untracked(|(_, p)| p.clone()), from, here)));
+                    request_animation_frame(|| focus_id("book-card-continue"));
+                }>
+                <span class="book-title" aria-hidden="true">{paper(|p| p.title.clone())}</span>
+                <span class="book-meta" aria-hidden="true">{paper(byline)}</span>
+                <span class="book-foot" aria-hidden="true">
+                    <span class="book-bar"></span>
+                    <span class="book-foot-line">
+                        {paper(progress_label)}
+                        <span class="book-marks">
+                            {(0..3).map(|i| {
+                                let on = move || {
+                                    let m = marks.get();
+                                    [m.0, m.1, m.2 >= reader_core::game::TERMS_GOAL][i].then_some("")
+                                };
+                                view! { <i data-on=on></i> }
+                            }).collect_view()}
+                        </span>
+                    </span>
+                </span>
+            </button>
+        </li>
     }
 }

@@ -39,7 +39,7 @@ jobs:
       - run: cargo install wasm-bindgen-cli --locked --version "$(grep -A1 '^name = "wasm-bindgen"$' rust/Cargo.lock | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
       - run: npm ci
       - run: npm run test:rust
-      - run: cd vendor/oxichrome && cargo test --workspace --exclude oxichrome --exclude oxichrome-core
+      - run: cd vendor/oxichrome && cargo test --locked --workspace --exclude oxichrome --exclude oxichrome-core
       - run: npx playwright install --with-deps chromium
       - run: npm run build:ext
       - run: npm run test:e2e

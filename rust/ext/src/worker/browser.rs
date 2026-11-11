@@ -3,13 +3,13 @@
 
 use super::session;
 use crate::chrome;
-use crate::js::{from_js, now, to_js, wait, Res};
+use crate::js::{from_js, now, to_js, today_start, wait, Res};
 use crate::store;
 use reader_core::constants::{NEWTAB_PAGE_PATH, PAPERS_PAGE_PATH};
 use reader_core::papers::{search_papers, xml_escape};
 use reader_core::pdf::{paper_open_url, paper_pdf_source, reader_page_path};
-use reader_core::pomodoro::{start_todos, Phase, Pomodoro, MAX_TASKS};
-use reader_core::todos::Todo;
+use reader_core::pomodoro::{open_tasks, start_todos, Phase, Pomodoro, MAX_TASKS};
+use reader_core::todos::{keep_today, Todo};
 use reader_core::types::{FocusSession, Paper};
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
@@ -91,15 +91,16 @@ pub async fn command(name: &str) -> Res<()> {
                     return Res::Ok(None);
                 }
                 let mut list: Vec<Todo> = store::get("todos").await?;
-                let mut open: Vec<&Todo> = list.iter().filter(|t| t.done_at.is_none()).collect();
-                open.sort_by_key(|t| {
-                    (t.started_at.is_none(), t.rank, t.due_at.is_none(), t.due_at)
-                });
-                let ids: Vec<String> = open.iter().take(MAX_TASKS).map(|t| t.id.clone()).collect();
+                let ids: Vec<String> = open_tasks(&list)
+                    .iter()
+                    .take(MAX_TASKS)
+                    .map(|t| t.id.clone())
+                    .collect();
                 let Some(round) = start_todos(&mut list, &ids, now()) else {
                     return Ok(None);
                 };
-                let items = json!({ "todos": list, "pomodoro": round });
+                // Written as the new tab writes the board: yesterday's finished tasks go.
+                let items = json!({ "todos": keep_today(list, today_start()), "pomodoro": round });
                 store::set_many(items.as_object().expect("object")).await?;
                 Ok(Some(round))
             })
@@ -161,6 +162,16 @@ pub async fn omnibox_url(text: &str) -> Res<String> {
 }
 
 const MENU_READER: &str = "open-reader";
+/// Paper links on arXiv and alphaXiv, with or without www (`*.` covers the
+/// bare domain): the abs, pdf and overview pages paper_pdf_source turns into
+/// a PDF, not every link on those sites, where the item would do nothing.
+const MENU_READER_LINKS: [&str; 5] = [
+    "*://*.arxiv.org/abs/*",
+    "*://*.arxiv.org/pdf/*",
+    "*://*.alphaxiv.org/abs/*",
+    "*://*.alphaxiv.org/pdf/*",
+    "*://*.alphaxiv.org/overview/*",
+];
 const MENU_LEXICON: &str = "lexicon";
 /// Handled in worker.js: opening the side panel must happen inside the click.
 const MENU_PANEL: &str = "panel";
@@ -171,7 +182,7 @@ pub async fn create_menus() -> Res<()> {
     for item in [
         json!({
             "id": MENU_READER, "title": "Open in Reader", "contexts": ["link"],
-            "targetUrlPatterns": ["*://arxiv.org/abs/*", "*://arxiv.org/pdf/*", "*://www.arxiv.org/*", "*://www.alphaxiv.org/abs/*", "*://alphaxiv.org/abs/*"],
+            "targetUrlPatterns": MENU_READER_LINKS,
         }),
         json!({ "id": MENU_LEXICON, "title": "Add \u{201c}%s\u{201d} to the lexicon", "contexts": ["selection"] }),
         json!({ "id": MENU_PANEL, "title": "Listen or talk this page through", "contexts": ["page"] }),

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PAGES, expectA11y, launch, seed, type Ext } from './harness';
+import { PAGES, closeTestPages, expectA11y, launch, seed, type Ext } from './harness';
 
 /** The Notes page: every video with saved takeaways, read right there. */
 describe('notes page', () => {
@@ -8,6 +8,7 @@ describe('notes page', () => {
     ext = await launch();
   });
   afterAll(async () => ext?.close());
+  closeTestPages(() => ext);
 
   it('says how to start when there are none', async () => {
     const page = await ext.page(PAGES.notes);

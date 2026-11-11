@@ -1,5 +1,8 @@
 # YouTube Sidebar Implementation Plan
 
+> **Status (2026-11-10): shipped** (spec Part 2, with the Notes page). The boxes below
+> were never ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** On a YouTube video the side panel shows Gemini-written takeaways (lecture / tutorial / educational shapes, clickable timestamps, saved per video) and Talk it through with Gemini as the brain (ask, never tell); a Notes page lists saved videos.

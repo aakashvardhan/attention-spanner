@@ -14,7 +14,7 @@ use crate::todos::Todo;
 use crate::types::Paper;
 
 /// Minutes that make a day count: the README's "twenty minutes with a paper".
-pub const DAY_GOAL: u32 = 20;
+pub(crate) const DAY_GOAL: u32 = 20;
 /// Terms kept from one paper for its third mark.
 pub const TERMS_GOAL: usize = 3;
 
@@ -64,9 +64,8 @@ impl Game {
             n => format!("{streak}. {n} minutes to go today."),
         }
     }
-}
 
-impl Game {
+    /// Every quest of the day done.
     pub fn cleared(&self) -> bool {
         !self.quests.is_empty() && self.quests.iter().all(|q| q.done)
     }
@@ -92,7 +91,7 @@ pub fn gain(prev: &Game, next: &Game) -> Option<String> {
 }
 
 /// Level n takes n × 100 XP: (level, XP into it, XP it takes).
-pub fn level_of(xp: u32) -> (u32, u32, u32) {
+pub(crate) fn level_of(xp: u32) -> (u32, u32, u32) {
     let (mut level, mut floor) = (1, 0);
     while xp >= floor + level * 100 {
         floor += level * 100;
@@ -101,7 +100,7 @@ pub fn level_of(xp: u32) -> (u32, u32, u32) {
     (level, xp - floor, level * 100)
 }
 
-pub fn title_of(level: u32) -> &'static str {
+pub(crate) fn title_of(level: u32) -> &'static str {
     match level {
         0..=1 => "Skimmer",
         2..=3 => "Reader",
@@ -116,7 +115,7 @@ pub fn title_of(level: u32) -> &'static str {
 /// Days in a row that met the goal, ending today or (while today is still
 /// open) yesterday. A single missed day between two met days is forgiven, at
 /// most once in seven days; it bridges the streak without adding to it.
-pub fn streak(log: &ActivityLog, today: CivilDate, minutes_today: u32) -> u32 {
+pub(crate) fn streak(log: &ActivityLog, today: CivilDate, minutes_today: u32) -> u32 {
     let met = |d: CivilDate| {
         if d == today {
             minutes_today >= DAY_GOAL
@@ -146,19 +145,21 @@ pub fn streak(log: &ActivityLog, today: CivilDate, minutes_today: u32) -> u32 {
 
 /// A paper's three marks: read, explained, and enough terms kept.
 pub fn marks(paper: &Paper, explains: &ExplainBacks, lexicon: &Lexicon) -> (bool, bool, usize) {
-    let key = annotation_doc_key(&paper.url);
-    let pdf_key = paper.pdf.as_ref().map(|p| annotation_doc_key(&p.url));
+    // The paper's page and its saved PDF: either may be what the reader keyed things by.
+    let keys: Vec<String> = std::iter::once(&paper.url)
+        .chain(paper.pdf.as_ref().map(|p| &p.url))
+        .map(|u| annotation_doc_key(u))
+        .collect();
     let terms = lexicon
         .terms
         .iter()
         .flat_map(|t| &t.sources)
-        .filter(|s| s.doc_key == key || Some(&s.doc_key) == pdf_key.as_ref())
+        .filter(|s| keys.contains(&s.doc_key))
         .count();
-    (
-        paper.progress_percent >= 90.0,
-        explains.get(&key).is_some_and(|l| !l.is_empty()),
-        terms,
-    )
+    let explained = keys
+        .iter()
+        .any(|k| explains.get(k).is_some_and(|l| !l.is_empty()));
+    (paper.progress_percent >= 90.0, explained, terms)
 }
 
 /// "Read · Explained · 1 of 3 terms", the marks still open said plainly.
@@ -223,7 +224,7 @@ pub fn build(
         .sum();
     let finished = papers
         .iter()
-        .filter(|p| p.deleted_at.is_none() && p.progress_percent >= 100.0)
+        .filter(|p| p.progress_percent >= 100.0)
         .count() as u32;
 
     let xp =
@@ -432,5 +433,29 @@ mod tests {
         let m = marks(&paper, &ExplainBacks::new(), &Lexicon::default());
         assert_eq!(m, (true, false, 0));
         assert_eq!(marks_label(m), "Read · Not explained yet · 0 of 3 terms");
+    }
+
+    #[test]
+    fn an_explain_back_under_the_saved_pdf_counts_like_a_term_does() {
+        let paper = Paper {
+            url: "https://example.com/paper".into(),
+            pdf: Some(crate::types::PdfState {
+                url: "https://example.com/files/paper.pdf".into(),
+                page: 1,
+                page_count: 9,
+                offset: 0.0,
+            }),
+            ..Default::default()
+        };
+        let back = ExplainBack {
+            at: 1,
+            problem: String::new(),
+            trick: String::new(),
+            why: String::new(),
+            grades: vec![],
+        };
+        let pdf_key = annotation_doc_key("https://example.com/files/paper.pdf");
+        let explains: ExplainBacks = [(pdf_key, vec![back])].into();
+        assert!(marks(&paper, &explains, &Lexicon::default()).1);
     }
 }

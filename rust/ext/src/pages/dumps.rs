@@ -1,5 +1,6 @@
 //! The only place past dumps can be read. The
 //! private key lives in this page's memory alone: closing it locks it again.
+//! While open it follows the stored list, so dumps sealed in another tab appear.
 
 use super::use_storage;
 use crate::js::{local_date, now};
@@ -7,13 +8,67 @@ use crate::{store, vault};
 use leptos::prelude::*;
 use reader_core::format::relative_date;
 use reader_core::vault::{DumpEntry, LockedDump, Vault};
+use std::collections::HashSet;
+use wasm_bindgen::JsValue;
 
 #[oxichrome::page(path = "src/pages/dumps/index.html", title = "Your dumps", css = ["assets/theme.css", "assets/dumps.css"])]
 pub fn Dumps() -> impl IntoView {
     super::use_theme();
     let (stored, loaded) = use_storage::<Option<Vault>>("vault");
+    let (locked, _) = use_storage::<Vec<LockedDump>>("lockedDumps");
+    let key = RwSignal::new_local(None::<JsValue>);
+    // None until the first opening is done; then the stored list is followed.
     let entries = RwSignal::new(None::<Vec<(String, DumpEntry)>>);
-    let failed = RwSignal::new(0usize);
+    // Ids that would not open, so they are not tried again.
+    let broken = RwSignal::new(HashSet::<String>::new());
+    let open = Memo::new(move |_| entries.with(Option::is_some));
+
+    // Once unlocked, a dump sealed in another tab opens here too, and one
+    // deleted anywhere goes.
+    Effect::new(move |_| {
+        let list = locked.get();
+        let Some(k) = key.get() else { return };
+        let ids: HashSet<&str> = list.iter().map(|d| d.id.as_str()).collect();
+        entries.update(|e| {
+            if let Some(e) = e {
+                e.retain(|(id, _)| ids.contains(id.as_str()));
+            }
+        });
+        broken.update(|b| b.retain(|id| ids.contains(id.as_str())));
+        let known: HashSet<String> =
+            entries.with_untracked(|e| e.iter().flatten().map(|(id, _)| id.clone()).collect());
+        let fresh: Vec<LockedDump> = list
+            .iter()
+            .filter(|d| !known.contains(&d.id) && !broken.with_untracked(|b| b.contains(&d.id)))
+            .cloned()
+            .collect();
+        if fresh.is_empty() {
+            entries.update(|e| {
+                e.get_or_insert_with(Vec::new);
+            });
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            let (opened, _) = vault::open_all(&k, &fresh).await;
+            broken.try_update(|b| {
+                b.extend(
+                    fresh
+                        .iter()
+                        .filter(|d| !opened.iter().any(|(id, _)| *id == d.id))
+                        .map(|d| d.id.clone()),
+                )
+            });
+            entries.try_update(|e| {
+                let e = e.get_or_insert_with(Vec::new);
+                for (id, entry) in opened {
+                    if !e.iter().any(|(i, _)| *i == id) {
+                        e.push((id, entry));
+                    }
+                }
+                e.sort_by_key(|(_, entry)| std::cmp::Reverse(entry.created_at));
+            });
+        });
+    });
 
     view! {
         <div id="root">
@@ -30,37 +85,39 @@ pub fn Dumps() -> impl IntoView {
                     }
                     .into_any();
                 }
-                match entries.get() {
-                    None => view! { <Unlock on_open=Callback::new(move |(opened, broken)| { entries.set(Some(opened)); failed.set(broken); }) /> }.into_any(),
-                    Some(list) => view! {
-                        <main class="dumps">
-                            <header class="dumps-head">
-                                <h1 class="dumps-title">"Your dumps"</h1>
-                                <span class="dumps-quiet">"Locks when you close this page"</span>
-                            </header>
-                            {move || {
-                                let n = failed.get();
-                                (n > 0).then(|| view! {
-                                    <p class="dumps-quiet" role="status">
-                                        {if n == 1 { "One entry couldn't be opened.".to_string() } else { format!("{n} entries couldn't be opened.") }}
-                                    </p>
-                                })
-                            }}
-                            {list.into_iter().map(|(id, entry)| {
-                                let gone = id.clone();
-                                view! { <Entry id=id entry=entry on_deleted=Callback::new(move |_| entries.update(|e| if let Some(e) = e { e.retain(|(i, _)| *i != gone) })) /> }
-                            }).collect_view()}
-                        </main>
-                    }
-                    .into_any(),
+                if !open.get() {
+                    return view! { <Unlock on_open=Callback::new(move |k| key.set(Some(k))) /> }.into_any();
                 }
+                view! {
+                    <main class="dumps">
+                        <header class="dumps-head">
+                            <h1 class="dumps-title">"Your dumps"</h1>
+                            <span class="dumps-quiet">"Locks when you close this page"</span>
+                        </header>
+                        {move || {
+                            let n = broken.with(HashSet::len);
+                            (n > 0).then(|| view! {
+                                <p class="dumps-quiet" role="status">
+                                    {if n == 1 { "One entry couldn't be opened.".to_string() } else { format!("{n} entries couldn't be opened.") }}
+                                </p>
+                            })
+                        }}
+                        <For
+                            each=move || entries.get().unwrap_or_default()
+                            key=|(id, _)| id.clone()
+                            children=move |(id, entry)| view! { <Entry id=id entry=entry /> }
+                        />
+                    </main>
+                }
+                .into_any()
             }}
         </div>
     }
 }
 
+/// Unlocks the vault; the private key goes to `on_open` and lives in this page's memory alone.
 #[component]
-fn Unlock(on_open: Callback<(Vec<(String, DumpEntry)>, usize)>) -> impl IntoView {
+fn Unlock(on_open: Callback<JsValue>) -> impl IntoView {
     let recovery = RwSignal::new(false);
     let secret = RwSignal::new(String::new());
     let error = RwSignal::new(String::new());
@@ -76,16 +133,12 @@ fn Unlock(on_open: Callback<(Vec<(String, DumpEntry)>, usize)>) -> impl IntoView
         error.set(String::new());
         leptos::task::spawn_local(async move {
             let v: Option<Vault> = store::get("vault").await.ok().flatten();
-            let locked: Vec<LockedDump> = store::get("lockedDumps").await.unwrap_or_default();
             let Some(v) = v else {
                 busy.set(false);
                 return;
             };
             match vault::unlock_vault(&v, &s, recovery.get_untracked()).await {
-                Ok(key) => {
-                    let (opened, failed) = vault::open_all(&key, &locked).await;
-                    on_open.run((opened, failed));
-                }
+                Ok(key) => on_open.run(key),
                 Err(message) => {
                     error.set(message);
                     busy.set(false);
@@ -133,14 +186,15 @@ fn Unlock(on_open: Callback<(Vec<(String, DumpEntry)>, usize)>) -> impl IntoView
 }
 
 #[component]
-fn Entry(id: String, entry: DumpEntry, on_deleted: Callback<()>) -> impl IntoView {
+fn Entry(id: String, entry: DumpEntry) -> impl IntoView {
     let show_raw = RwSignal::new(false);
     let confirming = RwSignal::new(false);
     let id = StoredValue::new(id);
     let remove = move |_| {
+        // The page follows the stored list, so the entry goes once the write lands.
         leptos::task::spawn_local(async move {
             // A failed read must not become an empty list written back over every dump.
-            let removed = vault::with_dump_lock(async move {
+            let _ = vault::with_dump_lock(async move {
                 let locked: Vec<LockedDump> = store::get("lockedDumps").await?;
                 let next: Vec<LockedDump> = locked
                     .into_iter()
@@ -149,9 +203,6 @@ fn Entry(id: String, entry: DumpEntry, on_deleted: Callback<()>) -> impl IntoVie
                 store::set("lockedDumps", &next).await
             })
             .await;
-            if removed.is_ok() {
-                on_deleted.run(());
-            }
         });
     };
     let when = relative_date(entry.created_at, now(), local_date(entry.created_at));

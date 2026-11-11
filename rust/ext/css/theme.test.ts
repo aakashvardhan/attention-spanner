@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The walnut-and-brass tokens, held to WCAG 2.2 AAA: every text colour on
+ * The palette tokens, held to WCAG 2.2 AAA: every text colour on
  * every surface it can land on clears 7:1, and the focus ring and filled
  * controls clear 3:1 (WCAG 2.4.13 / 1.4.11). Paper is :root; every alternate
  * palette (:root[data-theme='x']) is held to the same rules.
@@ -27,14 +27,14 @@ const get = (k: string): string => {
   return ref ? get(ref[1]) : v!;
 };
 
-export function luminance(hex: string): number {
+function luminance(hex: string): number {
   const h = hex.replace('#', '');
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) =>
     v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
   );
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
-export function contrast(a: string, b: string): number {
+function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)];
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
@@ -60,10 +60,7 @@ describe.each(PALETTES)('%s: WCAG AAA', (palette) => {
   it.each([
     ['--on-accent', '--accent'],
     ['--on-accent', '--accent-hover'],
-    ['--success', '--success-bg'],
-    ['--warning', '--warning-bg'],
     ['--danger', '--danger-bg'],
-    ['--success', '--bg-surface'],
     ['--danger', '--bg-surface'],
     // The primary button: ink with cream text
     ['--bg-page', '--rule'],
@@ -149,21 +146,41 @@ describe('theme structure', () => {
 
   it('every colour token a stylesheet reads is declared', () => {
     const sheets = readdirSync(__dirname).filter((f) => f.endsWith('.css'));
-    // Set at runtime: by JS (heatmap tooltip, settings index bar, card progress, clock hands) or by pdf.js (text layer).
+    // Set at runtime: inline by the Rust views (heatmap tooltip, settings index
+    // bar, card progress, clock hands, each reader page's --scale-factor in
+    // viewport.rs) or by pdf.js (--min-font-size on the text layer).
     const runtime = ['--x', '--y', '--p', '--h', '--m', '--s', '--indicator-y', '--indicator-h', '--scale-factor', '--min-font-size'];
     const declared = new Set([...css.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1]).concat(runtime));
     const missing = new Set<string>();
     for (const sheet of sheets) {
-      let text = '';
-      try {
-        text = readFileSync(join(__dirname, sheet), 'utf8');
-      } catch {
-        continue;
-      }
+      const text = readFileSync(join(__dirname, sheet), 'utf8');
       // Locally scoped custom properties (set and read in the same sheet) are fine.
       const local = new Set([...text.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1]));
       for (const m of text.matchAll(/var\((--[a-z0-9-]+)/g)) if (!declared.has(m[1]) && !local.has(m[1])) missing.add(`${sheet}: ${m[1]}`);
     }
     expect([...missing]).toEqual([]);
+  });
+
+  it('every token it declares is read: by a stylesheet, or by name from the Rust or JS', () => {
+    const sheets = readdirSync(__dirname).filter((f) => f.endsWith('.css')).map((f) => readFileSync(join(__dirname, f), 'utf8'));
+    const code = ['../src', '../js'].flatMap((dir) =>
+      (readdirSync(join(__dirname, dir), { recursive: true }) as string[])
+        .filter((f) => /\.(rs|js|mjs)$/.test(f))
+        .map((f) => readFileSync(join(__dirname, dir, f), 'utf8')),
+    );
+    const read = (t: string) => sheets.some((s) => s.includes(`var(${t})`) || s.includes(`var(${t},`)) || code.some((c) => c.includes(`"${t}"`) || c.includes(`'${t}'`));
+    const unread = [...new Set([...css.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1]))].filter((t) => !read(t));
+    expect(unread).toEqual([]);
+  });
+
+  it('--text-faint stays decorative: it never colours a word or a control, only rules, ticks and list markers', () => {
+    const sheets = readdirSync(__dirname).filter((f) => f.endsWith('.css') && f !== 'theme.css');
+    const offenders = sheets.flatMap((sheet) => {
+      const text = readFileSync(join(__dirname, sheet), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      return [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((r) => /(^|[;\s])color\s*:\s*var\(--text-faint\)/.test(r[2]) && !/::marker\s*$/.test(r[1].trim()))
+        .map((r) => `${sheet}: ${r[1].trim()}`);
+    });
+    expect(offenders).toEqual([]);
   });
 });

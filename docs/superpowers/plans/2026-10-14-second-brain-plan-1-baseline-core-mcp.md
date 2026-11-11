@@ -1,5 +1,10 @@
 # Second brain, plan 1 of 5: baseline, platform ground truth, shared core, vault MCP server
 
+> **Status (2026-11-10):** shipped as `mcp/brain` (the server, `baseline/` and
+> `probe/`). Paths under `src/` belonged to the TypeScript extension, which the Rust
+> port deleted. Most boxes below were never ticked, so they say nothing about what was
+> built.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Take the Notion baseline and measure the platform before any product code. Then build the tested shared vault logic and the vault MCP server that the import (plan 2) runs through.

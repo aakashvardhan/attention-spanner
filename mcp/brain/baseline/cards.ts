@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { reportsDir, vaultPath } from '../args';
+import { areaOf } from './notion';
 import { NOTION_DB, pageTitles, readNotion } from './notionDb';
 import { parseGroups, stratifiedSample } from './sample';
 
@@ -24,24 +25,14 @@ export async function cards(argv: string[]): Promise<void> {
     console.log(`${groups.length} groups, ${expected.length} cards. Saved card-sort.json.`);
     return;
   }
-  const { blocks, collectionParents } = readNotion(values.notion ?? NOTION_DB);
+  const { blocks, collectionParents } = await readNotion(values.notion ?? NOTION_DB);
   const titles = pageTitles(blocks);
   const byId = new Map(blocks.map((b) => [b.id, b]));
   const parent = (id: string) => byId.get(id)?.parent_id ?? collectionParents.get(id) ?? null;
-  // The stratum is the top-level page a page sits under: its area of the workspace.
-  const top = (id: string) => {
-    let cur = id;
-    for (let i = 0; i < 500; i++) {
-      const p = parent(cur);
-      if (!p || !titles.has(p)) return cur;
-      cur = p;
-    }
-    return cur;
-  };
   const pages = [...titles].filter(([id, t]) => t.trim() && byId.get(id)?.alive && !NEVER.has(t.trim().toLowerCase()));
   const titleTaken = new Set<string>();
   const unique = pages.filter(([, t]) => !titleTaken.has(t) && titleTaken.add(t));
-  const picked = stratifiedSample(unique, ([id]) => top(id), Number(values.n ?? 40), Number(values.seed ?? 1)).map(([, t]) => t);
+  const picked = stratifiedSample(unique, ([id]) => areaOf(id, parent, (x) => titles.has(x)), Number(values.n ?? 40), Number(values.seed ?? 1)).map(([, t]) => t);
   await writeFile(samplePath, JSON.stringify(picked, null, 1));
   await writeFile(
     sortPath,

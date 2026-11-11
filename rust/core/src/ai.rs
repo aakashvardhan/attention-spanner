@@ -6,7 +6,7 @@ use crate::types::AiCacheEntry;
 use std::collections::HashMap;
 
 /// For prompts whose answer renders as Markdown: math KaTeX can draw.
-pub const MATH_RULE: &str = " Write any math as LaTeX: $…$ inline, $$…$$ on its own line.";
+pub(crate) const MATH_RULE: &str = " Write any math as LaTeX: $…$ inline, $$…$$ on its own line.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Task {
@@ -68,7 +68,7 @@ pub struct AiRequest {
     pub cache_key: Option<String>,
 }
 
-pub fn define_system() -> String {
+pub(crate) fn define_system() -> String {
     format!(
         "You define terminology for someone reading a research paper who is new to the field. You get \
 a passage from the paper and the word the reader clicked in it. Find the term that word \

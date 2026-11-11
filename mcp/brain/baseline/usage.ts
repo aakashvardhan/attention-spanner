@@ -1,11 +1,10 @@
 import { copyFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import { reportsDir, vaultPath } from '../args';
 import { aggregateVisits, chromeTimeToMs, notionPageId } from './notion';
-import { NOTION_DB, pageTitles, readNotion } from './notionDb';
+import { NOTION_DB, pageTitles, readNotion, sqlite } from './notionDb';
 
 const HISTORY = join(homedir(), 'Library/Application Support/Google/Chrome/Default/History');
 
@@ -17,6 +16,7 @@ const HISTORY = join(homedir(), 'Library/Application Support/Google/Chrome/Defau
 export async function usage(argv: string[]): Promise<void> {
   const { values } = parseArgs({ args: argv, options: { vault: { type: 'string' }, history: { type: 'string' }, notion: { type: 'string' } } });
   const reports = await reportsDir(vaultPath(values.vault));
+  const { DatabaseSync } = await sqlite();
   // Chrome holds a lock on the live file, so read a copy.
   const copy = join(tmpdir(), `brain-history-${process.pid}.sqlite`);
   await copyFile(values.history ?? HISTORY, copy);
@@ -38,7 +38,7 @@ export async function usage(argv: string[]): Promise<void> {
   await writeFile(join(reports, 'baseline-usage.json'), JSON.stringify({ generatedAt: new Date().toISOString(), pages }, null, 1));
 
   // A readable list for writing the recall questions: titles come from Notion's own cache.
-  const titles = pageTitles(readNotion(values.notion ?? NOTION_DB).blocks);
+  const titles = pageTitles((await readNotion(values.notion ?? NOTION_DB)).blocks);
   const top = Object.entries(pages).sort((a, b) => b[1].visits - a[1].visits).slice(0, 100);
   const md = [
     '# Most visited Notion pages',

@@ -3,8 +3,7 @@
 //! permissions cover the API, so no CORS dance.
 
 use crate::chrome;
-use crate::claude::{clear_timeout, gloo_timeout};
-use crate::js::to_js;
+use crate::js::{to_js, Timeout};
 use js_sys::Reflect;
 use reader_core::youtube::{gemini_error, gemini_url};
 use serde_json::{json, Value};
@@ -30,7 +29,7 @@ pub async fn generate(
     .map_err(|_| "request")?;
     Reflect::set(&init, &"signal".into(), &controller.signal()).map_err(|_| "signal")?;
     let abort = controller.clone();
-    let timer = gloo_timeout(timeout_ms, move || abort.abort());
+    let timer = Timeout::new(timeout_ms, move || abort.abort());
     let result = async {
         let res: web_sys::Response = JsFuture::from(
             chrome::fetch(&gemini_url(), &init).map_err(|_| "Could not reach Gemini.")?,
@@ -50,7 +49,7 @@ pub async fn generate(
         }
     }
     .await;
-    clear_timeout(timer);
+    drop(timer);
     if controller.signal().aborted() && result.is_err() {
         return Err("Gemini took too long, or was stopped.".into());
     }

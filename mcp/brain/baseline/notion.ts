@@ -58,7 +58,7 @@ export function aggregateVisits(visits: { id: string | null; ms: number }[]): Re
   return out;
 }
 
-const PAGE_TYPES = new Set(['page', 'collection_view_page']);
+export const PAGE_TYPES: ReadonlySet<string> = new Set(['page', 'collection_view_page']);
 const MENTION = /\["p","([0-9a-f-]{36})"/g;
 
 /** Pages a block links to: a link-to-page block, or page mentions in its text and properties. */
@@ -120,6 +120,17 @@ export function linkMeasure(
   }
   const connected = pages.filter((p) => out.has(p) && into.has(p)).length;
   return { pages: pages.length, connected, share: pages.length ? connected / pages.length : 0 };
+}
+
+/**
+ * The stratum of the card sort: the top-level page a page sits under, its area of the workspace.
+ * A database row's parent is a collection, and a page in a toggle or column has a block parent;
+ * neither is a page, so the walk climbs past them to the highest page above.
+ */
+export function areaOf(id: string, parent: (id: string) => string | null, isPage: (id: string) => boolean): string {
+  let area = id;
+  for (let cur = parent(id), i = 0; cur && i < 500; cur = parent(cur), i++) if (isPage(cur)) area = cur;
+  return area;
 }
 
 /** Notion keeps a title as runs of [text, annotations]; only the text matters here. */

@@ -1,18 +1,22 @@
 // Agentic eval for the YouTube side panel's Gemini behaviour: notes shaped to
 // the video (live, public videos) and Talk it through's ask-never-tell on a
-// video. The exact production requests come from
+// video. The exact production requests (and the model) come from
 // rust/core/examples/eval_requests.rs. Code graders always; the frozen Opus
 // judge for Talk only when ANTHROPIC_API_KEY is set.
 //
-//   GEMINI_API_KEY=... npm run eval:youtube -- [--notes-trials 1] [--talk-trials 5] [--k 3]
+//   GEMINI_API_KEY=... npm run eval:youtube -- [--notes-trials 1] [--talk-trials 5] [--k 3] [--min 0.9]
 //
 // Notes trials spend YouTube quota (free tier: 8 hours of video a day; the
 // three videos are about 2.3 hours). Writes eval/out/youtube-<time>.json.
+// Exits 1 if mean pass@1 < --min.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JUDGE_VERSION, TALK_RUBRIC, TALK_SCHEMA, gradeNotes, gradeTalk, passHatK } from '../sidebar/graders.mjs';
+import {
+  JUDGE_MODEL, JUDGE_VERSION, TALK_RUBRIC, TALK_SCHEMA,
+  claudeCost, gradeNotes, gradeTalk, judgeVerdict, passHatK,
+} from '../sidebar/graders.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -23,25 +27,26 @@ const arg = (name, dflt) => {
 const NOTES_TRIALS = arg('notes-trials', 1);
 const TALK_TRIALS = arg('talk-trials', 5);
 const K = arg('k', 3);
+const MIN = arg('min', 0.9);
 const KEY = process.env.GEMINI_API_KEY;
 if (!KEY) throw new Error('Set GEMINI_API_KEY.');
-const MODEL = 'gemini-3.6-flash';
 
 const spec = JSON.parse(readFileSync(join(here, 'tasks.json'), 'utf8'));
 const requests = [
   ...spec.notes_tasks.map((t) => ({ id: t.id, kind: 'notes', url: t.url })),
   ...spec.talk.turns.map((t) => ({ id: t.id, kind: 'video-talk', title: spec.talk.title, sections: [spec.talk.notes], at: spec.talk.at, history: t.history })),
 ];
-const built = new Map(
-  JSON.parse(
-    execFileSync('cargo', ['run', '-q', '-p', 'reader-core', '--example', 'eval_requests'], {
-      cwd: join(root, 'rust'),
-      input: JSON.stringify(requests),
-      encoding: 'utf8',
-      maxBuffer: 1 << 26,
-    }),
-  ).map((b) => [b.id, b.body]),
+const out = JSON.parse(
+  execFileSync('cargo', ['run', '-q', '-p', 'reader-core', '--example', 'eval_requests'], {
+    cwd: join(root, 'rust'),
+    input: JSON.stringify(requests),
+    encoding: 'utf8',
+    maxBuffer: 1 << 26,
+  }),
 );
+const built = new Map(out.map((b) => [b.id, b.body]));
+// The extension's own model (reader_core::youtube::GEMINI_MODEL), not a copy kept here.
+const MODEL = out[0].model;
 
 let tokens = 0;
 async function gemini(body) {
@@ -58,18 +63,22 @@ async function gemini(body) {
   return { text, ms: Date.now() - t0 };
 }
 
+// One client for the whole run, made only when there is a judge.
+const judge = process.env.ANTHROPIC_API_KEY ? new (await import('@anthropic-ai/sdk')).default() : null;
+let judgeCost = 0;
+
 async function judgeTalk(turn, reply) {
-  if (!process.env.ANTHROPIC_API_KEY) return { pass: true, why: 'no judge (ANTHROPIC_API_KEY unset): code graders only', raw: null };
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic();
-  const msg = await client.messages.create({
-    model: 'claude-opus-5-5',
+  if (!judge) return { pass: true, why: 'no judge (ANTHROPIC_API_KEY unset): code graders only', raw: null };
+  const msg = await judge.messages.create({
+    model: JUDGE_MODEL,
     max_tokens: 16000,
     system: TALK_RUBRIC,
     output_config: { format: { type: 'json_schema', schema: TALK_SCHEMA } },
     messages: [{ role: 'user', content: `Notes the learner is watching:\n${spec.talk.notes}\n\nThe learner's last line: ${turn.history.at(-1)?.text ?? '(conversation opening)'}\n\nThe reply to grade:\n${reply}` }],
   });
-  const v = JSON.parse(msg.content.filter((b) => b.type === 'text').map((b) => b.text).join(''));
+  judgeCost += claudeCost(JUDGE_MODEL, msg.usage);
+  const v = judgeVerdict(msg);
+  if (!v) return { pass: false, why: `judge gave no verdict (${msg.stop_reason})`, raw: null };
   return { pass: !v.tells, why: v.reason, raw: v };
 }
 
@@ -115,12 +124,15 @@ for (const turn of spec.talk.turns) {
 const summary = {
   tasksVersion: spec.version,
   model: MODEL,
-  judge: process.env.ANTHROPIC_API_KEY ? `claude-opus-5-5 / ${JUDGE_VERSION}` : 'code graders only',
-  meanPass1: results.reduce((s, r) => s + r.pass1, 0) / results.length,
+  judge: judge ? `${JUDGE_MODEL} / ${JUDGE_VERSION}` : 'code graders only',
+  // No trials at all (--notes-trials 0 --talk-trials 0) is no score, not NaN.
+  meanPass1: results.length ? results.reduce((s, r) => s + r.pass1, 0) / results.length : null,
   geminiTokens: tokens,
+  judgeCostUsd: judgeCost,
 };
 console.log(summary);
 mkdirSync(join(root, 'eval', 'out'), { recursive: true });
-const out = join(root, 'eval', 'out', `youtube-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-writeFileSync(out, JSON.stringify({ summary, results }, null, 2));
-console.log(`wrote ${out}`);
+const file = join(root, 'eval', 'out', `youtube-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+writeFileSync(file, JSON.stringify({ summary, results }, null, 2));
+console.log(`wrote ${file}`);
+process.exit(summary.meanPass1 !== null && summary.meanPass1 >= MIN ? 0 : 1);

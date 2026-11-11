@@ -44,8 +44,9 @@
 }
 
 .md code {
-  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -80,7 +81,7 @@
 }
 
 /* Wide equations scroll inside their own line rather than stretching the
-   bubble or the page. */
+   answer or the page. .katex-display is KaTeX's wrapper for display maths. */
 .md .katex-display {
   margin: var(--space-2) 0;
   overflow-x: auto;

@@ -19,13 +19,13 @@ const URI_COMPONENT: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'(')
     .remove(b')');
 
-pub fn encode_uri_component(s: &str) -> String {
+pub(crate) fn encode_uri_component(s: &str) -> String {
     utf8_percent_encode(s, URI_COMPONENT).to_string()
 }
 
 /// Does this URL look like a PDF? http(s) only, so the reader's own
 /// chrome-extension:// URL never matches and interception cannot loop.
-pub fn is_pdf_url(url: &str) -> bool {
+pub(crate) fn is_pdf_url(url: &str) -> bool {
     let Ok(u) = url::Url::parse(url) else {
         return false;
     };
@@ -58,7 +58,7 @@ pub fn reader_page_path(pdf_url: &str) -> String {
 }
 
 /// The arXiv PDF URL for an id or arXiv link, or `None` when it is not arXiv.
-pub fn arxiv_pdf_url(id: &str) -> Option<String> {
+pub(crate) fn arxiv_pdf_url(id: &str) -> Option<String> {
     arxiv_id(id).map(|id| format!("https://arxiv.org/pdf/{id}"))
 }
 
@@ -98,7 +98,7 @@ pub fn paper_open_url(paper: &Paper, via_alphaxiv: bool, extension_base: &str) -
 }
 
 /// arXiv PDF links (abs pages are left alone). RE2 syntax: Chrome compiles it for DNR.
-pub const ARXIV_PDF_FILTER: &str = r"^https?://(www\.|export\.)?arxiv\.org/pdf/.+";
+pub(crate) const ARXIV_PDF_FILTER: &str = r"^https?://(www\.|export\.)?arxiv\.org/pdf/.+";
 
 /// The session rule sending arXiv PDFs into the reader, before the request leaves.
 pub fn reader_redirect_rule(reader_url: &str) -> crate::focus_rules::DnrRule {
@@ -121,9 +121,15 @@ pub fn reader_redirect_rule(reader_url: &str) -> crate::focus_rules::DnrRule {
 }
 
 /// "Open in Chrome's viewer" for one URL, for the rest of the session: an allow
-/// rule a step above the redirect.
+/// rule a step above the redirect. `urlFilter` reads `*`, `^` and `|` as syntax
+/// and has no escape, so a URL holding one is matched by an anchored regex.
 pub fn bypass_rule(url: &str, index: usize) -> crate::focus_rules::DnrRule {
     use crate::focus_rules::{DnrAction, DnrCondition, DnrRule};
+    let (url_filter, regex_filter) = if url.contains(['*', '^', '|']) {
+        (None, Some(format!("^{}$", regex::escape(url))))
+    } else {
+        (Some(format!("|{url}|")), None)
+    };
     DnrRule {
         id: crate::constants::PDF_BYPASS_DNR_ID_BASE + index as i64,
         priority: 2,
@@ -131,9 +137,9 @@ pub fn bypass_rule(url: &str, index: usize) -> crate::focus_rules::DnrRule {
             kind: "allow".into(),
             redirect: None,
         },
-        // ponytail: urlFilter treats * ^ | as syntax, so a URL containing them won't match; escape-free regexFilter if it bites.
         condition: DnrCondition {
-            url_filter: Some(format!("|{url}|")),
+            url_filter,
+            regex_filter,
             resource_types: vec!["main_frame".into()],
             ..Default::default()
         },
@@ -176,7 +182,7 @@ pub fn position_from_scroll(tops: &[f64], heights: &[f64], scroll_mid: f64) -> P
 }
 
 /// Reading progress as 0-100.
-pub fn compute_pdf_percent(page: u32, page_count: u32, offset: f64) -> u32 {
+pub(crate) fn compute_pdf_percent(page: u32, page_count: u32, offset: f64) -> u32 {
     if page_count == 0 {
         return 0;
     }
@@ -341,7 +347,6 @@ mod tests {
             added_at: 0,
             updated_at: 0,
             last_read_at: None,
-            deleted_at: None,
         }
     }
 
@@ -461,6 +466,15 @@ mod tests {
             (Some(3003), Some(2), Some("allow"))
         );
         assert_eq!(b["condition"]["urlFilter"], "|https://arxiv.org/pdf/1|");
+        assert!(b["condition"].get("regexFilter").is_none());
+        // urlFilter syntax in the URL: an escaped, anchored regex instead.
+        let odd = "https://arxiv.org/pdf/1?q=a*b^c|d";
+        let b = serde_json::to_value(bypass_rule(odd, 0)).unwrap();
+        assert!(b["condition"].get("urlFilter").is_none());
+        let re = regex::Regex::new(b["condition"]["regexFilter"].as_str().unwrap()).unwrap();
+        assert!(re.is_match(odd));
+        assert!(!re.is_match("https://arxiv.org/pdf/1?q=aab^c|d"));
+        assert!(!re.is_match(&format!("{odd}x")));
         assert!(is_pdf_rule(3000) && is_pdf_rule(3100) && !is_pdf_rule(3101) && !is_pdf_rule(1000));
     }
 

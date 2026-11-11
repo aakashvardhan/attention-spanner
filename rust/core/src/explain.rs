@@ -11,7 +11,7 @@ const PAPER_TEXT_MAX_CHARS: usize = 150_000;
 /// A gap is a pointer, not an essay.
 const GAP_MAX_CHARS: usize = 200;
 /// Explain-backs kept per paper.
-pub const HISTORY_MAX: usize = 10;
+pub(crate) const HISTORY_MAX: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -79,7 +79,7 @@ pub fn record(all: &mut ExplainBacks, doc_key: &str, entry: ExplainBack) {
     }
 }
 
-pub fn grade_system() -> String {
+pub(crate) fn grade_system() -> String {
     "You check whether a reader understood a research paper. You get the paper's text, marked \
 [page N], and the reader's own words for three parts: the problem, the key trick, and why it \
 works. Grade each part as got, partial or missing. For partial or missing, name what is missing \

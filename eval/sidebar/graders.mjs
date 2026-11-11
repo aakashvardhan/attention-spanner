@@ -37,6 +37,32 @@ export function gradeListen(text, task) {
 }
 
 export const JUDGE_VERSION = 'sidebar-judge-2026-11-07';
+/** The frozen judge, for both runners (eval/sidebar, eval/youtube). */
+export const JUDGE_MODEL = 'claude-opus-5-5';
+
+/** $ per million tokens (input, output), from the Claude API price table. */
+const PRICES = { 'claude-haiku-5-5': [0.1, 0.5], 'claude-opus-5-5': [4, 20] };
+
+/**
+ * One Claude call's cost in $. Cached input is not full price: a cache read
+ * is 0.1x the input rate, a cache write 1.25x.
+ */
+export function claudeCost(model, usage) {
+  const [i, o] = PRICES[model];
+  const input = usage.input_tokens + 1.25 * (usage.cache_creation_input_tokens ?? 0) + 0.1 * (usage.cache_read_input_tokens ?? 0);
+  return (input * i + usage.output_tokens * o) / 1e6;
+}
+
+/**
+ * A judge reply's verdict, or null when there is none to read (a refusal or an
+ * empty reply), which the runners count as a failed trial, not a crash.
+ */
+export function judgeVerdict(msg) {
+  if (msg.stop_reason === 'refusal') return null;
+  const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  if (!text.trim()) return null;
+  return JSON.parse(text);
+}
 
 export const TALK_RUBRIC = `You grade one reply from a study partner whose rule is "ask, never tell".
 The partner may reflect the learner's own words briefly, then must ask a question.
@@ -70,7 +96,7 @@ export const LISTEN_SCHEMA = {
 };
 
 /** n choose k, exact for the small numbers here. */
-export function choose(n, k) {
+function choose(n, k) {
   if (k < 0 || k > n) return 0;
   let r = 1;
   for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
@@ -82,7 +108,7 @@ export const passAtK = (n, c, k) => 1 - choose(n - c, k) / choose(n, k);
 export const passHatK = (n, c, k) => choose(c, k) / choose(n, k);
 
 /** MM:SS / M:SS / H:MM:SS to seconds, else null (mirrors reader_core::youtube::seconds). */
-export function seconds(t) {
+function seconds(t) {
   const parts = String(t).trim().split(':');
   if (parts.length < 2 || parts.length > 3) return null;
   let total = 0;

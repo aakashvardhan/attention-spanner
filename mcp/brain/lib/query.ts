@@ -135,35 +135,6 @@ export function parseQuery(src: string): Q {
   return q;
 }
 
-const atom = (q: Q): string => (q.t === 'and' || q.t === 'or' ? `(${printQuery(q)})` : printQuery(q));
-
-export function printQuery(q: Q): string {
-  switch (q.t) {
-    case 'term':
-      return q.phrase ? `"${q.v.replace(/["\\]/g, '\\$&')}"` : q.v;
-    case 'regex':
-      return `/${q.v}/`;
-    case 'and':
-      return q.a.map((x) => (x.t === 'or' ? `(${printQuery(x)})` : printQuery(x))).join(' ');
-    case 'or':
-      return q.a.map(printQuery).join(' OR ');
-    case 'not':
-      return `-${atom(q.a)}`;
-    case 'op':
-      return `${q.op}:${atom(q.a)}`;
-  }
-}
-
-/** Flattens nested ANDs and ORs, the shape parseQuery produces. */
-export function normalizeQuery(q: Q): Q {
-  if (q.t === 'and' || q.t === 'or') {
-    const a = q.a.map(normalizeQuery).flatMap((x) => (x.t === q.t ? (x as { a: Q[] }).a : [x]));
-    return a.length === 1 ? a[0] : { t: q.t, a };
-  }
-  if (q.t === 'not' || q.t === 'op') return { ...q, a: normalizeQuery(q.a) };
-  return q;
-}
-
 export function hasRegex(q: Q): boolean {
   if (q.t === 'regex') return true;
   if (q.t === 'and' || q.t === 'or') return q.a.some(hasRegex);

@@ -3,6 +3,12 @@
 One entry per phase: the Rust and wasm ideas the phase used, and where to read
 them. Read the files in the order listed.
 
+This is a log: each entry is true of the code as that phase left it. For the
+current state read the README and the module headers (`//!`). Two places have
+moved on since: the bookshelf of Phase 6b is now one deck of cards per folder
+(`pages/papers.rs`), and Phase 0's `DIST=` is no longer needed, since the e2e
+harness loads `rust/ext/dist/chromium` by default.
+
 ## Phase 0: fork and skeleton
 
 **Build it:** `npm run build:ext`, then load `rust/ext/dist/chromium` unpacked.
@@ -183,9 +189,12 @@ including pinch-zoom geometry and scanned pages.
    reactive `style:` update of the same change lands, so the browser saw the
    old list width and clamped `scrollLeft`. The instrumented log showed
    it; the effect now writes the new size itself before scrolling.
-5. **Non-passive listeners.** Stopping the browser's own zoom needs
-   `addEventListener('wheel', f, { passive: false })`, built with
-   `AddEventListenerOptions` rather than Leptos's `on:wheel`.
+5. **Non-passive listeners.** Stopping the browser's own zoom needs a wheel
+   listener that is not passive. Chrome makes wheel listeners passive by
+   default only on window, document and body; Leptos (without its
+   `delegation` feature) adds `on:wheel` to the element itself, so
+   `prevent_default` works there (the lexicon's pinch). The reader adds its
+   own with `AddEventListenerOptions { passive: false }` to say so outright.
 6. **Copy closures.** A closure that captures a `String` can be called once
    if it moves it. Holding the string in a `StoredValue` (itself `Copy`)
    makes the closure `Copy`, so it can be shared by several handlers.
@@ -235,7 +244,7 @@ Found, not fixed (the port keeps behaviour; for phase 6):
 - The notes list's delete mark shows on hover only and is a `span`, so it
   cannot be reached from the keyboard (WCAG 2.1.1).
 - The side panels are translucent; over a white PDF page their cream text is
-  low contrast. The walnut page recolour should fix it; the AAA tests should check.
+  low contrast. The page recolour should fix it; the AAA tests should check.
 - pdf-bridge imports pdf.js statically, so every page (and the worker)
   loads it. Phase 5 should make it lazy, as KaTeX now is.
 
@@ -275,7 +284,8 @@ mismatch that did not recur in five runs.
 
 ## Phase 6a: the reader asks (`core/src/{recolor,questions,explain}.rs`, `reader/think.rs`)
 
-Papers-library step 4, built in Rust. The page is walnut, the reader asks one
+Papers-library step 4, built in Rust. The page was walnut then (one theme; the
+palettes, with dark grid the default, came later), the reader asks one
 question at a section's end (or on Q, or after two minutes on one view), and
 E opens the explain-back: problem, trick, why, graded to the gap and the page
 to look at. 56 browser tests pass, 4 of them new.
@@ -313,7 +323,7 @@ Fixed on the way: the notes list's delete is a real button beside the row
 (it was a `span` inside a `button`), faded rather than hidden so Tab reaches
 it; the section rail's buttons had no accessible name while their labels were
 hidden (an outlined test PDF found it). The translucent-panel contrast issue
-went away with the walnut page.
+went away with the recoloured (then walnut) page.
 
 Open: alphaXiv highlights (one-way import) wait on a real `get_paper_notes`
 reply to read the format from. The stall time is a constant, not a setting,
@@ -436,8 +446,8 @@ Rust ideas it used:
   recorder's own callback would drop the closure that is running, so `Done`
   defers it with `spawn_local`.
 - **UTF-16 vs `char`.** The DOM's `selectionStart` counts UTF-16 units and Rust
-  strings count bytes or `char`s, so `utf16_to_char` / `char_to_utf16` sit
-  between them (an emoji is 2 units, 1 char).
+  strings count bytes or `char`s, so `utf16::utf16_to_chars` / `chars_to_utf16`
+  sit between them (an emoji is 2 units, 1 char).
 
 Latency: the browser does what it does best (noise suppression, echo
 cancellation, AGC, resampling to 16 kHz via `AudioContext({sampleRate})`, a

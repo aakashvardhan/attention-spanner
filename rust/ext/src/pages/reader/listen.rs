@@ -318,15 +318,15 @@ pub fn ListenPanel(
                     }}
                 </div>
                 {on_jump.is_some().then(|| view! {
-                    <label class="define-label">
+                    <label class="small-label">
                         <input type="checkbox" prop:checked=move || follow.get() on:change=move |e| follow.set(event_target_checked(&e)) />
                         {if matches!(source, Source::Paper) { " Turn pages as it reads" } else { " Follow along on the page" }}
                     </label>
                 })}
                 <Show when=move || notice.with(|n| !n.is_empty())>
-                    <p class="define-label" role="status">{move || notice.get()}</p>
+                    <p class="small-label" role="status">{move || notice.get()}</p>
                 </Show>
-                {move || waiting.get().map(|s| view! { <p class="define-label" role="status">{format!("Groq's per-minute limit: carrying on in {s} s…")}</p> })}
+                {move || waiting.get().map(|s| view! { <p class="small-label" role="status">{format!("Groq's per-minute limit: carrying on in {s} s…")}</p> })}
                 <Show when=move || error.with(|e| !e.is_empty())>
                     <p class="ai-note-error" role="alert">{move || error.get()}</p>
                 </Show>

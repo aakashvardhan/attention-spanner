@@ -21,14 +21,7 @@ export function createServer(vault: Vault, opts: ServerOptions = {}): McpServer 
 }
 
 async function main() {
-  let root: string;
-  try {
-    root = vaultPath();
-  } catch (e) {
-    console.error((e as Error).message);
-    process.exit(1);
-  }
-  const vault = await Vault.open(root);
+  const vault = await Vault.open(vaultPath());
   await createServer(vault).connect(new StdioServerTransport());
 }
 
@@ -40,4 +33,9 @@ const isMain = () => {
     return false;
   }
 };
-if (isMain()) void main();
+// A bad BRAIN_VAULT, an unreadable journal or a permission error: one line on stderr, not a stack trace.
+if (isMain())
+  main().catch((e: unknown) => {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  });

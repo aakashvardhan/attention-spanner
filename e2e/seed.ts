@@ -1,5 +1,5 @@
 /** The storage shapes the suite seeds (rust/core/src/types.rs is the source of truth). */
-export interface Folder {
+interface Folder {
   id: string;
   name: string;
   type: string;

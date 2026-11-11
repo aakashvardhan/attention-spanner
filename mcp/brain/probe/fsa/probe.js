@@ -64,8 +64,12 @@ document.getElementById('pick').onclick = () =>
   });
 
 document.getElementById('run').onclick = async () => {
-  if (!dir) dir = await loadHandle();
-  if (!dir) return step('run', async () => { throw new Error('pick a folder first'); });
+  // Every await that can fail sits inside a step, so a failure (say, permission lost after a restart) is recorded, not an unhandled rejection.
+  await step('open the saved folder', async () => {
+    if (!dir) dir = await loadHandle();
+    if (!dir) throw new Error('pick a folder first');
+  });
+  if (!dir) return;
   await step('list top level', async () => ({ entries: (await names(dir)).length }));
   await step('read up to 20 notes', async () => {
     const times = [];
@@ -88,8 +92,13 @@ document.getElementById('run').onclick = async () => {
     await walk(dir, 0);
     return { read: times.length, medianMs: median(times), maxMs: times.length ? Math.max(...times) : null, errors };
   });
-  const probe = await dir.getDirectoryHandle('.brain-probe', { create: true });
-  const fh = await probe.getFileHandle('w.md', { create: true });
+  let probe = null;
+  let fh = null;
+  await step('create the probe folder', async () => {
+    probe = await dir.getDirectoryHandle('.brain-probe', { create: true });
+    fh = await probe.getFileHandle('w.md', { create: true });
+  });
+  if (!fh) return;
   await step('write 1 MB through createWritable', async () => {
     const w = await fh.createWritable();
     await w.write('x'.repeat(1_000_000));

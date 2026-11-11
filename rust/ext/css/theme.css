@@ -1,7 +1,8 @@
 /*
  * Theme tokens shared by every extension page. Loaded before the
- * page stylesheet. One theme (walnut and brass); page CSS uses only these
- * tokens for colors. Alternate palettes override them under [data-theme].
+ * page stylesheet. :root is the light paper palette; page CSS uses only these
+ * tokens for colors. The alternates (mist, graphite, rose, daylight and dark
+ * grid, the default) override them under [data-theme].
  *
  * Typeface: Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — license
  * ships at /fonts/OFL.txt). Bundled locally; extension pages load their own
@@ -64,7 +65,6 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
-  --radius-2xl: 24px;
   --radius-pill: 999px;
 
   /* Type scale, each size paired with a leading on the 4px baseline. */
@@ -85,14 +85,27 @@
   /* The article measure: 16px type on a 28px line, for long reading. */
   --leading-read: 28px;
 
-  --transition-fast: 0.15s;
-  --transition-base: 0.2s;
-
-  /* Decelerating curves: motion arrives fast and settles, rather than easing
+  /* Motion. Every duration is a token (designSystem.test.ts fails a raw one
+     in a page sheet), in three families that each keep to their own job:
+     - chrome: panels, menus and the toolbar sliding in or out, on --dur-fast,
+       --dur-base or --dur-slow with a decelerating curve;
+     - springs, for things that move with momentum (below);
+     - effects, for colour and fades (below; motion.test.ts keeps colour
+       transitions on them).
+     Decelerating curves: motion arrives fast and settles, rather than easing
      symmetrically in and out. --ease-spring overshoots slightly and is only
-     for things that appear (disclosures), never for things that move away. */
+     for things that appear (menus), never for things that move away. */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
+  /* Ambient loops: the period of something that keeps going while you wait. */
+  --dur-pulse: 1.2s; /* skeletons, the live dot, the voice orb speaking */
+  --dur-pulse-quick: 600ms; /* the voice orb hearing you */
+  --dur-turn: 2.4s; /* the voice orb thinking */
+  --dur-breath: 10s; /* the break's breath: 4s in, 6s out */
 
   /* SwiftUI-style springs (response, dampingFraction), sampled into linear()
      by springs.test.ts, which also checks they still match. Each pairs with
@@ -137,6 +150,9 @@
   /* Card and control outlines: dark enough to see at a glance (3:1). */
   --border: #7d6f59;
   --border-subtle: #c0b49e;
+  /* The PDF page's edge: the card outline, a little lighter. Derived, so it
+     follows every palette's --border without a value of its own. */
+  --page-edge: color-mix(in srgb, var(--border) 78%, transparent);
   --disabled: #a99b85;
 
   /* Deep brass: light labels on it (--on-accent) clear 7:1. */
@@ -149,14 +165,10 @@
   --accent-text: #3d2a04;
   --on-accent: #f1ebe0;
 
-  --success: #1e5326;
-  --success-bg: #e0eddb;
   --success-border: #7fa877;
   --danger: #87251a;
   --live: #c62828; /* the reading-now dot: a true red, nothing else uses it */
   --danger-bg: #f5e0db;
-  --warning: #5e4100;
-  --warning-bg: #f3e8cc;
 
   /* Focus line: what everything outside the current passage is washed with. */
   --reading-dim: rgba(221, 213, 198, 0.72);
@@ -385,14 +397,10 @@
   --accent-track: #123844;
   --accent-text: #7ff5ff;
   --on-accent: #001318;
-  --success: #7dffb0;
-  --success-bg: #06241a;
   --success-border: #2a8a5a;
   --danger: #ff9a5c;
   --live: #ff6a1a;
   --danger-bg: #2a1006;
-  --warning: #ffd479;
-  --warning-bg: #261c05;
   --pdf-page: #0a121b;
   --pdf-ink: #d8fbff;
   --pdf-paper: #0a121b;
@@ -495,7 +503,7 @@ a {
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background var(--transition-base), color var(--transition-base);
+  transition: background var(--dur-effect-fast) var(--ease-effect), color var(--dur-effect-fast) var(--ease-effect);
 }
 .fc-primary-btn:hover:not(:disabled) {
   background: var(--accent);
@@ -505,6 +513,46 @@ a {
   background: var(--bg-subtle);
   color: var(--text-muted);
   cursor: default;
+}
+
+/* The quiet button: text only, a wash on hover. Shared like the primary
+   button; it is also a link (the library's "← Today", Notes' "Watch on
+   YouTube"), hence no underline. */
+.ghost-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.ghost-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.ghost-btn:disabled {
+  background: transparent;
+  color: var(--disabled);
+  cursor: default;
+}
+.ghost-btn.active {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+
+/* The small-caps label over a field, a status line or a group of cards. */
+.small-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* prefers-reduced-transparency is a real accessibility setting and a separate
@@ -538,7 +586,7 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
-:root[data-theme='grid'] :is(.paper-card, .book-card, .shelf, .board-col, dialog, [role='dialog'], [class*='popover'], [class*='-menu']) {
+:root[data-theme='grid'] :is(.book-card, dialog, [role='dialog'], [class*='popover'], [class*='-menu']) {
   box-shadow: none;
 }
 :root[data-theme='grid'] :is(.paper-card, .book-card):hover {
@@ -549,12 +597,8 @@ a {
   color: var(--on-accent);
 }
 :root[data-theme='grid'] .fc-primary-btn:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-hover);
 }
 :root[data-theme='grid'] :focus-visible {
   box-shadow: var(--glow);
-}
-:root[data-theme='grid'] :is(.live-dot, .paper-card-bar) {
-  box-shadow: none;
 }

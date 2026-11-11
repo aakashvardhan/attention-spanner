@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 /// The most text one section carries (one Haiku call narrates one section).
-pub const SECTION_MAX_CHARS: usize = 6_000;
+pub(crate) const SECTION_MAX_CHARS: usize = 6_000;
 
 /// One block of the page's main content, as `page-text.js` returns it.
 #[derive(Debug, Clone, PartialEq, Deserialize)]

@@ -3,6 +3,14 @@ import { JOURNAL, type PlanFs } from './plan';
 /** Property tests share one seed so CI is repeatable; fast-check prints it on failure. Override with FC_SEED. */
 export const FC = { seed: Number(process.env.FC_SEED ?? 20261014), numRuns: 200 };
 
+/**
+ * A speed budget in a test. BRAIN_PERF=1 checks the real budget, on a quiet machine. Otherwise it is
+ * five times looser: still enough to catch a quadratic slip, without failing on a loaded CI runner or
+ * when vitest runs every file at once. Tests that check one pass PERF_TIMEOUT so the loose budget fits.
+ */
+export const budgetMs = (ms: number): number => (process.env.BRAIN_PERF === '1' ? ms : ms * 5);
+export const PERF_TIMEOUT = 30_000;
+
 export class Crash extends Error {}
 
 const key = (p: string) => p.normalize('NFC').toLowerCase();

@@ -61,6 +61,28 @@ describe('the bundled server over stdio', () => {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+  it('answers regex searches from the worker it keeps, and still exits when stdin closes', async () => {
+    for (let i = 0; i < 2; i++) expect(((await client.callTool({ name: 'search', arguments: { query: '/fin./' } })) as Text).content[0].text).toBe('Fast (Concepts/Fast.md)');
+    const lines = [
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'search', arguments: { query: '/fin./' } } },
+    ];
+    const r = spawnSync(process.execPath, [join(out, 'server.mjs')], { env: { ...process.env, BRAIN_VAULT: root }, input: lines.map((l) => JSON.stringify(l) + '\n').join(''), encoding: 'utf8', timeout: 10_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.stdout).toContain('Fast (Concepts/Fast.md)');
+  }, 15_000);
+  it('exits with one line, not a stack trace, when the vault cannot be opened', async () => {
+    const bad = await writeVault({ '.brain/journal': 'a file where the journal folder should be' });
+    try {
+      const r = spawnSync(process.execPath, [join(out, 'server.mjs')], { env: { ...process.env, BRAIN_VAULT: bad }, input: '', encoding: 'utf8', timeout: 10_000 });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('ENOTDIR');
+      expect(r.stderr).not.toMatch(/^\s+at /m);
+    } finally {
+      await rm(bad, { recursive: true, force: true });
+    }
+  });
   it('stops a catastrophic regex at 2 s and keeps answering', async () => {
     const t0 = Date.now();
     const r = (await client.callTool({ name: 'search', arguments: { query: '/(a+)+$/' } })) as Text;

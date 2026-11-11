@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import ffmpeg from 'ffmpeg-static';
 import type { FrameLocator, Locator, Page } from 'playwright';
 import { describe, expect, it } from 'vitest';
 import { OUT, PAGES, launch, mockClaude, seed } from './harness';
@@ -26,13 +25,16 @@ const today = (hour: number) => {
  * A screen-recorded walkthrough for sharing, not a test: skipped unless DEMO=1.
  *   set -a; . ~/.config/reader-demo.env; set +a   # GROQ_API_KEY, OPENAI_API_KEY
  *   DEMO=1 DEMO_PDF=/path/to/1706.03762.pdf npx vitest run e2e/demo.e2e.ts --config vitest.e2e.config.ts
- * Writes e2e/out/demo.mp4, with the sound the page actually played.
+ * Writes e2e/out/demo.mp4, with the sound the page actually played. Needs ffmpeg
+ * on PATH, or FFMPEG=/path/to/ffmpeg (kept out of the dependencies: every
+ * npm install would download it for a video that is rarely made).
  * Haiku is scripted so every take is the same; the voices are live. Speech
  * goes to OpenAI (the extension's own fallback request), since Groq Orpheus
  * allows 3,600 tokens a day; Whisper stays on Groq. "You" are an OpenAI
  * voice too, played into the fake mic.
  */
 const ARXIV = '1706.03762';
+const ffmpeg = process.env.FFMPEG ?? 'ffmpeg';
 const done = { id: '01985f0e-9788-7924-8401-000000000003', name: 'Completed', type: 'default-completed' };
 
 /** Playwright's video has no cursor: draw one that follows the mouse and pulses on click. */
@@ -147,7 +149,7 @@ async function youWav(name: keyof typeof SAID): Promise<string> {
   mkdirSync(OUT, { recursive: true });
   const raw = join(OUT, `demo-you-${name}-raw.wav`);
   writeFileSync(raw, await openaiSpeech(SAID[name], 'ash', 'A grad student thinking out loud to a friend: casual, a little tentative, natural.'));
-  execFileSync(ffmpeg!, ['-v', 'error', '-y', '-f', 'lavfi', '-t', '1.2', '-i', 'anullsrc=r=48000:cl=mono', '-i', raw, '-f', 'lavfi', '-t', '10', '-i', 'anullsrc=r=48000:cl=mono',
+  execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-t', '1.2', '-i', 'anullsrc=r=48000:cl=mono', '-i', raw, '-f', 'lavfi', '-t', '10', '-i', 'anullsrc=r=48000:cl=mono',
     '-filter_complex', '[1]aresample=48000,aformat=channel_layouts=mono[s];[0][s][2]concat=n=3:v=0:a=1', '-c:a', 'pcm_s16le', out]);
   return out;
 }
@@ -173,12 +175,12 @@ function mux(dir: string, t0: number, sounds: Sound[], out: string) {
       return `[${i}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,${trim}adelay=delays=${Math.round(Math.max(0, c.at - t0))}:all=1[a${i}]`;
     });
     audio.push('-filter_complex', `${chains.join(';')};${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:normalize=0:duration=longest[a]`, '-map', '[a]', '-c:a', 'pcm_s16le', mixed);
-    execFileSync(ffmpeg!, audio);
+    execFileSync(ffmpeg, audio);
   }
   const args = ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', join(dir, 'frames.txt')];
   if (clips.length) args.push('-i', mixed, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '160k');
   args.push('-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-movflags', '+faststart', out);
-  execFileSync(ffmpeg!, args);
+  execFileSync(ffmpeg, args);
   return clips.length;
 }
 
@@ -550,7 +552,7 @@ describe.skipIf(!process.env.DEMO)('demo', () => {
       spans.find((s) => s.textContent?.includes('Transformer'))?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
     );
     await pause(page, 2000);
-    const at =await page.$$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (spans) => {
+    const at = await page.$$eval('.reader-page[aria-label^="Page 1 "] .textLayer span', (spans) => {
       for (const span of spans) {
         const node = span.firstChild as Text | null;
         const i = node?.data.indexOf('Transformer') ?? -1;

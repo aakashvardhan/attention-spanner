@@ -1,5 +1,10 @@
 # Papers Library: alphaXiv companion, ADHD intuition reader, wood shelf
 
+> **Status (2026-11-10): built.** Steps 1–3 in TypeScript, 4–6 directly in Rust
+> (`rust/NOTES.md`, phases 6a onward). Since then the shelf of spines became one deck
+> of cards per folder (`rust/ext/src/pages/papers.rs`), and the wood look gave way to
+> six palettes (README, Design). The README describes the current behaviour.
+
 ## Context
 The extension (about 36k LOC: RSS, YouTube, topic gate, Ollama/Haiku/Laya, articles, Pomodoro and more) becomes a single-purpose companion to the user's paid alphaXiv account, used to read and track research papers.
 

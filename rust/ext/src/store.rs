@@ -1,5 +1,5 @@
-//! chrome.storage, typed. A missing key reads as its default, as the TS
-//! `getLocal` did with DEFAULTS.
+//! chrome.storage, typed. A missing key reads as its type's default, so a
+//! profile that never wrote a key needs no seeding.
 
 use crate::chrome;
 use crate::js::{from_js, to_js, wait, Res};

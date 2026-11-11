@@ -25,8 +25,8 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
 
     ensure_wasm_target()?;
 
-    let target_dir_for_lock = get_target_dir()?;
-    let workspace_root = target_dir_for_lock.parent().unwrap_or(&crate_dir);
+    let target_dir = get_target_dir()?;
+    let workspace_root = target_dir.parent().unwrap_or(&crate_dir);
     ensure_wasm_bindgen_cli(workspace_root, &crate_dir)?;
 
     let profile = if release { "release" } else { "debug" };
@@ -45,7 +45,6 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
         bail!("cargo build failed");
     }
 
-    let target_dir = get_target_dir()?;
     let wasm_file = target_dir
         .join("wasm32-unknown-unknown")
         .join(profile)
@@ -92,18 +91,20 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
     let metadata =
         source_parser::parse_source_dir(&src_dir).context("failed to parse extension source")?;
 
-    let mut manifest_json = manifest::generate_manifest(&metadata, browser)?;
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&manifest::generate_manifest(&metadata, browser)?)?;
     let patch_path = crate_dir.join("manifest.patch.json");
     if patch_path.exists() {
         let patch: serde_json::Value = serde_json::from_str(&fs::read_to_string(&patch_path)?)
             .context("manifest.patch.json is not valid JSON")?;
-        let mut value: serde_json::Value = serde_json::from_str(&manifest_json)?;
-        manifest::apply_patch(&mut value, &patch);
-        manifest_json = serde_json::to_string_pretty(&value)?;
+        manifest::apply_patch(&mut manifest, &patch);
         println!("[oxichrome] Applied manifest.patch.json");
     }
-    fs::write(dist_dir.join("manifest.json"), &manifest_json)
-        .context("failed to write manifest.json")?;
+    fs::write(
+        dist_dir.join("manifest.json"),
+        serde_json::to_string_pretty(&manifest)?,
+    )
+    .context("failed to write manifest.json")?;
     println!("[oxichrome] Generated manifest.json");
 
     for page in &metadata.pages {
@@ -121,10 +122,14 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
         println!("[oxichrome] Generated {}", page.path);
     }
 
-    let background_js = shims::generate_background_js(&metadata, &crate_name);
-    fs::write(dist_dir.join("background.js"), &background_js)
-        .context("failed to write background.js")?;
-    println!("[oxichrome] Generated background.js");
+    // A patch can point the worker at a script of its own; then the generated
+    // one would only be a dead file in dist.
+    if loads_background_js(&manifest) {
+        let background_js = shims::generate_background_js(&metadata, &crate_name);
+        fs::write(dist_dir.join("background.js"), &background_js)
+            .context("failed to write background.js")?;
+        println!("[oxichrome] Generated background.js");
+    }
 
     if metadata.has_popup {
         let popup_html = shims::generate_popup_html();
@@ -179,12 +184,26 @@ pub fn run(release: bool, browser: Browser) -> Result<()> {
     }
 
     println!("[oxichrome] Build complete! Output: {}", dist_dir.display());
-    match browser {
-        Browser::Chromium => println!("[oxichrome] Load the dist/chromium/ folder as an unpacked extension in Chrome/Brave."),
-        Browser::Firefox => println!("[oxichrome] Load the dist/firefox/ folder as a temporary extension in Firefox (about:debugging)."),
+    // Under OXICHROME_DIST the caller moves the build into place, so the
+    // folder to load is the caller's to name.
+    if std::env::var_os("OXICHROME_DIST").is_none() {
+        match browser {
+            Browser::Chromium => println!("[oxichrome] Load the dist/chromium/ folder as an unpacked extension in Chrome/Brave."),
+            Browser::Firefox => println!("[oxichrome] Load the dist/firefox/ folder as a temporary extension in Firefox (about:debugging)."),
+        }
     }
 
     Ok(())
+}
+
+/// Whether the final manifest names the generated background.js: as the
+/// service worker (Chromium) or among the background scripts (Firefox).
+fn loads_background_js(manifest: &serde_json::Value) -> bool {
+    let bg = &manifest["background"];
+    bg["service_worker"] == "background.js"
+        || bg["scripts"]
+            .as_array()
+            .is_some_and(|s| s.iter().any(|f| f == "background.js"))
 }
 
 fn ensure_wasm_target() -> Result<()> {
@@ -380,6 +399,21 @@ mod tests {
             name = "test-crate"
         "#;
         assert_eq!(extract_crate_name(content), Some("test-crate".into()));
+    }
+
+    #[test]
+    fn test_background_js_only_when_the_manifest_loads_it() {
+        use serde_json::json;
+        assert!(loads_background_js(
+            &json!({ "background": { "service_worker": "background.js" } })
+        ));
+        assert!(loads_background_js(
+            &json!({ "background": { "scripts": ["background.js"] } })
+        ));
+        assert!(!loads_background_js(
+            &json!({ "background": { "service_worker": "worker.js", "type": "module" } })
+        ));
+        assert!(!loads_background_js(&json!({})));
     }
 
     #[test]

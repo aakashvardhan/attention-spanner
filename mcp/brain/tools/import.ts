@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { safeTitle, titleKey, titleOf } from '../lib/names';
+import { folderProblem, safeTitle, titleKey, titleOf } from '../lib/names';
 import { newPlanId, type Step } from '../lib/plan';
 import type { Vault } from '../vault';
 import { DESTRUCTIVE, fail, guard, IDEMPOTENT, IDEMPOTENT_OPEN, ok } from './common';
@@ -17,17 +17,47 @@ const safeName = (name: string, folder = '') => {
   return safeTitle(stem, folder).title + ext;
 };
 
+/**
+ * The body, or the byte count at which it passed `max`: refused on Content-Length before reading,
+ * and cut off while streaming when the header is missing or wrong, so nothing past the limit is held.
+ */
+export async function readCapped(res: Response, max: number): Promise<Uint8Array | number> {
+  const declared = Number(res.headers.get('content-length'));
+  if (declared > max) {
+    await res.body?.cancel();
+    return declared;
+  }
+  if (!res.body) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > max) {
+      await reader.cancel();
+      return size;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+
 /** Where a staged note may go: a note or .base anywhere notes live, or a verbatim page under sources/notion/. */
 function stagePathProblem(path: string): string | null {
   const parts = path.split('/');
   if (parts.some((p) => p === '' || p === '.' || p === '..') || path.includes('\\')) return 'not a vault path';
-  if (/^(\.brain|\.obsidian|attachments)(\/|$)/i.test(path)) return 'that folder is not staged through stage_note';
   if (!/\.(md|base)$/i.test(path)) return 'only .md and .base files are staged as notes';
-  // Every folder and file name syncs to Windows through Drive, sources/ included.
-  for (let i = 0; i < parts.length - 1; i++) {
-    const safe = safeTitle(parts[i]).title;
-    if (safe !== parts[i]) return `folder "${parts[i]}" cannot be a name on Windows; use "${safe}"`;
-  }
+  // The rule create_note and move_note use, except that verbatim pages go to sources/.
+  const folderIssue = folderProblem(parts.slice(0, -1).join('/'), true);
+  if (folderIssue) return folderIssue;
   const name = parts[parts.length - 1];
   const safe = safeName(name, parts.slice(0, -1).join('/'));
   if (safe !== name) return /^sources\//i.test(path) ? `"${name}" cannot be a file name on Windows; use "${safe}"` : `"${titleOf(path)}" cannot be a file name; use "${titleOf(safe)}" and keep the original in aliases`;
@@ -47,7 +77,8 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
       guard(vault, async () => {
         const problem = stagePathProblem(path);
         if (problem) return fail(`${path}: ${problem}.`);
-        await vault.fs.writeText(`.brain/staging/${area}/${path}`, text);
+        // In the write queue, so it cannot land between promote_staging's copy and remove steps and be removed unpromoted.
+        await vault.serial(() => vault.fs.writeText(`.brain/staging/${area}/${path}`, text));
         return ok(`Staged ${path} for ${area}.`);
       }, false),
   );
@@ -67,10 +98,14 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
         const safe = safeName(filename, 'attachments');
         if (safe !== filename) return fail(`"${filename}" cannot be a file name on Windows; use "${safe}".`);
         const res = await fetchImpl(url, { signal: AbortSignal.timeout(60_000) });
-        if (!res.ok) return fail(`Download failed with HTTP ${res.status}; fetch a fresh signed URL from Notion and retry.`);
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.length > MAX_BYTES) return fail(`${filename} is ${bytes.length} bytes, over the 100 MB limit.`);
-        await vault.fs.writeBytes(`.brain/staging/${area}/attachments/${filename}`, bytes);
+        if (!res.ok) {
+          await res.body?.cancel();
+          return fail(`Download failed with HTTP ${res.status}; fetch a fresh signed URL from Notion and retry.`);
+        }
+        const bytes = await readCapped(res, MAX_BYTES);
+        if (typeof bytes === 'number') return fail(`${filename} is ${bytes} bytes or more, over the 100 MB limit.`);
+        // The download stays outside the write queue (it can take a minute); only the write waits for promote_staging.
+        await vault.serial(() => vault.fs.writeBytes(`.brain/staging/${area}/attachments/${filename}`, bytes));
         return ok(`Staged attachments/${filename} (${bytes.length} bytes, sha256 ${sha256(bytes)}).`);
       }, false),
   );
@@ -93,7 +128,8 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
           const auditText = await vault.fs.readText(`.brain/reports/${area}-audit.json`);
           const audit = auditText ? (JSON.parse(auditText) as { pass?: boolean; digest?: string }) : null;
           if (!audit?.pass || audit.digest !== (await vault.stagingDigest(area))) {
-            return fail(`${area} has no passing fidelity audit for exactly what is staged. Run the audit (npm run brain:audit) on the current staging first.`);
+            // The audit script (spec, Fidelity audit) is plan 2 work. Until it exists nothing writes the report, and the gate stays shut.
+            return fail(`${area} has no passing fidelity audit for exactly what is staged (.brain/reports/${area}-audit.json). The audit script is not built yet (plan 2), so this area cannot be promoted until it is; the report is never written by hand.`);
           }
           const owners = vault.targets().notes;
           const seen = new Map<string, string>();

@@ -146,7 +146,6 @@ ul {
 }
 .side-col {
   grid-column: 1 / -1;
-  container: side / inline-size;
   display: grid;
   align-items: start;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -293,7 +292,7 @@ ul {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--dur-effect-fast) var(--ease-effect);
 }
 .paper-card:hover {
   border-color: var(--accent-border);
@@ -377,7 +376,7 @@ ul {
   border-radius: var(--radius-pill);
   background: var(--live);
   vertical-align: middle;
-  animation: live-blink 1.2s steps(2, jump-none) infinite;
+  animation: live-blink var(--dur-pulse) steps(2, jump-none) infinite;
 }
 
 @media (max-width: 640px) {
@@ -865,6 +864,7 @@ body.todo-dragging .board--todos .board-empty {
   background: transparent;
   font: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   color: var(--text-muted);
   color-scheme: inherit;
 }
@@ -925,14 +925,15 @@ body.todo-dragging .board--todos .board-empty {
 /* ---------- Today, in numbers (beside the clock) ---------- */
 
 .today-stats {
+  flex: 0 1 auto;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
   align-content: center;
-  gap: var(--space-3);
-  flex: 0 1 40%;
+  gap: var(--space-1) var(--space-5);
   min-width: 0;
-  margin: 0 0 0 auto;
-  padding-left: var(--space-5);
-  border-left: 1px solid var(--border);
+  margin: 0;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--border-subtle);
   font-size: var(--text-md);
   line-height: var(--leading-md);
 }
@@ -960,10 +961,6 @@ body.todo-dragging .board--todos .board-empty {
   stroke: var(--accent);
   stroke-width: 5;
   stroke-linecap: round;
-}
-.clock-sky {
-  flex: 1;
-  min-width: 0;
 }
 .pomo {
   display: grid;
@@ -1037,7 +1034,7 @@ body.todo-dragging .board--todos .board-empty {
   border-radius: 50%;
   background: var(--accent-wash);
   border: 2px solid var(--accent);
-  animation: breathe 10s var(--ease-effect) infinite;
+  animation: breathe var(--dur-breath) var(--ease-effect) infinite;
 }
 @keyframes breathe {
   0%,
@@ -1074,6 +1071,7 @@ body.todo-dragging .board--todos .board-empty {
   overflow-y: auto;
   scrollbar-width: thin;
   font-size: var(--text-md);
+  line-height: var(--leading-md);
 }
 .feed-list li {
   padding-block: var(--space-1);
@@ -1094,15 +1092,18 @@ body.todo-dragging .board--todos .board-empty {
 
 /* ---------- Clock ---------- */
 
+/* It sits in the header band (.focus-home), between the title and the focus
+   button: a small face, the weather, and the four numbers two by two beside
+   it. */
 .clock {
+  flex: 0 1 auto;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 .clock-face {
-  width: 176px;
-  height: 176px;
+  width: calc(var(--space-8) * 1.25);
+  height: calc(var(--space-8) * 1.25);
   flex: none;
 }
 .clock-case {
@@ -1159,19 +1160,19 @@ body.todo-dragging .board--todos .board-empty {
   stroke-width: 1.5;
 }
 .clock-hand-h {
-  animation: clock-turn 43200s linear infinite;
+  animation: clock-turn 43200s linear infinite; /* ds-exempt: real time, twelve hours a turn */
   animation-delay: calc(var(--h) * -1s);
   /* motion-exempt: an hour hand moves half a degree a minute */
 }
 .clock-hand-m {
-  animation: clock-turn 3600s linear infinite;
+  animation: clock-turn 3600s linear infinite; /* ds-exempt: real time, an hour a turn */
   animation-delay: calc(var(--m) * -1s);
   /* motion-exempt: a minute hand moves a tenth of a degree a second */
 }
 .clock-hand-s {
   stroke: var(--accent-hover);
   stroke-width: 1.5;
-  animation: clock-turn 60s linear infinite;
+  animation: clock-turn 60s linear infinite; /* ds-exempt: real time, a minute a turn */
   animation-delay: calc(var(--s) * -1s);
 }
 .clock-pin {
@@ -1183,6 +1184,8 @@ body.todo-dragging .board--todos .board-empty {
   }
 }
 .clock-sky {
+  flex: 0 1 auto;
+  min-width: 0;
   display: grid;
   gap: var(--space-1);
 }
@@ -1275,32 +1278,6 @@ body.todo-dragging .board--todos .board-empty {
   .heat-seg button:active {
     scale: 1;
   }
-}
-
-/* ---------- The clock in the header ---------- */
-
-/* It sits in the band between the title and the focus button: a small face,
-   the weather, and the four numbers two by two beside it. */
-.focus-home .clock {
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
-  gap: var(--space-4);
-}
-.focus-home .clock-face {
-  width: calc(var(--space-8) * 1.25);
-  height: calc(var(--space-8) * 1.25);
-}
-.focus-home .clock-sky {
-  flex: 0 1 auto;
-}
-.focus-home .clock .today-stats {
-  flex: 0 1 auto;
-  grid-template-columns: repeat(2, minmax(0, auto));
-  gap: var(--space-1) var(--space-5);
-  margin: 0;
-  padding: 0 0 0 var(--space-4);
-  border-top: 0;
-  border-left: 1px solid var(--border-subtle);
 }
 
 /* ---------- One screen (desktop) ---------- */

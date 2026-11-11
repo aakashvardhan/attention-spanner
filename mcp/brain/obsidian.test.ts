@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { diffObsidian, type Deviation, type ObsidianDump } from './diffObsidian';
 import deviations from './fixtures/obsidian-deviations.json';
 import dump from './fixtures/obsidian-dump.json';
+import { buildEntry, targetsOf } from './lib/entry';
 import { Vault } from './vault';
 
 let vault: Vault;
@@ -24,5 +25,13 @@ describe('oracle: Obsidian itself', () => {
       expect(d.reason.trim(), `${d.path} ${d.field}`).not.toBe('');
       expect(raw.some((x) => x.path === d.path && x.field === d.field), `${d.path} ${d.field} still differs`).toBe(true);
     }
+  });
+});
+
+describe('diffObsidian', () => {
+  it('compares unresolved links ignoring Unicode form, as it does resolved ones', () => {
+    const e = buildEntry('A.md', '[[Cafe\u0301]] and [[Café]]\n');
+    const dumped: ObsidianDump = { obsidian: '1.0.0', files: { 'A.md': { headings: [], tags: [], resolved: {}, unresolved: { 'Cafe\u0301': 1, Café: 1 } } } };
+    expect(diffObsidian(dumped, [e], targetsOf([e], []))).toEqual([]);
   });
 });

@@ -222,27 +222,6 @@ pub fn update_annotation(
     Ok(next)
 }
 
-/// Move a sticky pin; PDF-anchored only.
-pub fn move_annotation(
-    list: &[Annotation],
-    id: &str,
-    x: f64,
-    y: f64,
-    now: i64,
-) -> Result<Vec<Annotation>, String> {
-    let mut next = list.to_vec();
-    let a = next
-        .iter_mut()
-        .find(|a| a.id == id)
-        .ok_or("Annotation not found.")?;
-    let AnnotationAnchor::Pdf { x: ax, y: ay, .. } = &mut a.anchor else {
-        return Err("Not a positioned annotation.".into());
-    };
-    (*ax, *ay) = (x, y);
-    a.updated_at = now;
-    Ok(next)
-}
-
 pub fn delete_annotation(list: &[Annotation], id: &str) -> Vec<Annotation> {
     list.iter().filter(|a| a.id != id).cloned().collect()
 }
@@ -357,7 +336,6 @@ mod tests {
             note: String::new(),
             created_at: 0,
             updated_at: 0,
-            deleted_at: None,
         }
     }
     fn pdf(page: u32, rects: Vec<AnnotationRect>, y: f64) -> AnnotationAnchor {
@@ -506,20 +484,9 @@ mod tests {
             (list[0].note.as_str(), list[0].color, list[0].updated_at),
             ("hi", AnnotationColor::Blue, 2)
         );
-        let list = move_annotation(&list, "a", 0.3, 0.7, 3).unwrap();
-        assert!(
-            matches!(list[0].anchor, AnnotationAnchor::Pdf { x, y, .. } if x == 0.3 && y == 0.7)
-        );
         assert_eq!(
             update_annotation(&list, "nope", AnnotationPatch::default(), 4).unwrap_err(),
             "Annotation not found."
-        );
-        let text = add_annotation(&[], draft(AnnotationKind::Sticky, text(1)), "t".into(), 1)
-            .unwrap()
-            .0;
-        assert_eq!(
-            move_annotation(&text, "t", 0.1, 0.1, 2).unwrap_err(),
-            "Not a positioned annotation."
         );
         assert!(delete_annotation(&list, "a").is_empty());
     }

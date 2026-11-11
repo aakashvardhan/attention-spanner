@@ -175,10 +175,11 @@ impl Ai {
                             at: crate::js::now(),
                         };
                         store::with_lock("aiCache", async move {
-                            let mut cache: AiCache =
-                                store::get("aiCache").await.unwrap_or_default();
-                            cache_put(&mut cache, key, entry);
-                            let _ = store::set("aiCache", &cache).await;
+                            // An unreadable cache is left alone, not replaced by this one answer.
+                            if let Ok(mut cache) = store::get::<AiCache>("aiCache").await {
+                                cache_put(&mut cache, key, entry);
+                                let _ = store::set("aiCache", &cache).await;
+                            }
                         })
                         .await;
                         // Superseded while the answer was being saved: the newer one owns the card.

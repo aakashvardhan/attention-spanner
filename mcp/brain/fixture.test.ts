@@ -15,7 +15,7 @@ describe('regression: the fixture vault', () => {
   });
   it('gives the checked-in search results', () => {
     const docs = [...vault.entries.values()].map(toSearchDoc);
-    const find = (q: string) => search(parseQuery(q), docs).hits.map((h) => h.title);
+    const find = (q: string) => search(parseQuery(q), docs).map((h) => h.title);
     expect(find('sigmoid')).toEqual(['Sigmoid', 'AI & ML', 'DL Class – Lecture 3', 'Gradient descent', 'Inbox note', 'Notes on \u{1D465} and \u{1D53C}']);
     expect(find('task-todo:derive')).toEqual(['Gradient descent']);
     expect(find('tag:moc')).toEqual(['AI & ML', 'DL Class', 'Home']);

@@ -13,7 +13,7 @@ pub const NO_KEY_MESSAGE: &str =
 const MAX_BULLETS: usize = 6;
 
 /// Most to-dos one dump puts on the board.
-pub const MAX_TOP_TASKS: usize = 3;
+pub(crate) const MAX_TOP_TASKS: usize = 3;
 
 /// One call, two sections: the lighter bullets (no advice, as ever) and, kept
 /// apart from them, the few tasks that matter most.
@@ -81,7 +81,7 @@ static BULLET: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\s*(?:[-*•]|\d+[.)])\s+(.+)").unwrap());
 
 /// Bullet lines from Haiku's reply; a preamble or prose line is dropped.
-pub fn parse_reframe(reply: &str) -> Vec<String> {
+pub(crate) fn parse_reframe(reply: &str) -> Vec<String> {
     reply
         .lines()
         .filter_map(|line| BULLET.captures(line).map(|c| c[1].trim().to_string()))

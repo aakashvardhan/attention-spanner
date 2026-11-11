@@ -33,21 +33,34 @@ const POP_HALF: f64 = 170.0;
 
 /// The reader's "Add to lexicon".
 pub async fn keep_term(label: String, source: Source) {
-    edit(move |lex| {
-        add_term(lex, &label, source);
-    })
-    .await;
+    // A blank label changes nothing, so there is nothing to write.
+    edit(move |lex| add_term(lex, &label, source).then_some(()).ok_or(())).await;
 }
 
-/// Every lexicon write, under one lock across tabs.
-async fn edit<T: 'static>(f: impl FnOnce(&mut Lexicon) -> T + 'static) -> T {
+/// Every lexicon write, under one lock across tabs. Written only when `f`
+/// succeeds. None when the stored lexicon can't be read: a default written
+/// over it would lose every term.
+async fn edit<T: 'static, E: 'static>(
+    f: impl FnOnce(&mut Lexicon) -> Result<T, E> + 'static,
+) -> Option<Result<T, E>> {
     store::with_lock("lexicon", async move {
-        let mut lex: Lexicon = store::get("lexicon").await.unwrap_or_default();
+        let mut lex: Lexicon = store::get("lexicon").await.ok()?;
         let out = f(&mut lex);
-        let _ = store::set("lexicon", &lex).await;
-        out
+        if out.is_ok() {
+            let _ = store::set("lexicon", &lex).await;
+        }
+        Some(out)
     })
     .await
+}
+
+/// An edit that cannot fail.
+async fn change(f: impl FnOnce(&mut Lexicon) + 'static) {
+    edit(move |lex| {
+        f(lex);
+        Ok::<_, ()>(())
+    })
+    .await;
 }
 
 #[derive(Clone, PartialEq)]
@@ -669,15 +682,17 @@ async fn link_once() -> String {
         Ok(t) => t,
         Err(e) => return e,
     };
+    // Unreadable links leave the stored lexicon as it is: no write for every open page to re-parse.
     let merged = edit(move |now_lex| {
         parse_links(&text, now_lex, now()).map(|edges| merge_links(now_lex, edges, &sent, now()))
     })
     .await;
     match merged {
-        Err(e) => e,
-        Ok(0) => "No new links this time.".into(),
-        Ok(1) => "Found 1 new link.".into(),
-        Ok(n) => format!("Found {n} new links."),
+        None => "The lexicon could not be read. Try again.".into(),
+        Some(Err(e)) => e,
+        Some(Ok(0)) => "No new links this time.".into(),
+        Some(Ok(1)) => "Found 1 new link.".into(),
+        Some(Ok(n)) => format!("Found {n} new links."),
     }
 }
 
@@ -879,7 +894,7 @@ fn TermPop(
     };
     let delete = move |_| {
         let gone = id.get_value();
-        leptos::task::spawn_local(async move { edit(move |l| remove_term(l, &gone)).await });
+        leptos::task::spawn_local(async move { change(move |l| remove_term(l, &gone)).await });
         on_close.run(());
     };
     let label = move || term.with(|t| t.as_ref().map(|t| t.label.clone()).unwrap_or_default());
@@ -968,11 +983,11 @@ fn EdgePop(
     let name = move |id: &str| lexicon.with(|l| label_of(l, id));
     let delete = move |_| {
         let (a, b) = ends.get_value();
-        leptos::task::spawn_local(async move { edit(move |l| remove_edge(l, &a, &b)).await });
+        leptos::task::spawn_local(async move { change(move |l| remove_edge(l, &a, &b)).await });
         on_close.run(());
     };
     view! {
-        <div class="lex-pop lex-pop--edge" role="dialog" aria-label="Link" style=style>
+        <div class="lex-pop" role="dialog" aria-label="Link" style=style>
             {move || edge.get().map(|e| {
                 let (a, b) = (e.a.clone(), e.b.clone());
                 view! {

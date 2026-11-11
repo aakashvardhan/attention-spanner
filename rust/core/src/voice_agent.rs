@@ -5,8 +5,8 @@
 
 use serde_json::{json, Value};
 
-pub const TTS_URL: &str = "https://api.groq.com/openai/v1/audio/speech";
-pub const TTS_MODEL: &str = "canopylabs/orpheus-v1-english";
+pub(crate) const TTS_URL: &str = "https://api.groq.com/openai/v1/audio/speech";
+pub(crate) const TTS_MODEL: &str = "canopylabs/orpheus-v1-english";
 /// Orpheus's English voices, as (id, label) for the Settings picker.
 pub const TTS_VOICES: [(&str, &str); 6] = [
     ("autumn", "Autumn"),
@@ -21,14 +21,14 @@ pub const DEFAULT_VOICE: &str = "autumn";
 pub const VOICE_SAMPLE: &str = "Hm, okay. So what problem is this paper actually solving?";
 
 /// A stored voice, or the default when it is not one Orpheus has.
-pub fn voice_or_default(v: &str) -> &str {
+pub(crate) fn voice_or_default(v: &str) -> &str {
     TTS_VOICES
         .iter()
         .find(|(id, _)| *id == v)
         .map_or(DEFAULT_VOICE, |(id, _)| id)
 }
 /// Orpheus rejects longer input.
-pub const TTS_MAX_CHARS: usize = 200;
+pub(crate) const TTS_MAX_CHARS: usize = 200;
 /// Quiet this long after speech ends your turn. Calibration knob: long enough
 /// to stop and think about a question mid-answer; lower feels snappier but
 /// cuts people off (700 did).
@@ -165,10 +165,10 @@ pub enum TtsProvider {
     OpenAi,
 }
 
-pub const OPENAI_TTS_URL: &str = "https://api.openai.com/v1/audio/speech";
-pub const OPENAI_TTS_MODEL: &str = "gpt-4o-mini-tts";
+pub(crate) const OPENAI_TTS_URL: &str = "https://api.openai.com/v1/audio/speech";
+pub(crate) const OPENAI_TTS_MODEL: &str = "gpt-4o-mini-tts";
 /// How OpenAI's voice is asked to sound.
-pub const OPENAI_INSTRUCTIONS: &str = "Speak like a calm, curious friend explaining a research paper out loud: warm, unhurried, natural pauses between ideas, never a newsreader.";
+pub(crate) const OPENAI_INSTRUCTIONS: &str = "Speak like a calm, curious friend explaining a research paper out loud: warm, unhurried, natural pauses between ideas, never a newsreader.";
 
 impl TtsProvider {
     /// One request's text. Orpheus refuses past 200 characters; OpenAI takes
@@ -196,7 +196,7 @@ impl TtsProvider {
 }
 
 /// The OpenAI voice closest to a chosen Orpheus one, so a switch mid-paper is not jarring.
-pub fn openai_voice(orpheus: &str) -> &'static str {
+pub(crate) fn openai_voice(orpheus: &str) -> &'static str {
     match voice_or_default(orpheus) {
         "diana" => "coral",
         "hannah" => "shimmer",
@@ -453,6 +453,8 @@ pub fn tts_failure(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn questions_never_carry_the_answer() {
         // Eval 2026-11-07 (Gemini, wrong claim): 4 of 5 replies asked "does it
@@ -479,8 +481,6 @@ mod tests {
         assert!(!p.contains("page 3") && !p.contains("section 3"));
         assert!(turn_prompt(&[], 3, Source::Paper).contains("They are on page 3."));
     }
-
-    use super::*;
 
     #[test]
     fn sentence_at_follows_the_clock() {

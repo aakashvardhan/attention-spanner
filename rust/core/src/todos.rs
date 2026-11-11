@@ -48,7 +48,7 @@ static LINE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Tasks from Haiku's reply, each with its time if one was given.
-pub fn parse_todos(reply: &str) -> Vec<(String, Option<LocalTime>)> {
+pub(crate) fn parse_todos(reply: &str) -> Vec<(String, Option<LocalTime>)> {
     reply
         .lines()
         .filter_map(|line| {
@@ -129,21 +129,6 @@ pub fn alarms_due(list: &[Todo], now: i64) -> Vec<(String, i64)> {
                 .map(|d| (format!("{TODO_ALARM_PREFIX}{}", t.id), d))
         })
         .collect()
-}
-
-/// Open-Meteo's WMO weather code as a word or two.
-pub fn sky_label(code: i64) -> &'static str {
-    match code {
-        0 => "Clear",
-        1 | 2 => "Partly cloudy",
-        3 => "Overcast",
-        45 | 48 => "Fog",
-        51..=57 => "Drizzle",
-        61..=67 | 80..=82 => "Rain",
-        71..=77 | 85 | 86 => "Snow",
-        95..=99 => "Thunderstorm",
-        _ => "",
-    }
 }
 
 #[cfg(test)]
@@ -259,12 +244,5 @@ mod tests {
         );
         move_todo(&mut list, "zzz", 0, 0, 9); // unknown id: no change
         assert_eq!(list.len(), 3);
-    }
-
-    #[test]
-    fn names_the_sky() {
-        assert_eq!(sky_label(0), "Clear");
-        assert_eq!(sky_label(63), "Rain");
-        assert_eq!(sky_label(1234), "");
     }
 }

@@ -13,8 +13,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  JUDGE_VERSION, LISTEN_RUBRIC, LISTEN_SCHEMA, TALK_RUBRIC, TALK_SCHEMA,
-  gradeListen, gradeTalk, passAtK, passHatK,
+  JUDGE_MODEL, JUDGE_VERSION, LISTEN_RUBRIC, LISTEN_SCHEMA, TALK_RUBRIC, TALK_SCHEMA,
+  claudeCost, gradeListen, gradeTalk, judgeVerdict, passAtK, passHatK,
 } from './graders.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -26,9 +26,6 @@ const arg = (name, dflt) => {
 const TRIALS = arg('trials', 5);
 const K = arg('k', 3);
 const MIN = arg('min', 0.9);
-const JUDGE_MODEL = 'claude-opus-5-5';
-// $ per million tokens (input, output), from the Claude API price table.
-const PRICES = { 'claude-haiku-5-5': [0.1, 0.5], 'claude-opus-5-5': [4, 20] };
 
 const spec = JSON.parse(readFileSync(join(here, 'tasks.json'), 'utf8'));
 const tasks = spec.tasks.map((t) => ({ ...t, title: spec.title, sections: spec.sections }));
@@ -41,12 +38,12 @@ const built = JSON.parse(
   }),
 );
 const bodies = new Map(built.map((b) => [b.id, b.body]));
+if (!built.length) throw new Error('tasks.json has no tasks.');
 
 const client = new Anthropic();
 let cost = 0;
 const spend = (model, usage) => {
-  const [i, o] = PRICES[model];
-  cost += ((usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0)) * i + usage.output_tokens * o) / 1e6;
+  cost += claudeCost(model, usage);
 };
 const text = (msg) => msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
 
@@ -70,8 +67,8 @@ async function judge(task, reply) {
     messages: [{ role: 'user', content }],
   });
   spend(JUDGE_MODEL, msg.usage);
-  if (msg.stop_reason === 'refusal') return { pass: false, why: 'judge refused', raw: null };
-  const v = JSON.parse(text(msg));
+  const v = judgeVerdict(msg);
+  if (!v) return { pass: false, why: `judge gave no verdict (${msg.stop_reason})`, raw: null };
   const pass = talk ? !v.tells : (task.math ? v.explains_math : true) && !v.symbol_by_symbol && !v.adds_content;
   return { pass, why: v.reason, raw: v };
 }
@@ -99,7 +96,7 @@ const successes = results.reduce((s, r) => s + r.c, 0);
 const summary = {
   tasksVersion: spec.version,
   judge: `${JUDGE_MODEL} / ${JUDGE_VERSION}`,
-  systemUnderTest: [...new Set(built.map((b) => b.body.model))].join(','),
+  systemUnderTest: [...new Set(built.map((b) => b.model))].join(','),
   trialsPerTask: TRIALS,
   k: K,
   meanPass1: mean((r) => r.pass1),

@@ -22,7 +22,7 @@ export async function writeVault(files: Record<string, string | Uint8Array>): Pr
 export async function testServer(files: Record<string, string | Uint8Array>, opts: ServerOptions = {}) {
   const root = await writeVault(files);
   const vault = await Vault.open(root, { now: () => new Date(2026, 9, 14, 9, 30) });
-  const server = createServer(vault, { runRegex: async (q, docs, limit) => search(parseQuery(q), docs, { limit }), ...opts });
+  const server = createServer(vault, { runRegex: async (q, docs, limit) => ({ hits: search(parseQuery(q), docs, limit), partial: false }), ...opts });
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   const client = new Client({ name: 'test', version: '1.0.0' });
@@ -42,7 +42,8 @@ export async function testServer(files: Record<string, string | Uint8Array>, opt
       if (closed) return;
       closed = true;
       await client.close();
-      await rm(root, { recursive: true, force: true });
+      // Retries: a write still settling (a journal file being renamed) can make one pass see a non-empty folder.
+      await rm(root, { recursive: true, force: true, maxRetries: 5 });
     },
   };
 }

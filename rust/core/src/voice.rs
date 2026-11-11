@@ -12,7 +12,7 @@ const FRAME_MS: u32 = 30;
 /// Quiet this long after speech ends the recording on its own.
 pub const SILENCE_STOP_MS: u32 = 2_500;
 /// Less speech than this in a clip is a cough or a bump: nothing is sent.
-pub const MIN_SPEECH_MS: u32 = 400;
+pub(crate) const MIN_SPEECH_MS: u32 = 400;
 /// Hard cap on one recording (about 5.8 MB as WAV; Groq takes 25 MB).
 pub const MAX_RECORD_MS: u32 = 180_000;
 
@@ -87,11 +87,6 @@ impl Vad {
         self.speaking
     }
 
-    /// Any speech since the start.
-    pub fn heard(&self) -> bool {
-        self.heard
-    }
-
     /// One frame (ideally `FRAME` samples) in, one decision out.
     pub fn push(&mut self, frame: &[f32]) -> VadEvent {
         // Digital silence (a mic warming up reads exact zeros) says nothing about the room:
@@ -100,7 +95,7 @@ impl Vad {
         let floor = match self.floor_db {
             Some(f) => f,
             None if db > SILENT_DB => *self.floor_db.insert(db.min(START_FLOOR_DB)),
-            None => SILENT_DB.max(START_FLOOR_DB),
+            None => START_FLOOR_DB,
         };
         self.loud = db > floor + ONSET_DB && db > ABS_MIN_DB;
         if !self.loud && db > SILENT_DB {
@@ -144,7 +139,7 @@ impl Vad {
 
 /// Speech in a whole clip as sample ranges: padded, close ones merged, and
 /// nothing at all if the clip holds less than `MIN_SPEECH_MS` of speech.
-pub fn speech_ranges(samples: &[f32]) -> Vec<Range<usize>> {
+pub(crate) fn speech_ranges(samples: &[f32]) -> Vec<Range<usize>> {
     let mut vad = Vad::new();
     let mut frames: Vec<Range<usize>> = Vec::new(); // in frame indices
     let mut start = None;
@@ -261,23 +256,6 @@ pub fn insert_transcript(draft: &str, at: usize, words: &str, max: usize) -> (St
     let piece: String = piece.chars().take(room).collect();
     let cursor = at + piece.chars().count();
     (format!("{before}{piece}{after}"), cursor, cut)
-}
-
-/// A DOM selection offset (UTF-16 units) as a char index into `s`.
-pub fn utf16_to_char(s: &str, at: usize) -> usize {
-    let mut units = 0;
-    for (i, c) in s.chars().enumerate() {
-        if units >= at {
-            return i;
-        }
-        units += c.len_utf16();
-    }
-    s.chars().count()
-}
-
-/// A char index as the DOM's UTF-16 offset.
-pub fn char_to_utf16(s: &str, at: usize) -> usize {
-    s.chars().take(at).map(char::len_utf16).sum()
 }
 
 const FILLERS: &[&str] = &[
@@ -463,7 +441,7 @@ mod tests {
         for f in tone(S / 2, 0.3).chunks(FRAME) {
             vad.push(f);
         }
-        assert!(vad.heard());
+        assert!(vad.heard);
         let quiet = noise(3 * S, 0.003, 9);
         let events: Vec<_> = quiet.chunks(FRAME).map(|f| vad.push(f)).collect();
         let first_stop = events
@@ -554,16 +532,6 @@ mod tests {
             insert_transcript("abcdef", 6, "x", 6),
             ("abcdef".into(), 6, true)
         );
-    }
-
-    #[test]
-    fn dom_offsets_count_utf16_and_chars_count_chars() {
-        let s = "a😀b"; // the emoji is 2 UTF-16 units, 1 char
-        assert_eq!(utf16_to_char(s, 0), 0);
-        assert_eq!(utf16_to_char(s, 3), 2);
-        assert_eq!(utf16_to_char(s, 99), 3);
-        assert_eq!(char_to_utf16(s, 2), 3);
-        assert_eq!(char_to_utf16(s, 99), 4);
     }
 
     #[test]

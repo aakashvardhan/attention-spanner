@@ -28,10 +28,17 @@ export function ourView(e: IndexEntry, t: Targets): FileView {
 const canon = (v: unknown) =>
   JSON.stringify(v, (_k, x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x));
 
+/** Our link targets are NFC (lib/links.ts); Obsidian keeps whatever form the file or link text had. Forms that merge add up. */
+const nfcKeys = (counts: Record<string, number>): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(counts)) out[nfc(k)] = (out[nfc(k)] ?? 0) + n;
+  return out;
+};
+
 export function diffObsidian(dump: ObsidianDump, entries: IndexEntry[], t: Targets, deviations: Deviation[] = []): Difference[] {
   const ours = new Map(entries.map((e) => [nfc(e.path), ourView(e, t)]));
   const theirs = new Map(
-    Object.entries(dump.files).map(([p, v]) => [nfc(p), { ...v, tags: [...v.tags].sort(), resolved: Object.fromEntries(Object.entries(v.resolved).map(([k, n]) => [nfc(k), n])) }]),
+    Object.entries(dump.files).map(([p, v]) => [nfc(p), { ...v, tags: [...v.tags].sort(), resolved: nfcKeys(v.resolved), unresolved: nfcKeys(v.unresolved) }]),
   );
   const kept = (path: string, field: string) => deviations.some((d) => d.path === path && d.field === field);
   const out: Difference[] = [];

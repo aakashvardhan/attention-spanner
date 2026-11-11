@@ -268,6 +268,7 @@ fn clear(d: &Drag) {
 
 /// Release: the state changes at once (`on_drop`), and the card, now in its
 /// new place, starts where the floating copy was and springs into the slot.
+/// Put back where it came from, nothing changed: no write, only the spring.
 fn up(_: &PointerEvent) {
     let Some(d) = DRAG.with(|c| c.borrow_mut().take()) else {
         return;
@@ -275,7 +276,9 @@ fn up(_: &PointerEvent) {
     let Some(ghost) = d.ghost.clone() else { return };
     let from = ghost.get_bounding_client_rect();
     let id = d.id.clone();
-    (d.on_drop)(d.id.clone(), d.target.0, d.target.1);
+    if d.target != d.from {
+        (d.on_drop)(d.id.clone(), d.target.0, d.target.1);
+    }
     // After the list re-renders (a microtask), before the next paint.
     let land = Closure::once_into_js(move || {
         clear(&d);

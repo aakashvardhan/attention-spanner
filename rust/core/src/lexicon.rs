@@ -12,7 +12,7 @@ const TERM_MAX_CHARS: usize = 80;
 /// Each term's definition, as Haiku reads it in a link request.
 const LINK_DEF_CHARS: usize = 160;
 /// New terms per "Find links" press.
-pub const LINK_BATCH: usize = 60;
+pub(crate) const LINK_BATCH: usize = 60;
 const RELATION_MAX_CHARS: usize = 40;
 const WHY_MAX_CHARS: usize = 240;
 
@@ -71,11 +71,10 @@ pub fn source_reader_path(source: &Source, papers: &[crate::types::Paper]) -> Op
     use crate::pdf::{paper_pdf_source, reader_page_path};
 
     let paper = papers.iter().find(|p| {
-        p.deleted_at.is_none()
-            && (annotation_doc_key(&p.url) == source.doc_key
-                || p.pdf
-                    .as_ref()
-                    .is_some_and(|pdf| annotation_doc_key(&pdf.url) == source.doc_key))
+        annotation_doc_key(&p.url) == source.doc_key
+            || p.pdf
+                .as_ref()
+                .is_some_and(|pdf| annotation_doc_key(&pdf.url) == source.doc_key)
     })?;
     paper_pdf_source(&paper.url, paper.pdf.as_ref().map(|pdf| pdf.url.as_str()))
         .map(|url| reader_page_path(&url))
@@ -159,7 +158,7 @@ pub fn unlinked(lex: &Lexicon) -> Vec<&Term> {
         .collect()
 }
 
-pub fn link_system() -> String {
+pub(crate) fn link_system() -> String {
     "You map how research terms relate, for a PhD student building a literature map. You get \
 a list of terms, each as id | term | definition, and the ids of the NEW terms. Propose links \
 where one term genuinely bears on another: one is a kind of, part of, measure of, input to, \
@@ -240,11 +239,15 @@ pub fn parse_links(text: &str, lex: &Lexicon, now: i64) -> Result<Vec<Edge>, Str
     Ok(out)
 }
 
-/// Add new edges; a pair already linked keeps its edge. Marks `sent` linked.
-/// Returns how many edges were added.
+/// Add new edges; a pair already linked keeps its edge, and an edge between
+/// two old terms is dropped (the prompt asks for links touching a NEW term,
+/// one of `sent`). Marks `sent` linked. Returns how many edges were added.
 pub fn merge_links(lex: &mut Lexicon, edges: Vec<Edge>, sent: &[String], now: i64) -> usize {
     let mut added = 0;
-    for e in edges {
+    for e in edges
+        .into_iter()
+        .filter(|e| sent.contains(&e.a) || sent.contains(&e.b))
+    {
         let live = lex
             .terms
             .iter()
@@ -324,8 +327,8 @@ mod tests {
     }
 
     #[test]
-    fn saved_sources_open_the_library_pdf_and_hide_missing_or_deleted_papers() {
-        let mut paper = crate::types::Paper {
+    fn saved_sources_open_the_library_pdf_and_hide_missing_papers() {
+        let paper = crate::types::Paper {
             url: "https://arxiv.org/abs/2006.11239v2".into(),
             pdf: Some(crate::types::PdfState {
                 url: "https://example.com/paper.pdf?a=1&b=2".into(),
@@ -338,14 +341,12 @@ mod tests {
         let expected = crate::pdf::reader_page_path(&paper.pdf.as_ref().unwrap().url);
         for key in ["arxiv:2006.11239", "url:example.com/paper.pdf"] {
             assert_eq!(
-                source_reader_path(&src(key, "meaning"), &[paper.clone()]),
+                source_reader_path(&src(key, "meaning"), std::slice::from_ref(&paper)),
                 Some(expected.clone())
             );
         }
         let source = src("arxiv:2006.11239", "meaning");
         assert_eq!(source_reader_path(&source, &[]), None);
-        paper.deleted_at = Some(1);
-        assert_eq!(source_reader_path(&source, &[paper]), None);
     }
 
     #[test]
@@ -461,7 +462,7 @@ mod tests {
     fn merging_keeps_existing_links_and_marks_the_batch() {
         let mut l = lex(&["a", "b", "c"]);
         let first = parse_links(r#"[{"a":"a","b":"b","relation":"mine"}]"#, &l, 0).unwrap();
-        assert_eq!(merge_links(&mut l, first, &[], 0), 1);
+        assert_eq!(merge_links(&mut l, first, &["b".to_string()], 0), 1);
         let again = parse_links(
             r#"[{"a":"b","b":"a","relation":"theirs"},{"a":"c","b":"a","relation":"new"}]"#,
             &l,
@@ -473,6 +474,20 @@ mod tests {
         assert_eq!(l.edges[0].relation, "mine");
         assert_eq!(l.terms[2].linked_at, Some(5));
         assert_eq!(l.terms[0].linked_at, None);
+    }
+
+    #[test]
+    fn an_edge_between_two_old_terms_is_dropped() {
+        let mut l = lex(&["a", "b", "c"]);
+        let e = parse_links(
+            r#"[{"a":"a","b":"b","relation":"old"},{"a":"b","b":"c","relation":"new"}]"#,
+            &l,
+            0,
+        )
+        .unwrap();
+        assert_eq!(merge_links(&mut l, e, &["c".to_string()], 0), 1);
+        assert_eq!(l.edges.len(), 1);
+        assert_eq!(l.edges[0].relation, "new");
     }
 
     #[test]

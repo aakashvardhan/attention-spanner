@@ -1,5 +1,5 @@
 import { structure } from './blocks';
-import { parseNote, setField, type FmField, type FmValue } from './frontmatter';
+import { parseNote, setField, type FmField, type FmScalar, type FmValue } from './frontmatter';
 import { nfc, titleKey } from './names';
 
 /** A wiki link. `from`/`to` are offsets into the text it was read from; -1 for links in properties. */
@@ -38,14 +38,19 @@ export function wikiLinks(text: string, code: [number, number][] = []): Link[] {
   return out;
 }
 
-/** Obsidian reads a property value that is exactly one wiki link as a link. */
+/** Obsidian reads a property value that is exactly one wiki link as a link; any other text is not one. */
+function propertyLink(v: FmScalar, key: string): Link | null {
+  if (typeof v !== 'string') return null;
+  const m = /^\s*(!?)\[\[([^[\]|#\n]*)(?:#([^[\]|\n]*))?(?:\|([^[\]\n]*))?\]\]\s*$/.exec(v);
+  return m && m[2].trim() ? { ...toLink(m, -1, key), from: -1 } : null;
+}
+
 export function propertyLinks(fields: FmField[]): Link[] {
   const out: Link[] = [];
   for (const f of fields) {
     for (const v of Array.isArray(f.value) ? f.value : [f.value]) {
-      if (typeof v !== 'string') continue;
-      const m = /^\s*(!?)\[\[([^[\]|#\n]*)(?:#([^[\]|\n]*))?(?:\|([^[\]\n]*))?\]\]\s*$/.exec(v);
-      if (m && m[2].trim()) out.push({ ...toLink(m, -1, f.key), from: -1 });
+      const l = propertyLink(v, f.key);
+      if (l) out.push(l);
     }
   }
   return out;
@@ -76,8 +81,10 @@ export function rewriteLinks(text: string, code: [number, number][], change: (l:
 
 /**
  * Rewrites the links `match` picks, in the body (skipping code) and in
- * properties. Properties go through setField so YAML quoting stays valid
- * whatever the new title contains.
+ * properties. A property counts only when its value is exactly one link, as in
+ * propertyLinks: text that merely contains "[[x]]" is not a link, never shows
+ * in backlinks, and so is not edited. Properties go through setField so YAML
+ * quoting stays valid whatever the new title contains.
  */
 export function retarget(text: string, match: (l: Link) => boolean, change: (l: Link) => Partial<Link>): string {
   let note = parseNote(text);
@@ -87,10 +94,10 @@ export function retarget(text: string, match: (l: Link) => boolean, change: (l: 
       const values = Array.isArray(f.value) ? f.value : [f.value];
       let touched = false;
       const next = values.map((v) => {
-        if (typeof v !== 'string') return v;
-        const r = rewriteLinks(v, [], pick);
-        if (r !== v) touched = true;
-        return r;
+        const l = propertyLink(v, f.key);
+        if (!l || !match(l)) return v;
+        touched = true;
+        return formatLink({ ...l, ...change(l) });
       });
       if (touched) note = setField(note, f.key, (Array.isArray(f.value) ? next : next[0]) as FmValue);
     }

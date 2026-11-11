@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-export type Handler = (req: IncomingMessage, res: ServerResponse) => void;
+type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
 export interface Sites {
   port: number;

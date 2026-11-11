@@ -3,15 +3,15 @@
 //! out. The worker applies the plan; the order of steps is the TS order.
 
 use crate::alphaxiv::PushItem;
-use crate::papers::arxiv_id;
+use crate::papers::{arxiv_id, paper_match_key};
 use crate::types::Paper;
 use serde_json::{json, Map, Value};
 
-pub const SCHEMA_VERSION: u32 = 28;
+pub const SCHEMA_VERSION: u32 = 29;
 
 /// Local keys of cut features. Cumulative: every bump re-runs the sweep, and
 /// removing an absent key is a no-op. Never list a live key (a test checks).
-pub const DEAD_KEYS: &[&str] = &[
+pub(crate) const DEAD_KEYS: &[&str] = &[
     "notes",
     "notesVault",
     "notionQueue",
@@ -72,7 +72,7 @@ pub const DEAD_KEYS: &[&str] = &[
 ];
 
 /// Settings of cut features, stripped from the stored settings object.
-pub const DEAD_SETTINGS: &[&str] = &[
+pub(crate) const DEAD_SETTINGS: &[&str] = &[
     "assistantEnabled",
     "geminiApiKey",
     "anthropicApiKey",
@@ -131,12 +131,12 @@ pub const DEAD_SETTINGS: &[&str] = &[
 
 /// Settings cut before v28 whose names now belong to live settings (the
 /// palette, the Gemini key): stripped only from profiles older than that.
-pub const V28_DEAD_SETTINGS: &[&str] = &["geminiKey", "theme"];
+pub(crate) const V28_DEAD_SETTINGS: &[&str] = &["geminiKey", "theme"];
 
 /// Session keys cleared on every install/update (session storage outlives an update).
-pub const DEAD_SESSION_KEYS: &[&str] = &["hyperfocus", "driftChecked", "lastGlobalNudgeAt"];
+pub(crate) const DEAD_SESSION_KEYS: &[&str] = &["hyperfocus", "driftChecked", "lastGlobalNudgeAt"];
 /// Session keys of the features cut in v27.
-pub const V27_DEAD_SESSION_KEYS: &[&str] = &[
+pub(crate) const V27_DEAD_SESSION_KEYS: &[&str] = &[
     "trackedTabs",
     "pendingResume",
     "videoTranscripts",
@@ -152,7 +152,7 @@ pub struct Plan {
 }
 
 /// v6 → v7: `pdfAnnotations` become `annotations` with an `anchor` union.
-pub fn v7_annotations(legacy: Option<&Value>) -> Option<Vec<Value>> {
+pub(crate) fn v7_annotations(legacy: Option<&Value>) -> Option<Vec<Value>> {
     let list = legacy?.as_array().filter(|l| !l.is_empty())?;
     Some(
         list.iter()
@@ -180,7 +180,7 @@ pub fn v7_annotations(legacy: Option<&Value>) -> Option<Vec<Value>> {
 
 /// The dead settings stripped; `None` when the stored value is not an object.
 /// `version` is the stored schema version: the v28 names are live after it.
-pub fn strip_settings(settings: Option<&Value>, version: u32) -> Option<Value> {
+pub(crate) fn strip_settings(settings: Option<&Value>, version: u32) -> Option<Value> {
     let mut next = settings?.as_object()?.clone();
     for key in DEAD_SETTINGS {
         next.remove(*key);
@@ -194,7 +194,7 @@ pub fn strip_settings(settings: Option<&Value>, version: u32) -> Option<Value> {
 }
 
 /// v23 → v24: roots only, task fields gone. `new_id` makes ids for records with none.
-pub fn v24_dumps(list: &[Value], mut new_id: impl FnMut() -> String) -> Vec<Value> {
+pub(crate) fn v24_dumps(list: &[Value], mut new_id: impl FnMut() -> String) -> Vec<Value> {
     list.iter()
         .filter(|d| d.get("parentId").is_none_or(Value::is_null) && d.get("text").is_some_and(Value::is_string))
         .map(|d| {
@@ -210,7 +210,11 @@ pub fn v24_dumps(list: &[Value], mut new_id: impl FnMut() -> String) -> Vec<Valu
 
 /// v26 → v27: arXiv papers re-keyed by id, queued for alphaXiv under their
 /// old deck's name; everything else dropped. Re-running keeps folder ids.
-pub fn v27_papers(papers: &[Value], decks: &[Value], now: i64) -> (Vec<Paper>, Vec<PushItem>) {
+pub(crate) fn v27_papers(
+    papers: &[Value],
+    decks: &[Value],
+    now: i64,
+) -> (Vec<Paper>, Vec<PushItem>) {
     let deck_name = |id: &str| {
         decks
             .iter()
@@ -253,7 +257,6 @@ pub fn v27_papers(papers: &[Value], decks: &[Value], now: i64) -> (Vec<Paper>, V
             added_at: num_of(p, "addedAt").map_or(updated, |n| n as i64),
             updated_at: updated,
             last_read_at: num_of(p, "lastReadAt").map(|n| n as i64),
-            deleted_at: None,
             id: id.clone(),
         });
         push.push(PushItem {
@@ -267,7 +270,7 @@ pub fn v27_papers(papers: &[Value], decks: &[Value], now: i64) -> (Vec<Paper>, V
 }
 
 /// v27: annotations live on only for arXiv documents.
-pub fn v27_annotations(list: &[Value]) -> Vec<Value> {
+pub(crate) fn v27_annotations(list: &[Value]) -> Vec<Value> {
     list.iter()
         .filter(|a| {
             a.get("docKey")
@@ -279,7 +282,7 @@ pub fn v27_annotations(list: &[Value]) -> Vec<Value> {
 }
 
 /// v27: a Pomodoro-shaped session cannot block anything; only a reader session survives.
-pub fn v27_focus_session(session: Option<&Value>) -> Value {
+pub(crate) fn v27_focus_session(session: Option<&Value>) -> Value {
     match session {
         Some(s)
             if s.get("tabIds").is_some_and(Value::is_array)
@@ -289,6 +292,89 @@ pub fn v27_focus_session(session: Option<&Value>) -> Value {
         }
         _ => Value::Null,
     }
+}
+
+/// v29: a document key saved from an arXiv link the old parser missed (a
+/// trailing slash made it `url:arxiv.org/abs/<id>`) as its arXiv key.
+pub(crate) fn v29_doc_key(key: &str) -> Option<String> {
+    let rest = key.strip_prefix("url:")?;
+    paper_match_key(&format!("https://{rest}")).filter(|k| k.starts_with("arxiv:"))
+}
+
+/// v29: TypeScript's soft-deleted papers and annotations dropped (nothing has
+/// set `deletedAt` since), the field gone from the rest, doc keys re-keyed.
+pub(crate) fn v29_records(list: &[Value]) -> Vec<Value> {
+    list.iter()
+        .filter(|r| r.get("deletedAt").is_none_or(Value::is_null))
+        .map(|r| {
+            let mut r = r.clone();
+            if let Some(o) = r.as_object_mut() {
+                o.remove("deletedAt");
+                let key = o
+                    .get("docKey")
+                    .and_then(Value::as_str)
+                    .and_then(v29_doc_key);
+                if let Some(key) = key {
+                    o.insert("docKey".into(), json!(key));
+                }
+            }
+            r
+        })
+        .collect()
+}
+
+/// v29: the lexicon's sources re-keyed. Anything not lexicon-shaped is kept.
+pub(crate) fn v29_lexicon(lexicon: &Value) -> Value {
+    let mut lex = lexicon.clone();
+    let terms = lex.get_mut("terms").and_then(Value::as_array_mut);
+    for term in terms.into_iter().flatten() {
+        let sources = term.get_mut("sources").and_then(Value::as_array_mut);
+        for s in sources
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_object_mut)
+        {
+            if let Some(key) = s
+                .get("docKey")
+                .and_then(Value::as_str)
+                .and_then(v29_doc_key)
+            {
+                s.insert("docKey".into(), json!(key));
+            }
+        }
+    }
+    lex
+}
+
+/// v29: explain-backs re-keyed; a list joining one already under the arXiv
+/// key merges with it, oldest first.
+pub(crate) fn v29_explain_backs(all: &Value) -> Value {
+    let Some(map) = all.as_object() else {
+        return all.clone();
+    };
+    let mut out = Map::new();
+    let mut moved = Vec::new();
+    for (k, v) in map {
+        match v29_doc_key(k) {
+            Some(key) if v.is_array() => moved.push((key, v.clone())),
+            _ => {
+                out.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    for (key, list) in moved {
+        match out.get_mut(&key).and_then(Value::as_array_mut) {
+            Some(have) => {
+                have.extend(list.as_array().into_iter().flatten().cloned());
+                let at = |e: &Value| e.get("at").and_then(Value::as_f64).unwrap_or(0.0);
+                have.sort_by(|a, b| at(a).total_cmp(&at(b)));
+            }
+            None => {
+                out.insert(key, list);
+            }
+        }
+    }
+    Value::Object(out)
 }
 
 /// The whole migration: `local` is `chrome.storage.local.get(null)`.
@@ -355,6 +441,20 @@ pub fn migrate(local: &Map<String, Value>, now: i64, new_id: impl FnMut() -> Str
     if version < 24 {
         let dumps = v24_dumps(&arr(&db, "dumps"), new_id);
         db.insert("dumps".into(), Value::Array(dumps));
+    }
+    if version < 29 {
+        for key in ["papers", "annotations"] {
+            if let Some(list) = db.get(key).and_then(Value::as_array) {
+                let next = v29_records(list);
+                db.insert(key.into(), Value::Array(next));
+            }
+        }
+        if let Some(lex) = db.get("lexicon").map(v29_lexicon) {
+            db.insert("lexicon".into(), lex);
+        }
+        if let Some(all) = db.get("explainBacks").map(v29_explain_backs) {
+            db.insert("explainBacks".into(), all);
+        }
     }
     db.insert("schemaVersion".into(), json!(SCHEMA_VERSION));
 

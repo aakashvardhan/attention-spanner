@@ -257,19 +257,44 @@ async fn sign_in_inner() -> AxResult<()> {
         },
     )
     .await;
-    let _ = wait(chrome::alarms_create(
-        SYNC_ALARM,
-        &to_js(&json!({ "periodInMinutes": 30 })).unwrap_or(JsValue::NULL),
-    ))
-    .await;
+    let _ = create_sync_alarm().await;
     sync(true).await;
     Ok(())
 }
 
+async fn create_sync_alarm() -> Res<()> {
+    wait(chrome::alarms_create(
+        SYNC_ALARM,
+        &to_js(&json!({ "periodInMinutes": 30 }))?,
+    ))
+    .await
+    .map(drop)
+}
+
+/// The periodic sync, put back for a signed-in user (the caller saw it missing).
+pub async fn ensure_sync_alarm() -> Res<()> {
+    if store::get::<Option<AlphaxivAuth>>("alphaxivAuth")
+        .await?
+        .is_some()
+    {
+        create_sync_alarm().await?;
+    }
+    Ok(())
+}
+
+/// Held by every write of `alphaxivAuth` and `alphaxivStatus` that follows a
+/// network call: a token refresh or a sync that finishes after sign-out must
+/// not sign the user back in, or put a sync result back on the cleared status.
+const AUTH_LOCK: &str = "alphaxivAuth";
+
 pub async fn sign_out() -> Res<Value> {
-    let auth: Option<AlphaxivAuth> = store::get("alphaxivAuth").await?;
-    store::set("alphaxivAuth", &Value::Null).await?;
-    store::set("alphaxivStatus", &AlphaxivStatus::default()).await?;
+    let auth = store::with_lock(AUTH_LOCK, async {
+        let auth: Option<AlphaxivAuth> = store::get("alphaxivAuth").await?;
+        store::set("alphaxivAuth", &Value::Null).await?;
+        store::set("alphaxivStatus", &AlphaxivStatus::default()).await?;
+        Res::Ok(auth)
+    })
+    .await?;
     SESSION.with(|s| s.borrow_mut().take());
     let _ = wait(chrome::alarms_clear(SYNC_ALARM)).await;
     // Best effort: the local copy is already gone, which is what signing out means here.
@@ -312,7 +337,7 @@ async fn current_auth(force: bool) -> AxResult<AlphaxivAuth> {
         return Ok(auth);
     }
     if auth.refresh_token.is_empty() {
-        let _ = store::set("alphaxivAuth", &Value::Null).await;
+        replace_auth(&auth, None).await;
         return Err(AlphaxivError::new(
             ErrorKind::SignedOut,
             error_message(ErrorKind::SignedOut),
@@ -376,17 +401,55 @@ async fn refresh(auth: AlphaxivAuth) -> AxResult<AlphaxivAuth> {
                 Some(&auth.refresh_token),
                 now(),
             )?;
-            let _ = store::set("alphaxivAuth", &next).await;
-            Ok(next)
+            if replace_auth(&auth, Some(&next)).await {
+                Ok(next)
+            } else {
+                Err(AlphaxivError::new(
+                    ErrorKind::SignedOut,
+                    error_message(ErrorKind::SignedOut),
+                ))
+            }
         }
         Err(e) => {
             // Refused (not merely offline): the session is over; say so instead of retrying forever.
             if e.kind == ErrorKind::SignedOut {
-                let _ = store::set("alphaxivAuth", &Value::Null).await;
+                replace_auth(&auth, None).await;
             }
             Err(e)
         }
     }
+}
+
+/// Store `next` (None: sign out) only if the stored sign-in is still `was`:
+/// after a sign-out, or a new sign-in, meanwhile, the answer is stale.
+async fn replace_auth(was: &AlphaxivAuth, next: Option<&AlphaxivAuth>) -> bool {
+    let (was, next) = (was.clone(), next.cloned());
+    store::with_lock(AUTH_LOCK, async move {
+        let stored: Option<AlphaxivAuth> = store::get("alphaxivAuth").await.unwrap_or_default();
+        if stored.as_ref() != Some(&was) {
+            return false;
+        }
+        let _ = match next {
+            Some(next) => store::set("alphaxivAuth", &next).await,
+            None => store::set("alphaxivAuth", &Value::Null).await,
+        };
+        true
+    })
+    .await
+}
+
+/// A sync's outcome, kept only while still signed in.
+async fn patch_status_signed_in(f: impl FnOnce(&mut AlphaxivStatus) + 'static) -> bool {
+    store::with_lock(AUTH_LOCK, async move {
+        let signed_in = store::get::<Option<AlphaxivAuth>>("alphaxivAuth")
+            .await
+            .is_ok_and(|a| a.is_some());
+        if signed_in {
+            patch_status(f).await;
+        }
+        signed_in
+    })
+    .await
 }
 
 /* ---------- MCP ---------- */
@@ -450,7 +513,9 @@ async fn session(token: &str) -> AxResult<Option<String>> {
     Ok(r.session_id)
 }
 
-async fn call_once(token: &str, name: &str, args: &Value) -> AxResult<String> {
+/// The outer error is the session's (transport, HTTP status, a reply that is
+/// not MCP); the inner one is the tool's own answer, over a session still good.
+async fn call_once(token: &str, name: &str, args: &Value) -> AxResult<AxResult<String>> {
     let session_id = session(token).await?;
     let id = next_id();
     let r = http(
@@ -481,25 +546,27 @@ async fn call_once(token: &str, name: &str, args: &Value) -> AxResult<String> {
         } else {
             ErrorKind::Failed
         };
-        return Err(AlphaxivError::new(
+        return Ok(Err(AlphaxivError::new(
             kind,
             if text.is_empty() {
                 format!("{name} failed.")
             } else {
                 text
             },
-        ));
+        )));
     }
-    Ok(text)
+    Ok(Ok(text))
 }
 
-/// One alphaXiv tool call; a 401 refreshes the token and retries once.
+/// One alphaXiv tool call; a 401 refreshes the token and retries once. Only a
+/// failure of the session itself drops it: a tool that answers "not found"
+/// leaves it for the next call, which then skips initialize.
 pub async fn call_tool(name: &str, args: Value) -> AxResult<String> {
     let mut attempt = 0;
     loop {
         let auth = current_auth(attempt > 0).await?;
         match call_once(&auth.access_token, name, &args).await {
-            Ok(text) => return Ok(text),
+            Ok(answer) => return answer,
             Err(e) => {
                 SESSION.with(|s| s.borrow_mut().take());
                 if e.kind == ErrorKind::SignedOut && attempt == 0 {
@@ -555,24 +622,34 @@ async fn sync_inner(force: bool) -> Value {
         }
         AxResult::Ok(())
     };
-    match run.await {
-        Ok(()) => {
-            patch_status(|s| {
-                s.last_sync_at = Some(now());
-                s.error.clear();
-            })
-            .await;
-            json!({ "ok": true })
+    let (reply, message) = match run.await {
+        Ok(()) => (json!({ "ok": true }), None),
+        Err(e) => (
+            json!({ "ok": false, "error": kind_name(e.kind) }),
+            Some(say(&e)),
+        ),
+    };
+    let kept = patch_status_signed_in(move |s| match message {
+        None => {
+            s.last_sync_at = Some(now());
+            s.error.clear();
         }
-        Err(e) => {
-            let message = if e.kind == ErrorKind::Failed {
-                e.message.clone()
-            } else {
-                error_message(e.kind).to_string()
-            };
-            patch_status(|s| s.error = message).await;
-            json!({ "ok": false, "error": kind_name(e.kind) })
-        }
+        Some(m) => s.error = m,
+    })
+    .await;
+    if kept {
+        reply
+    } else {
+        json!({ "ok": false, "error": kind_name(ErrorKind::SignedOut) })
+    }
+}
+
+/// What to tell the user: alphaXiv's own reason when it gave one, else the kind's words.
+fn say(e: &AlphaxivError) -> String {
+    if e.kind == ErrorKind::Failed && !e.message.is_empty() {
+        e.message.clone()
+    } else {
+        error_message(e.kind).to_string()
     }
 }
 
@@ -588,7 +665,7 @@ fn kind_name(kind: ErrorKind) -> &'static str {
 
 /// A failed shelf action as a reply the page can say out loud.
 fn failed(e: &AlphaxivError) -> Value {
-    json!({ "ok": false, "error": kind_name(e.kind), "message": error_message(e.kind) })
+    json!({ "ok": false, "error": kind_name(e.kind), "message": say(e) })
 }
 
 /* ---------- The shelf's actions ---------- */

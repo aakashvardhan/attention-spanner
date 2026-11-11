@@ -3,7 +3,8 @@ REM Reader - one-click installer for people who cloned this repo from GitHub.
 REM Windows: double-click this file (install.bat) in File Explorer.
 REM
 REM It builds the extension from source, then walks you through the single
-REM manual step Chrome requires ("Load unpacked").
+REM manual step Chrome requires ("Load unpacked"). Needs Node.js 22 or newer
+REM and Rust, which it checks for.
 
 cd /d "%~dp0"
 
@@ -20,6 +21,17 @@ if errorlevel 1 (
   echo     1. Go to  https://nodejs.org  and download the "LTS" version
   echo     2. Open the downloaded installer and click through it
   echo     3. Come back and double-click install.bat again
+  echo.
+  start "" "https://nodejs.org/en/download/prebuilt-installer"
+  echo Press any key to close.
+  pause >nul
+  exit /b 1
+)
+node -e "process.exit(Number(process.versions.node.split('.')[0]) >= 22 ? 0 : 1)"
+if errorlevel 1 (
+  echo   Node.js is too old - the build needs version 22 or newer.
+  echo.
+  echo   Install the current "LTS" from  https://nodejs.org  then double-click install.bat again.
   echo.
   start "" "https://nodejs.org/en/download/prebuilt-installer"
   echo Press any key to close.
@@ -48,7 +60,7 @@ if errorlevel 1 goto fail
 
 echo.
 echo Building the extension...
-call npm run build
+call npm run build:ext
 if errorlevel 1 goto fail
 
 echo.

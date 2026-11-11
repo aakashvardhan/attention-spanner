@@ -1,5 +1,10 @@
 # Minimal Revamp Implementation Plan
 
+> **Status (2026-11-10): archived.** Written for the TypeScript extension, which the
+> Rust port deleted (see `docs/superpowers/specs/2026-11-02-rust-port-design.md`), so most
+> paths and code named here no longer exist. What shipped lives on in `rust/`; the README
+> describes the current behaviour. Its boxes were never ticked, so they say nothing about what was built.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Delete every feature off the keep list, then rebuild the new tab as the Now / Read split and quiet every other page to the same restraint.
@@ -8,7 +13,7 @@
 
 **Tech Stack:** TypeScript, React 18, Vite + CRXJS (MV3), vitest (unit), vitest + Playwright (`e2e/`, against `dist/` built with `npm run build:e2e`).
 
-**Spec:** `docs/superpowers/specs/2026-10-29-minimal-revamp-design.md`
+**Spec:** `docs/superpowers/archive/specs/2026-10-29-minimal-revamp-design.md`
 
 ## Global Constraints
 

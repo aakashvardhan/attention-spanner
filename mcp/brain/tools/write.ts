@@ -3,12 +3,10 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { dailyPath, dailyText, ymd } from '../lib/daily';
 import { asList, getField, parseNote, setField, toText } from '../lib/frontmatter';
-import { nfc, safeTitle, titleKey } from '../lib/names';
+import { folderProblem, nfc, safeTitle, titleKey } from '../lib/names';
 import { planDelete, planMove, planRename, STARRED } from '../lib/rename';
 import type { Vault } from '../vault';
 import { DESTRUCTIVE, fail, guard, IDEMPOTENT, ok, WRITE } from './common';
-
-const badFolder = (f: string) => (f !== '' && f.split('/').some((s) => s === '' || s.startsWith('.'))) || /^(sources|attachments)$/i.test(f.split('/')[0]);
 
 export function registerWriteTools(server: McpServer, vault: Vault): void {
   // One at a time, and re-read inside the queue: another call may have changed the vault while this one waited.
@@ -58,7 +56,8 @@ export function registerWriteTools(server: McpServer, vault: Vault): void {
     async ({ title, text, folder }) =>
       write(async () => {
         const f = (folder ?? 'Inbox').replace(/^\/+|\/+$/g, '');
-        if (badFolder(f)) return fail(`"${f}" is not a folder notes can live in.`);
+        const problem = folderProblem(f);
+        if (problem) return fail(`${problem}.`);
         const wanted = nfc(title).trim();
         const safe = safeTitle(wanted, f);
         const taken = vault.targets().notes;

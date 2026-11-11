@@ -1,5 +1,8 @@
 # Webpage Sidebar Implementation Plan
 
+> **Status (2026-11-10): shipped** (spec Part 1, with the changes noted in the spec's
+> status). The boxes below were never ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The toolbar icon opens a side panel that narrates the active webpage (Listen) and talks it through (ask, never tell), reusing the paper reader's panels.

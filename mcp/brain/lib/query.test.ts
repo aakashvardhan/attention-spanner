@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { normalizeQuery, OPS, parseQuery, printQuery, QueryError, type Q } from './query';
+import { OPS, parseQuery, QueryError, type Q } from './query';
 import { FC } from './testing';
 
 const term = (v: string, phrase = false): Q => ({ t: 'term', v, phrase });
@@ -63,8 +63,38 @@ const { q } = fc.letrec<{ q: Q; and: Q; or: Q; not: Q; op: Q }>((tie) => ({
   op: fc.tuple(fc.constantFrom(...OPS.filter((o) => o !== 'tag')), tie('q')).map(([op, a]): Q => ({ t: 'op', op, a })),
 }));
 
-describe('printQuery', () => {
-  it('prints any query so it parses back to the same query', () => {
+// Printing lives here, not in query.ts: only this property needs it.
+const atom = (q: Q): string => (q.t === 'and' || q.t === 'or' ? `(${printQuery(q)})` : printQuery(q));
+
+function printQuery(q: Q): string {
+  switch (q.t) {
+    case 'term':
+      return q.phrase ? `"${q.v.replace(/["\\]/g, '\\$&')}"` : q.v;
+    case 'regex':
+      return `/${q.v}/`;
+    case 'and':
+      return q.a.map((x) => (x.t === 'or' ? `(${printQuery(x)})` : printQuery(x))).join(' ');
+    case 'or':
+      return q.a.map(printQuery).join(' OR ');
+    case 'not':
+      return `-${atom(q.a)}`;
+    case 'op':
+      return `${q.op}:${atom(q.a)}`;
+  }
+}
+
+/** Flattens nested ANDs and ORs, the shape parseQuery produces. */
+function normalizeQuery(q: Q): Q {
+  if (q.t === 'and' || q.t === 'or') {
+    const a = q.a.map(normalizeQuery).flatMap((x) => (x.t === q.t ? (x as { a: Q[] }).a : [x]));
+    return a.length === 1 ? a[0] : { t: q.t, a };
+  }
+  if (q.t === 'not' || q.t === 'op') return { ...q, a: normalizeQuery(q.a) };
+  return q;
+}
+
+describe('parseQuery on printed queries', () => {
+  it('parses any printed query back to the same query', () => {
     // A block body: fast-check reads any return value other than true or undefined as a failure.
     fc.assert(
       fc.property(q, (x) => {

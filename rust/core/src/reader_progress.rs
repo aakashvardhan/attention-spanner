@@ -4,7 +4,7 @@ use crate::pdf::compute_pdf_percent;
 use crate::types::{Paper, PdfState};
 
 /// Don't rewrite lastReadAt more than once a minute while a tab stays open.
-pub const READING_TOUCH_THROTTLE_MS: i64 = 60_000;
+pub(crate) const READING_TOUCH_THROTTLE_MS: i64 = 60_000;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReaderPosition {
@@ -78,7 +78,6 @@ mod tests {
             added_at: T0,
             updated_at: T0,
             last_read_at: None,
-            deleted_at: None,
         }
     }
     fn pos() -> ReaderPosition {

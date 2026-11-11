@@ -10,6 +10,7 @@
   margin: 0 0 var(--space-4);
   font-family: var(--font-display);
   font-size: var(--text-xl);
+  line-height: var(--leading-xl);
 }
 
 .notes-layout {
@@ -58,6 +59,7 @@
 .notes-list span {
   color: var(--text-secondary);
   font-size: var(--text-xs);
+  line-height: var(--leading-xs);
 }
 
 .notes-reading {
@@ -69,6 +71,7 @@
 .notes-reading h2 {
   margin: 0;
   font-size: var(--text-lg);
+  line-height: var(--leading-lg);
 }
 
 .notes-reading .video-notes {

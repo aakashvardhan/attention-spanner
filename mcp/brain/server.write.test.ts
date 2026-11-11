@@ -34,6 +34,9 @@ describe('write tools', () => {
     expect(await read('Inbox/A-B test.md')).toBe('---\naliases: [A/B test]\n---\n# A/B\n');
     expect(await t.call('create_note', { title: 'sigmoid', text: '' })).toEqual({ text: '"sigmoid" is already used by Concepts/Sigmoid.md', error: true });
     expect(await t.call('create_note', { title: 'X', text: '', folder: 'a//b' })).toEqual({ text: '"a//b" is not a folder notes can live in.', error: true });
+    expect(await t.call('create_note', { title: 'X', text: '', folder: 'Career: 2026' })).toEqual({ text: 'folder "Career: 2026" cannot be a name on Windows; use "Career- 2026".', error: true });
+    expect((await t.call('move_note', { title: 'Idea', folder: 'Career: 2026' })).error).toBe(true);
+    expect((await t.call('move_note', { title: 'Idea', folder: '.git' })).error).toBe(true);
   });
   it('edits only after a read, refuses a stale or ambiguous edit, and keeps history', async () => {
     t = await testServer({ 'a.md': '# A\none\ntwo\ntwo\n' });
@@ -102,5 +105,7 @@ describe('model: parallel calls never lose an edit', () => {
       }),
       { ...FC, numRuns: 30 },
     );
-  });
+    // 30 runs, each a fresh vault on disk: well past vitest's 5 s on a busy machine. Timing out mid-run
+    // would let afterEach delete a vault the property is still writing.
+  }, 120_000);
 });

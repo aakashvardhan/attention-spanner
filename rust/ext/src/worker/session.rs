@@ -17,6 +17,7 @@ use reader_core::pomodoro::{advance, focus_blocklist, is_focus, Phase, Pomodoro,
 use reader_core::types::FocusSession;
 use serde::Deserialize;
 use serde_json::json;
+use std::cell::{Cell, RefCell};
 
 #[derive(Deserialize)]
 struct Rule {
@@ -55,60 +56,93 @@ pub async fn log_activity(event: ActivityEvent) -> Res<()> {
 /// Every read-modify-write of `focusSession` takes this lock: reader tabs
 /// restored together announce themselves at once, and unlocked the second
 /// write would drop the first tab from the session.
-const SESSION_LOCK: &str = "focusSession";
+pub(super) const SESSION_LOCK: &str = "focusSession";
 
-/// Rebuild the session rules in one atomic update; one retry, since startup,
-/// install and a page message can reconcile at the same moment.
-pub async fn sync_session_access_rules() -> Res<()> {
-    let mut last = Ok(());
-    for _ in 0..2 {
-        let session: Option<FocusSession> = store::get("focusSession").await?;
-        let settings = store::settings().await?;
-        let existing: Vec<Rule> = from_js(wait(chrome::dnr_get_session_rules()).await?)?;
-        let remove: Vec<i64> = existing
-            .iter()
-            .map(|r| r.id)
-            .filter(|id| is_owned_session_rule(*id))
-            .collect();
-        let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
-        let mut add = if is_focus(pomodoro.as_ref()) {
-            build_focus_rules(
-                &focus_blocklist(&settings.focus_blocklist),
-                &blocked_page_url(),
-            )
-        } else {
-            build_session_access_rules(
-                session.as_ref(),
-                &settings.focus_blocklist,
-                &blocked_page_url(),
-            )
-        };
-        if let Some(rule) = pomodoro
-            .as_ref()
-            .filter(|p| is_focus(Some(p)))
-            .and_then(|p| p.study_video.as_deref())
-            .and_then(study_video_rule)
-        {
-            add.push(rule);
-        }
-        last = wait(chrome::dnr_update_session_rules(&to_js(
-            &json!({ "removeRuleIds": remove, "addRules": add }),
-        )?))
-        .await
-        .map(drop);
-        if last.is_ok() {
-            break;
-        }
+thread_local! {
+    /// The reader tabs as this worker last read or wrote them (None until it
+    /// has, and again after any change to `focusSession`), so the many
+    /// navigations and closes of other tabs need no storage read.
+    static READER_TABS: RefCell<Option<Vec<i32>>> = const { RefCell::new(None) };
+    /// Announcements not yet written: their tab may leave before it is in the mirror.
+    static OPENING: Cell<u32> = const { Cell::new(0) };
+}
+
+/// Counts one announcement in flight for as long as it lives.
+struct Opening;
+
+impl Opening {
+    fn start() -> Self {
+        OPENING.with(|n| n.set(n.get() + 1));
+        Opening
     }
+}
+
+impl Drop for Opening {
+    fn drop(&mut self) {
+        OPENING.with(|n| n.set(n.get() - 1));
+    }
+}
+
+fn remember_tabs(session: Option<&FocusSession>) {
+    let tabs = session.map(|s| s.tab_ids.clone()).unwrap_or_default();
+    READER_TABS.with(|t| *t.borrow_mut() = Some(tabs));
+}
+
+/// Forget the mirror: `focusSession` changed, perhaps not by this worker.
+pub(super) fn forget_tabs() {
+    READER_TABS.with(|t| t.borrow_mut().take());
+}
+
+/// Rebuild the session rules in one atomic update, under the DNR lock, since
+/// startup, install and a page message can rebuild at the same moment.
+pub async fn sync_session_access_rules() -> Res<()> {
+    let result = store::with_lock(super::DNR_LOCK, rebuild_session_rules()).await;
     // Every change to the session or the round passes through here, so the
     // badge follows from one place. It is decoration: never fail the rules for it.
     if let Err(e) = super::browser::refresh_badge().await {
         crate::js::log_error("[worker] badge", &e);
     }
-    last
+    result
 }
 
-/// The retired daily gate's dynamic rules survive updates; sweep them on every start.
+async fn rebuild_session_rules() -> Res<()> {
+    let session: Option<FocusSession> = store::get("focusSession").await?;
+    let settings = store::settings().await?;
+    let existing: Vec<Rule> = from_js(wait(chrome::dnr_get_session_rules()).await?)?;
+    let remove: Vec<i64> = existing
+        .iter()
+        .map(|r| r.id)
+        .filter(|id| is_owned_session_rule(*id))
+        .collect();
+    let pomodoro: Option<Pomodoro> = store::get("pomodoro").await?;
+    let mut add = if is_focus(pomodoro.as_ref()) {
+        build_focus_rules(
+            &focus_blocklist(&settings.focus_blocklist),
+            &blocked_page_url(),
+        )
+    } else {
+        build_session_access_rules(
+            session.as_ref(),
+            &settings.focus_blocklist,
+            &blocked_page_url(),
+        )
+    };
+    if let Some(rule) = pomodoro
+        .as_ref()
+        .filter(|p| is_focus(Some(p)))
+        .and_then(|p| p.study_video.as_deref())
+        .and_then(study_video_rule)
+    {
+        add.push(rule);
+    }
+    wait(chrome::dnr_update_session_rules(&to_js(
+        &json!({ "removeRuleIds": remove, "addRules": add }),
+    )?))
+    .await
+    .map(drop)
+}
+
+/// The retired daily gate's dynamic rules survive updates; swept on install and update.
 pub async fn remove_legacy_daily_gate_rule() -> Res<()> {
     let rules: Vec<Rule> = from_js(wait(chrome::dnr_get_dynamic_rules()).await?)?;
     let remove: Vec<i64> = rules
@@ -194,17 +228,18 @@ pub async fn check_focus_navigation(tab_id: i32, url: &str) -> Res<()> {
 /// A reader page announced itself; the first one starts the session.
 pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
     let title = title.to_string();
+    let opening = Opening::start();
     let starting = store::with_lock(SESSION_LOCK, async move {
         let session: Option<FocusSession> = store::get("focusSession").await?;
         let starting = session.is_none();
-        store::set(
-            "focusSession",
-            &with_reader_tab(session, tab_id, &title, now()),
-        )
-        .await?;
+        let next = with_reader_tab(session, tab_id, &title, now());
+        store::set("focusSession", &next).await?;
+        remember_tabs(Some(&next));
         Res::Ok(starting)
     })
-    .await?;
+    .await;
+    drop(opening);
+    let starting = starting?;
     sync_session_access_rules().await?;
     if starting {
         let round: Option<Pomodoro> = store::get("pomodoro").await?;
@@ -216,14 +251,25 @@ pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
 
 /// A reader tab closed or left; the last one ends the session.
 pub async fn reader_closed(tab_id: i32) -> Res<()> {
+    // Most closes and navigations are of other tabs: no storage read for those.
+    let known_other = READER_TABS.with(|t| {
+        t.borrow()
+            .as_ref()
+            .is_some_and(|ids| !ids.contains(&tab_id))
+    });
+    if known_other && OPENING.with(Cell::get) == 0 {
+        return Ok(());
+    }
     let closed = store::with_lock(SESSION_LOCK, async move {
         let session: Option<FocusSession> = store::get("focusSession").await?;
+        remember_tabs(session.as_ref());
         let Some(current) = session.filter(|s| s.tab_ids.contains(&tab_id)) else {
             return Ok(None);
         };
         let started = current.started_at;
         let next = without_reader_tab(Some(current), tab_id);
         store::set("focusSession", &next).await?;
+        remember_tabs(next.as_ref());
         Res::Ok(Some((started, next.is_none())))
     })
     .await?;
@@ -300,6 +346,7 @@ pub async fn reconcile_session() -> Res<()> {
         if next != session {
             store::set("focusSession", &next).await?;
         }
+        remember_tabs(next.as_ref());
         Res::Ok(())
     })
     .await?;
@@ -371,9 +418,9 @@ pub async fn pomodoro_alarm() -> Res<()> {
     };
     {
         let kind = if into_break { "break" } else { "focus" };
-        let _ = wait(chrome::offscreen_close()).await; // the last chime may still be open
+        let _ = wait(chrome::offscreen_close()).await; // the last chime may still be ringing
         let _ = wait(chrome::offscreen_create(&to_js(&json!({
-            "url": format!("chime.html#{kind}"),
+            "url": format!("chime.html?offscreen#{kind}"),
             "reasons": ["AUDIO_PLAYBACK"],
             "justification": "The Pomodoro bell at the end of a focus round or a break.",
         }))?))

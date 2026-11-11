@@ -131,6 +131,7 @@ body {
 
 .setting-row label {
   font-size: var(--text-md);
+  line-height: var(--leading-md);
   color: var(--text-primary);
 }
 
@@ -141,6 +142,7 @@ body {
   border-radius: var(--radius-md);
   font-family: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   background: var(--bg-subtle);
   color: var(--text-primary);
   cursor: pointer;
@@ -156,6 +158,7 @@ body {
   border-radius: var(--radius-md);
   font-family: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   background: var(--bg-subtle);
   color: var(--text-primary);
 }
@@ -175,6 +178,7 @@ body {
   color: var(--text-muted);
   font-weight: 400;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .hint {
@@ -196,9 +200,10 @@ button {
   border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   font-weight: 700;
   cursor: pointer;
-  transition: background var(--transition-base) var(--ease-out);
+  transition: background var(--dur-effect-fast) var(--ease-effect);
 }
 
 button:hover {
@@ -220,6 +225,7 @@ button:hover {
   border-radius: var(--radius-md);
   font-family: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   background: var(--bg-surface);
   color: var(--text-primary);
 }
@@ -250,18 +256,22 @@ button:hover {
 
 .domain-entry-name {
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The ✕ is the button's only content, so it is drawn in a text colour, not
+   the decorative --text-faint (2.6:1, under 1.4.11's 3:1 for a control). */
 .remove-domain-btn {
   min-height: 32px;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 
 .remove-domain-btn:hover {
@@ -274,6 +284,7 @@ button:hover {
 .feedback {
   margin-top: var(--space-2);
   font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
 }

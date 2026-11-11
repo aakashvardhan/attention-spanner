@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateVisits, chromeTimeToMs, isoWeek, linkMeasure, linkTargets, notionPageId, notionTitle, toUuid } from './notion';
+import { aggregateVisits, areaOf, chromeTimeToMs, isoWeek, linkMeasure, linkTargets, notionPageId, notionTitle, toUuid } from './notion';
 import type { NBlock } from './notionDb';
 
 const ID = '305a8b0b-408d-800b-bfca-c9072e86e85c';
@@ -93,5 +93,17 @@ describe('linkMeasure', () => {
   it('follows database rows up through their collection', () => {
     const rows = [...vault, block({ id: 'row', type: 'page', parent_id: 'coll' })];
     expect(linkMeasure(rows, new Map([['coll', P3]]), { roots: [ROOT] }).pages).toBe(5);
+  });
+});
+
+describe('areaOf', () => {
+  // space > Area (page) > toggle (block) > Inner (page); Area > collection > Row (page).
+  const parents = new Map([['Area', 'space'], ['toggle', 'Area'], ['Inner', 'toggle'], ['coll', 'Area'], ['Row', 'coll']]);
+  const parent = (id: string) => parents.get(id) ?? null;
+  const isPage = (id: string) => ['Area', 'Inner', 'Row'].includes(id);
+  it('climbs past collections and blocks to the top page', () => {
+    expect(areaOf('Row', parent, isPage)).toBe('Area');
+    expect(areaOf('Inner', parent, isPage)).toBe('Area');
+    expect(areaOf('Area', parent, isPage)).toBe('Area');
   });
 });

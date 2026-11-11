@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { buildEntry } from './entry';
 import { parseQuery } from './query';
 import { search, toSearchDoc } from './search';
+import { budgetMs, PERF_TIMEOUT } from './testing';
 
 const docs = [
   buildEntry('Concepts/Sigmoid.md', '---\ntags: [concept, ml/basics]\n---\n# Sigmoid\n\n## Definition\n\nThe logistic curve maps reals to (0, 1).\n\nSecond paragraph about gradients.\n\n- [ ] derive the gradient\n- [x] plot the curve\n'),
   buildEntry('School/DL Class/Lecture 3.md', '# Lecture 3\n\nSigmoid appears here once.\nflour and water on one line\nmix\n'),
   buildEntry('Inbox/Gradient notes.md', '# Gradient notes\n\n## Sigmoid trick\n\nNothing else.\n'),
 ].map(toSearchDoc);
-const find = (q: string) => search(parseQuery(q), docs).hits.map((h) => h.title);
+const find = (q: string) => search(parseQuery(q), docs).map((h) => h.title);
 
 describe('search', () => {
   it('ranks a title match over a heading match over a body match', () => {
@@ -46,16 +47,13 @@ describe('search', () => {
     expect(find('match-case:sigmoid')).toEqual([]);
     expect(find('match-case:Sigmoid')).toHaveLength(3);
   });
-  it('stops at the deadline and says the results are partial', () => {
-    let t = 0;
-    const r = search(parseQuery('sigmoid'), docs, { deadline: 4, now: () => (t += 5) - 5 });
-    expect(r.partial).toBe(true);
-    expect(r.hits.length).toBeLessThan(3);
+  it('keeps the best hits within the limit', () => {
+    expect(search(parseQuery('sigmoid'), docs, 2).map((h) => h.title)).toEqual(['Sigmoid', 'Gradient notes']);
   });
   it('searches a 1 MB note fast', () => {
     const big = toSearchDoc(buildEntry('Big.md', Array.from({ length: 20_000 }, (_, i) => `Line ${i} says something ordinary.`).join('\n') + '\nneedle at the end\n'));
     const t0 = performance.now();
-    expect(search(parseQuery('needle -haystack line:(needle end)'), [big]).hits).toHaveLength(1);
-    expect(performance.now() - t0).toBeLessThan(500);
-  });
+    expect(search(parseQuery('needle -haystack line:(needle end)'), [big])).toHaveLength(1);
+    expect(performance.now() - t0).toBeLessThan(budgetMs(500));
+  }, PERF_TIMEOUT);
 });

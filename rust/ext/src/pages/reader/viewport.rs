@@ -262,9 +262,12 @@ pub fn PdfViewport(
     });
 
     // Trackpad pinch arrives as ctrl+wheel; ⌘+wheel is the mouse equivalent. A
-    // native listener: Leptos's (like React's) wheel handler is passive and
-    // can't stop browser zoom. The pinch only stretches what is painted; the
-    // real zoom lands once the gesture goes quiet.
+    // native listener with `passive: false` says outright that it stops the
+    // browser's zoom. (Leptos's `on:wheel` would too here: without the
+    // `delegation` feature it is a plain addEventListener on the element, and
+    // Chrome makes wheel passive by default only on window, document and body;
+    // the lexicon's pinch relies on that.) The pinch only stretches what is
+    // painted; the real zoom lands once the gesture goes quiet.
     Effect::new(move |_| {
         let (Some(el), Some(list_el)) = (container.get(), list.get()) else {
             return;
@@ -668,11 +671,18 @@ fn PageLinkLayer(
     on_dest: Callback<(u32, f64)>,
 ) -> impl IntoView {
     let links = RwSignal::new_local(Vec::<(pdfjs::Link, JsValue)>::new());
+    // Only the newest scale's boxes land, whatever order the lookups finish in.
+    let asked = StoredValue::new(0u64);
     Effect::new(move |_| {
         let s = scale.get();
         let d = doc.get_value();
+        asked.update_value(|n| *n += 1);
+        let mine = asked.get_value();
         leptos::task::spawn_local(async move {
-            links.set(pdfjs::page_links(&d, page, s).await.unwrap_or_default());
+            let found = pdfjs::page_links(&d, page, s).await.unwrap_or_default();
+            if asked.try_get_value() == Some(mine) {
+                links.set(found);
+            }
         });
     });
     move || {

@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { asList, getField, parseNote, removeField, setField, toText } from './frontmatter';
+import { asList, getField, parseNote, setField, toText } from './frontmatter';
 import { FC } from './testing';
 
 const NOTE = '---\ncreated: 2026-02-11\ntags: [concept]\naliases:\n  - Logistic function\nurl: https://arxiv.org/abs/1234.5678  # paper notes only\n---\n# Sigmoid\n';
@@ -98,9 +98,8 @@ describe('setField', () => {
     const n = setField(parseNote(NOTE), 'tags', ['concept', 'ml']);
     expect(toText(n)).toBe(NOTE.replace('tags: [concept]', 'tags: [concept, ml]'));
   });
-  it('replaces a block list as a whole and removes a key with its lines', () => {
-    expect(toText(setField(parseNote(NOTE), 'aliases', ['Logit']))).toContain('aliases: [Logit]\nurl:');
-    expect(toText(removeField(parseNote(NOTE), 'aliases'))).toBe(NOTE.replace('aliases:\n  - Logistic function\n', ''));
+  it('replaces a block list as a whole, with its lines', () => {
+    expect(toText(setField(parseNote(NOTE), 'aliases', ['Logit']))).toBe(NOTE.replace('aliases:\n  - Logistic function\n', 'aliases: [Logit]\n'));
   });
   it('keeps CRLF when editing a note written on Windows', () => {
     const t = '---\r\ntags: [a]\r\nx: 1\r\n---\r\nbody\r\n';

@@ -100,6 +100,12 @@ fn math_at(rest: &str) -> Option<(usize, Math)> {
 
 /// The text with every formula swapped for a placeholder, and the formulas.
 pub fn lift_math(text: &str) -> (String, Vec<Math>) {
+    let (out, found) = lift(text);
+    (out, found.into_iter().map(|(m, _)| m).collect())
+}
+
+/// `lift_math`, keeping each formula's source text, delimiters and all.
+fn lift(text: &str) -> (String, Vec<(Math, &str)>) {
     let mut out = String::with_capacity(text.len());
     let mut found = Vec::new();
     let mut i = 0;
@@ -109,7 +115,7 @@ pub fn lift_math(text: &str) -> (String, Vec<Math>) {
                 out.push(OPEN);
                 out.push_str(&found.len().to_string());
                 out.push(CLOSE);
-                found.push(m);
+                found.push((m, &text[i..i + n]));
                 i += n;
                 continue;
             }
@@ -120,9 +126,39 @@ pub fn lift_math(text: &str) -> (String, Vec<Math>) {
     (out, found)
 }
 
+/// The placeholders in `s` put back as the source text they stand for. An
+/// attribute (a URL, a title, an image's alt text) cannot hold rendered maths.
+fn restore<'a>(s: &'a str, raw: &[&str]) -> CowStr<'a> {
+    if !s.contains(OPEN) {
+        return CowStr::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(open) = rest.find(OPEN) {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + OPEN.len_utf8()..];
+        let found = after.find(CLOSE).and_then(|close| {
+            let n: usize = after[..close].parse().ok()?;
+            Some((raw.get(n)?, close))
+        });
+        match found {
+            Some((text, close)) => {
+                out.push_str(text);
+                rest = &after[close + CLOSE.len_utf8()..];
+            }
+            None => {
+                out.push(OPEN);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    CowStr::from(out)
+}
+
 /// Unicode KaTeX has no symbol for, as the LaTeX it meant. Greek, arrows,
 /// ≤ ≥ ≈ ≠ ±, °, ×, ∞ and · pass through: KaTeX knows those.
-pub fn normalize_tex(tex: &str) -> String {
+pub(crate) fn normalize_tex(tex: &str) -> String {
     let mut out = String::with_capacity(tex.len());
     for c in tex.chars() {
         match c {
@@ -154,7 +190,9 @@ pub fn render_markdown(
     if text.is_empty() {
         return String::new();
     }
-    let (staged, math) = lift_math(text);
+    let (staged, lifted) = lift(text);
+    let raw: Vec<&str> = lifted.iter().map(|(_, r)| *r).collect();
+    let math: Vec<Math> = lifted.into_iter().map(|(m, _)| m).collect();
     let options =
         Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
     // Whether each open link/image was kept, so its end tag matches.
@@ -164,9 +202,17 @@ pub fn render_markdown(
         Event::Html(_) | Event::InlineHtml(_) => None,
         // Single newlines are line breaks, as a chat answer means them.
         Event::SoftBreak => Some(Event::HardBreak),
+        // A kept image's text is its alt attribute: formulas stay as typed.
+        Event::Text(t) if images.last() == Some(&true) => {
+            Some(Event::Text(restore(&t, &raw).into_string().into()))
+        }
+        Event::Code(t) if images.last() == Some(&true) => {
+            Some(Event::Code(restore(&t, &raw).into_string().into()))
+        }
         Event::Start(Tag::Link {
             dest_url, title, ..
         }) => {
+            let (dest_url, title) = (restore(&dest_url, &raw), restore(&title, &raw));
             let keep = safe(&dest_url);
             links.push(keep);
             keep.then(|| {
@@ -188,10 +234,23 @@ pub fn render_markdown(
             .unwrap_or(false)
             .then(|| Event::Html(CowStr::from("</a>"))),
         // An unsafe image degrades to its alt text: the inner text events render as body text.
-        Event::Start(Tag::Image { ref dest_url, .. }) => {
-            let keep = safe(dest_url);
+        Event::Start(Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => {
+            let dest_url = restore(&dest_url, &raw).into_string();
+            let keep = safe(&dest_url);
             images.push(keep);
-            keep.then_some(e)
+            keep.then(|| {
+                Event::Start(Tag::Image {
+                    link_type,
+                    dest_url: dest_url.into(),
+                    title: restore(&title, &raw).into_string().into(),
+                    id,
+                })
+            })
         }
         Event::End(TagEnd::Image) => images.pop().unwrap_or(false).then_some(e),
         e => Some(e),
@@ -330,6 +389,23 @@ mod tests {
         assert!(!html.contains("onmouseover=\""));
         assert!(html.contains("%22"));
         assert!(md("[x](https://a.example/a%20b)").contains("href=\"https://a.example/a%20b\""));
+    }
+
+    #[test]
+    fn maths_inside_a_link_or_image_attribute_stays_as_typed() {
+        let html = md("[x](https://a.example/$b$)");
+        assert!(html.contains("href=\"https://a.example/$b$\""), "{html}");
+        assert!(!html.contains("%EE%80"));
+        let html = md("[$x$ link](https://a.example/ \"cost $y$\")");
+        assert!(html.contains("title=\"cost $y$\""), "{html}");
+        assert!(
+            html.contains("<span class=\"katex\">x</span> link</a>"),
+            "{html}"
+        );
+        let img = md("![plot of $f(x)$](https://a.example/$p$.png)");
+        assert!(img.contains("src=\"https://a.example/$p$.png\""), "{img}");
+        assert!(img.contains("alt=\"plot of $f(x)$\""), "{img}");
+        assert!(!img.contains("katex"));
     }
 
     #[test]

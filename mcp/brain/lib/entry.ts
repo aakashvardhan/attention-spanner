@@ -84,8 +84,3 @@ export function duplicateTitles(entries: IndexEntry[]): string[][] {
   for (const e of entries) groups.set(titleKey(e.title), [...(groups.get(titleKey(e.title)) ?? []), e.path]);
   return [...groups.values()].filter((g) => g.length > 1).map((g) => g.sort());
 }
-
-export async function contentHash(text: string): Promise<string> {
-  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}

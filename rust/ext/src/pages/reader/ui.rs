@@ -9,7 +9,8 @@ use reader_core::constants::NEWTAB_PAGE_PATH;
 use reader_core::find::{find_matches, MAX_MATCHES};
 use reader_core::outline::{section_index_at, FlatOutlineItem};
 use reader_core::pdf::alphaxiv_url;
-use reader_core::reading_aids::{crossed_section, section_done_label};
+use reader_core::questions::section_finished;
+use reader_core::reading_aids::section_done_label;
 use serde_json::json;
 use wasm_bindgen::JsCast;
 
@@ -143,14 +144,14 @@ pub fn ReaderToolbar(
                     </button>
                 </Show>
                 <div class="reader-document-title">
-                    <h1 title=title class="reader-title">{title}</h1>
+                    <h1 title=title>{title}</h1>
                     <span class="reader-section-name">{section}</span>
                 </div>
             </div>
 
             <div class="reader-toolbar-right">
                 <button
-                    class=move || active(explain_open.get(), "ghost-btn reader-explain-btn")
+                    class=move || active(explain_open.get(), "ghost-btn")
                     aria-pressed=move || explain_open.get().to_string()
                     aria-keyshortcuts="E"
                     title="Explain the paper back in your own words (E)"
@@ -159,7 +160,7 @@ pub fn ReaderToolbar(
                     "Explain it back"
                 </button>
                 <button
-                    class=move || active(talk_open.get(), "ghost-btn reader-explain-btn")
+                    class=move || active(talk_open.get(), "ghost-btn")
                     aria-pressed=move || talk_open.get().to_string()
                     aria-keyshortcuts="T"
                     title="Talk the paper through out loud; it asks, never explains (T)"
@@ -168,7 +169,7 @@ pub fn ReaderToolbar(
                     "Talk it through"
                 </button>
                 <button
-                    class=move || active(listen_open.get(), "ghost-btn reader-explain-btn")
+                    class=move || active(listen_open.get(), "ghost-btn")
                     aria-pressed=move || listen_open.get().to_string()
                     aria-keyshortcuts="L"
                     title="Read the paper aloud from this page, explaining the math (L)"
@@ -301,7 +302,7 @@ pub fn ShortcutSheet(on_close: Callback<()>) -> impl IntoView {
     view! {
         <div class="reader-keys-scrim" on:click=move |_| on_close.run(())>
             <section class="reader-keys" role="dialog" aria-modal="true" aria-labelledby="reader-keys-title" on:click=|e| e.stop_propagation()>
-                <div class="reader-related-head">
+                <div class="reader-sheet-head">
                     <h2 id="reader-keys-title">"Keyboard shortcuts"</h2>
                     <button class="ghost-btn" autofocus on:click=move |_| on_close.run(()) aria-label="Close shortcuts">"✕"</button>
                 </div>
@@ -357,7 +358,7 @@ pub fn ReaderCapsule(
                 }
                 view! {
                     <Show when=move || { page_count.get() > 0 }>
-                        <div class="reader-toolbar-group reader-pagination" aria-label="Page navigation">
+                        <div class="reader-toolbar-group" aria-label="Page navigation">
                             <button class="reader-icon-btn" aria-label="Previous page" title="Previous page" disabled={move || page.get() <= 1} on:click=move |_| on_page_jump.run(page.get_untracked() - 1)>
                                 <ToolbarIcon><path d="m14 17-5-5 5-5" /></ToolbarIcon>
                             </button>
@@ -385,7 +386,7 @@ pub fn ReaderCapsule(
                             </button>
                         </div>
                     </Show>
-                    <div class="reader-toolbar-group reader-zoom-controls" aria-label="Zoom controls">
+                    <div class="reader-toolbar-group" aria-label="Zoom controls">
                         <button class="reader-icon-btn" aria-label="Zoom out" title="Zoom out (⌘−)" disabled={move || zoom.get() <= ZOOM_MIN} on:click=move |_| zoom.update(|z| *z = zoom_step(*z, -0.25).max(ZOOM_MIN))>
                             <ToolbarIcon><path d="M7 12h10" /></ToolbarIcon>
                         </button>
@@ -447,8 +448,7 @@ pub fn use_section_toast(
     let timer: StoredValue<Option<TimeoutHandle>, LocalStorage> = StoredValue::new_local(None);
     Effect::new(move |_| {
         let c = current.get();
-        let as_i = |x: Option<usize>| x.map_or(-1, |v| v as i32);
-        let finished = crossed_section(as_i(prev.get_value()), as_i(c));
+        let finished = section_finished(prev.get_value(), c);
         prev.set_value(c);
         // A time guard: reopening a paper scrolls to where you were, which can cross one section. That is not reading.
         let Some(done) = finished.filter(|_| crate::js::now() - mounted_at >= 3000) else {
@@ -456,7 +456,7 @@ pub fn use_section_toast(
         };
         toast.set(Some(section_done_label(
             done,
-            sections.with_untracked(Vec::len) as i32,
+            sections.with_untracked(Vec::len),
         )));
         if let Some(h) = timer.try_update_value(Option::take).flatten() {
             h.clear();
@@ -480,7 +480,7 @@ pub fn OutlineSidebar(
     view! {
         <nav class="reader-outline" aria-label="Outline">
             <h2>"Outline"</h2>
-            {move || outline.get().is_empty().then(|| view! { <p class="reader-notes-empty">"This paper has no outline."</p> })}
+            {move || outline.get().is_empty().then(|| view! { <p class="reader-sheet-empty">"This paper has no outline."</p> })}
             {move || {
                 let list = outline.get();
                 (!list.is_empty()).then(|| view! {
@@ -523,18 +523,18 @@ pub fn FindPanel(
     });
     view! {
         <aside class="reader-find" aria-label="Find in paper">
-            <div class="reader-related-head">
+            <div class="reader-sheet-head">
                 <h2>"Find in paper"</h2>
                 <button class="ghost-btn" on:click=move |_| on_close.run(()) aria-label="Close find">"✕"</button>
             </div>
             <input class="reader-find-input" autofocus prop:value=move || query.get() on:input=move |e| query.set(event_target_value(&e)) placeholder="Search text" />
             {move || {
                 if pages.with(Option::is_none) {
-                    Some(view! { <p class="reader-notes-empty">"Indexing text…"</p> }.into_any())
+                    Some(view! { <p class="reader-sheet-empty">"Indexing text…"</p> }.into_any())
                 } else if !query.get().trim().is_empty() {
                     let n = matches.with(Vec::len);
                     let text = if n == 0 { "No matches.".to_string() } else { format!("{n}{} {} found", if n == MAX_MATCHES { "+" } else { "" }, if n == 1 { "page" } else { "pages" }) };
-                    Some(view! { <p class="reader-notes-empty">{text}</p> }.into_any())
+                    Some(view! { <p class="reader-sheet-empty">{text}</p> }.into_any())
                 } else {
                     None
                 }

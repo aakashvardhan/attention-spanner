@@ -124,7 +124,7 @@ fn body(notes: &VideoNotes, on_seek: Option<Callback<u32>>) -> AnyView {
                 <ul>{notes.prerequisites.iter().map(|p| view! { <li>{p.clone()}</li> }).collect_view()}</ul>
             })}
             <h3>"Steps"</h3>
-            <ol class="steps">
+            <ol>
                 {notes.steps.iter().map(|st| view! {
                     <li>
                         {s(&st.t)}" "<span>{st.text.clone()}</span>
@@ -138,7 +138,7 @@ fn body(notes: &VideoNotes, on_seek: Option<Callback<u32>>) -> AnyView {
         Kind::Educational => view! {
             <p class="notes-lede">{notes.question.clone()}</p>
             <h3>"Key ideas"</h3>
-            <ol class="ideas">
+            <ol>
                 {notes.ideas.iter().map(|i| view! {
                     <li>{s(&i.t)}" "<strong>{i.idea.clone()}</strong><p>{i.intuition.clone()}</p></li>
                 }).collect_view()}

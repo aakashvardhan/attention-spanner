@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Later tasks append { name, pattern } here; each cut feature must never come back.
+// Features that were cut, and the names that would mean one came back. A cut adds its own entry.
 // Patterns must not use the g or y flag: hits() reuses one RegExp across lines and .test() would carry lastIndex.
 const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'Hero', pattern: /\bHero\b|edition-masthead/ },
@@ -37,7 +37,7 @@ const CUT: { name: string; pattern: RegExp }[] = [
   { name: 'citations', pattern: /bibliography|citeFormats|CitationTooltip|cite-marker|TrackPrompt/ },
   { name: 'semantic-scholar', pattern: /semanticScholar|SEMANTIC_SCHOLAR|fetchPaperMeta/ },
   { name: 'decks', pattern: /FLASH_ADD_DECK|deckId|DeckList|PaperDeck/ },
-  // v28: one walnut theme
+  // v28's cut skins and focus room are guarded in rust/ext/css/theme.test.ts (theme structure), against the stylesheet itself.
 ];
 
 // These name dead keys on purpose (sweep lists and fixtures).

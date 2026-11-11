@@ -4,24 +4,28 @@
   "version": "1.0.0",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "npm run build:ext && npm run build:mcp",
-    "build:ext": "node scripts/rust-assets.mjs && cd rust/ext && OXICHROME_DIST=.build cargo run -q --manifest-path ../../vendor/oxichrome/oxichrome-cli/Cargo.toml -- oxichrome build --release && cd ../.. && node scripts/publish-ext.mjs",
+    "build:ext": "node scripts/build-ext.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e && tsc --noEmit -p mcp",
     "package": "node scripts/package.mjs",
-    "test:e2e": "PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1 vitest run --config vitest.e2e.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "build:mcp": "esbuild mcp/brain/cli.ts mcp/brain/server.ts mcp/brain/searchWorker.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist-mcp --out-extension:.js=.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=error",
     "brain": "npm run -s build:mcp && node dist-mcp/cli.mjs",
     "brain:diff-obsidian": "npm run -s brain -- diff-obsidian",
     "test:rust": "cd rust && cargo test -q && cargo clippy -q --all-targets -- -D warnings && cargo clippy -q -p reader-ext --target wasm32-unknown-unknown -- -D warnings && cargo fmt --check",
     "check": "npm run typecheck && npm test && npm run test:rust && npm run build:ext && npm run test:e2e",
     "check:fast": "npm run typecheck && npm test && npm run test:rust",
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "node scripts/install-hooks.mjs",
     "eval:sidebar": "node eval/sidebar/run.mjs",
     "eval:youtube": "node eval/youtube/run.mjs"
   },
   "dependencies": {
+    "@lezer/common": "1.5.5",
     "@lezer/markdown": "1.7.2",
     "@modelcontextprotocol/sdk": "1.32.0",
     "katex": "^0.18.10",
@@ -36,8 +40,7 @@
     "axe-core": "^4.14.0",
     "esbuild": "^0.28.1",
     "fast-check": "4.10.2",
-    "ffmpeg-static": "^5.3.0",
-    "playwright": "^1.61.1",
+    "playwright": "^1.65.0",
     "typescript": "~5.8.0",
     "vitest": "^4.1.12"
   }

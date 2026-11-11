@@ -19,7 +19,10 @@ const ready = init().catch(async (e) => {
 const run = (fn, ...args) => ready.then(() => fn(...args)).catch((e) => console.error('[worker]', e));
 
 chrome.runtime.onInstalled.addListener(() => run(wasm.on_installed));
-chrome.runtime.onStartup.addListener(() => run(wasm.on_startup));
+// Empty on purpose: the listener is what wakes the worker at browser start,
+// and the wake's on_worker_start (below) does the work, so the PDF redirect
+// rules exist before the first navigation.
+chrome.runtime.onStartup.addListener(() => {});
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   ready
     .then(() => wasm.on_message(msg, sender))
@@ -85,6 +88,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (area === 'local' && changes.todos) run(wasm.on_todos_changed);
   if (area === 'local' && changes.pomodoro) run(wasm.on_pomodoro_changed);
+  if (area === 'local' && changes.focusSession) run(wasm.on_session_changed);
 });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) run(wasm.on_tab_url, tabId, info.url);

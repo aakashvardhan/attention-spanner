@@ -4,7 +4,7 @@
 
 use crate::cache;
 use crate::chrome;
-use crate::js::to_js;
+use crate::js::{to_js, Timeout};
 use js_sys::{Reflect, Uint8Array};
 use reader_core::claude::{
     headers, parse_event, request_body, status_message, Event, SseBuffer, MESSAGES_URL,
@@ -61,7 +61,7 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
     .map_err(|_| "request")?;
     Reflect::set(&init, &"signal".into(), &controller.signal()).map_err(|_| "signal")?;
     let abort = controller.clone();
-    let timer = gloo_timeout(ask.timeout_ms, move || abort.abort());
+    let timer = Timeout::new(ask.timeout_ms, move || abort.abort());
 
     let result = async {
         let res: web_sys::Response = JsFuture::from(
@@ -101,41 +101,32 @@ pub async fn stream(ask: Ask<'_>, mut on_text: impl FnMut(&str)) -> Result<Strin
                 .decode_with_js_u8_array_and_options(&bytes, &options)
                 .map_err(|_| "decode")?;
             for data in buffer.push(&part) {
-                match parse_event(&data) {
+                let failure = match parse_event(&data) {
                     Event::Text(t) => {
                         text.push_str(&t);
                         on_text(&text);
+                        continue;
                     }
-                    Event::Refusal => return Err("Claude declined to answer this.".to_string()),
-                    Event::Error(m) => return Err(m),
-                    Event::Other => {}
-                }
+                    Event::Refusal => "Claude declined to answer this.".to_string(),
+                    Event::Error(m) => m,
+                    Event::Other => continue,
+                };
+                // The rest of the reply is not wanted: let the connection go now.
+                let _ = reader.cancel();
+                return Err(failure);
             }
         }
         Ok(text)
     }
     .await;
-    clear_timeout(timer);
+    drop(timer);
+    // A read cut short by Stop or the timeout rejects like a lost connection; say which.
+    if controller.signal().aborted() && result.is_err() {
+        return Err("Claude took too long, or was stopped.".into());
+    }
     // Only a whole reply: a stopped or failed one is asked again next time.
     if let (Some(k), Ok(text)) = (&key, &result) {
         cache::CLAUDE.put_text(k, text).await;
     }
     result
-}
-
-#[wasm_bindgen::prelude::wasm_bindgen]
-extern "C" {
-    // The global timers: a page's window and the service worker both have them.
-    #[wasm_bindgen(js_name = setTimeout)]
-    fn set_timeout(cb: &wasm_bindgen::JsValue, ms: i32) -> i32;
-    #[wasm_bindgen(js_name = clearTimeout)]
-    fn clear_timeout_js(id: i32);
-}
-
-pub(crate) fn gloo_timeout(ms: i32, f: impl FnOnce() + 'static) -> i32 {
-    set_timeout(&wasm_bindgen::closure::Closure::once_into_js(f), ms)
-}
-
-pub(crate) fn clear_timeout(id: i32) {
-    clear_timeout_js(id);
 }

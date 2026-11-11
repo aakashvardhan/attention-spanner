@@ -5,13 +5,19 @@ import type { Q } from './query';
 /**
  * Linear scan, ranked title, then heading, then body (spec, Search).
  * ponytail: linear scan; move to an inverted index past about 5,000 notes or
- * when bench:brain misses the 150 ms budget.
+ * once a search of the real vault takes longer than the spec's 150 ms budget.
  */
 
 export interface SearchDoc { path: string; title: string; body: string; tags: string[]; headings: Heading[]; blocks: Block[]; tasks: Task[] }
 export interface Hit { path: string; title: string; score: number }
 
-export const toSearchDoc = (e: IndexEntry): SearchDoc => ({ path: e.path, title: e.title, body: e.body, tags: e.tags, headings: e.headings, blocks: e.blocks, tasks: e.tasks });
+// One doc per entry, kept while the entry is: the regex worker resends only docs it has not seen.
+const docs = new WeakMap<IndexEntry, SearchDoc>();
+export function toSearchDoc(e: IndexEntry): SearchDoc {
+  let d = docs.get(e);
+  if (!d) docs.set(e, (d = { path: e.path, title: e.title, body: e.body, tags: e.tags, headings: e.headings, blocks: e.blocks, tasks: e.tasks }));
+  return d;
+}
 
 type Ctx = { cs: boolean };
 interface Scope { raw: string; low?: string }
@@ -117,19 +123,14 @@ function score(d: DocScopes, headings: Heading[], terms: Q[]): number {
 
 export const rankHits = (hits: Hit[]): Hit[] => hits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 
-export function search(q: Q, docs: Iterable<SearchDoc>, opts: { limit?: number; deadline?: number; now?: () => number } = {}): { hits: Hit[]; partial: boolean } {
+/** Runs to the end: a regex that can run away goes through regexSearch's worker, which is stopped after 2 s. */
+export function search(q: Q, docs: Iterable<SearchDoc>, limit?: number): Hit[] {
   const hits: Hit[] = [];
-  if (q.t === 'and' && q.a.length === 0) return { hits, partial: false };
-  const now = opts.now ?? (() => Date.now());
+  if (q.t === 'and' && q.a.length === 0) return hits;
   const terms = positives(q);
-  let partial = false;
   for (const d of docs) {
-    if (opts.deadline !== undefined && now() > opts.deadline) {
-      partial = true;
-      break;
-    }
     const c = { title: { raw: d.title }, body: { raw: d.body } };
     if (inDoc(q, d, { cs: false }, c)) hits.push({ path: d.path, title: d.title, score: score(c, d.headings, terms) });
   }
-  return { hits: rankHits(hits).slice(0, opts.limit ?? hits.length), partial };
+  return rankHits(hits).slice(0, limit ?? hits.length);
 }

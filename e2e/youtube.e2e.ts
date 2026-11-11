@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PAGES, expectA11y, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
+import { PAGES, closeTestPages, expectA11y, launch, mockClaude, seed, shot, storage, type Ext } from './harness';
 
 /**
  * The side panel on YouTube: Gemini watches the video and writes takeaways
@@ -39,7 +39,7 @@ describe('side panel: YouTube', () => {
   async function openVideo(id: string): Promise<number> {
     const page = await ext.ctx.newPage();
     await page.goto(watch(id));
-    // The newest tab on this video: earlier tests leave others open.
+    // The newest tab on this video, should a test open it twice.
     return ext.sw.evaluate(async (u) => Math.max(...(await chrome.tabs.query({ url: u })).map((t) => t.id!)), watch(id));
   }
   // The newest page on this video, matching openVideo's tab.
@@ -73,6 +73,7 @@ describe('side panel: YouTube', () => {
     await seed(ext, { settings: { claudeKey: 'sk-e2e', geminiKey: 'AIza-e2e' } });
   });
   afterAll(async () => ext?.close());
+  closeTestPages(() => ext);
 
   const notesReply = (notes: object) => ({
     status: 200,

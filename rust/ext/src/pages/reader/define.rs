@@ -8,11 +8,12 @@ use leptos::html;
 use leptos::prelude::*;
 use reader_core::ai::define_request;
 use reader_core::annotations::{merge_line_rects, normalize_rects, Box};
-use reader_core::clicked_word::{chars_to_utf16, clicked_word, utf16_to_chars};
+use reader_core::clicked_word::clicked_word;
 use reader_core::constants::ANNOTATION_TEXT_MAX_CHARS;
 use reader_core::constants::LEXICON_PAGE_PATH;
 use reader_core::lexicon::{split_definition, term_key, Lexicon};
 use reader_core::types::AnnotationRect;
+use reader_core::utf16::{chars_to_utf16, utf16_to_chars};
 use wasm_bindgen::JsCast;
 use web_sys::{Element, Node};
 
@@ -77,7 +78,7 @@ pub fn define_target(e: &web_sys::MouseEvent) -> Option<DefineTarget> {
         return None;
     }
     let data = node.node_value().unwrap_or_default();
-    let caret_char = utf16_to_chars(&data, caret.offset());
+    let caret_char = utf16_to_chars(&data, caret.offset() as usize);
 
     // The page's text as one string, runs joined by a space, so the model reads the whole sentence.
     let walker = document()
@@ -109,10 +110,10 @@ pub fn define_target(e: &web_sys::MouseEvent) -> Option<DefineTarget> {
     match at {
         Some(s) if caret_char <= s + wl => {
             range
-                .set_start(&node, chars_to_utf16(&data_chars[..s]))
+                .set_start(&node, chars_to_utf16(&data, s) as u32)
                 .ok()?;
             range
-                .set_end(&node, chars_to_utf16(&data_chars[..s + wl]))
+                .set_end(&node, chars_to_utf16(&data, s + wl) as u32)
                 .ok()?;
         }
         _ => range.select_node_contents(&span).ok()?,
@@ -312,9 +313,9 @@ pub fn DefinePopover(
                     </form>
                 }
             >
-                <p class="define-label">"Your guess"</p>
+                <p class="small-label">"Your guess"</p>
                 <p class="define-guess-text">{move || guess.get().unwrap_or_default()}</p>
-                <p class="define-label">"In the paper"</p>
+                <p class="small-label">"In the paper"</p>
                 <AiNote ai=ai />
                 {move || saved.get().map(|term| view! {
                     <details class="define-saved" open>

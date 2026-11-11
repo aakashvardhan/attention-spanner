@@ -11,7 +11,10 @@ use reader_core::brain_dump::{
     dump_prompt, parse_dump, ASK_TIMEOUT_MS, DUMP_SYSTEM, FAILED_MESSAGE, MAX_DUMP_CHARS,
     NO_KEY_MESSAGE, SAVE_FAILED_MESSAGE,
 };
-use reader_core::constants::{CLAUDE_MODEL_QUICK, NOTES_PAGE_PATH, PAPERS_PAGE_PATH};
+use reader_core::civil_date::CivilDate;
+use reader_core::constants::{
+    CLAUDE_MODEL_QUICK, DUMPS_PAGE_PATH, NOTES_PAGE_PATH, PAPERS_PAGE_PATH,
+};
 use reader_core::explain::ExplainBacks;
 use reader_core::feed::{rss_items, FeedItem, HN_RSS};
 use reader_core::pdf::paper_open_url;
@@ -19,15 +22,15 @@ use reader_core::pomodoro::{
     left_label, start_todos, sync_tasks, Phase as PomPhase, Pomodoro, MAX_TASKS,
 };
 use reader_core::todos::{
-    format_local, keep_today, move_todo, parse_local, sky_label, sort_todos, todo_column,
-    LocalTime, Todo,
+    format_local, keep_today, move_todo, parse_local, sort_todos, todo_column, LocalTime, Todo,
 };
 use reader_core::types::{FocusSession, Paper};
+use reader_core::utf16::{chars_to_utf16, utf16_to_chars};
 use reader_core::vault::{Dump, DumpEntry, LockedDump, Vault};
 use reader_core::voice::{
-    char_to_utf16, clean_transcript, encode_wav, insert_transcript, trim_to_speech, utf16_to_char,
-    SILENCE_STOP_MS,
+    clean_transcript, encode_wav, insert_transcript, trim_to_speech, SILENCE_STOP_MS,
 };
+use reader_core::weather::sky_label;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::cell::RefCell;
@@ -49,7 +52,17 @@ pub fn NewTab() -> impl IntoView {
     let (todos, todos_loaded) = use_storage::<Vec<Todo>>("todos");
     let (activity, _) = use_storage::<ActivityLog>("activity");
     let tick = RwSignal::new(now());
-    set_interval(move || tick.set(now()), std::time::Duration::from_secs(1));
+    let ticking =
+        set_interval_with_handle(move || tick.set(now()), std::time::Duration::from_secs(1)).ok();
+    on_cleanup(move || {
+        if let Some(h) = ticking {
+            h.clear();
+        }
+    });
+    // The day and the minute, from the tick: a tab left open past midnight
+    // moves on to the new day, and what reads them re-runs only when they turn.
+    let today = Memo::new(move |_| local_date(tick.get()));
+    let minute = Memo::new(move |_| tick.get() / 60_000);
     // A running round counts down in the tab strip, where the other tabs are.
     let tab_title = Memo::new(move |_| {
         pomodoro.with(|p| match p {
@@ -69,7 +82,7 @@ pub fn NewTab() -> impl IntoView {
     // To read, in progress, completed: by how far each paper is read.
     let columns = Memo::new(move |_| {
         let mut cols: [Vec<Paper>; 3] = Default::default();
-        for p in papers.get().into_iter().filter(|p| p.deleted_at.is_none()) {
+        for p in papers.get() {
             let i = if p.progress_percent >= 100.0 {
                 2
             } else if p.last_read_at.is_some() || p.progress_percent > 0.0 {
@@ -164,7 +177,7 @@ pub fn NewTab() -> impl IntoView {
                             }
                         }}
                     </div>
-                    <Clock pomodoro=pomodoro tick=tick todos=todos log=activity />
+                    <Clock pomodoro=pomodoro tick=tick today=today minute=minute todos=todos log=activity />
                     <PomodoroPanel pomodoro=pomodoro tick=tick todos=todos />
                 </section>
                 <section class="board" aria-label="Reading board">
@@ -203,7 +216,7 @@ pub fn NewTab() -> impl IntoView {
                 <aside class="side-col">
                     <BrainDump />
                     <GameCard />
-                    <ActivityHeatmap papers=papers log=activity />
+                    <ActivityHeatmap papers=papers log=activity today=today />
                     <Show when=move || pomodoro.with(Option::is_none) && session.with(Option::is_none)>
                         <details class="news-disclosure"><summary>"News"</summary><HnFeed /></details>
                     </Show>
@@ -237,7 +250,7 @@ fn LockIcon(class: &'static str) -> impl IntoView {
 fn GameCard() -> impl IntoView {
     let (game, earned) = super::use_game();
     view! {
-        <section class="game" aria-label="Progress" class:game--cleared=move || game.with(|g| g.cleared())>
+        <section class="game" aria-label="Progress">
             <h2 class="label">{move || if game.with(|g| g.cleared()) { "Progress · today cleared" } else { "Progress" }}</h2>
             <p class="game-head">
                 <span class="game-level">{move || game.with(|g| format!("Level {}", g.level))}</span>
@@ -265,7 +278,11 @@ fn GameCard() -> impl IntoView {
 /* ---------- Activity ---------- */
 
 #[component]
-fn ActivityHeatmap(papers: ReadSignal<Vec<Paper>>, log: ReadSignal<ActivityLog>) -> impl IntoView {
+fn ActivityHeatmap(
+    papers: ReadSignal<Vec<Paper>>,
+    log: ReadSignal<ActivityLog>,
+    today: Memo<CivilDate>,
+) -> impl IntoView {
     let metric = RwSignal::new(Metric::All);
     let model = Memo::new(move |_| {
         let ids: Vec<(String, Option<i64>)> = papers
@@ -273,13 +290,7 @@ fn ActivityHeatmap(papers: ReadSignal<Vec<Paper>>, log: ReadSignal<ActivityLog>)
             .into_iter()
             .map(|p| (p.id, p.last_read_at))
             .collect();
-        build_heat_model(
-            &log.get(),
-            &ids,
-            metric.get(),
-            local_date(now()),
-            local_date,
-        )
+        build_heat_model(&log.get(), &ids, metric.get(), today.get(), local_date)
     });
     let days = Memo::new(move |_| model.get().weeks.into_iter().flatten().collect::<Vec<_>>());
     // Future days only trail the last column, so today is the last past one.
@@ -649,9 +660,9 @@ fn BrainDump() -> impl IntoView {
             let at = input
                 .get_untracked()
                 .and_then(|b| b.selection_start().ok().flatten())
-                .map_or(usize::MAX, |u| utf16_to_char(&draft, u as usize));
+                .map_or(usize::MAX, |u| utf16_to_chars(&draft, u as usize));
             let (next, cursor, cut) = insert_transcript(&draft, at, &words, MAX_DUMP_CHARS);
-            let caret = char_to_utf16(&next, cursor) as u32;
+            let caret = chars_to_utf16(&next, cursor) as u32;
             set_text(next);
             if cut {
                 error.set(CUT_SHORT.into());
@@ -856,7 +867,7 @@ fn BrainDump() -> impl IntoView {
                     } else {
                         let count = locked.with(Vec::len);
                         (count > 0 && stored_vault.with(Option::is_some)).then(|| view! {
-                            <a class="notebook-count" href=chrome::get_url("src/pages/dumps/index.html")>
+                            <a class="notebook-count" href=chrome::get_url(DUMPS_PAGE_PATH)>
                                 <LockIcon class="notebook-lock" />
                                 {count}" locked"
                             </a>
@@ -1355,7 +1366,8 @@ struct SkyNow {
 
 const SKY_FRESH_MS: i64 = 30 * 60 * 1000;
 
-/// Where the browser thinks we are (an hour-old fix is fine for weather).
+/// Where the browser thinks we are (an hour-old fix is fine for weather). The
+/// manifest has no geolocation permission, so the browser asks the user first.
 async fn position() -> Option<(f64, f64)> {
     let geo = web_sys::window()?.navigator().geolocation().ok()?;
     let promise = js_sys::Promise::new(&mut |resolve, reject| {
@@ -1411,12 +1423,14 @@ async fn sky_now() -> Option<SkyNow> {
 
 /// A diver's watch face: fluted bezel, lume plots, Mercedes hour hand, a
 /// sweeping seconds hand, the date under a cyclops at 3. The hands turn on
-/// CSS animations started at the current time, so no timer ticks.
-// ponytail: the date window is set at load; a new tab left open past midnight shows yesterday.
+/// CSS animations started at the current time, so no timer ticks; the date
+/// window follows the day.
 #[component]
 fn Clock(
     pomodoro: ReadSignal<Option<Pomodoro>>,
     tick: RwSignal<i64>,
+    today: Memo<CivilDate>,
+    minute: Memo<i64>,
     todos: ReadSignal<Vec<Todo>>,
     log: ReadSignal<ActivityLog>,
 ) -> impl IntoView {
@@ -1424,7 +1438,7 @@ fn Clock(
     let secs = d.get_seconds() as f64 + d.get_milliseconds() as f64 / 1000.0;
     let mins = d.get_minutes() as f64 * 60.0 + secs;
     let hours = (d.get_hours() % 12) as f64 * 3600.0 + mins;
-    let day = d.get_date();
+    let day = move || today.get().day;
     // The break room: theme.css swaps the palette on html[data-phase="break"].
     Effect::new(move |_| {
         let on_break = pomodoro.with(|p| p.as_ref().is_some_and(|p| p.phase == PomPhase::Break));
@@ -1510,7 +1524,7 @@ fn Clock(
 
                 <g class="clock-hand clock-hand-h">
                     <rect x="97" y="56" width="6" height="50" rx="1" />
-                    <circle class="clock-lume clock-merc" cx="100" cy="62" r="9" />
+                    <circle class="clock-lume" cx="100" cy="62" r="9" />
                     <path class="clock-merc-spoke" d="M100 62 V53 M100 62 L92.2 66.5 M100 62 L107.8 66.5" />
                     <polygon points="94,53 106,53 100,42" />
                 </g>
@@ -1520,7 +1534,7 @@ fn Clock(
                 </g>
                 <g class="clock-hand clock-hand-s">
                     <line x1="100" y1="122" x2="100" y2="20" />
-                    <circle class="clock-lume clock-seconds-plot" cx="100" cy="44" r="5" />
+                    <circle class="clock-lume" cx="100" cy="44" r="5" />
                 </g>
                 <circle class="clock-pin" cx="100" cy="100" r="4" />
             </svg>
@@ -1534,7 +1548,7 @@ fn Clock(
                     Some(None) => view! { <p class="hint">"No weather: location is off or offline."</p> }.into_any(),
                 }}
             </div>
-            <TodayStats todos=todos log=log />
+            <TodayStats todos=todos log=log today=today minute=minute />
         </section>
     }
 }
@@ -1613,15 +1627,18 @@ fn HnFeed() -> impl IntoView {
 /// What today has added up to so far, beside the clock: focus, to-dos,
 /// papers, and the next reminder.
 #[component]
-fn TodayStats(todos: ReadSignal<Vec<Todo>>, log: ReadSignal<ActivityLog>) -> impl IntoView {
+fn TodayStats(
+    todos: ReadSignal<Vec<Todo>>,
+    log: ReadSignal<ActivityLog>,
+    today: Memo<CivilDate>,
+    minute: Memo<i64>,
+) -> impl IntoView {
     let day = move || {
-        log.with(|l| {
-            l.get(&local_date(now()).to_string())
-                .cloned()
-                .unwrap_or_default()
-        })
+        let today = today.get().to_string();
+        log.with(|l| l.get(&today).cloned().unwrap_or_default())
     };
     let todo_line = move || {
+        today.track();
         let list = keep_today(todos.get(), today_start());
         let done = list.iter().filter(|t| t.done_at.is_some()).count();
         if list.is_empty() {
@@ -1630,7 +1647,9 @@ fn TodayStats(todos: ReadSignal<Vec<Todo>>, log: ReadSignal<ActivityLog>) -> imp
             format!("{done} of {} done", list.len())
         }
     };
+    // A reminder whose time has passed gives way to the next one within the minute.
     let next = move || {
+        minute.track();
         let t_now = now();
         todos
             .with(|l| {
@@ -1680,14 +1699,14 @@ fn PomodoroPanel(
     let video = RwSignal::new(String::new());
     let error = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
+    // The same order the focus-round shortcut picks from (worker/browser.rs).
     let open_tasks = Memo::new(move |_| {
-        let mut list: Vec<Todo> = todos
-            .get()
-            .into_iter()
-            .filter(|t| t.done_at.is_none())
-            .collect();
-        list.sort_by_key(|t| (t.started_at.is_none(), t.rank, t.due_at.is_none(), t.due_at));
-        list
+        todos.with(|l| {
+            reader_core::pomodoro::open_tasks(l)
+                .into_iter()
+                .cloned()
+                .collect::<Vec<Todo>>()
+        })
     });
     let begin = move || {
         if busy.get_untracked() {

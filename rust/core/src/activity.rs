@@ -69,7 +69,7 @@ pub struct HeatModel {
 }
 
 /// GitHub's quartiles of the busiest day; any activity is at least 1.
-pub fn heat_level(count: u32, max: u32) -> u8 {
+pub(crate) fn heat_level(count: u32, max: u32) -> u8 {
     if count == 0 || max == 0 {
         return 0;
     }
@@ -138,6 +138,8 @@ pub fn build_heat_model(
             .collect();
         let first = days[w * 7].0;
         // Label each month at its first column, skipping a stub at the left edge.
+        // A full first week is labelled even when the same month (a year on)
+        // starts again at the right edge, as on GitHub's calendar.
         let new_month = if w == 0 {
             first.day <= 7
         } else {
@@ -297,15 +299,23 @@ mod tests {
     }
 
     #[test]
-    fn labels_each_month_once() {
-        let labels: Vec<&str> =
-            build_heat_model(&ActivityLog::new(), &[], Metric::All, TODAY, local)
-                .months
-                .iter()
-                .map(|m| m.1)
-                .collect();
-        assert_eq!(labels.iter().filter(|l| **l == "Oct").count(), 1);
-        assert_eq!(labels.iter().collect::<HashSet<_>>().len(), labels.len());
+    fn labels_each_month_where_it_starts_like_github() {
+        let labels = |today: CivilDate| -> Vec<(usize, &str)> {
+            build_heat_model(&ActivityLog::new(), &[], Metric::All, today, local).months
+        };
+        // The window opens on 2025-09-28, a stub of September: not labelled,
+        // so every month shows once.
+        let l = labels(TODAY);
+        assert_eq!(l[0], (1, "Oct"));
+        assert_eq!(l.len(), 12);
+        assert_eq!(l.iter().map(|m| m.1).collect::<HashSet<_>>().len(), 12);
+        // Opening on 2025-10-05, inside October's first week, that October gets
+        // its label, and so does October 2026 in the last column: the same name
+        // at both edges, a year apart, as GitHub's calendar does it.
+        let l = labels(CivilDate::new(2026, 10, 8));
+        assert_eq!(l[0], (0, "Oct"));
+        assert_eq!(l.last(), Some(&(52, "Oct")));
+        assert_eq!(l.len(), 13);
     }
 
     #[test]

@@ -6,7 +6,7 @@ import { folder, paper } from './seed';
 /**
  * A heavy shelf: 500 papers across 10 folders and 2000 annotations. Budgets are
  * wall-clock with headroom for CI.
- * ponytail: tighten once a few CI runs show the real numbers.
+ * ponytail: loose on purpose until CI shows real numbers; tighten once a few runs do.
  */
 const BUDGET = { firstPaintMs: 2500, longestTaskMs: 600 };
 

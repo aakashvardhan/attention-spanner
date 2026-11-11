@@ -11,23 +11,6 @@ body {
   min-height: 100vh;
 }
 
-.ghost-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  text-decoration: none;
-}
-
-.ghost-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
-
 /* ---------------------------------------------------------------------------
    The Library: a masthead, then the bookcase and the New-arrivals cart on
    the grid.
@@ -93,15 +76,6 @@ body {
   line-height: var(--leading-sm);
 }
 
-.define-label {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 /* ---------------------------------------------------------------------------
    The decks: one per alphaXiv folder, papers as cards.
    --------------------------------------------------------------------------- */
@@ -162,7 +136,7 @@ body {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition: border-color var(--dur-effect-fast) var(--ease-effect), background var(--dur-effect-fast) var(--ease-effect);
 }
 
 .book:hover,
@@ -253,7 +227,7 @@ body {
 
 .book-card {
   inset: var(--space-6) var(--space-6) auto auto;
-  width: min(420px, calc(100vw - 2 * var(--space-4))); /* ds-exempt: a panel width, not spacing */
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
   max-height: calc(100vh - 2 * var(--space-6));
   display: grid;
   gap: var(--space-3);
@@ -313,7 +287,7 @@ kbd {
 .move-menu {
   inset: 20vh auto auto 50%;
   transform: translateX(-50%);
-  width: min(360px, calc(100vw - 2 * var(--space-4))); /* ds-exempt: a panel width, not spacing */
+  width: min(360px, calc(100vw - 2 * var(--space-4)));
   display: grid;
   gap: var(--space-3);
 }

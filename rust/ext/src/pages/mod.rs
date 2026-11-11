@@ -25,7 +25,7 @@ use wasm_bindgen::prelude::*;
 
 /// A storage key as a signal: `(value, loaded)`. Starts at the default, fills
 /// in once read, and follows every later change (another tab, the worker).
-/// The default stands in for a missing key, as the TS `useStorageValue` did.
+/// The default stands in for a missing key, as in `store::get`.
 /// The listener is removed when the calling component is cleaned up.
 pub fn use_storage<T>(key: &'static str) -> (ReadSignal<T>, ReadSignal<bool>)
 where
@@ -66,7 +66,7 @@ where
     (value, loaded)
 }
 
-/// Settings merged over the defaults (the TS `useSettings`).
+/// Settings merged over the defaults, as `store::settings` reads them in the worker.
 pub fn use_settings() -> (Signal<reader_core::types::Settings>, ReadSignal<bool>) {
     let (raw, loaded) = use_storage::<Value>("settings");
     let merged = Signal::derive(move || {
@@ -207,7 +207,13 @@ pub fn use_game() -> (Memo<reader_core::game::Game>, ReadSignal<Option<String>>)
     let (session, l6) = use_storage::<Option<reader_core::types::FocusSession>>("focusSession");
     let (pomodoro, l7) = use_storage::<Option<Pomodoro>>("pomodoro");
     let tick = RwSignal::new(now());
-    set_interval(move || tick.set(now()), std::time::Duration::from_secs(30));
+    let ticking =
+        set_interval_with_handle(move || tick.set(now()), std::time::Duration::from_secs(30)).ok();
+    on_cleanup(move || {
+        if let Some(h) = ticking {
+            h.clear();
+        }
+    });
     let game = Memo::new(move |_| {
         let t = tick.get();
         let since = |start: i64| ((t - start) / 60_000).max(0) as u32;

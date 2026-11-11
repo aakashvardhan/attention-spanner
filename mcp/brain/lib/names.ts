@@ -37,6 +37,25 @@ export function safeTitle(title: string, folder = ''): { title: string; changed:
   return { title: t, changed: t !== original };
 }
 
+/**
+ * Why notes cannot live in `folder`, or null; '' is the top folder. One rule for create_note,
+ * move_note and stage_note. The index never reads hidden folders, attachments/ or sources/ (staging
+ * may write verbatim pages there: `sources`), so a note put there would vanish from every tool;
+ * and every folder name syncs to Windows through Drive.
+ */
+export function folderProblem(folder: string, sources = false): string | null {
+  if (folder === '') return null;
+  const parts = folder.split('/');
+  if (folder.includes('\\') || parts.some((p) => p === '' || p.startsWith('.')) || /^attachments$/i.test(parts[0]) || (!sources && /^sources$/i.test(parts[0]))) {
+    return `"${folder}" is not a folder notes can live in`;
+  }
+  for (const p of parts) {
+    const safe = safeTitle(p).title;
+    if (safe !== nfc(p)) return `folder "${p}" cannot be a name on Windows; use "${safe}"`;
+  }
+  return null;
+}
+
 /** The title of the note at `path`: its file name without ".md", in NFC. */
 export function titleOf(path: string): string {
   return nfc(path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/i, ''));

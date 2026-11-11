@@ -35,10 +35,10 @@ pub fn QuestionCard(
         <aside class="reader-question" aria-label="A question for you" on:keydown=move |e: web_sys::KeyboardEvent| {
             if e.key() == "Escape" { on_close.run(()); }
         }>
-            <p class="define-label">{format!("A question about {about}")}</p>
+            <p class="small-label">{format!("A question about {about}")}</p>
             <AiNote ai=ai />
             <Show when=move || ai.view.with(|v| v.status == AiStatus::Done)>
-                <label class="define-label" for="question-answer">"Your answer, in your own words"</label>
+                <label class="small-label" for="question-answer">"Your answer, in your own words"</label>
                 <textarea id="question-answer" class="answer-input" rows="3" prop:value=move || answer.get() on:input=move |e| answer.set(event_target_value(&e)) on:keydown=move |e: web_sys::KeyboardEvent| {
                     if e.key() == "Enter" && (e.meta_key() || e.ctrl_key()) { keep(); }
                 }></textarea>
@@ -211,13 +211,13 @@ pub fn ExplainPanel(
         }>
             <h2 id="explain-heading">"Explain it back"</h2>
             <p class="reader-explain-lede">"As if to a friend, in your own words. You get back what is missing and where to look, not the answer."</p>
-            <p class="define-label" role="status">{move || draft_status.get()}</p>
+            <p class="small-label" role="status">{move || draft_status.get()}</p>
             <form on:submit=submit>
                 {Part::ALL.iter().zip(fields).enumerate().map(|(i, (part, field))| {
                     let id = format!("explain-{part:?}").to_lowercase();
                     let node = if i == 0 { first } else { NodeRef::new() };
                     view! {
-                        <label class="define-label" for=id.clone()>{part.label()}</label>
+                        <label class="small-label" for=id.clone()>{part.label()}</label>
                         <textarea node_ref=node id=id class="answer-input" rows="3" disabled=move || !loaded.get() prop:value=move || field.get() on:input=move |e| { field.set(event_target_value(&e)); save_draft(); }></textarea>
                     }
                 }).collect_view()}

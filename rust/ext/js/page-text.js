@@ -3,6 +3,7 @@
 // rendered math swapped back for the LaTeX it came from. Works on a copy;
 // the live page is never changed.
 (() => {
+  // The root and block selectors are also tab-mark.mjs's (tests/tabScripts.test.ts).
   const root = (document.querySelector('article, main, [role=main]') || document.body).cloneNode(true);
   const tex = (el) => el.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim();
   const swap = (el, t, display) => el.replaceWith(document.createTextNode(display ? ` $$${t}$$ ` : ` $${t}$ `));

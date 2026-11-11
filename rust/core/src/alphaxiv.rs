@@ -11,7 +11,7 @@ use std::fmt;
 use std::sync::LazyLock;
 
 pub const MCP_URL: &str = "https://api.alphaxiv.org/mcp/v1";
-pub const AUTHORIZE_URL: &str = "https://api.alphaxiv.org/auth/oauth2/authorize";
+pub(crate) const AUTHORIZE_URL: &str = "https://api.alphaxiv.org/auth/oauth2/authorize";
 pub const TOKEN_URL: &str = "https://api.alphaxiv.org/auth/oauth2/token";
 pub const REGISTER_URL: &str = "https://api.alphaxiv.org/auth/oauth2/register";
 pub const USERINFO_URL: &str = "https://api.alphaxiv.org/auth/oauth2/userinfo";
@@ -97,18 +97,7 @@ pub fn kind_for_status(status: u16) -> ErrorKind {
 
 /// base64url without padding (RFC 4648 §5).
 pub fn base64url(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let n = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |n, (i, &b)| n | u32::from(b) << (16 - 8 * i));
-        for i in 0..=chunk.len() {
-            out.push(ALPHABET[(n >> (18 - 6 * i) & 63) as usize] as char);
-        }
-    }
-    out
+    crate::base64::encode(bytes, crate::base64::URL_SAFE, false)
 }
 
 /// RFC 7636 S256: base64url(sha256(verifier)).
@@ -381,7 +370,6 @@ pub fn merge_library(local: &[Paper], library: &Library, now: i64) -> (Vec<Folde
             added_at: now,
             updated_at: now,
             last_read_at: None,
-            deleted_at: None,
         });
     }
     (folders, papers)
@@ -432,10 +420,18 @@ pub fn plan_push(queue: &[PushItem], folders: &[Folder], papers: &[Paper]) -> Pu
                 continue;
             }
         }
+        // A folder to create is named by its spelling that sorts first (spaces
+        // collapsed), not the first one queued, so the name does not hang on order.
+        let spelling = folder.split_whitespace().collect::<Vec<_>>().join(" ");
         let i = match groups.iter().position(|g| g.0 == key) {
-            Some(i) => i,
+            Some(i) => {
+                if existing.is_none() && spelling < groups[i].1 {
+                    groups[i].1 = spelling;
+                }
+                i
+            }
             None => {
-                let name = existing.map_or_else(|| folder.to_string(), |f| f.name.clone());
+                let name = existing.map_or(spelling, |f| f.name.clone());
                 groups.push((key.clone(), name, vec![]));
                 groups.len() - 1
             }
@@ -444,7 +440,8 @@ pub fn plan_push(queue: &[PushItem], folders: &[Folder], papers: &[Paper]) -> Pu
             groups[i].2.push(item.id.clone());
         }
     }
-    // Sorted by key, so the plan is deterministic whatever order the queue was in.
+    // Sorted by key: the folders and their names do not depend on queue order
+    // (ids within a folder keep it, oldest queued first).
     groups.sort_by(|a, b| a.0.cmp(&b.0));
     let create = groups
         .iter()
