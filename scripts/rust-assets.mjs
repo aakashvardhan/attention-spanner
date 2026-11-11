@@ -25,6 +25,10 @@ for (const f of ['chime.html', 'chime.js']) cpSync(join('rust/ext/js', f), join(
 mkdirSync(join(out, 'pdfjs'), { recursive: true });
 for (const f of ['build/pdf.min.mjs', 'build/pdf.worker.min.mjs', 'wasm/jbig2.wasm', 'wasm/openjpeg.wasm', 'wasm/qcms_bg.wasm'])
   cpSync(join('node_modules/pdfjs-dist', f), join(out, 'pdfjs', basename(f)));
+// ONNX Runtime Web, unmodified, for the smart-turn model in public/smart-turn (loaded on the first Talk).
+mkdirSync(join(out, 'ort'), { recursive: true });
+for (const f of ['ort.wasm.min.mjs', 'ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm'])
+  cpSync(join('node_modules/onnxruntime-web/dist', f), join(out, 'ort', f));
 // KaTeX, unmodified: the module (loaded on first maths), its stylesheet, and the fonts it names relatively.
 mkdirSync(join(out, 'katex'), { recursive: true });
 cpSync('node_modules/katex/dist/katex.mjs', join(out, 'katex', 'katex.mjs'));

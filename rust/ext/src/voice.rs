@@ -9,6 +9,7 @@
 use crate::chrome;
 use crate::js::{to_js, wait};
 use js_sys::{Array, Float32Array, Reflect, Uint8Array};
+use reader_core::smart_turn::TURN_PAUSE_MS;
 use reader_core::voice::{
     groq_error, parse_groq_reply, Vad, VadEvent, FRAME, GROQ_MODEL, GROQ_TIMEOUT_MS,
     GROQ_TRANSCRIBE_URL, MAX_RECORD_MS, SAMPLE_RATE,
@@ -31,6 +32,9 @@ const MAX_SAMPLES: usize = (MAX_RECORD_MS as usize / 1000) * SAMPLE_RATE as usiz
 pub enum Heard {
     /// Recording so far (ms) and whether the VAD hears speech right now.
     Frame { ms: u32, speaking: bool },
+    /// A short quiet after speech: the turn may be over (the smart-turn
+    /// model is asked). Once per pause.
+    Pause,
     /// Quiet long enough after speech, or the length cap: stop and send.
     Done,
 }
@@ -46,6 +50,11 @@ pub struct Recorder {
 }
 
 impl Recorder {
+    /// Looks at everything recorded so far, without stopping.
+    pub fn with_samples<T>(&self, f: impl FnOnce(&[f32]) -> T) -> T {
+        f(&self.samples.borrow())
+    }
+
     /// Stops and hands back everything recorded.
     pub fn finish(self) -> Vec<f32> {
         std::mem::take(&mut *self.samples.borrow_mut())
@@ -147,6 +156,7 @@ pub async fn start(
     let sink = samples.clone();
     let mut vad = Vad::with_silence(silence_ms);
     let mut done = false;
+    let mut paused = false;
     let on_frame = Closure::<dyn FnMut(MessageEvent)>::new(move |e: MessageEvent| {
         if done {
             return;
@@ -162,6 +172,11 @@ pub async fn start(
             ms: (len / (SAMPLE_RATE as usize / 1000)) as u32,
             speaking: vad.speaking(),
         });
+        let pause = vad.quiet_ms() >= TURN_PAUSE_MS;
+        if pause && !paused {
+            on_heard(Heard::Pause);
+        }
+        paused = pause;
         if event == VadEvent::SilenceTimeout || len >= MAX_SAMPLES {
             done = true;
             on_heard(Heard::Done);

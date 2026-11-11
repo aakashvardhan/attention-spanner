@@ -10,6 +10,7 @@ mod js;
 mod page_text;
 mod pages;
 mod pdfjs;
+mod smart_turn;
 mod store;
 mod vault;
 mod voice;

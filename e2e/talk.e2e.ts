@@ -109,6 +109,45 @@ describe('reader: talk it through', () => {
     expectClean(ext);
   });
 
+  it('loads the smart-turn model in the page, and it answers as it does natively', async () => {
+    await seed(ext, { settings: { claudeKey: 'sk-e2e', groqKey: 'gsk-e2e' } });
+    const page = await openPanel();
+    await page.getByRole('button', { name: 'Start talking' }).click();
+    await expect.poll(() => page.locator('[data-phase]').getAttribute('data-turns'), { timeout: 20_000 }).toBe('smart');
+    // Silence in, through the same runtime and model files: native ONNX Runtime says 0.9889.
+    // As a string: vitest rewrites a dynamic import inside a function it compiles.
+    const p = await page.evaluate<number>(`(async () => {
+      const ort = await import('/ort/ort.wasm.min.mjs');
+      const session = await ort.InferenceSession.create('/smart-turn/smart-turn-v3.2-cpu.onnx');
+      const out = await session.run({ input_features: new ort.Tensor('float32', new Float32Array(80 * 800), [1, 80, 800]) });
+      return out.logits.data[0];
+    })()`);
+    expect(p).toBeCloseTo(0.9889, 2);
+    // With the model deciding, the fake mic's speech still becomes a turn.
+    await expect.poll(() => page.locator('[data-who="you"]').count(), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+    await page.getByRole('button', { name: 'Stop' }).click();
+    await page.close();
+    expectClean(ext);
+  });
+
+  it('ends your turn at a finished sentence, not after the long quiet', async () => {
+    await seed(ext, { settings: { claudeKey: 'sk-e2e', groqKey: 'gsk-e2e' } });
+    const page = await openPanel();
+    const before = transcribed;
+    await page.getByRole('button', { name: 'Start talking' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-phase]')?.getAttribute('data-phase') === 'listening', null, { polling: 20 });
+    const opened = Date.now();
+    await expect.poll(() => transcribed, { timeout: 20_000, interval: 20 }).toBeGreaterThan(before);
+    // The fake mic's sentence ends 5.3 s in. The model hears it finished about
+    // 6.1 s in; quiet alone would take until 7.6 s (8.6 s as the backstop).
+    const took = Date.now() - opened;
+    expect(took).toBeGreaterThan(5_300);
+    expect(took).toBeLessThan(7_200);
+    await page.getByRole('button', { name: 'Stop' }).click();
+    await page.close();
+    expectClean(ext);
+  });
+
   it('keeps the mic off while it replies, so its own voice and the room never cut it off; Cut in does', async () => {
     await seed(ext, { settings: { claudeKey: 'sk-e2e', groqKey: 'gsk-e2e', talkVoice: 'autumn' } });
     const page = await openPanel();

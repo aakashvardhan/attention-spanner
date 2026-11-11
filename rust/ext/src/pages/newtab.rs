@@ -727,6 +727,8 @@ fn BrainDump() -> impl IntoView {
                     }
                     // Not from inside the recorder's own callback: finishing drops it.
                     Heard::Done => leptos::task::spawn_local(async move { finish() }),
+                    // A dump ends on a long quiet or the button, not on a finished sentence.
+                    Heard::Pause => {}
                 })
                 .await;
                 match started {

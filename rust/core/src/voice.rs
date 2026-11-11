@@ -87,6 +87,15 @@ impl Vad {
         self.speaking
     }
 
+    /// How long it has been quiet since speech; 0 during speech or before any.
+    pub fn quiet_ms(&self) -> u32 {
+        if self.heard && !self.speaking {
+            self.quiet_frames * FRAME_MS
+        } else {
+            0
+        }
+    }
+
     /// One frame (ideally `FRAME` samples) in, one decision out.
     pub fn push(&mut self, frame: &[f32]) -> VadEvent {
         // Digital silence (a mic warming up reads exact zeros) says nothing about the room:

@@ -6,9 +6,10 @@
 
 use crate::pages::use_settings;
 use crate::voice::{self, sleep_ms, Heard, Player, Recorder, Speaker, SpeakerEvent, SpeechKeys};
-use crate::{claude, gemini};
+use crate::{claude, gemini, smart_turn};
 use leptos::prelude::*;
 use reader_core::constants::CLAUDE_MODEL_QUICK;
+use reader_core::smart_turn::{turn_audio, TURN_BACKSTOP_MS};
 use reader_core::voice::{clean_transcript, encode_wav, trim_to_speech};
 use reader_core::voice_agent::{
     agent_system, paper_document, turn_prompt, Chunker, Source, Turn, TURN_SILENCE_MS,
@@ -66,6 +67,10 @@ pub fn TalkPanel(
     let recorder = StoredValue::new_local(None::<Recorder>);
     let player = StoredValue::new_local(Player::default());
     let reply_ctl = StoredValue::new_local(None::<web_sys::AbortController>);
+    // The smart-turn model is loaded: a pause asks it whether you have
+    // finished, and plain quiet is only the backstop. Without it (it could
+    // not load), quiet alone ends your turn, as before.
+    let smart = RwSignal::new(false);
     // Bumped on every new reply and every interruption; a stale reply stops itself.
     let generation = StoredValue::new(0u64);
 
@@ -227,26 +232,42 @@ pub fn TalkPanel(
             return;
         }
         leptos::task::spawn_local(async move {
-            let started = voice::start(TURN_SILENCE_MS, move |h| match h {
+            let finish = move || {
+                end_turn(
+                    recorder,
+                    phase,
+                    hearing,
+                    error,
+                    turns,
+                    settings,
+                    reply,
+                    start_listening,
+                )
+            };
+            let silence = if smart.get_untracked() {
+                TURN_BACKSTOP_MS
+            } else {
+                TURN_SILENCE_MS
+            };
+            let started = voice::start(silence, move |h| match h {
                 Heard::Frame { speaking, .. } => {
                     if hearing.get_untracked() != speaking {
                         hearing.set(speaking);
                     }
                 }
-                // Not from inside the recorder's own callback: taking it drops it.
-                Heard::Done => leptos::task::spawn_local(async move {
-                    end_turn(
-                        recorder,
-                        phase,
-                        hearing,
-                        error,
-                        turns,
-                        settings,
-                        reply,
-                        start_listening,
-                    )
-                    .await
+                // You paused: if the model hears a finished thought, that was your turn.
+                Heard::Pause if smart.get_untracked() => leptos::task::spawn_local(async move {
+                    let audio = recorder.with_value(|r| r.as_ref()?.with_samples(turn_audio));
+                    let Some(audio) = audio else { return };
+                    // Still the same pause: you have not started speaking again.
+                    if smart_turn::finished(&audio).await == Some(true) && !hearing.get_untracked()
+                    {
+                        finish().await
+                    }
                 }),
+                Heard::Pause => {}
+                // Not from inside the recorder's own callback: taking it drops it.
+                Heard::Done => leptos::task::spawn_local(finish()),
             })
             .await;
             match started {
@@ -290,6 +311,11 @@ pub fn TalkPanel(
             return;
         }
         voice_on.set(true);
+        // Ready by your first pause; until then quiet alone ends a turn.
+        leptos::task::spawn_local(async move {
+            let loaded = smart_turn::load().await;
+            smart.try_set(loaded);
+        });
         if turns.with_untracked(Vec::is_empty) {
             // It opens the conversation; your turn follows.
             reply();
@@ -355,7 +381,7 @@ pub fn TalkPanel(
                 Phase::Writing | Phase::Thinking => "thinking",
                 Phase::Speaking => "speaking",
             }></span>
-            <p class="small-label" role="status" aria-live="polite" data-phase=move || format!("{:?}", phase.get()).to_lowercase()>{status}</p>
+            <p class="small-label" role="status" aria-live="polite" data-phase=move || format!("{:?}", phase.get()).to_lowercase() data-turns=move || if smart.get() { "smart" } else { "quiet" }>{status}</p>
             <Show when=move || notice.with(|n| !n.is_empty())>
                 <p class="small-label" role="status">{move || notice.get()}</p>
             </Show>

@@ -36,6 +36,7 @@ pub mod reader_progress;
 pub mod reading_aids;
 pub mod recolor;
 pub mod shelf;
+pub mod smart_turn;
 pub mod todos;
 pub mod types;
 pub mod utf16;
