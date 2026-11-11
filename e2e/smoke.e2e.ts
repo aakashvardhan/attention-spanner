@@ -13,7 +13,6 @@ describe('smoke: every page renders, is accessible, and works with Chromium buil
   // Errors from a test that failed before its own expectClean stay with it.
   beforeEach(() => void ext.errors.splice(0));
 
-  // The Rust build joins page by page as each is ported.
   for (const [name, path] of Object.entries(PAGES)) {
     it(`${name}: no errors, declared language, no new a11y violations, matches its screenshot in either OS scheme`, async () => {
       const page = await ext.page(path);

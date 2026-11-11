@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 pub const UNREADABLE: &str = "This page can't be read here.";
-pub const NO_TEXT: &str = "Couldn't find any text on this page.";
+const NO_TEXT: &str = "Couldn't find any text on this page.";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PageText {

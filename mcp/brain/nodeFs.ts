@@ -98,8 +98,12 @@ export function nodeFs(root: string, canWrite: (rel: string) => boolean): VaultF
         if (d.isDirectory()) {
           if (!skip(child)) await visit(child);
         } else if (d.isFile()) {
-          const s = await fsp.stat(abs(child));
-          out.push({ path: child, mtimeMs: s.mtimeMs, size: s.size });
+          // Gone since readdir: a temp file renamed into place, or a sync client's own.
+          const s = await fsp.stat(abs(child)).catch((e: unknown) => {
+            if (missing(e)) return null;
+            throw e;
+          });
+          if (s) out.push({ path: child, mtimeMs: s.mtimeMs, size: s.size });
         }
       }
     };

@@ -854,8 +854,8 @@ fn BrainDump() -> impl IntoView {
                     if !e.is_empty() {
                         Some(view! { <span class="notebook-note" role="alert">{e}</span> }.into_any())
                     } else {
-                        let count = locked.get().len();
-                        (count > 0 && stored_vault.get().is_some()).then(|| view! {
+                        let count = locked.with(Vec::len);
+                        (count > 0 && stored_vault.with(Option::is_some)).then(|| view! {
                             <a class="notebook-count" href=chrome::get_url("src/pages/dumps/index.html")>
                                 <LockIcon class="notebook-lock" />
                                 {count}" locked"

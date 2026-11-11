@@ -136,7 +136,8 @@ export async function driveProbe(argv: string[]): Promise<void> {
         const t0 = Date.now();
         const result = await Promise.race([
           readFile(join(dir, file)).then(() => 'ok', (e: NodeJS.ErrnoException) => e.code ?? 'error'),
-          sleep(30_000).then(() => 'timeout'),
+          // Unref'd: the read keeps the process alive, a finished race's timer must not.
+          sleep(30_000, undefined, { ref: false }).then(() => 'timeout'),
         ]);
         rows.push({ file, ms: Date.now() - t0, result });
       }

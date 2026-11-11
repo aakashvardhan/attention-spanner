@@ -19,8 +19,25 @@ const LIVE_KEYS: &[&str] = &[
     "dumps",
     "vault",
     "lockedDumps",
+    "explainBacks",
+    "lexicon",
+    "pomodoro",
+    "todos",
+    "videoNotes",
+    "videoNotesJobs",
+    "hnFeed",
+    "weatherNow",
 ];
-const LIVE_SETTINGS: &[&str] = &["readerFocusLine", "focusBlocklist", "claudeKey"];
+/// Every setting the extension reads: the fields of `Settings`, as stored.
+fn live_settings() -> Vec<String> {
+    serde_json::to_value(crate::types::Settings::default())
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect()
+}
 
 fn obj(v: Value) -> Map<String, Value> {
     v.as_object().unwrap().clone()
@@ -80,8 +97,11 @@ fn dead_lists_name_only_cut_features() {
     for live in LIVE_KEYS {
         assert!(!DEAD_KEYS.contains(live), "{live} would be deleted");
     }
-    for live in LIVE_SETTINGS {
-        assert!(!DEAD_SETTINGS.contains(live), "{live} would be deleted");
+    for live in live_settings() {
+        assert!(
+            !DEAD_SETTINGS.contains(&live.as_str()),
+            "{live} would be deleted"
+        );
     }
 }
 
@@ -115,10 +135,13 @@ fn strip_settings_drops_every_retired_setting_and_nothing_else() {
         (json!({}), json!({})),
     ];
     for (input, want) in cases {
-        assert_eq!(strip_settings(Some(&input)), Some(want));
+        assert_eq!(strip_settings(Some(&input), 26), Some(want));
     }
-    assert_eq!(strip_settings(None), None);
-    assert_eq!(strip_settings(Some(&json!("string"))), None);
+    assert_eq!(strip_settings(None, 26), None);
+    assert_eq!(strip_settings(Some(&json!("string")), 26), None);
+    // From v28 on these names are the palette and the Gemini key: kept.
+    let live = json!({ "theme": "grid", "geminiKey": "g", "claudeKey": "k" });
+    assert_eq!(strip_settings(Some(&live), SCHEMA_VERSION), Some(live));
 }
 
 #[test]

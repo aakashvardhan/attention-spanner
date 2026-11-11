@@ -13,10 +13,6 @@
   color: var(--text-secondary);
 }
 
-.ai-note .md {
-  color: inherit;
-}
-
 .ai-note--quiet {
   color: var(--text-muted);
   font-size: var(--text-xs);
@@ -100,11 +96,6 @@
   .ai-note-skeleton span {
     animation: none;
   }
-}
-
-.ai-note button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* Saved meanings appear in both the reader and the lexicon. */

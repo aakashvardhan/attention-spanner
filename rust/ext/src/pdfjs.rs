@@ -150,7 +150,7 @@ fn to_raw(items: Vec<BridgeItem>) -> Vec<RawOutlineItem<Option<u32>>> {
         .collect()
 }
 
-pub fn num_pages(doc: &JsValue) -> u32 {
+fn num_pages(doc: &JsValue) -> u32 {
     js_sys::Reflect::get(doc, &"numPages".into())
         .ok()
         .and_then(|n| n.as_f64())

@@ -1,6 +1,6 @@
 /**
  * One entry for the brain's local tools: `node dist-mcp/cli.mjs <command> [flags]`.
- * Each command writes only under <vault>/.brain/reports/, or prints.
+ * Each command writes only under <vault>/.brain/reports/ (drive-probe also uses <vault>/.brain/probe/), or prints.
  */
 import { cards } from './baseline/cards';
 import { notionLinks } from './baseline/notionLinks';

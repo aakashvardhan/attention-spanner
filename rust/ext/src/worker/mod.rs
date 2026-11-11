@@ -234,6 +234,10 @@ pub async fn on_message(msg: JsValue, sender: JsValue) -> JsValue {
     to_js(&reply).unwrap_or(JsValue::NULL)
 }
 
+/// The Web Lock every read-modify-write of `papers` takes: the reader's
+/// progress and the alphaXiv sync and shelf moves all rewrite the whole list.
+const PAPERS_LOCK: &str = "papers";
+
 /// One change to the annotation list, under a lock: a selection across two
 /// pages sends two adds at once, and unlocked the second write drops the first.
 async fn edit_annotations(
@@ -284,29 +288,33 @@ async fn dispatch(message: Message, tab_id: Option<i32>) -> Res<Value> {
             offset,
             left_off,
         } => {
-            let mut papers: Vec<Paper> = store::get("papers").await?;
-            let Some(paper) = papers.iter_mut().find(|p| p.id == paper_id) else {
-                return Ok(json!({ "ok": false, "error": "Paper not found." }));
-            };
-            let t = now();
-            if apply_reader_progress(
-                paper,
-                &ReaderPosition {
-                    pdf_url,
-                    page,
-                    page_count,
-                    offset,
-                    left_off,
-                },
-                t,
-            ) {
-                let touched = paper.last_read_at == Some(t);
-                store::set("papers", &papers).await?;
-                if touched {
-                    session::log_activity(ActivityEvent::Paper(paper_id)).await?;
+            // Under the lock: the alphaXiv sync rewrites the same list.
+            store::with_lock(PAPERS_LOCK, async move {
+                let mut papers: Vec<Paper> = store::get("papers").await?;
+                let Some(paper) = papers.iter_mut().find(|p| p.id == paper_id) else {
+                    return Ok(json!({ "ok": false, "error": "Paper not found." }));
+                };
+                let t = now();
+                if apply_reader_progress(
+                    paper,
+                    &ReaderPosition {
+                        pdf_url,
+                        page,
+                        page_count,
+                        offset,
+                        left_off,
+                    },
+                    t,
+                ) {
+                    let touched = paper.last_read_at == Some(t);
+                    store::set("papers", &papers).await?;
+                    if touched {
+                        session::log_activity(ActivityEvent::Paper(paper_id)).await?;
+                    }
                 }
-            }
-            json!({ "ok": true })
+                Res::Ok(json!({ "ok": true }))
+            })
+            .await?
         }
         Message::ReaderOpenNative { url } => match tab_id {
             Some(id) => pdf_rules::open_native_pdf(id, &url)

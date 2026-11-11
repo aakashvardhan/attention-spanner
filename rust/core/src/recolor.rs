@@ -1,9 +1,10 @@
-//! The walnut page: a rendered PDF page's greys mapped onto paper-to-ink, so
-//! black-on-white becomes cream-on-walnut. Photos and other embedded images
-//! (their boxes come from the page's operator list) are left alone. Coloured
-//! marks (plot lines, coloured links) keep their hue, but their anti-aliased
-//! edges were blended with white paper: each is unmixed from white and laid
-//! back over the walnut, or links wear a pale halo and read blurry.
+//! The themed page: a rendered PDF page's greys mapped onto paper-to-ink, so
+//! black-on-white becomes the palette's `--pdf-ink` on `--pdf-paper`. Photos
+//! and other embedded images (their boxes come from the page's operator list)
+//! are left alone. Coloured marks (plot lines, coloured links) keep their hue,
+//! but their anti-aliased edges were blended with white paper: each is unmixed
+//! from white and laid back over the page's paper, or links wear a pale halo
+//! and read blurry.
 
 /// A pixel box on the canvas: x, y, width, height.
 pub type PixelBox = (usize, usize, usize, usize);
@@ -19,7 +20,7 @@ const COLOUR_LIFT: f64 = 0.0;
 /// `#rrggbb` to bytes; `None` for anything else.
 pub fn parse_hex(s: &str) -> Option<[u8; 3]> {
     let h = s.trim().strip_prefix('#')?;
-    if h.len() != 6 {
+    if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
     }
     let b = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
@@ -111,5 +112,8 @@ mod tests {
         assert_eq!(parse_hex(" #261c16"), Some(PAPER));
         assert_eq!(parse_hex("rgba(0,0,0,1)"), None);
         assert_eq!(parse_hex("#fff"), None);
+        // Six bytes that are not six hex digits: no panic, no sign accepted.
+        assert_eq!(parse_hex("#a€bc"), None);
+        assert_eq!(parse_hex("#+f+f+f"), None);
     }
 }

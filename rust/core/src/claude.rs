@@ -56,7 +56,11 @@ pub struct SseBuffer {
 
 impl SseBuffer {
     pub fn push(&mut self, chunk: &str) -> Vec<String> {
-        self.pending.push_str(&chunk.replace("\r\n", "\n"));
+        // Normalised after joining: a chunk may end between the \r and the \n.
+        self.pending.push_str(chunk);
+        if self.pending.contains("\r\n") {
+            self.pending = self.pending.replace("\r\n", "\n");
+        }
         let mut events = Vec::new();
         while let Some(end) = self.pending.find("\n\n") {
             let event: String = self.pending.drain(..end + 2).collect();
@@ -152,6 +156,13 @@ mod tests {
             assert_eq!(got, ["{\"a\":1}", "{\"b\":2}"], "cut at {cut}");
         }
         assert_eq!(SseBuffer::default().push("data: x\r\n\r\n"), ["x"]);
+        let crlf = "data: a\r\n\r\ndata: b\r\n\r\n";
+        for cut in 0..crlf.len() {
+            let mut buf = SseBuffer::default();
+            let mut got = buf.push(&crlf[..cut]);
+            got.extend(buf.push(&crlf[cut..]));
+            assert_eq!(got, ["a", "b"], "CRLF cut at {cut}");
+        }
     }
 
     #[test]

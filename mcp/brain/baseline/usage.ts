@@ -23,11 +23,14 @@ export async function usage(argv: string[]): Promise<void> {
   let rows: { url: string; time: number | bigint }[];
   try {
     const db = new DatabaseSync(copy, { readOnly: true });
-    const stmt = db.prepare("SELECT urls.url AS url, visits.visit_time AS time FROM visits JOIN urls ON urls.id = visits.url WHERE urls.url LIKE '%notion.%'");
-    // Chrome's microseconds since 1601 pass Number.MAX_SAFE_INTEGER; read them as bigints, then round.
-    stmt.setReadBigInts(true);
-    rows = stmt.all() as unknown as { url: string; time: number | bigint }[];
-    db.close();
+    try {
+      const stmt = db.prepare("SELECT urls.url AS url, visits.visit_time AS time FROM visits JOIN urls ON urls.id = visits.url WHERE urls.url LIKE '%notion.%'");
+      // Chrome's microseconds since 1601 pass Number.MAX_SAFE_INTEGER; read them as bigints, then round.
+      stmt.setReadBigInts(true);
+      rows = stmt.all() as unknown as { url: string; time: number | bigint }[];
+    } finally {
+      db.close();
+    }
   } finally {
     await rm(copy, { force: true });
   }

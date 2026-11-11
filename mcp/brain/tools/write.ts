@@ -8,16 +8,19 @@ import { planDelete, planMove, planRename, STARRED } from '../lib/rename';
 import type { Vault } from '../vault';
 import { DESTRUCTIVE, fail, guard, IDEMPOTENT, ok, WRITE } from './common';
 
-const badFolder = (f: string) => f.split('/').some((s) => s === '..' || s.startsWith('.')) || /^(sources|attachments)$/i.test(f.split('/')[0]);
+const badFolder = (f: string) => (f !== '' && f.split('/').some((s) => s === '' || s.startsWith('.'))) || /^(sources|attachments)$/i.test(f.split('/')[0]);
 
 export function registerWriteTools(server: McpServer, vault: Vault): void {
   // One at a time, and re-read inside the queue: another call may have changed the vault while this one waited.
   const write = (fn: () => Promise<CallToolResult>) =>
-    guard(vault, () =>
-      vault.serial(async () => {
-        await vault.refresh();
-        return fn();
-      }),
+    guard(
+      vault,
+      () =>
+        vault.serial(async () => {
+          await vault.refresh();
+          return fn();
+        }),
+      false,
     );
   const noteOr = (title: string) => {
     const e = vault.find(title);

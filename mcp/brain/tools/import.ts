@@ -49,7 +49,7 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
         if (problem) return fail(`${path}: ${problem}.`);
         await vault.fs.writeText(`.brain/staging/${area}/${path}`, text);
         return ok(`Staged ${path} for ${area}.`);
-      }),
+      }, false),
   );
 
   server.registerTool(
@@ -72,7 +72,7 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
         if (bytes.length > MAX_BYTES) return fail(`${filename} is ${bytes.length} bytes, over the 100 MB limit.`);
         await vault.fs.writeBytes(`.brain/staging/${area}/attachments/${filename}`, bytes);
         return ok(`Staged attachments/${filename} (${bytes.length} bytes, sha256 ${sha256(bytes)}).`);
-      }),
+      }, false),
   );
 
   server.registerTool(
@@ -116,6 +116,7 @@ export function registerImportTools(server: McpServer, vault: Vault, fetchImpl: 
           await vault.log('promote_staging', { area, files: staged.length });
           return ok(`Promoted ${staged.length} files from ${area}.`);
         }),
+        false,
       ),
   );
 }

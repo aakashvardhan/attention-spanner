@@ -49,7 +49,7 @@ echo "📖 Reader — Chrome extension installer (v${version})"
 echo ""
 
 PAYLOAD_LINE=$(awk '/^__ARCHIVE_BELOW__$/ { print NR + 1; exit 0 }' "$0")
-TMP_ZIP="$(mktemp -t reader-ext).zip"
+TMP_ZIP="$(mktemp "\${TMPDIR:-/tmp}/reader-ext.XXXXXX")"
 tail -n +"$PAYLOAD_LINE" "$0" | base64 -d > "$TMP_ZIP" 2>/dev/null \\
   || tail -n +"$PAYLOAD_LINE" "$0" | base64 -D > "$TMP_ZIP"
 

@@ -31,4 +31,4 @@ Lets Claude Code read and edit the second-brain vault (spec: docs/superpowers/sp
 - `drive-probe`: the step 1 platform measurements
 - `diff-obsidian`: our index against Obsidian's own
 
-They write only to `<vault>/.brain/reports/`.
+They write only to `<vault>/.brain/reports/`, and `drive-probe` its probe files to `<vault>/.brain/probe/`.

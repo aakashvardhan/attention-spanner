@@ -1,4 +1,4 @@
-//! The paper decks: arrow keys across decks, a move between alphaXiv
+//! The bookshelf: arrow keys across shelves, a move between alphaXiv
 //! folders, and the titles for the New-arrivals cart.
 
 use crate::types::Paper;

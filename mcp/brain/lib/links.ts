@@ -4,8 +4,8 @@ import { nfc, titleKey } from './names';
 
 /** A wiki link. `from`/`to` are offsets into the text it was read from; -1 for links in properties. */
 export interface Link { target: string; heading: string | null; alias: string | null; embed: boolean; from: number; to: number; property: string | null }
-/** What links can point at: notes by title or alias, attachments by file name. Keys are titleKey()s, values paths. */
 /**
+ * What links can point at: notes by title or alias, attachments by file name. Keys are titleKey()s, values paths.
  * `titles` is what a link resolves against. Obsidian does not resolve `[[alias]]`, so neither do we.
  * `notes` adds aliases: every name a note answers to, which a new title must not take.
  */

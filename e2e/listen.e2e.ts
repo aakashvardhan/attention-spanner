@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES, expectClean, launch, mockClaude, seed, type Ext, clearCaches } from './harness';
-import { makePdf } from './seed';
+import { makePdf, toneWav } from './seed';
 
 /**
  * Listen: the paper read aloud as narration, against scripted Haiku and
@@ -15,26 +15,6 @@ const NARRATION: Record<number, string> = {
   2: '[SKIP]',
   3: 'And that is how the model is evaluated on the held out set.',
 };
-
-/** A 1.5 s, 220 Hz tone at 24 kHz: speech enough that the silence trim keeps it. */
-function toneWav(seconds = 1.5): Buffer {
-  const n = Math.round(24_000 * seconds);
-  const b = Buffer.alloc(44 + n * 2);
-  b.write('RIFF', 0);
-  b.writeUInt32LE(36 + n * 2, 4);
-  b.write('WAVEfmt ', 8);
-  b.writeUInt32LE(16, 16);
-  b.writeUInt16LE(1, 20);
-  b.writeUInt16LE(1, 22);
-  b.writeUInt32LE(24_000, 24);
-  b.writeUInt32LE(48_000, 28);
-  b.writeUInt16LE(2, 32);
-  b.writeUInt16LE(16, 34);
-  b.write('data', 36);
-  b.writeUInt32LE(n * 2, 40);
-  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 220 * i) / 24_000)), 44 + i * 2);
-  return b;
-}
 
 describe('reader: listen', () => {
   let ext: Ext;
@@ -125,11 +105,7 @@ describe('reader: listen', () => {
   const GROQ_429 = [/^console: Failed to load resource: the server responded with a status of 429 .*api\.groq\.com/];
 
   it('keeps the spoken sentence in view as it reads', async () => {
-    const page = await ext.page(`${PAGES.reader}?src=${encodeURIComponent(pdfUrl)}`);
-    await page.waitForSelector('[aria-label^="Page 1 of"] .textLayer span');
-    await clearCaches(page);
-    await page.mouse.move(400, 10);
-    await page.getByRole('button', { name: 'Listen' }).click();
+    const page = await openListen();
     // A short panel, so the narration starts below its fold.
     await page.locator('.reader-talk').evaluate((el) => {
       (el as HTMLElement).style.height = '180px';

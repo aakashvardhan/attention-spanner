@@ -1,10 +1,5 @@
-/* Rendered assistant answers: Markdown blocks + KaTeX math inside a chat
-   bubble. The bubble sets white-space: pre-wrap for plain replies; real block
-   elements need it back to normal so tag whitespace doesn't double up. */
-.md {
-  white-space: normal;
-}
-
+/* Rendered AI answers (pages::ai::Markdown, in the reader, the side panel and
+   the lexicon): Markdown blocks + KaTeX maths. */
 .md > :first-child {
   margin-top: 0;
 }
@@ -21,16 +16,9 @@
 .md h3,
 .md h4 {
   margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
   font-weight: 700;
   line-height: var(--leading-sm);
-}
-.md h1 {
-  font-size: var(--text-sm);
-}
-.md h2,
-.md h3,
-.md h4 {
-  font-size: var(--text-sm);
 }
 
 .md ul,

@@ -95,7 +95,6 @@ pub const DEAD_SETTINGS: &[&str] = &[
     "timePillHosts",
     "hyperfocusEnabled",
     "focusMusicEnabled",
-    "geminiKey",
     "nudgesEnabled",
     "dashboardMode",
     "dashColumns",
@@ -127,9 +126,12 @@ pub const DEAD_SETTINGS: &[&str] = &[
     "trackTopics",
     "geminiTopicKey",
     "notificationsEnabled",
-    "theme",
     "readerNight",
 ];
+
+/// Settings cut before v28 whose names now belong to live settings (the
+/// palette, the Gemini key): stripped only from profiles older than that.
+pub const V28_DEAD_SETTINGS: &[&str] = &["geminiKey", "theme"];
 
 /// Session keys cleared on every install/update (session storage outlives an update).
 pub const DEAD_SESSION_KEYS: &[&str] = &["hyperfocus", "driftChecked", "lastGlobalNudgeAt"];
@@ -177,10 +179,16 @@ pub fn v7_annotations(legacy: Option<&Value>) -> Option<Vec<Value>> {
 }
 
 /// The dead settings stripped; `None` when the stored value is not an object.
-pub fn strip_settings(settings: Option<&Value>) -> Option<Value> {
+/// `version` is the stored schema version: the v28 names are live after it.
+pub fn strip_settings(settings: Option<&Value>, version: u32) -> Option<Value> {
     let mut next = settings?.as_object()?.clone();
     for key in DEAD_SETTINGS {
         next.remove(*key);
+    }
+    if version < 28 {
+        for key in V28_DEAD_SETTINGS {
+            next.remove(*key);
+        }
     }
     Some(Value::Object(next))
 }
@@ -341,7 +349,7 @@ pub fn migrate(local: &Map<String, Value>, now: i64, new_id: impl FnMut() -> Str
         db.remove(*key);
     }
     plan.remove.extend(DEAD_KEYS.iter().map(|s| s.to_string()));
-    if let Some(settings) = strip_settings(db.get("settings")) {
+    if let Some(settings) = strip_settings(db.get("settings"), version) {
         db.insert("settings".into(), settings);
     }
     if version < 24 {

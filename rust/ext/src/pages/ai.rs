@@ -181,6 +181,10 @@ impl Ai {
                             let _ = store::set("aiCache", &cache).await;
                         })
                         .await;
+                        // Superseded while the answer was being saved: the newer one owns the card.
+                        if !current() {
+                            return;
+                        }
                     }
                     self.view.try_update(|v| {
                         v.status = AiStatus::Done;

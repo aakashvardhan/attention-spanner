@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain ESM without types
-import { gradeListen, gradeTalk, passAtK, passHatK, speakable } from '../eval/sidebar/graders.mjs';
+import { gradeListen, gradeNotes, gradeTalk, passAtK, passHatK, speakable } from '../eval/sidebar/graders.mjs';
 
 // The eval's code graders must reject wrong outputs and accept valid ones
 // (agent-evaluation practice: validate graders before trusting scores).
@@ -40,15 +40,12 @@ describe('side panel eval graders', () => {
 });
 
 describe('YouTube notes grader', () => {
-  // @ts-expect-error plain ESM without types
-  const load = () => import('../eval/sidebar/graders.mjs');
   const lecture = {
     kind: 'lecture', title: 'Lecture 1', summary: 's',
     cues: [{ t: '01:13', text: 'Q?' }],
     notes: [{ t: '01:13', text: 'a' }, { t: '03:36', text: 'b' }, { t: '45:00', text: 'c' }],
   };
-  it('passes a filled, ordered lecture; fails the wrong kind, empties, disorder, overruns, overlong titles and markdown', async () => {
-    const { gradeNotes } = await load();
+  it('passes a filled, ordered lecture; fails the wrong kind, empties, disorder, overruns, overlong titles and markdown', () => {
     const task = { expect: 'lecture', maxSeconds: 3_100 };
     expect(gradeNotes(lecture, task).pass).toBe(true);
     expect(gradeNotes({ ...lecture, kind: 'tutorial' }, task).pass).toBe(false);
@@ -59,8 +56,7 @@ describe('YouTube notes grader', () => {
     expect(gradeNotes({ ...lecture, summary: '**bold**' }, task).pass).toBe(false);
     expect(gradeNotes({ ...lecture, notes: [{ t: 'soon', text: 'a' }, ...lecture.notes] }, task).pass).toBe(false);
   });
-  it('a tutorial must copy code when the task says so', async () => {
-    const { gradeNotes } = await load();
+  it('a tutorial must copy code when the task says so', () => {
     const steps = [{ t: '0:10', text: 'a', code: '' }, { t: '0:20', text: 'b', code: '' }, { t: '0:30', text: 'c', code: '' }];
     const t = { kind: 'tutorial', title: 'T', summary: 's', steps };
     expect(gradeNotes(t, { expect: 'tutorial', expectCode: true }).pass).toBe(false);

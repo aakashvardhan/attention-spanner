@@ -62,7 +62,7 @@ describe('rust port: phase 2 worker', () => {
   });
 
   it('installs the arXiv PDF redirect on start and sends arXiv PDFs to the reader', async () => {
-    // The reader page lands in phase 4; until then, ask Chrome whether the rule matches.
+    // Ask Chrome whether the rule matches, without loading a page.
     expect(await sessionRules()).toContain(3000);
     expect(await matched('https://arxiv.org/pdf/1706.03762')).toEqual([3000]);
     expect(await matched('https://arxiv.org/abs/1706.03762')).toEqual([]);
@@ -106,7 +106,7 @@ describe('rust port: phase 2 worker', () => {
     await expect.poll(async () => (await sessionRules()).includes(1000)).toBe(true);
     expect(await storage<{ title: string }>(ext, 'focusSession')).toMatchObject({ title: 'A paper' });
 
-    // The blocked page lands in phase 3; until then, ask Chrome whether the rule matches.
+    // Ask Chrome whether the rule matches, without loading a page.
     expect(await matched(`${ext.sites.origin('blockme')}/`)).toEqual([1000]);
     expect(await matched('https://example.com/')).toEqual([]);
 

@@ -65,7 +65,7 @@ describe.each(PALETTES)('%s: WCAG AAA', (palette) => {
     ['--danger', '--danger-bg'],
     ['--success', '--bg-surface'],
     ['--danger', '--bg-surface'],
-    // The primary button: cream with walnut text
+    // The primary button: ink with cream text
     ['--bg-page', '--rule'],
     // The blocked page
     ['--focus-text', '--focus-bg'],
@@ -125,7 +125,7 @@ describe('theme structure', () => {
     expect(css).not.toMatch(/data-skin|round-progress|data-phase='focus'/);
     expect([...css.matchAll(/color-scheme: dark/g)].length).toBe(1);
     expect(PALETTES.length).toBeGreaterThan(1);
-    expect(tokens.get('color-scheme') ?? css.match(/:root \{\n {2}color-scheme: (\w+)/)?.[1]).toBe('light');
+    expect(css.match(/:root \{\n {2}color-scheme: (\w+)/)?.[1]).toBe('light');
   });
 
   it('the Settings picker lists exactly these palettes', () => {

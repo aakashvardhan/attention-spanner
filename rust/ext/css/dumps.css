@@ -74,7 +74,7 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
 }
-/* Unlock is the page's one primary action, so it alone carries Clay. */
+/* Unlock is the page's one primary action, so it alone carries the accent. */
 .dumps-locked .dumps-link {
   justify-self: center;
   color: var(--accent-text);

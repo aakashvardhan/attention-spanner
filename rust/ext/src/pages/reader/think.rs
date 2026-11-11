@@ -92,7 +92,6 @@ pub fn ExplainPanel(
         }
     });
     // One write per pause in typing, not per keystroke.
-    // ponytail: closing the panel inside the delay drops the last keystrokes.
     let pending = StoredValue::new(None::<TimeoutHandle>);
     let write_draft = move || {
         let draft = fields.map(|f| f.get_untracked());
@@ -119,6 +118,14 @@ pub fn ExplainPanel(
             .ok(),
         );
     };
+    // Closing the panel inside the delay writes the draft now: the timer would
+    // otherwise fire after the fields are gone.
+    on_cleanup(move || {
+        if let Some(h) = pending.try_update_value(Option::take).flatten() {
+            h.clear();
+            write_draft();
+        }
+    });
     let first: NodeRef<html::Textarea> = NodeRef::new();
     Effect::new(move |_| {
         // Next frame: by then the textarea's disabled attribute is gone.
@@ -152,8 +159,10 @@ pub fn ExplainPanel(
                 draft_status.set("Graded. The draft is cleared from this device.");
                 leptos::task::spawn_local(async move {
                     let kept = store::with_lock("explainBacks", async move {
-                        let mut all: ExplainBacks =
-                            store::get("explainBacks").await.unwrap_or_default();
+                        // Unreadable now is not empty: writing back would drop every earlier one.
+                        let Ok(mut all) = store::get::<ExplainBacks>("explainBacks").await else {
+                            return false;
+                        };
                         let [problem, trick, why] = said;
                         record(
                             &mut all,

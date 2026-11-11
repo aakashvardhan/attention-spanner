@@ -39,6 +39,17 @@ describe('Vault', () => {
     expect([...v.entries.keys()]).toEqual(['b.md']);
     expect(v.entries.get('b.md')!.links).toEqual([]);
   });
+  it('never lets an older refresh, finishing last, drop a file a newer one found', async () => {
+    root = await writeVault(Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`n${i}.md`, `# ${i}\n`])));
+    const v = await Vault.open(root, { now });
+    // Changed files make the first refresh slow; the new file sorts first, so the second finds it early.
+    for (let i = 0; i < 100; i++) await writeFile(join(root, `n${i}.md`), `# ${i} changed\n`);
+    const first = v.refresh();
+    await new Promise((r) => setTimeout(r, 20));
+    await writeFile(join(root, '0 new.md'), '# new\n');
+    await Promise.all([first, v.refresh()]);
+    expect(v.entries.has('0 new.md')).toBe(true);
+  });
   it('refuses an edit before a read, and after the file changed on disk', async () => {
     root = await writeVault({ 'a.md': '# A\n' });
     const v = await Vault.open(root, { now });

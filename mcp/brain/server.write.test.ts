@@ -33,6 +33,7 @@ describe('write tools', () => {
     expect((await t.call('create_note', { title: 'A/B test', text: '# A/B\n' })).text).toContain('Created Inbox/A-B test.md');
     expect(await read('Inbox/A-B test.md')).toBe('---\naliases: [A/B test]\n---\n# A/B\n');
     expect(await t.call('create_note', { title: 'sigmoid', text: '' })).toEqual({ text: '"sigmoid" is already used by Concepts/Sigmoid.md', error: true });
+    expect(await t.call('create_note', { title: 'X', text: '', folder: 'a//b' })).toEqual({ text: '"a//b" is not a folder notes can live in.', error: true });
   });
   it('edits only after a read, refuses a stale or ambiguous edit, and keeps history', async () => {
     t = await testServer({ 'a.md': '# A\none\ntwo\ntwo\n' });

@@ -65,7 +65,7 @@ extern "C" {
 }
 
 /// A wrong passphrase or recovery code.
-pub const LOCKED_MESSAGE: &str = "That didn't unlock it.";
+const LOCKED_MESSAGE: &str = "That didn't unlock it.";
 
 async fn call(p: Result<Promise, JsValue>) -> Res<JsValue> {
     JsFuture::from(p?).await

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PAGES, expectA11y, launch, mockClaude, seed, type Ext } from './harness';
+import { toneWav } from './seed';
 import { html } from './sites';
 
 /**
@@ -12,26 +13,6 @@ import { html } from './sites';
 
 const FIXTURE = readFileSync(resolve(__dirname, 'fixtures/webpage.html'), 'utf8');
 const SHAPES = readFileSync(resolve(__dirname, 'fixtures/webpage-shapes.html'), 'utf8');
-
-/** A 1.5 s, 220 Hz tone at 24 kHz (as in listen.e2e.ts). */
-function toneWav(seconds = 1.5): Buffer {
-  const n = Math.round(24_000 * seconds);
-  const b = Buffer.alloc(44 + n * 2);
-  b.write('RIFF', 0);
-  b.writeUInt32LE(36 + n * 2, 4);
-  b.write('WAVEfmt ', 8);
-  b.writeUInt32LE(16, 16);
-  b.writeUInt16LE(1, 20);
-  b.writeUInt16LE(1, 22);
-  b.writeUInt32LE(24_000, 24);
-  b.writeUInt32LE(48_000, 28);
-  b.writeUInt16LE(2, 32);
-  b.writeUInt16LE(16, 34);
-  b.write('data', 36);
-  b.writeUInt32LE(n * 2, 40);
-  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 220 * i) / 24_000)), 44 + i * 2);
-  return b;
-}
 
 type Extracted = { title: string; blocks: { level: number; text: string }[] };
 
@@ -140,10 +121,7 @@ describe('side panel: webpage', () => {
 
   it('reads the main text with math as LaTeX, leaving out menus and footers', async () => {
     const tabId = await openTab('/agent-evaluation');
-    const r: Extracted = await ext.sw.evaluate(
-      async (id) => (await chrome.scripting.executeScript({ target: { tabId: id }, files: ["page-text.js"] }))[0].result as Extracted,
-      tabId,
-    );
+    const r = await extract(tabId);
     const text = r.blocks.map((b) => b.text).join('\n');
     expect(r.title).toBe('Agent evaluation');
     expect(r.blocks[0]).toEqual({ level: 1, text: 'Agent evaluation' });

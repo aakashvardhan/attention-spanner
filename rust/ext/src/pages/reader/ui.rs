@@ -475,7 +475,8 @@ pub fn OutlineSidebar(
     current_page: Signal<u32>,
     on_jump: Callback<u32>,
 ) -> impl IntoView {
-    let active = move || section_index_at(&outline.get(), current_page.get());
+    // Once per page change, not once per item: every row asks.
+    let active = Memo::new(move |_| outline.with(|o| section_index_at(o, current_page.get())));
     view! {
         <nav class="reader-outline" aria-label="Outline">
             <h2>"Outline"</h2>
@@ -489,7 +490,7 @@ pub fn OutlineSidebar(
                             view! {
                                 <li>
                                     <button
-                                        class=move || if active() == Some(i) { "reader-outline-item active" } else { "reader-outline-item" }
+                                        class=move || if active.get() == Some(i) { "reader-outline-item active" } else { "reader-outline-item" }
                                         style:padding-left=format!("{}px", 10 + item.level * 14)
                                         title=item.title.clone()
                                         on:click=move |_| on_jump.run(page)
@@ -532,7 +533,7 @@ pub fn FindPanel(
                     Some(view! { <p class="reader-notes-empty">"Indexing text…"</p> }.into_any())
                 } else if !query.get().trim().is_empty() {
                     let n = matches.with(Vec::len);
-                    let text = if n == 0 { "No matches.".to_string() } else { format!("{n}{} pages found", if n == MAX_MATCHES { "+" } else { "" }) };
+                    let text = if n == 0 { "No matches.".to_string() } else { format!("{n}{} {} found", if n == MAX_MATCHES { "+" } else { "" }, if n == 1 { "page" } else { "pages" }) };
                     Some(view! { <p class="reader-notes-empty">{text}</p> }.into_any())
                 } else {
                     None

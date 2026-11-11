@@ -50,8 +50,8 @@ alphaXiv one menu item away.
   current section lit.
 - **Focus line.** Press F and a reading band holds your place.
 - **Keys for everything.** E, T and L open Explain it back, Talk and Listen;
-  N places a note; J and K step through sections; Shift+F is full screen;
-  `?` lists them all.
+  Q asks you a question about where you are; N places a note; J and K step
+  through sections; Shift+F is full screen; `?` lists them all.
 - **The tab names the paper.** The tab title is the paper and the page you
   are on, so a reader tab is easy to find among many.
 - **Figure mentions jump.** "Figure 3" in the text goes to the figure, and a
@@ -126,7 +126,7 @@ There is no account of the extension's own. It talks to:
 - **Claude**, with your own key, only for something you ask for: a
   definition, a brain dump, a question, Listen or Talk it through;
 - **Groq** (and OpenAI as a fallback voice), with your keys, for speech when
-  you Talk it through or Listen;
+  you Talk it through, Listen or dictate a brain dump;
 - **Gemini**, with your key, for notes on a YouTube video you ask about;
 - **Hacker News**, for the new tab's news card;
 - **Open-Meteo**, for the temperature by the new tab's clock, with your
@@ -186,7 +186,7 @@ feature without its key says so instead of failing.
 | Key | Used for | Get one |
 |---|---|---|
 | Anthropic API key | Click-to-define, brain dump, questions, Listen, Talk it through | [console.anthropic.com](https://console.anthropic.com) |
-| Groq API key | Talk it through: speech to text, and the tutor's voice | [console.groq.com](https://console.groq.com) |
+| Groq API key | Talk it through and Listen: speech to text and the voice; dictating a brain dump | [console.groq.com](https://console.groq.com) |
 | Gemini API key | YouTube notes and Talk it through on videos | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | OpenAI API key | Fallback voice when Groq's daily speech limit runs out | [platform.openai.com](https://platform.openai.com/api-keys) |
 
@@ -235,7 +235,7 @@ Load unpacked; the zip works on any OS. No Node, npm or Rust needed to install.
 ```sh
 npm run build:ext   # the extension only
 npm run test:rust   # cargo test, clippy (native and wasm, -D warnings), rustfmt
-npm test            # stylesheet guards, cut-features guard, brain MCP tests
+npm test            # stylesheet guards, cut-features guard, eval graders, brain MCP tests
 npm run typecheck   # the TypeScript that remains (e2e, brain MCP, tests)
 npm run test:e2e    # the browser suite against the built extension (Playwright)
 npm run check       # all of the above

@@ -13,7 +13,6 @@ pub enum Task {
     Question,
     Grade,
     Terms,
-    Reframe,
     Link,
 }
 
@@ -24,7 +23,6 @@ impl Task {
             Task::Question => "question",
             Task::Grade => "grade",
             Task::Terms => "terms",
-            Task::Reframe => "reframe",
             Task::Link => "link",
         }
     }

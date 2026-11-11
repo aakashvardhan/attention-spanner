@@ -27,6 +27,7 @@ export class Vault {
   private files: string[] = [];
   private readAt = new Map<string, number>();
   private queue: Promise<unknown> = Promise.resolve();
+  private refreshing: Promise<void> = Promise.resolve();
   private promoting = false;
 
   private constructor(
@@ -54,8 +55,17 @@ export class Vault {
     return v;
   }
 
-  /** Re-reads only files whose modification time or size changed. */
-  async refresh(): Promise<void> {
+  /**
+   * Re-reads only files whose modification time or size changed. One at a time: a read tool's
+   * refresh runs outside the write queue, and an older walk finishing last would drop newer files.
+   */
+  refresh(): Promise<void> {
+    const run = this.refreshing.then(() => this.reindex());
+    this.refreshing = run.catch(() => undefined);
+    return run;
+  }
+
+  private async reindex(): Promise<void> {
     const seen = new Set<string>();
     for (const f of await this.fs.walk('', indexSkips)) {
       if (!/\.md$/i.test(f.path)) continue;

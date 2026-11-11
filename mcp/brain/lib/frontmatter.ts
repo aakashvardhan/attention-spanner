@@ -133,7 +133,12 @@ function edit(note: Note, key: string, line: string | null): Note {
   if (note.error) throw new Error(`cannot edit frontmatter: ${note.error}`);
   const text = toText(note);
   const h = splitHead(text);
-  if (!h) return line === null ? note : parseNote(`---${note.eol}${line}${note.eol}---${note.eol}${text}`);
+  if (!h) {
+    if (line === null) return note;
+    // A BOM stays at the start of the file, not inside the body.
+    const bom = text.startsWith('﻿') ? '﻿' : '';
+    return parseNote(`${bom}---${note.eol}${line}${note.eol}---${note.eol}${text.slice(bom.length)}`);
+  }
   // The frontmatter's own line ending: a file can mix LF frontmatter with a CRLF body.
   const eol = h.open.endsWith('\r\n') ? '\r\n' : '\n';
   const lines = innerLines(h.inner);

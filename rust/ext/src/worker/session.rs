@@ -39,14 +39,23 @@ pub fn is_reader_url(url: &str) -> bool {
     url.starts_with(&chrome::get_url(READER_PAGE_PATH))
 }
 
-/// Fold one event into the heatmap log; the worker is its only writer.
+/// Fold one event into the heatmap log, under a lock: the worker is its only
+/// writer, but its handlers run concurrently (a reader closes as a round ends).
 pub async fn log_activity(event: ActivityEvent) -> Res<()> {
-    let log: ActivityLog = store::get("activity").await?;
-    if let Some(next) = add_activity(&log, &event, local_date(now())) {
-        store::set("activity", &next).await?;
-    }
-    Ok(())
+    store::with_lock("activity", async move {
+        let log: ActivityLog = store::get("activity").await?;
+        if let Some(next) = add_activity(&log, &event, local_date(now())) {
+            store::set("activity", &next).await?;
+        }
+        Ok(())
+    })
+    .await
 }
+
+/// Every read-modify-write of `focusSession` takes this lock: reader tabs
+/// restored together announce themselves at once, and unlocked the second
+/// write would drop the first tab from the session.
+const SESSION_LOCK: &str = "focusSession";
 
 /// Rebuild the session rules in one atomic update; one retry, since startup,
 /// install and a page message can reconcile at the same moment.
@@ -184,12 +193,17 @@ pub async fn check_focus_navigation(tab_id: i32, url: &str) -> Res<()> {
 
 /// A reader page announced itself; the first one starts the session.
 pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
-    let session: Option<FocusSession> = store::get("focusSession").await?;
-    let starting = session.is_none();
-    store::set(
-        "focusSession",
-        &with_reader_tab(session, tab_id, title, now()),
-    )
+    let title = title.to_string();
+    let starting = store::with_lock(SESSION_LOCK, async move {
+        let session: Option<FocusSession> = store::get("focusSession").await?;
+        let starting = session.is_none();
+        store::set(
+            "focusSession",
+            &with_reader_tab(session, tab_id, &title, now()),
+        )
+        .await?;
+        Res::Ok(starting)
+    })
     .await?;
     sync_session_access_rules().await?;
     if starting {
@@ -202,14 +216,21 @@ pub async fn reader_opened(tab_id: i32, title: &str) -> Res<()> {
 
 /// A reader tab closed or left; the last one ends the session.
 pub async fn reader_closed(tab_id: i32) -> Res<()> {
-    let session: Option<FocusSession> = store::get("focusSession").await?;
-    let Some(current) = session.filter(|s| s.tab_ids.contains(&tab_id)) else {
+    let closed = store::with_lock(SESSION_LOCK, async move {
+        let session: Option<FocusSession> = store::get("focusSession").await?;
+        let Some(current) = session.filter(|s| s.tab_ids.contains(&tab_id)) else {
+            return Ok(None);
+        };
+        let started = current.started_at;
+        let next = without_reader_tab(Some(current), tab_id);
+        store::set("focusSession", &next).await?;
+        Res::Ok(Some((started, next.is_none())))
+    })
+    .await?;
+    let Some((started, ended)) = closed else {
         return Ok(());
     };
-    let started = current.started_at;
-    let next = without_reader_tab(Some(current), tab_id);
-    store::set("focusSession", &next).await?;
-    if next.is_none() {
+    if ended {
         // A finished session is the heatmap's "focus" square, and its minutes.
         log_activity(ActivityEvent::Focus).await?;
         log_activity(ActivityEvent::Clocked(
@@ -259,25 +280,29 @@ struct Context {
 /// Asks getContexts, not tabs.get: without the "tabs" permission Chromium
 /// hides every tab's url, our own pages included. Rules never outlive state.
 pub async fn reconcile_session() -> Res<()> {
-    let session: Option<FocusSession> = store::get("focusSession").await?;
-    let open: Vec<Context> = from_js(
-        wait(chrome::runtime_get_contexts(&to_js(
-            &json!({ "contextTypes": ["TAB"] }),
-        )?))
-        .await?,
-    )?;
-    let mut next = session.clone();
-    for id in session.iter().flat_map(|s| s.tab_ids.clone()) {
-        let alive = open
-            .iter()
-            .any(|c| c.tab_id == id && c.document_url.as_deref().is_some_and(is_reader_url));
-        if !alive {
-            next = without_reader_tab(next, id);
+    store::with_lock(SESSION_LOCK, async {
+        let session: Option<FocusSession> = store::get("focusSession").await?;
+        let open: Vec<Context> = from_js(
+            wait(chrome::runtime_get_contexts(&to_js(
+                &json!({ "contextTypes": ["TAB"] }),
+            )?))
+            .await?,
+        )?;
+        let mut next = session.clone();
+        for id in session.iter().flat_map(|s| s.tab_ids.clone()) {
+            let alive = open
+                .iter()
+                .any(|c| c.tab_id == id && c.document_url.as_deref().is_some_and(is_reader_url));
+            if !alive {
+                next = without_reader_tab(next, id);
+            }
         }
-    }
-    if next != session {
-        store::set("focusSession", &next).await?;
-    }
+        if next != session {
+            store::set("focusSession", &next).await?;
+        }
+        Res::Ok(())
+    })
+    .await?;
     sync_session_access_rules().await
 }
 

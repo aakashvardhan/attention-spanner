@@ -1,5 +1,6 @@
-//! Shown when a blocked site is hit while a paper is open in the reader. Renders from storage only: when the
-//! session ends, the page turns into a "continue" link by itself.
+//! Shown when a blocked site is hit while a paper is open in the reader or a
+//! focus round runs. Renders from storage only: when the session ends, the page
+//! turns into a "continue" link by itself.
 
 use super::{send, use_storage};
 use leptos::prelude::*;

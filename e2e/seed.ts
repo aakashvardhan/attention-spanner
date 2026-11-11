@@ -79,3 +79,23 @@ export function makePdf(pages: number, outline = false): Buffer {
   out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(out, 'latin1');
 }
+
+/** A 1.5 s, 220 Hz tone at 24 kHz: speech enough that the silence trim keeps it. */
+export function toneWav(seconds = 1.5): Buffer {
+  const n = Math.round(24_000 * seconds);
+  const b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write('WAVEfmt ', 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(24_000, 24);
+  b.writeUInt32LE(48_000, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write('data', 36);
+  b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 220 * i) / 24_000)), 44 + i * 2);
+  return b;
+}

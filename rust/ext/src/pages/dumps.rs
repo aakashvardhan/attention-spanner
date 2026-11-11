@@ -139,16 +139,19 @@ fn Entry(id: String, entry: DumpEntry, on_deleted: Callback<()>) -> impl IntoVie
     let id = StoredValue::new(id);
     let remove = move |_| {
         leptos::task::spawn_local(async move {
-            vault::with_dump_lock(async move {
-                let locked: Vec<LockedDump> = store::get("lockedDumps").await.unwrap_or_default();
+            // A failed read must not become an empty list written back over every dump.
+            let removed = vault::with_dump_lock(async move {
+                let locked: Vec<LockedDump> = store::get("lockedDumps").await?;
                 let next: Vec<LockedDump> = locked
                     .into_iter()
                     .filter(|d| d.id != id.get_value())
                     .collect();
-                let _ = store::set("lockedDumps", &next).await;
+                store::set("lockedDumps", &next).await
             })
             .await;
-            on_deleted.run(());
+            if removed.is_ok() {
+                on_deleted.run(());
+            }
         });
     };
     let when = relative_date(entry.created_at, now(), local_date(entry.created_at));

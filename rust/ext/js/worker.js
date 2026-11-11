@@ -89,6 +89,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) run(wasm.on_tab_url, tabId, info.url);
 });
-chrome.tabs.onRemoved.addListener((tabId) => run(wasm.on_tab_removed, tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  panelTabs.delete(tabId);
+  run(wasm.on_tab_removed, tabId);
+});
 
 run(wasm.on_worker_start);

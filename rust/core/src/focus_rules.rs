@@ -140,7 +140,8 @@ pub fn build_session_access_rules(
     }
 }
 
-/// Session rule ids this module owns: the retired gate's allow rule and the focus range.
+/// Session rule ids this module owns: the retired gate's allow rule, the
+/// study-video allowance and the focus range.
 pub fn is_owned_session_rule(id: i64) -> bool {
     id == crate::constants::DAILY_GATE_ALLOW_DNR_ID
         || id == crate::constants::STUDY_VIDEO_DNR_ID

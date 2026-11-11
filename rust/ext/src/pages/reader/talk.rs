@@ -250,10 +250,12 @@ pub fn TalkPanel(
             })
             .await;
             match started {
-                Ok(rec) if phase.get_untracked() == Phase::Listening => {
+                Ok(rec) if phase.try_get_untracked() == Some(Phase::Listening) => {
                     recorder.set_value(Some(rec))
                 }
                 Ok(_) => {}
+                // The panel closed while the mic was asked for: nothing left to tell.
+                Err(_) if phase.try_get_untracked().is_none() => {}
                 Err(m) => {
                     error.set(m);
                     stop_all();
@@ -409,7 +411,8 @@ async fn end_turn(
     phase.set(Phase::Writing);
     let key = settings.get_untracked().groq_key;
     let heard = voice::transcribe(&key, &encode_wav(&speech)).await;
-    if phase.get_untracked() != Phase::Writing {
+    // Stopped, or the panel closed, meanwhile.
+    if phase.try_get_untracked() != Some(Phase::Writing) {
         return;
     }
     match heard.map(|raw| clean_transcript(&raw)) {

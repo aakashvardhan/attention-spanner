@@ -114,7 +114,8 @@ pub fn ListenPanel(
             let mut scroll_due = false;
             loop {
                 sleep_ms(150).await;
-                if std::mem::take(&mut scroll_due) {
+                // Not once the panel is gone: its node ref goes with it.
+                if std::mem::take(&mut scroll_due) && live() {
                     keep_in_view(panel);
                 }
                 if !live() || matches!(phase.get_untracked(), Phase::Off | Phase::Done) {

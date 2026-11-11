@@ -12,10 +12,13 @@ export const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, idempot
 export const IDEMPOTENT = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 export const IDEMPOTENT_OPEN = { ...IDEMPOTENT, openWorldHint: true };
 
-/** Every call sees the vault as it is now, since the Brain page or Windows may have changed it; every failure is a message, never a crash. */
-export async function guard(vault: Vault, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
+/**
+ * Every call sees the vault as it is now, since the Brain page or Windows may have changed it; every failure is a message, never a crash.
+ * Queued writes pass `refresh = false` (they re-read inside the queue), and so do the staging tools, which never read the index.
+ */
+export async function guard(vault: Vault, fn: () => Promise<CallToolResult>, refresh = true): Promise<CallToolResult> {
   try {
-    await vault.refresh();
+    if (refresh) await vault.refresh();
     return await fn();
   } catch (e) {
     if (e instanceof QueryError) return fail(`${e.message} at character ${e.pos + 1}`);

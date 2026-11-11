@@ -418,10 +418,11 @@ pub fn plan_push(queue: &[PushItem], folders: &[Folder], papers: &[Paper]) -> Pu
         folders.iter().map(|f| (folder_key(&f.name), f)).collect();
     let mut groups: Vec<(String, String, Vec<String>)> = Vec::new(); // (key, display name, ids), in first-seen order
     for item in queue {
-        let mut key = folder_key(&item.folder);
-        if key.is_empty() {
-            key = folder_key("Want to read");
+        let mut folder = item.folder.trim();
+        if folder.is_empty() {
+            folder = "Want to read";
         }
+        let key = folder_key(folder);
         let existing = by_key.get(&key);
         if let Some(f) = existing {
             if papers
@@ -434,8 +435,7 @@ pub fn plan_push(queue: &[PushItem], folders: &[Folder], papers: &[Paper]) -> Pu
         let i = match groups.iter().position(|g| g.0 == key) {
             Some(i) => i,
             None => {
-                let name =
-                    existing.map_or_else(|| item.folder.trim().to_string(), |f| f.name.clone());
+                let name = existing.map_or_else(|| folder.to_string(), |f| f.name.clone());
                 groups.push((key.clone(), name, vec![]));
                 groups.len() - 1
             }

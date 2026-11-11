@@ -17,9 +17,9 @@ body {
   line-height: var(--leading-md);
 }
 
-/* The focus and break themes change the room; ease it, never snap. Only once
-   the saved palette is in (data-settled, set by use_theme), or every new tab
-   would fade in from the default palette. */
+/* The break room and a palette change recolour the page; ease it, never
+   snap. Only once the saved palette is in (data-settled, set by use_theme),
+   or every new tab would fade in from the default palette. */
 :root[data-settled] body {
   transition: background-color var(--dur-effect-slow) var(--ease-effect), color var(--dur-effect-slow) var(--ease-effect);
 }
@@ -170,15 +170,6 @@ ul {
 .news-disclosure .feed {
   min-height: 0;
   margin-top: var(--space-3);
-}
-.clock .today-stats {
-  flex: 1 1 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0;
-  padding: var(--space-3) 0 0;
-  border-left: 0;
-  border-top: 1px solid var(--border-subtle);
 }
 
 /* ---------- The game ---------- */
@@ -639,13 +630,10 @@ ul + .hint {
   gap: var(--space-1);
 }
 .heat-seg button {
-  padding: 0;
   border: 0;
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
   cursor: pointer;
 }
 .heat-seg button[aria-checked='true'] {
@@ -705,9 +693,6 @@ ul + .hint {
 }
 .heat-cell--future {
   visibility: hidden;
-}
-.heat-cell:focus-visible {
-  outline: 2px solid var(--accent);
 }
 .heat-tip {
   position: absolute;
@@ -843,7 +828,6 @@ body.todo-dragging .board--todos .board-empty {
   color: var(--text-primary);
   font-weight: 700;
 }
-/* Narrow columns wrap the time onto its own line rather than cutting off a button. */
 /* One line at every width, so every card is the same height: the date
    field gives up width before anything wraps. */
 .todo-row {
@@ -927,7 +911,6 @@ body.todo-dragging .board--todos .board-empty {
   height: var(--space-6);
   padding: 0;
   border-radius: var(--radius-pill);
-  font-size: var(--text-lg);
   border: none;
   background: transparent;
   font: inherit;
@@ -968,36 +951,6 @@ body.todo-dragging .board--todos .board-empty {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* A narrow side column (smaller windows): the numbers move under the clock,
-   two by two, instead of squeezing the weather and the button. */
-@container side (max-width: 640px) {
-  .clock {
-    flex-wrap: wrap;
-    row-gap: var(--space-4);
-  }
-  .clock-sky {
-    flex: 1 1 0;
-  }
-  .today-stats {
-    flex: 1 1 100%;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-2) var(--space-3);
-    margin: 0;
-    padding: var(--space-3) 0 0;
-    border-left: 0;
-    border-top: 1px solid var(--border);
-  }
-}
-@container side (max-width: 400px) {
-  .clock .clock-face {
-    width: 128px;
-    height: 128px;
-  }
-  .clock-sky .edition-pill {
-    white-space: normal;
-  }
 }
 
 /* ---------- Pomodoro ---------- */
@@ -1066,7 +1019,6 @@ body.todo-dragging .board--todos .board-empty {
 }
 .todo-check input {
   flex: none;
-  accent-color: var(--accent);
 }
 .pomo-tasks .todo--done span {
   color: var(--text-muted);
@@ -1250,7 +1202,7 @@ body.todo-dragging .board--todos .board-empty {
     animation: none;
     display: none;
   }
-  body {
+  :root[data-settled] body {
     transition: none;
   }
   .live-dot {
@@ -1267,7 +1219,6 @@ body.todo-dragging .board--todos .board-empty {
   font-size: var(--text-xl);
   line-height: var(--leading-xl);
 }
-.heat-title,
 .heat .hint {
   font-size: var(--text-sm);
   line-height: var(--leading-sm);

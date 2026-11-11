@@ -167,17 +167,21 @@ pub async fn start(
             on_heard(Heard::Done);
         }
     });
-    tap.port()
-        .map_err(|_| "port")?
-        .set_onmessage(Some(on_frame.as_ref().unchecked_ref()));
     debug_assert_eq!(FRAME, 480, "mic-worklet.js posts 480-sample frames");
-    Ok(Recorder {
+    // Built first, so a failure below drops it and so releases the mic.
+    let recorder = Recorder {
         stream,
         ctx,
         tap,
         samples,
         _on_frame: on_frame,
-    })
+    };
+    recorder
+        .tap
+        .port()
+        .map_err(|_| "Couldn't start the mic.")?
+        .set_onmessage(Some(recorder._on_frame.as_ref().unchecked_ref()));
+    Ok(recorder)
 }
 
 /// The WAV, transcribed by Groq Whisper. One retry on a network error or a 5xx.
@@ -261,10 +265,10 @@ async fn transcribe_once(key: &str, wav: &[u8]) -> Result<String, (String, bool)
     result
 }
 
-/// One chunk of speech from Groq Orpheus, as WAV bytes. A network error is
-/// worth a short wait and another try, like a 5xx. With `cached`, words
-/// already spoken in this voice come from crate::cache; the Settings voice
-/// test passes false, since it is there to try the key.
+/// One chunk of speech from `provider` (Groq Orpheus, or OpenAI), as WAV
+/// bytes. A network error is worth a short wait and another try, like a 5xx.
+/// With `cached`, words already spoken in this voice come from crate::cache;
+/// the Settings voice test passes false, since it is there to try the key.
 pub async fn synthesize(
     provider: TtsProvider,
     key: &str,

@@ -583,6 +583,13 @@ fn a_blank_folder_name_goes_to_want_to_read() {
         plan_push(&[item("a", "  ")], &folders(), &[]).saves,
         vec![("Want to read".to_string(), vec!["a".to_string()])]
     );
+    // With no such folder yet it is created under that name, not as "".
+    let plan = plan_push(&[item("a", "  ")], &[], &[]);
+    assert_eq!(plan.create, ["Want to read"]);
+    assert_eq!(
+        plan.saves,
+        vec![("Want to read".to_string(), vec!["a".to_string()])]
+    );
 }
 
 #[test]

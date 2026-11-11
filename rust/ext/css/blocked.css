@@ -1,6 +1,5 @@
-/* Deliberately always dark (focus immersion): the --focus-* tokens are
-   theme-invariant, so a blocked site feels like the same quiet room in either
-   theme. Centered on the shared grid, columns 4–9. */
+/* The same room as every other page: the --focus-* tokens follow the
+   palette (theme.css). Centered on the shared grid, columns 4–9. */
 
 * {
   margin: 0;

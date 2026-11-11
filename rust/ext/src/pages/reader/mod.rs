@@ -257,7 +257,7 @@ fn PdfReader(src: String) -> impl IntoView {
         set_jump.set(Some((page, 0.0, jump_seq.get_value())));
     });
     // A #page=N link to this paper from another tab lands here as a hash change.
-    let _ = window_event_listener(leptos::ev::hashchange, move |_| {
+    let on_hash = window_event_listener(leptos::ev::hashchange, move |_| {
         if let Some(n) = window()
             .location()
             .hash()
@@ -268,6 +268,7 @@ fn PdfReader(src: String) -> impl IntoView {
             go.run(n);
         }
     });
+    on_cleanup(move || on_hash.remove());
 
     let page_count = Signal::derive(move || sizes.with(Vec::len) as u32);
 
@@ -513,10 +514,11 @@ fn PdfReader(src: String) -> impl IntoView {
         }
     });
     // Top-level sections only: the rail is for orientation, not depth.
-    let sections = Signal::derive(move || top_level(&outline.get()));
+    // Memos: every scroll moves `position`, and the rail, toast and title all read these.
+    let sections = Memo::new(move |_| outline.with(|o| top_level(o)));
     let section_index =
-        Signal::derive(move || section_index_at(&sections.get(), position.get().page));
-    let section_toast = ui::use_section_toast(sections, section_index);
+        Memo::new(move |_| sections.with(|s| section_index_at(s, position.get().page)));
+    let section_toast = ui::use_section_toast(sections.into(), section_index.into());
     // The game speaks through the same quiet line: "+30 XP", a level, the day's goal.
     let (_, earned) = super::use_game();
     let section_toast = Signal::derive(move || section_toast.get().or_else(|| earned.get()));
@@ -848,7 +850,7 @@ fn PdfReader(src: String) -> impl IntoView {
                             <div class="reader-focus-band" aria-hidden="true"></div>
                         </Show>
                         <Show when=move || !outline_open.get()>
-                            <OutlineRail sections=sections current=section_index on_jump=go />
+                            <OutlineRail sections=sections.into() current=section_index.into() on_jump=go />
                         </Show>
                         <ReaderCapsule
                             label=capsule_label

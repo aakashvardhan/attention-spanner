@@ -3,6 +3,7 @@
 //! over Streamable HTTP, and the library sync. Every rule is in
 //! reader_core::alphaxiv / ::mcp; this file only moves bytes.
 
+use super::PAPERS_LOCK;
 use crate::chrome;
 use crate::js::{from_js, now, to_js, wait, Res};
 use crate::store;
@@ -595,24 +596,37 @@ fn failed(e: &AlphaxivError) -> Value {
 /// Move a book between folders: on the shelf at once, then on alphaXiv; if
 /// alphaXiv refuses, the book goes back to the folders it had.
 pub async fn move_paper(id: &str, from: &str, to: &str) -> Value {
-    let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await else {
-        return failed(&offline());
+    let (paper, src, dst) = (id.to_string(), from.to_string(), to.to_string());
+    let moved = store::with_lock(PAPERS_LOCK, async move {
+        let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await else {
+            return Err(offline());
+        };
+        let Some(before) = shelf::move_paper(&mut papers, &paper, &src, &dst) else {
+            return Err(AlphaxivError::new(ErrorKind::NotFound, ""));
+        };
+        let _ = store::set("papers", &papers).await;
+        Ok(before)
+    })
+    .await;
+    let before = match moved {
+        Ok(before) => before,
+        Err(e) => return failed(&e),
     };
-    let Some(before) = shelf::move_paper(&mut papers, id, from, to) else {
-        return failed(&AlphaxivError::new(ErrorKind::NotFound, ""));
-    };
-    let _ = store::set("papers", &papers).await;
     let args = json!({ "paper_ids_or_urls": [id], "from_folder_id": from, "to_folder_id": to });
     match call_tool("move_papers_between_folders", args).await {
         Ok(_) => json!({ "ok": true }),
         Err(e) => {
             // Read again: the reader may have saved progress while alphaXiv answered.
-            if let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await {
-                if let Some(p) = papers.iter_mut().find(|p| p.id == id) {
-                    p.folder_ids = before;
-                    let _ = store::set("papers", &papers).await;
+            let paper = id.to_string();
+            store::with_lock(PAPERS_LOCK, async move {
+                if let Ok(mut papers) = store::get::<Vec<Paper>>("papers").await {
+                    if let Some(p) = papers.iter_mut().find(|p| p.id == paper) {
+                        p.folder_ids = before;
+                        let _ = store::set("papers", &papers).await;
+                    }
                 }
-            }
+            })
+            .await;
             failed(&e)
         }
     }
@@ -667,13 +681,17 @@ pub async fn arrivals() -> Value {
 async fn pull_library() -> AxResult<()> {
     let library =
         parse_library(&call_tool("list_library", json!({ "include_papers": true })).await?)?;
-    // Read the shelf after the network call: the reader may have saved progress meanwhile.
-    let papers: Vec<Paper> = store::get("papers").await.map_err(|_| offline())?;
-    let (folders, papers) = merge_library(&papers, &library, now());
-    store::set("folders", &folders)
-        .await
-        .map_err(|_| offline())?;
-    store::set("papers", &papers).await.map_err(|_| offline())
+    // Read the shelf after the network call, under the lock: the reader may
+    // save progress meanwhile.
+    store::with_lock(PAPERS_LOCK, async move {
+        let papers: Vec<Paper> = store::get("papers").await.map_err(|_| offline())?;
+        let (folders, papers) = merge_library(&papers, &library, now());
+        store::set("folders", &folders)
+            .await
+            .map_err(|_| offline())?;
+        store::set("papers", &papers).await.map_err(|_| offline())
+    })
+    .await
 }
 
 /// The v27 queue, saved into alphaXiv folders once; true when anything was written.

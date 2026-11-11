@@ -163,6 +163,10 @@ pub fn VideoPanel(tab_id: i32, id: String, title: Signal<String>) -> impl IntoVi
                 _ => {
                     if !verified.get_untracked() {
                         load_info().await;
+                        // The panel went (another video or tab) while the player was asked.
+                        if alive.try_get_value() != Some(true) {
+                            return;
+                        }
                     }
                     match clip(
                         &from.get_untracked(),

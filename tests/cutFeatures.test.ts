@@ -72,21 +72,19 @@ const files = ['rust', 'e2e', 'mcp', 'tests'].flatMap((d) => {
   }
 });
 
+// Read once: every pattern scans the same lines.
+const lines = files.map((f) => [f, readFileSync(f, 'utf8').split('\n')] as const);
+
 function hits(pattern: RegExp): string[] {
   const out: string[] = [];
-  for (const f of files)
-    readFileSync(f, 'utf8')
-      .split('\n')
-      .forEach((l, i) => {
-        if (pattern.test(l)) out.push(`${f}:${i + 1}`);
-      });
+  for (const [f, ls] of lines)
+    ls.forEach((l, i) => {
+      if (pattern.test(l)) out.push(`${f}:${i + 1}`);
+    });
   return out;
 }
 
 describe('cut features stay cut', () => {
   it('scans real files', () => expect(files.length).toBeGreaterThan(50));
-  it.skipIf(CUT.length === 0)('has entries once the cuts start', () => {
-    expect(CUT.length).toBeGreaterThan(0);
-  });
   for (const { name, pattern } of CUT) it(`${name} stays cut`, () => expect(hits(pattern)).toEqual([]));
 });

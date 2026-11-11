@@ -71,8 +71,8 @@ the panel's UI, open the sidebar page as a tab with `?tab=` (as e2e does).
   and `.side-col` on the right (brain dump `section[aria-label="Brain dump"]`,
   heatmap `.heat`). A card whose title equals `focusSession.title` gets
   `.paper-card--reading` and a blinking `.live-dot`; seed `focusSession` with a
-  real tab id (`chrome.tabs.getCurrent()`) or the worker prunes it. Papers and
-  Settings live in `.edition-index`.
+  real tab id (`chrome.tabs.getCurrent()`) or the worker prunes it. Papers, Notes
+  and Settings live in `.edition-index`.
 - Papers page: card decks. `.shelf` per folder, `.book` card buttons (one has
   `tabindex="0"`; arrows move it), Enter opens `.book-card`, M opens
   `.move-menu`, the cart is `section.cart` (needs `alphaxivAuth` seeded and the
@@ -132,5 +132,5 @@ the panel's UI, open the sidebar page as a tab with `?tab=` (as e2e does).
   `storage.onChanged`**, so derived state that recomputes off that listener (the
   toolbar badge) will not update. Seeding storage directly also skips whatever
   the real handler does around the write. To test derived state, drive the
-  actual message (`chrome.runtime.sendMessage({ type: 'REC_START', … })`) rather
+  actual message (`chrome.runtime.sendMessage({ type: 'READER_OPENED', title: … })`) rather
   than staging storage and hoping a listener notices.

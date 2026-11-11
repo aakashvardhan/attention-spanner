@@ -122,9 +122,12 @@ pub fn paper_document(parts: &[String], source: Source) -> String {
         return parts.concat().chars().take(PAPER_MAX_CHARS).collect();
     }
     let mut doc = String::new();
+    let mut chars = 0;
     for (i, p) in parts.iter().enumerate() {
-        doc.push_str(&format!("[{} {}]\n{}\n", source.part(), i + 1, p));
-        if doc.len() > PAPER_MAX_CHARS {
+        let part = format!("[{} {}]\n{}\n", source.part(), i + 1, p);
+        chars += part.chars().count();
+        doc.push_str(&part);
+        if chars > PAPER_MAX_CHARS {
             break;
         }
     }
@@ -469,6 +472,9 @@ mod tests {
         let sys = agent_system("Notes", Source::Webpage);
         assert!(sys.contains("you never tell") && sys.contains("the page \"Notes\""));
         assert!(paper_document(&["a".into(), "b".into()], Source::Webpage).contains("[section 2]"));
+        // The cap counts characters, so a non-Latin paper is not cut at a third of it.
+        let cjk = paper_document(&vec!["汉".repeat(5_000); 10], Source::Paper);
+        assert_eq!(cjk.chars().count(), PAPER_MAX_CHARS);
         let p = turn_prompt(&[], 3, Source::Webpage);
         assert!(!p.contains("page 3") && !p.contains("section 3"));
         assert!(turn_prompt(&[], 3, Source::Paper).contains("They are on page 3."));

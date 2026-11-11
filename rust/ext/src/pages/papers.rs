@@ -60,7 +60,7 @@ fn progress_label(p: &Paper) -> String {
 pub fn Papers() -> impl IntoView {
     super::use_theme();
     let (papers, _) = use_storage::<Vec<Paper>>("papers");
-    let (folders, _) = use_storage::<Vec<Folder>>("folders");
+    let (folders, folders_loaded) = use_storage::<Vec<Folder>>("folders");
     let (explains, _) = use_storage::<ExplainBacks>("explainBacks");
     let (lexicon, _) = use_storage::<reader_core::lexicon::Lexicon>("lexicon");
     // The shelf is alphaXiv's: refresh it (at most every two minutes) whenever this page opens.
@@ -179,7 +179,8 @@ pub fn Papers() -> impl IntoView {
                 </header>
                 <p class="library-status" role="status">{move || status.get()}</p>
                 <section class="bookcase" aria-label="Your shelves" on:keydown=on_case_key>
-                    <Show when=move || folders.with(Vec::is_empty)>
+                    // Not before storage has answered: no flash of "sign in" for a signed-in reader.
+                    <Show when=move || folders_loaded.get() && folders.with(Vec::is_empty)>
                         <p class="library-hint">"Sign in to alphaXiv in Settings to bring in your library."</p>
                     </Show>
                     {move || shelves.get().into_iter().enumerate().map(|(s, (folder, books))| {

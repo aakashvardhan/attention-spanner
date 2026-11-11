@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -548,7 +548,8 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
   });
 
   it('leaves a local PDF and a non-arXiv web PDF in Chrome\'s own viewer', async () => {
-    const file = join(mkdtempSync(join(tmpdir(), 'reader-local-')), 'local paper.pdf');
+    const dir = mkdtempSync(join(tmpdir(), 'reader-local-'));
+    const file = join(dir, 'local paper.pdf');
     writeFileSync(file, makePdf(2));
     const local = pathToFileURL(file).href;
     const page = await ext.ctx.newPage();
@@ -559,6 +560,7 @@ describe('reader: key terms, reading session, PDF plumbing', () => {
     await page.waitForTimeout(800);
     expect(page.url()).toBe(pdfUrl);
     await page.close();
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it('opens an arXiv PDF in the reader, with alphaXiv one menu item away', async () => {

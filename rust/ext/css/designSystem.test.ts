@@ -28,7 +28,7 @@ const PX = /(-?\d*\.?\d+)px/g;
 const GRADIENT = /\b(repeating-)?(linear|radial|conic)-gradient\(/;
 /* One elevation and the focus ring, nothing else. theme.css defines the
    elevation as --shadow-lg (things that float over the page: menus, popovers,
-   the recap card) and draws its focus ring in --accent. A ring is spread only,
+   the pulled-out book card) and draws its focus ring in --accent. A ring is spread only,
    no blur, so it reads as an outline rather than a shadow. */
 const ELEVATION = ['--shadow-lg'];
 const FOCUS_RING = ['--accent'];

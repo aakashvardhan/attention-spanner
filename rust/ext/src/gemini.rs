@@ -1,6 +1,6 @@
-//! Gemini from a page: one generateContent call (reader_core::youtube builds
-//! the request and reads the reply). Host permissions cover the API, so no
-//! CORS dance.
+//! Gemini from a page or the worker (video notes): one generateContent call
+//! (reader_core::youtube builds the request and reads the reply). Host
+//! permissions cover the API, so no CORS dance.
 
 use crate::chrome;
 use crate::claude::{clear_timeout, gloo_timeout};

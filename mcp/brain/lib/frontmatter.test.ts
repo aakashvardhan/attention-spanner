@@ -108,6 +108,7 @@ describe('setField', () => {
   });
   it('adds frontmatter to a note that has none', () => {
     expect(toText(setField(parseNote('# Hi\n'), 'tags', ['moc']))).toBe('---\ntags: [moc]\n---\n# Hi\n');
+    expect(toText(setField(parseNote('﻿# Hi\n'), 'tags', ['moc']))).toBe('﻿---\ntags: [moc]\n---\n# Hi\n');
   });
   it('round-trips any flat value through YAML', () => {
     fc.assert(

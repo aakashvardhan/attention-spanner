@@ -28,23 +28,9 @@ body {
   color: var(--text-secondary);
 }
 
-/* A ruled row, not a card: space and one hairline under it. */
-.panel {
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.panel h2 {
-  font-size: var(--text-md);
-  line-height: var(--leading-md);
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--space-3);
-}
-
 /* ---------------------------------------------------------------------------
-   The Library: a masthead, decks beside papers on the grid,
-   and cards turned into ruled rows.
+   The Library: a masthead, then the bookcase and the New-arrivals cart on
+   the grid.
    --------------------------------------------------------------------------- */
 
 .library {

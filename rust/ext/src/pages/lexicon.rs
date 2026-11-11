@@ -592,15 +592,14 @@ pub fn LexiconPage() -> impl IntoView {
                     </div>
                 </Show>
                 <svg class="lex-edges" aria-hidden="true">
-                    <For each=move || lexicon.get().edges key=|e| (e.a.clone(), e.b.clone()) let:edge>
+                    <For each=move || lexicon.with(|l| l.edges.clone()) key=|e| (e.a.clone(), e.b.clone()) let:edge>
                         <EdgeLine a=edge.a b=edge.b g=g hovered=hovered selected=selected lexicon=lexicon on_open=Callback::new(move |s| open(s, None)) />
                     </For>
                 </svg>
-                <For each=move || lexicon.get().terms key=|t| t.id.clone() let:term>
+                <For each=move || lexicon.with(|l| l.terms.clone()) key=|t| t.id.clone() let:term>
                     <Node
                         id=term.id
                         label=term.label
-                        fresh=term.linked_at.is_none()
                         g=g
                         hovered=hovered
                         selected=selected
@@ -686,7 +685,6 @@ async fn link_once() -> String {
 fn Node(
     id: String,
     label: String,
-    fresh: bool,
     g: Graph,
     hovered: RwSignal<Option<String>>,
     selected: RwSignal<Option<Sel>>,
@@ -708,6 +706,13 @@ fn Node(
         id.with_value(|id| lexicon.with(|l| l.edges.iter().filter(|e| e.touches(id)).count()))
     });
     let size = move || format!("{}px", 12 + 3 * degree.get().min(6));
+    // Live, not from the mount: the For is keyed by id, so a term linked (or
+    // kept again from a new paper) since then keeps its node.
+    let fresh = Memo::new(move |_| {
+        id.with_value(|id| {
+            lexicon.with(|l| l.terms.iter().any(|t| t.id == *id && t.linked_at.is_none()))
+        })
+    });
     let dim = move || {
         hovered.with(|h| {
             h.as_ref().is_some_and(|h| {
@@ -740,7 +745,7 @@ fn Node(
             class="lex-node"
             class:is-dim=dim
             class:is-open=is_open
-            class:is-fresh=fresh
+            class:is-fresh=move || fresh.get()
             data-id=id.get_value()
             style=style
             style:width=size

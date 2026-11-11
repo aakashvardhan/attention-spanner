@@ -120,7 +120,7 @@ pub enum AnnotationAnchor {
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     pub id: String,
-    /// Stable document identity: paper_match_key(url), else the normalised url
+    /// Stable document identity: paper_match_key(url), else the url as given
     pub doc_key: String,
     pub doc_url: String,
     pub paper_id: Option<String>,
